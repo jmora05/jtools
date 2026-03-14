@@ -1,0 +1,199 @@
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            {/* Paso 1: Selección del tipo de orden */}
+            {!orderTypeStep ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Nueva Orden de Producción</DialogTitle>
+                  <DialogDescription>
+                    Selecciona el tipo de orden que deseas registrar
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-8">
+                  {/* Opción Pedido */}
+                  <Card 
+                    className="cursor-pointer border-2 hover:border-blue-500 hover:shadow-lg transition-all"
+                    onClick={() => {
+                      setSelectedOrderType('Pedido');
+                      setOrderTypeStep(true);
+                    }}
+                  >
+                    <CardContent className="flex flex-col items-center justify-center p-8 space-y-4">
+                      <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center">
+                        <ShoppingCartIcon className="w-10 h-10 text-blue-600" />
+                      </div>
+                      <h3 className="text-xl text-gray-900">Pedido</h3>
+                      <p className="text-sm text-center text-gray-600">
+                        Producción basada en pedidos de clientes
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Opción Venta */}
+                  <Card 
+                    className="cursor-pointer border-2 hover:border-green-500 hover:shadow-lg transition-all"
+                    onClick={() => {
+                      setSelectedOrderType('Venta');
+                      setOrderTypeStep(true);
+                    }}
+                  >
+                    <CardContent className="flex flex-col items-center justify-center p-8 space-y-4">
+                      <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                        <TruckIcon className="w-10 h-10 text-green-600" />
+                      </div>
+                      <h3 className="text-xl text-gray-900">Venta</h3>
+                      <p className="text-sm text-center text-gray-600">
+                        Producción para inventario y venta directa
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setSelectedOrderType('');
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Paso 2: Formulario de registro */}
+                <DialogHeader>
+                  <DialogTitle>Registrar Nueva Orden de Producción - {selectedOrderType}</DialogTitle>
+                  <DialogDescription>
+                    Completa los campos obligatorios (*) para crear una nueva orden.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleCreateOrder} className="space-y-6">
+                  <Card className="border-2 border-blue-100">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-white">
+                      <CardTitle className="text-lg">Información de la Orden</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Producto *</Label>
+                          <Select
+                            value={orderForm.product}
+                            onValueChange={handleProductChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar producto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map(product => (
+                                <SelectItem key={product.code} value={product.name}>
+                                  {product.name} ({product.code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Código del Producto</Label>
+                          <Input
+                            value={orderForm.productCode}
+                            disabled
+                            className="bg-gray-50"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Cantidad *</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Cantidad a producir"
+                            value={orderForm.quantity}
+                            onChange={(e) => setOrderForm({ ...orderForm, quantity: e.target.value })}
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Responsable *</Label>
+                          <Select
+                            value={orderForm.responsible}
+                            onValueChange={(value) => setOrderForm({ ...orderForm, responsible: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar responsable" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {responsibles.map(resp => (
+                                <SelectItem key={resp} value={resp}>{resp}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Fecha de Entrega *</Label>
+                          <Input
+                            type="date"
+                            value={orderForm.dueDate}
+                            onChange={(e) => setOrderForm({ ...orderForm, dueDate: e.target.value })}
+                            min={new Date().toISOString().split('T')[0]}
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Notas Adicionales</Label>
+                          <Textarea
+                            placeholder="Especificaciones o instrucciones especiales..."
+                            value={orderForm.notes}
+                            onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setOrderTypeStep(false);
+                        setSelectedOrderType('');
+                      }}
+                      className="flex-1"
+                    >
+                      <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                      Atrás
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        resetForm();
+                        setShowCreateModal(false);
+                        setOrderTypeStep(false);
+                        setSelectedOrderType('');
+                      }}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      Registrar Orden
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </DialogContent>

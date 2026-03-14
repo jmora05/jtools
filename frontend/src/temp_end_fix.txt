@@ -1,0 +1,24 @@
+              <div className="space-y-3">
+                <Label>Nuevo Estado:</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {['Cotización', 'Confirmado', 'En producción', 'En proceso de entrega', 'Entregado', 'Cancelado'].map(status => (
+                    <Button
+                      key={status}
+                      variant={selectedOrderForEdit.status === status ? "default" : "outline"}
+                      className={`justify-start ${getStatusColor(status)} hover:opacity-80`}
+                      onClick={() => handleUpdateStatus(status)}
+                      disabled={selectedOrderForEdit.status === status}
+                    >
+                      {getStatusIcon(status)}
+                      <span className="ml-2">{status}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
