@@ -18,7 +18,7 @@ const sequelize = new Sequelize(
       max: 5,                // máximo de conexiones simultáneas
       min: 0,
       acquire: 30000,        // tiempo máximo para obtener conexión (ms)
-      idle: 10000            // tiempo antes de liberar conexión inactiva (ms)
+      idle: 10000            // tiempo antes de liberar conexión inactiva (ms)|
     }
   }
 );
