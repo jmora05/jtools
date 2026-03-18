@@ -36,7 +36,6 @@ const Compras = sequelize.define('Compras', {
         type: DataTypes.ENUM('efectivo', 'transferencia'),
         allowNull: false,
         defaultValue: 'efectivo',
-        comment: 'Método de pago utilizado en la compra',
         validate: {
             isIn: {
                 args: [['efectivo', 'transferencia']],
