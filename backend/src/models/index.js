@@ -130,8 +130,15 @@ Pedidos.belongsTo(Clientes, {
 
 
 // Productos
+// Productos
 Productos.belongsTo(CategoriaProductos, {
-    foreignKey: 'categoriaProductoId'
+    foreignKey: 'categoriaProductoId',
+    as: 'categoria'
+});
+
+CategoriaProductos.hasMany(Productos, {
+    foreignKey: 'categoriaProductoId',
+    as: 'productos'
 });
 
 
@@ -175,3 +182,12 @@ module.exports = {
     Usuarios,
     Ventas
 };
+// Compras
+Compras.belongsTo(Proveedores, { foreignKey: 'proveedoresId', as: 'proveedor' });
+Proveedores.hasMany(Compras, { foreignKey: 'proveedoresId', as: 'compras' });
+
+// DetalleCompraInsumo
+DetalleCompraInsumo.belongsTo(Compras, { foreignKey: 'comprasId', as: 'compra' });
+Compras.hasMany(DetalleCompraInsumo, { foreignKey: 'comprasId', as: 'detalles' });
+DetalleCompraInsumo.belongsTo(Insumos, { foreignKey: 'insumosId', as: 'insumo' });
+Insumos.hasMany(DetalleCompraInsumo, { foreignKey: 'insumosId', as: 'detalles' });
