@@ -24,8 +24,7 @@ const Proveedores = sequelize.define('Proveedores', {
 
     tipoDocumento: {
         type: DataTypes.ENUM('CC', 'NIT', 'RUN'),
-        allowNull: false,
-        comment: 'Tipo de documento del proveedor'
+        allowNull: false
     },
 
     numeroDocumento: {

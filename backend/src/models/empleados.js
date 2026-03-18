@@ -12,7 +12,6 @@ const Empleados = sequelize.define('Empleados', {
     tipoDocumento: {
         type: DataTypes.ENUM('CC', 'CE', 'RUN', 'PP'),
         allowNull: false,
-        comment: 'Tipo de documento del proveedor'
     },
 
     numeroDocumento: {
@@ -73,14 +72,12 @@ const Empleados = sequelize.define('Empleados', {
 
     cargo: {
         type: DataTypes.ENUM('Administrador', 'secretaria', 'Operario'),
-        allowNull: false,
-        comment: 'Cargo del empleado'
+        allowNull: false
     },
 
     area: {
         type: DataTypes.ENUM('Administrativa', 'Operativa', 'ventas'),
         allowNull: false,
-        comment: 'Área del empleado',
         validate: {
             isIn: {
                 args: [['Administrativa', 'Operativa', 'ventas']],

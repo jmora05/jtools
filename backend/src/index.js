@@ -8,10 +8,11 @@ const db = require("./models/index.js");
 const app = express();
 app.use(cors());
 app.use(express.json());
- 
+app.use(cors());
+
 // probar conexión
 testConnection();
- 
+
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
 const ordenesProduccionRoutes      = require('./routes/ordenesProduccionRoutes.js');
@@ -29,7 +30,7 @@ const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes
 const comprasRoutes                = require('./routes/comprasRoutes.js');
 const clientesRoutes               = require('./routes/clientesRoutes.js');
 const categoriaProductosRoutes     = require('./routes/categoriaProductosRoutes.js');
- 
+
 // ================= REGISTRO DE RUTAS =================
 app.use('/api/empleados',               empleadosRoutes);
 app.use('/api/ordenes-produccion',      ordenesProduccionRoutes);
@@ -47,17 +48,15 @@ app.use('/api/detalle-compra-insumo',   detalleCompraInsumoRoutes);
 app.use('/api/compras',                 comprasRoutes);
 app.use('/api/clientes',                clientesRoutes);
 app.use('/api/categorias',              categoriaProductosRoutes);
- 
+
 // ================= SINCRONIZAR BASE DE DATOS =================
-// sync() simple → no borra ni modifica tablas existentes
-sequelize.sync().then(() => {
+sequelize.sync({ force: true }).then(() => {
     console.log("Tablas sincronizadas correctamente");
 }).catch(err => {
     console.error("Error al sincronizar tablas:", err.message);
 });
- 
+
 // ================= INICIAR SERVIDOR =================
-app.listen(5000, () => {
-    console.log("Servidor corriendo en http://localhost:5000");
+app.listen(3000, () => {
+    console.log("Servidor corriendo en http://localhost:3000");
 });
- 
