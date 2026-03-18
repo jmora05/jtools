@@ -27,6 +27,10 @@ const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes
 const comprasRoutes                = require('./routes/comprasRoutes.js');
 const clientesRoutes               = require('./routes/clientesRoutes.js');
 const categoriaProductosRoutes     = require('./routes/categoriaProductosRoutes.js');
+const usuarios                     = require('./routes/usuariosRoutes.js');
+const permisos                     = require('./routes/permisosRoutes.js');
+const roles                        = require('./routes/rolesRoutes.js');
+const authRoutes                   = require('./routes/authRoutes.js');
 
 // ================= REGISTRO DE RUTAS =================
 app.use('/api/empleados',               empleadosRoutes);
@@ -45,6 +49,11 @@ app.use('/api/detalle-compra-insumo',   detalleCompraInsumoRoutes);
 app.use('/api/compras',                 comprasRoutes);
 app.use('/api/clientes',                clientesRoutes);
 app.use('/api/categorias',              categoriaProductosRoutes);
+app.use('/api/usuarios',                usuarios);
+app.use('/api/permisos',                permisos);
+app.use('/api/roles',                   roles);
+app.use('/api/auth',                    authRoutes);
+
 
 // ================= SINCRONIZAR BASE DE DATOS =================
 const startServer = async () => {

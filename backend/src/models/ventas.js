@@ -29,7 +29,6 @@ const Ventas = sequelize.define('Ventas', {
         type: DataTypes.ENUM('efectivo', 'transferencia'), // ✅ Datatypes → DataTypes
         allowNull: false,
         defaultValue: 'efectivo',
-        comment: 'Método de pago utilizado en la venta',
         validate: {
             isIn: {
                 args: [['efectivo', 'transferencia']],
@@ -43,7 +42,6 @@ const Ventas = sequelize.define('Ventas', {
         type: DataTypes.ENUM('directa', 'pedido'),
         allowNull: false,
         defaultValue: 'directa',
-        comment: 'Tipo de venta realizada',
         validate: {
             isIn: {
                 args: [['directa', 'pedido']],
