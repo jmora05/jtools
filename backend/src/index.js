@@ -1,14 +1,13 @@
+require('dotenv').config();
+
 const express = require("express");
 const cors = require("cors");
 const { sequelize, testConnection } = require("./config/jtools_db.js");
 const db = require("./models/index.js");
 
 const app = express();
-app.use(express.json());
 app.use(cors());
-
-// probar conexión
-//testConnection();
+app.use(express.json());
 
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
@@ -54,26 +53,14 @@ app.use('/api/permisos',                permisos);
 app.use('/api/roles',                   roles);
 app.use('/api/auth',                    authRoutes);
 
-
 // ================= SINCRONIZAR BASE DE DATOS =================
-const startServer = async () => {
-    try {
-      // 1. probar conexión
-        await testConnection();
+sequelize.sync().then(() => {
+    console.log("Tablas sincronizadas correctamente");
+}).catch(err => {
+    console.error("Error al sincronizar tablas:", err.message);
+});
 
-      // 2. sincronizar modelos (crear tablas)
-        await sequelize.sync();
-
-        console.log("Tablas sincronizadas correctamente");
-
-      // 3. levantar servidor
-        app.listen(3000, () => {
-            console.log("Servidor corriendo en http://localhost:3000");
-        });
-
-    } catch (error) {
-        console.error("Error al iniciar:", error.message);
-    }
-};
-
-startServer();
+// ================= INICIAR SERVIDOR =================
+app.listen(5000, () => {
+    console.log("Servidor corriendo en http://localhost:5000");
+});
