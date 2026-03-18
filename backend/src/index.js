@@ -47,13 +47,24 @@ app.use('/api/clientes',                clientesRoutes);
 app.use('/api/categorias',              categoriaProductosRoutes);
 
 // ================= SINCRONIZAR BASE DE DATOS =================
-sequelize.sync({ force: true }).then(() => {
-    console.log("Tablas sincronizadas correctamente");
-}).catch(err => {
-    console.error("Error al sincronizar tablas:", err.message);
-});
+const startServer = async () => {
+    try {
+      // 1. probar conexión
+        await testConnection();
 
-// ================= INICIAR SERVIDOR =================
-app.listen(3000, () => {
-    console.log("Servidor corriendo en http://localhost:3000");
-});
+      // 2. sincronizar modelos (crear tablas)
+        await sequelize.sync({ alter: true });
+
+        console.log("Tablas sincronizadas correctamente");
+
+      // 3. levantar servidor
+        app.listen(3000, () => {
+            console.log("Servidor corriendo en http://localhost:3000");
+        });
+
+    } catch (error) {
+        console.error("Error al iniciar:", error.message);
+    }
+};
+
+startServer();
