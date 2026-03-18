@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // probar conexión
-testConnection();
+//testConnection();
 
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
@@ -53,7 +53,7 @@ const startServer = async () => {
         await testConnection();
 
       // 2. sincronizar modelos (crear tablas)
-        await sequelize.sync({ alter: true });
+        await sequelize.sync();
 
         console.log("Tablas sincronizadas correctamente");
 
