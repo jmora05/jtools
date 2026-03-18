@@ -7,8 +7,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// probar conexión
-//testConnection();
+// probar conexión  
+testConnection(); 
 
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
