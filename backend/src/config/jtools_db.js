@@ -13,7 +13,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     dialect: 'postgres',        // le decimos que usamos PostgreSQL
-    logging: false,          // cambia a true si quieres ver las queries SQL en consola
+    logging: console.log,  // cambia false por esto          // cambia a true si quieres ver las queries SQL en consola
     pool: {
       max: 5,                // máximo de conexiones simultáneas
       min: 0,

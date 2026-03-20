@@ -151,6 +151,20 @@ RolPermiso.belongsTo(Permisos, {
     foreignKey: 'permisosId'
 });
 
+Roles.belongsToMany(Permisos, {
+    through: RolPermiso,
+    foreignKey: 'rolesId',
+    otherKey: 'permisosId',
+    as: 'permisos'
+});
+
+Permisos.belongsToMany(Roles, {
+    through: RolPermiso,
+    foreignKey: 'permisosId',
+    otherKey: 'rolesId',
+    as: 'roles'
+});
+
 
 // Ventas
 Ventas.belongsTo(Clientes, {

@@ -5,6 +5,7 @@ import LandingPage from '@/features/dashboard/pages/LandingPage';
 import { ConfigurationModule } from '@/features/configuration/pages/ConfigurationModule';
 import { RoleManagement } from '@/features/users/pages/RoleManagement';
 import { UserManagement } from '@/features/users/pages/UserManagement';
+import { PermissionManagement } from '@/features/users/pages/PermissionManagement';
 import { EmployeeManagement } from '@/features/employed/pages/EmployeeManagement';
 import { ProductCatalog } from '@/features/products/pages/ProductCatalog';
 import { ProductCategoryManagement } from '@/features/products/pages/ProductCategoryManagement';
@@ -53,7 +54,7 @@ export default function App() {
 
   // Auto-expand configuration when users or roles are selected
   useEffect(() => {
-    if (['users', 'roles'].includes(currentModule)) {
+    if (['users', 'roles', 'permissions'].includes(currentModule)) {
       setConfigurationExpanded(true);
     }
   }, [currentModule]);
@@ -79,6 +80,7 @@ export default function App() {
     setIsClientPreview(false);
     setSalesClientFilter(null);
     localStorage.removeItem('jrepuestos_user');
+    localStorage.removeItem('jrepuestos_token');
   };
 
   const handleNavigateToSalesWithClient = (client) => {
@@ -153,7 +155,8 @@ export default function App() {
           hasSubmenu: true,
           submenu: [
             { id: 'users', label: 'Usuarios', icon: '👥' },
-            { id: 'roles', label: 'Roles', icon: '🔒' }
+            { id: 'roles', label: 'Roles', icon: '🔒' },
+            { id: 'permissions', label: 'Permisos', icon: '🛡️' }
           ]
         },
         { id: 'clients', label: 'Clientes', icon: '👥' },
@@ -196,6 +199,8 @@ export default function App() {
         return (user.userType === 'admin' && !isClientPreview) ? <UserManagement /> : <Dashboard userType={effectiveUserType} />;
       case 'roles':
         return (user.userType === 'admin' && !isClientPreview) ? <RoleManagement /> : <Dashboard userType={effectiveUserType} />;
+      case 'permissions':
+        return (user.userType === 'admin' && !isClientPreview) ? <PermissionManagement /> : <Dashboard userType={effectiveUserType} />;
       case 'clients':
         return (user.userType === 'admin' && !isClientPreview) ? <ClientManagement onNavigateToSales={handleNavigateToSalesWithClient} /> : <Dashboard userType={effectiveUserType} />;
       case 'suppliers':
@@ -229,6 +234,7 @@ export default function App() {
       configuration: 'Configuración del Sistema',
       users: 'Gestión de Usuarios',
       roles: 'Gestión de Roles',
+      permissions: 'Gestión de Permisos',
       catalog: 'Productos',
       clients: 'Gestión de Clientes',
       suppliers: 'Gestión de Proveedores',

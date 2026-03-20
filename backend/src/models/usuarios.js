@@ -38,7 +38,7 @@ const Usuarios = sequelize.define('Usuarios', {
         defaultValue: null,
         validate: {
             notEmpty: { msg: 'La contraseña no puede estar vacía' },
-            len: { args: [6, 50], msg: 'La contraseña debe tener entre 6 y 50 caracteres' }
+            len: { args: [6, 255], msg: 'La contraseña debe tener entre 6 y 255 caracteres' }
         }
     }
 },

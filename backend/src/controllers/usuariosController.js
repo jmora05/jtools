@@ -1,4 +1,7 @@
 const { Usuarios, Roles } = require('../models/index.js');
+const bcrypt = require('bcrypt');
+
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10);
 
 // GET - listar usuarios
 const getUsuarios = async (req, res) => {
@@ -37,7 +40,8 @@ const createUsuarios = async (req, res) => {
             return res.status(404).json({ message: 'El rol especificado no existe' });
         }
 
-        const usuario = await Usuarios.create({ rolesId, email, password });
+        const passwordHash = password ? await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS) : null;
+        const usuario = await Usuarios.create({ rolesId, email, password: passwordHash });
         res.status(201).json({ message: 'Usuario creado correctamente', usuario });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -67,7 +71,16 @@ const updateUsuarios = async (req, res) => {
             }
         }
 
-        await usuario.update({ rolesId, email, password });
+        let passwordHash;
+        if (password !== undefined && password !== null && String(password).length > 0) {
+            passwordHash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+        }
+
+        await usuario.update({
+            rolesId,
+            email,
+            ...(passwordHash ? { password: passwordHash } : {})
+        });
         res.status(200).json({ message: 'Usuario actualizado correctamente', usuario });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {

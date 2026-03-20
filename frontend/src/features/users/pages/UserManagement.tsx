@@ -29,73 +29,44 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon
 } from 'lucide-react';
+import * as usuariosService from '@/services/usuariosService';
+import * as rolesService from '@/services/rolesService';
 
 export function UserManagement() {
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      firstName: 'Juan',
-      lastName: 'Pérez',
-      email: 'juan.perez@jrepuestos.com',
-      phone: '+57 300 123 4567',
-      userType: 'Administrador',
-      isActive: true
-    },
-    {
-      id: 2,
-      firstName: 'María',
-      lastName: 'González',
-      email: 'maria.gonzalez@jrepuestos.com',
-      phone: '+57 301 987 6543',
-      userType: 'Administrador',
-      isActive: true
-    },
-    {
-      id: 3,
-      firstName: 'Carlos',
-      lastName: 'Rodríguez',
-      email: 'carlos.rodriguez@jrepuestos.com',
-      phone: '+57 302 456 7890',
-      userType: 'Asistente',
-      isActive: true
-    },
-    {
-      id: 4,
-      firstName: 'Ana',
-      lastName: 'Martínez',
-      email: 'ana.martinez@jrepuestos.com',
-      phone: '+57 303 234 5678',
-      userType: 'Asistente',
-      isActive: true
-    },
-    {
-      id: 5,
-      firstName: 'Luis',
-      lastName: 'Hernández',
-      email: 'luis.hernandez@jrepuestos.com',
-      phone: '+57 304 345 6789',
-      userType: 'Asistente',
-      isActive: false
-    },
-    {
-      id: 6,
-      firstName: 'Patricia',
-      lastName: 'López',
-      email: 'patricia.lopez@jrepuestos.com',
-      phone: '+57 305 456 7890',
-      userType: 'Administrador',
-      isActive: true
-    },
-    {
-      id: 7,
-      firstName: 'Roberto',
-      lastName: 'Sánchez',
-      email: 'roberto.sanchez@jrepuestos.com',
-      phone: '+57 306 567 8901',
-      userType: 'Asistente',
-      isActive: true
-    }
-  ]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([rolesService.getRoles(), usuariosService.getUsuarios()])
+      .then(([rolesData, usersData]) => {
+        if (!mounted) return;
+        setRoles(rolesData.map((r) => ({ id: r.id, name: r.name })));
+        const roleNameById = new Map(rolesData.map((r) => [r.id, r.name]));
+        setUsers(
+          usersData.map((u) => {
+            const email = u.email || '';
+            const base = email.split('@')[0] || 'Usuario';
+            return {
+              id: u.id,
+              email: u.email,
+              rolesId: u.rolesId,
+              userType: roleNameById.get(u.rolesId) || `Rol ${u.rolesId}`,
+              firstName: base,
+              lastName: '',
+              phone: 'N/A',
+              isActive: true,
+            };
+          })
+        );
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error al cargar usuarios/roles');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -112,36 +83,63 @@ export function UserManagement() {
     lastName: '',
     email: '',
     phone: '',
-    userType: 'Asistente',
+    rolesId: null as number | null,
     password: '',
     isActive: true
-  });
+});
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (editingUser) {
-      setUsers(users.map(user => 
-        user.id === editingUser.id 
-          ? { ...formData, id: editingUser.id }
-          : user
-      ));
-      toast.success('Usuario actualizado exitosamente');
-    } else {
-      // Cuando se crea un nuevo usuario, usamos el tipo de usuario seleccionado
-      const newUser = {
-        ...formData,
-        firstName: 'Usuario',
-        lastName: 'Nuevo',
-        phone: 'N/A',
-        isActive: true,
-        id: Date.now()
-      };
-      setUsers([...users, newUser]);
-      toast.success('Usuario creado exitosamente');
-    }
-    resetForm();
-  };
+const handleSubmit = (e) => {
+  e.preventDefault();
+
+  if (!formData.rolesId) {
+      toast.error('Debes seleccionar un tipo de usuario');
+      return;
+  }
+
+  if (editingUser) {
+      usuariosService
+          .updateUsuario(editingUser.id, {
+              rolesId: formData.rolesId,
+              email: formData.email,
+              ...(formData.password ? { password: formData.password } : {}),
+          })
+          .then((resp) => {
+              const roleName = roles.find((r) => r.id === formData.rolesId)?.name || '';
+              setUsers(users.map((user) =>
+                  user.id === editingUser.id
+                      ? { ...user, email: formData.email, rolesId: formData.rolesId, userType: roleName }
+                      : user
+              ));
+              toast.success(resp.message || 'Usuario actualizado exitosamente');
+              resetForm();
+          })
+          .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al actualizar usuario'));
+  } else {
+      usuariosService
+          .createUsuario({ rolesId: formData.rolesId, email: formData.email, password: formData.password })
+          .then((resp) => {
+              const email = resp.usuario.email || formData.email;
+              const base = String(email).split('@')[0] || 'Usuario';
+              const roleName = roles.find((r) => r.id === formData.rolesId)?.name || '';
+              setUsers([
+                  ...users,
+                  {
+                      id: resp.usuario.id,
+                      email,
+                      rolesId: resp.usuario.rolesId,
+                      userType: roleName,
+                      firstName: base,
+                      lastName: '',
+                      phone: 'N/A',
+                      isActive: true,
+                  },
+              ]);
+              toast.success(resp.message || 'Usuario creado exitosamente');
+              resetForm();
+          })
+          .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al crear usuario'));
+  }
+};
 
   const resetForm = () => {
     setFormData({
@@ -149,7 +147,7 @@ export function UserManagement() {
       lastName: '',
       email: '',
       phone: '',
-      userType: 'Asistente',
+      rolesId: roles.length > 0 ? roles[0].id : null,
       password: '',
       isActive: true
     });
@@ -163,7 +161,7 @@ export function UserManagement() {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone,
-      userType: user.userType,
+      rolesId: user.rolesId,
       password: '',
       isActive: user.isActive
     });
@@ -183,10 +181,15 @@ export function UserManagement() {
 
   const confirmDelete = () => {
     if (userToDelete) {
-      setUsers(users.filter(user => user.id !== userToDelete.id));
-      toast.success('Usuario eliminado exitosamente');
-      setShowDeleteDialog(false);
-      setUserToDelete(null);
+      usuariosService
+        .deleteUsuario(userToDelete.id)
+        .then((resp) => {
+          setUsers(users.filter((user) => user.id !== userToDelete.id));
+          toast.success(resp.message || 'Usuario eliminado exitosamente');
+          setShowDeleteDialog(false);
+          setUserToDelete(null);
+        })
+        .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al eliminar usuario'));
     }
   };
 
@@ -266,16 +269,19 @@ export function UserManagement() {
                     <div className="space-y-2">
                       <Label htmlFor="userType">Tipo de usuario *</Label>
                       <Select
-                        value={formData.userType}
-                        onValueChange={(value) => setFormData({...formData, userType: value})}
+                          value={formData.rolesId ? String(formData.rolesId) : ''}
+                          onValueChange={(value) => setFormData({ ...formData, rolesId: Number(value) })}
                       >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Administrador">Administrador</SelectItem>
-                          <SelectItem value="Asistente">Asistente</SelectItem>
-                        </SelectContent>
+                          <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un rol" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {roles.map((r) => (
+                                  <SelectItem key={r.id} value={String(r.id)}>
+                                      {r.name}
+                                  </SelectItem>
+                              ))}
+                          </SelectContent>
                       </Select>
                     </div>
 
@@ -345,16 +351,19 @@ export function UserManagement() {
                     <div className="space-y-2">
                       <Label htmlFor="userType">Tipo de usuario *</Label>
                       <Select
-                        value={formData.userType}
-                        onValueChange={(value) => setFormData({...formData, userType: value})}
+                          value={formData.rolesId ? String(formData.rolesId) : ''}
+                          onValueChange={(value) => setFormData({ ...formData, rolesId: Number(value) })}
                       >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Administrador">Administrador</SelectItem>
-                          <SelectItem value="Asistente">Asistente</SelectItem>
-                        </SelectContent>
+                          <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un rol" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {roles.map((r) => (
+                                  <SelectItem key={r.id} value={String(r.id)}>
+                                      {r.name}
+                                  </SelectItem>
+                              ))}
+                          </SelectContent>
                       </Select>
                     </div>
 

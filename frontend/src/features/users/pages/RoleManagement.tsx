@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import * as permisosService from '@/services/permisosService';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -39,6 +40,7 @@ import {
   TagIcon,
   ShoppingCartIcon
 } from 'lucide-react';
+import * as rolesService from '@/services/rolesService';
 
 const availableModules = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -93,60 +95,147 @@ export function RoleManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [permisos, setPermisos] = useState<Array<{ id: number; name: string }>>([]);const [loadingPermisos, setLoadingPermisos] = useState(false);
   const itemsPerPage = 5;
 
   const [formData, setFormData] = useState({
     name: '',
-    permissions: []
+    permissions: [],
+    description: ''
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim()) {
+  useEffect(() => {
+    let mounted = true;
+    rolesService
+      .getRoles()
+      .then((data) => {
+        if (!mounted) return;
+        setRoles(
+          data.map((r) => ({
+            id: r.id,
+            name: r.name,
+            permissions: [],
+            isActive: true,
+            permissionCount: 0,
+            description: r.description || '',
+          }))
+        );
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error al cargar roles');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    // Cargar roles Y permisos disponibles en paralelo
+    Promise.all([
+        rolesService.getRoles(),
+        permisosService.getPermisos()   // ← agrega esto
+    ]).then(([rolesData, permisosData]) => {
+        if (!mounted) return;
+        setRoles(
+            rolesData.map((r) => ({
+                id: r.id,
+                name: r.name,
+                permissions: [],
+                isActive: true,
+                permissionCount: 0,
+                description: r.description || '',
+            }))
+        );
+        setPermisos(permisosData.map((p) => ({ id: p.id, name: p.name })));
+    }).catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error al cargar datos');
+    });
+
+    return () => { mounted = false; };
+}, []);
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!formData.name.trim()) {
       toast.error('El nombre del rol es obligatorio');
       return;
-    }
+  }
 
-    if (formData.permissions.length === 0) {
-      toast.error('Debes seleccionar al menos un permiso');
-      return;
-    }
+  const payload = { name: formData.name, description: formData.description || null };
 
-    if (editingRole) {
-      setRoles(roles.map(role => 
-        role.id === editingRole.id 
-          ? { ...role, name: formData.name, permissions: formData.permissions, permissionCount: formData.permissions.length }
-          : role
+  try {
+      let roleId;
+
+      if (editingRole) {
+          const resp = await rolesService.updateRole(editingRole.id, payload);
+          roleId = editingRole.id;
+          setRoles(roles.map((role) =>
+              role.id === editingRole.id
+                  ? { ...role, name: resp.role.name, description: resp.role.description || '' }
+                  : role
+          ));
+          toast.success(resp.message || 'Rol actualizado exitosamente');
+      } else {
+          const resp = await rolesService.createRole(payload);
+          roleId = resp.role.id;
+          setRoles([...roles, {
+              id: resp.role.id,
+              name: resp.role.name,
+              description: resp.role.description || '',
+              permissions: [],
+              permissionCount: 0,
+              isActive: true,
+          }]);
+          toast.success(resp.message || 'Rol creado exitosamente');
+      }
+
+      // Guardar permisos seleccionados
+      await rolesService.setRolPermisos(roleId, formData.permissions);
+
+      // Actualizar el conteo de permisos en la tabla
+      setRoles(prev => prev.map(r =>
+          r.id === roleId
+              ? { ...r, permissions: formData.permissions, permissionCount: formData.permissions.length }
+              : r
       ));
-      toast.success('Rol actualizado exitosamente');
-    } else {
-      setRoles([...roles, { 
-        id: Date.now(), 
-        name: formData.name, 
-        permissions: formData.permissions,
-        permissionCount: formData.permissions.length,
-        isActive: true
-      }]);
-      toast.success('Rol creado exitosamente');
-    }
-    resetForm();
-  };
+
+      resetForm();
+  } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar');
+  }
+};
 
   const resetForm = () => {
-    setFormData({ name: '', permissions: [] });
+    setFormData({ name: '', permissions: [], description: '' });
     setEditingRole(null);
     setShowModal(false);
   };
 
-  const handleEdit = (role) => {
+  const handleEdit = async (role) => {
     setFormData({
-      name: role.name,
-      permissions: role.permissions
+        name: role.name,
+        permissions: [],
+        description: role.description || ''
     });
     setEditingRole(role);
+    setLoadingPermisos(true);
     setShowModal(true);
-  };
+
+    try {
+        const permsDelRol = await rolesService.getRolPermisos(role.id);
+        setFormData(prev => ({
+            ...prev,
+            permissions: permsDelRol.map((p) => p.id)
+        }));
+    } catch {
+        toast.error('No se pudieron cargar los permisos del rol');
+    } finally {
+        setLoadingPermisos(false);
+    }
+};
 
   const handleViewDetail = (role) => {
     setViewingRole(role);
@@ -160,10 +249,15 @@ export function RoleManagement() {
 
   const confirmDelete = () => {
     if (roleToDelete) {
-      setRoles(roles.filter(role => role.id !== roleToDelete.id));
-      toast.success('Rol eliminado exitosamente');
-      setShowDeleteDialog(false);
-      setRoleToDelete(null);
+      rolesService
+        .deleteRole(roleToDelete.id)
+        .then((resp) => {
+          setRoles(roles.filter((role) => role.id !== roleToDelete.id));
+          toast.success(resp.message || 'Rol eliminado exitosamente');
+          setShowDeleteDialog(false);
+          setRoleToDelete(null);
+        })
+        .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al eliminar rol'));
     }
   };
 
@@ -261,36 +355,52 @@ export function RoleManagement() {
                   />
                 </div>
 
+                {/* Descripción (persistida en backend) */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descripción</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Opcional"
+                  />
+                </div>
+
                 {/* Seleccionar Permisos */}
                 <div className="space-y-3">
                   <Label>Seleccionar permisos (módulos) *</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {availableModules.map((module) => {
-                      const IconComponent = module.icon;
-                      return (
-                        <Card 
-                          key={module.id}
-                          className={`cursor-pointer transition-all hover:shadow-md ${
-                            formData.permissions.includes(module.id) 
-                              ? 'bg-blue-50' 
-                              : 'border-blue-200'
-                          }`}
-                          onClick={() => togglePermission(module.id)}
-                        >
-                          <div className="p-4 flex items-center space-x-3">
-                            <Checkbox
-                              checked={formData.permissions.includes(module.id)}
-                              onCheckedChange={() => togglePermission(module.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <IconComponent className="w-5 h-5 text-blue-600" />
-                            <div className="flex-1">
-                              <p className="text-sm text-gray-900">{module.name}</p>
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
+                      {loadingPermisos ? (
+                          <p className="text-sm text-gray-500 col-span-2">Cargando permisos...</p>
+                      ) : permisos.length === 0 ? (
+                          <p className="text-sm text-gray-500 col-span-2">
+                              No hay permisos disponibles. Crea permisos primero en Gestión de Permisos.
+                          </p>
+                      ) : (
+                          permisos.map((permiso) => (
+                            <Card
+                                key={permiso.id}
+                                className={`cursor-pointer transition-all hover:shadow-md ${
+                                    formData.permissions.includes(permiso.id)
+                                        ? 'bg-blue-50 border-blue-300'
+                                        : 'border-gray-200'
+                                }`}
+                            >
+                                <div className="p-4 flex items-center space-x-3">
+                                    <Checkbox
+                                        checked={formData.permissions.includes(permiso.id)}
+                                        onCheckedChange={() => togglePermission(permiso.id)}
+                                    />
+                                    <div
+                                        className="flex-1 cursor-pointer"
+                                        onClick={() => togglePermission(permiso.id)}
+                                    >
+                                        <p className="text-sm text-gray-900">{permiso.name}</p>
+                                    </div>
+                                </div>
+                            </Card>
+                          ))
+                      )}
                   </div>
                   <p className="text-sm text-gray-500">
                     {formData.permissions.length} módulo(s) seleccionado(s)
