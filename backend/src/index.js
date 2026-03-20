@@ -8,6 +8,7 @@ const db = require("./models/index.js");
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
@@ -30,28 +31,32 @@ const usuarios                     = require('./routes/usuariosRoutes.js');
 const permisos                     = require('./routes/permisosRoutes.js');
 const roles                        = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
+const {verifyToken}               = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
-app.use('/api/empleados',               empleadosRoutes);
-app.use('/api/ordenes-produccion',      ordenesProduccionRoutes);
-app.use('/api/ventas',                  ventasRoutes);
-app.use('/api/proveedores',             proveedoresRoutes);
-app.use('/api/productos',               productosRoutes);
-app.use('/api/pedidos',                 pedidosRoutes);
-app.use('/api/novedades',               novedadesRoutes);
-app.use('/api/insumos',                 insumosRoutes);
-app.use('/api/insumo-producto',         insumoProductoRoutes);
-app.use('/api/detalle-ventas',          detalleVentasRoutes);
-app.use('/api/detalle-pedidos',         detallePedidosRoutes);
-app.use('/api/detalle-orden',           detalleOrdenRoutes);
-app.use('/api/detalle-compra-insumo',   detalleCompraInsumoRoutes);
-app.use('/api/compras',                 comprasRoutes);
-app.use('/api/clientes',                clientesRoutes);
-app.use('/api/categorias',              categoriaProductosRoutes);
-app.use('/api/usuarios',                usuarios);
-app.use('/api/permisos',                permisos);
-app.use('/api/roles',                   roles);
-app.use('/api/auth',                    authRoutes);
+// ── Rutas PÚBLICAS (no requieren token) ──
+app.use('/api/auth', authRoutes);
+
+// ── Rutas PROTEGIDAS (requieren token) ──
+app.use('/api/empleados',               verifyToken, empleadosRoutes);
+app.use('/api/ordenes-produccion',      verifyToken, ordenesProduccionRoutes);
+app.use('/api/ventas',                  verifyToken, ventasRoutes);
+app.use('/api/proveedores',             verifyToken, proveedoresRoutes);
+app.use('/api/productos',               verifyToken, productosRoutes);
+app.use('/api/pedidos',                 verifyToken, pedidosRoutes);
+app.use('/api/novedades',               verifyToken, novedadesRoutes);
+app.use('/api/insumos',                 verifyToken, insumosRoutes);
+app.use('/api/insumo-producto',         verifyToken, insumoProductoRoutes);
+app.use('/api/detalle-ventas',          verifyToken, detalleVentasRoutes);
+app.use('/api/detalle-pedidos',         verifyToken, detallePedidosRoutes);
+app.use('/api/detalle-orden',           verifyToken, detalleOrdenRoutes);
+app.use('/api/detalle-compra-insumo',   verifyToken, detalleCompraInsumoRoutes);
+app.use('/api/compras',                 verifyToken, comprasRoutes);
+app.use('/api/clientes',                verifyToken, clientesRoutes);
+app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
+app.use('/api/usuarios',                verifyToken, usuarios);
+app.use('/api/permisos',                verifyToken, permisos);
+app.use('/api/roles',                   verifyToken, roles);
 
 // ================= SINCRONIZAR BASE DE DATOS =================
 sequelize.sync().then(() => {

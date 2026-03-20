@@ -23,6 +23,8 @@ import {
   KeyIcon,
   ShieldCheckIcon
 } from 'lucide-react';
+import * as authService from '@/services/authService';
+import * as rolesService from '@/services/rolesService';
 
 export function LoginPage({ onLogin }) {
   const [activeTab, setActiveTab] = useState('login');
@@ -31,6 +33,8 @@ export function LoginPage({ onLogin }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
 
   // Password recovery states
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
@@ -80,11 +84,22 @@ export function LoginPage({ onLogin }) {
     special: false
   });
 
-  // Simulated registered users database
-  const [registeredUsers, setRegisteredUsers] = useState([
-    { email: 'admin@jrepuestos.com', role: 'admin' },
-    { email: 'usuario@test.com', role: 'client' }
-  ]);
+  useEffect(() => {
+    let mounted = true;
+    rolesService
+      .getRoles()
+      .then((data) => {
+        if (!mounted) return;
+        setRoles(data.map((r) => ({ id: r.id, name: r.name })));
+        if (data.length > 0) setSelectedRoleId(data[0].id);
+      })
+      .catch(() => {
+        // Si no hay roles o el backend aún no responde, no bloqueamos el login/register
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Validate password in real time
   useEffect(() => {
@@ -117,23 +132,24 @@ export function LoginPage({ onLogin }) {
     }
 
     setLoading(true);
-
-    setTimeout(() => {
-      // Check if user exists in registered users
-      const user = registeredUsers.find(u => u.email === loginForm.email);
-      
-      const userData = {
-        name: user?.role === 'admin' ? 'Juan Pérez (Admin)' : 'Usuario Registrado',
-        email: loginForm.email,
-        role: user?.role === 'admin' ? 'Administrador' : 'Cliente',
-        userType: user?.role || 'admin',
-        id: user?.role === 'admin' ? 1 : Math.floor(Math.random() * 1000)
-      };
-      
-      onLogin(userData);
-      toast.success('Inicio de sesión exitoso');
+    try {
+      const resp = await authService.login(loginForm.email, loginForm.password);
+      localStorage.setItem('jrepuestos_token', resp.token);
+      const userType = resp.usuario.rolesId === 1 ? 'admin' : 'client';
+      onLogin({
+        id: resp.usuario.id,
+        email: resp.usuario.email,
+        rolesId: resp.usuario.rolesId,
+        userType,
+        role: userType === 'admin' ? 'Administrador' : 'Cliente',
+        name: resp.usuario.email,
+      });
+      toast.success(resp.message || 'Inicio de sesión exitoso');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al iniciar sesión');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const validateEmail = (email) => {
@@ -141,9 +157,7 @@ export function LoginPage({ onLogin }) {
     return emailRegex.test(email);
   };
 
-  const isEmailUnique = (email) => {
-    return !registeredUsers.some(user => user.email.toLowerCase() === email.toLowerCase());
-  };
+  const isEmailUnique = (_email) => true;
 
   const isPasswordValid = () => {
     return Object.values(passwordValidation).every(Boolean);
@@ -207,12 +221,6 @@ export function LoginPage({ onLogin }) {
       return;
     }
 
-    if (!isEmailUnique(registerForm.email)) {
-      toast.error('Este correo electrónico ya está registrado');
-      setLoading(false);
-      return;
-    }
-
     if (!isPasswordValid()) {
       toast.error('La contraseña no cumple con los requisitos de seguridad');
       setLoading(false);
@@ -225,32 +233,27 @@ export function LoginPage({ onLogin }) {
       return;
     }
 
-    setTimeout(() => {
-      // Add user to registered users
-      const newUser = { email: registerForm.email, role: 'client' };
-      setRegisteredUsers([...registeredUsers, newUser]);
-
-      // Auto login after registration
-      const userData = {
-        name: `${registerForm.firstName} ${registerForm.lastName}`,
-        firstName: registerForm.firstName,
-        lastName: registerForm.lastName,
-        email: registerForm.email,
-        role: 'Cliente',
-        userType: 'client',
-        phone: registerForm.phone,
-        address: registerForm.address,
-        city: registerForm.city,
-        personType: registerForm.personType,
-        cedula: registerForm.personType === 'natural' ? registerForm.cedula : null,
-        rut: registerForm.personType === 'empresa' ? registerForm.rut : null,
-        id: Math.floor(Math.random() * 1000)
-      };
-
-      onLogin(userData);
-      toast.success('Cuenta creada exitosamente. ¡Bienvenido!');
+    try {
+      const roleIdToUse = selectedRoleId ?? 1;
+      const resp = await authService.register(roleIdToUse, registerForm.email, registerForm.password);
+      toast.success(resp.message || 'Cuenta creada exitosamente');
+      // Luego de registrar, hacemos login automático con las credenciales recién creadas
+      const loginResp = await authService.login(registerForm.email, registerForm.password);
+      localStorage.setItem('jrepuestos_token', loginResp.token);
+      const userType = loginResp.usuario.rolesId === 1 ? 'admin' : 'client';
+      onLogin({
+        id: loginResp.usuario.id,
+        email: loginResp.usuario.email,
+        rolesId: loginResp.usuario.rolesId,
+        userType,
+        role: userType === 'admin' ? 'Administrador' : 'Cliente',
+        name: `${registerForm.firstName || ''} ${registerForm.lastName || ''}`.trim() || loginResp.usuario.email,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al registrar');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -277,31 +280,20 @@ export function LoginPage({ onLogin }) {
       return;
     }
 
-    // Check if email exists in registered users
-    const userExists = registeredUsers.find(u => u.email.toLowerCase() === recoveryEmail.toLowerCase());
-    
-    if (!userExists) {
-      toast.error('No se encontró una cuenta asociada a este correo electrónico');
-      return;
-    }
-
     setLoading(true);
-
-    setTimeout(() => {
-      // Generate a 6-digit verification code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedCode(code);
-      
-      // Set expiry time (10 minutes from now)
-      const expiry = new Date(Date.now() + 10 * 60 * 1000);
+    try {
+      const resp = await authService.forgotPassword(recoveryEmail);
+      const code = resp.devCode || '';
+      if (code) setGeneratedCode(code);
+      const expiry = new Date(Date.now() + (resp.expiresInMs || 10 * 60 * 1000));
       setCodeExpiry(expiry);
-      
       setRecoveryStep(2);
+      toast.success(code ? `Código de verificación enviado. Código: ${code}` : resp.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al enviar código');
+    } finally {
       setLoading(false);
-      
-      // Show the generated code to the user (in a real app, this would be sent via email)
-      toast.success(`Código de verificación enviado. Código: ${code} (válido por 10 minutos)`);
-    }, 2000);
+    }
   };
 
   const handleVerifyCode = async (e) => {
@@ -324,13 +316,13 @@ export function LoginPage({ onLogin }) {
       return;
     }
 
-    if (verificationCode !== generatedCode) {
-      toast.error('Código de verificación incorrecto');
-      return;
+    try {
+      await authService.verifyCode(recoveryEmail, verificationCode);
+      setRecoveryStep(3);
+      toast.success('Código verificado correctamente');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Código inválido o expirado');
     }
-
-    setRecoveryStep(3);
-    toast.success('Código verificado correctamente');
   };
 
   const handleResetPassword = async (e) => {
@@ -352,24 +344,32 @@ export function LoginPage({ onLogin }) {
     }
 
     setLoading(true);
-
-    setTimeout(() => {
+    try {
+      await authService.resetPassword(recoveryEmail, verificationCode, newPassword);
       setRecoveryStep(4);
-      setLoading(false);
       toast.success('Contraseña restablecida exitosamente');
-    }, 1500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al restablecer contraseña');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResendCode = () => {
-    // Generate a new code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
-    
-    // Reset expiry time
-    const expiry = new Date(Date.now() + 10 * 60 * 1000);
-    setCodeExpiry(expiry);
-    
-    toast.success(`Nuevo código enviado: ${code} (válido por 10 minutos)`);
+    setLoading(true);
+    authService
+      .resendCode(recoveryEmail)
+      .then((resp) => {
+        const code = resp.devCode || '';
+        if (code) setGeneratedCode(code);
+        const expiry = new Date(Date.now() + (resp.expiresInMs || 10 * 60 * 1000));
+        setCodeExpiry(expiry);
+        toast.success(code ? `Nuevo código enviado: ${code}` : resp.message);
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error al reenviar código');
+      })
+      .finally(() => setLoading(false));
   };
 
   const resetForms = () => {
@@ -682,6 +682,34 @@ export function LoginPage({ onLogin }) {
                       )}
                     </div>
 
+                    {/* Rol (toma datos desde backend) */}
+                    <div className="space-y-1">
+                      <Label className="text-sm">
+                        Rol <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={selectedRoleId ? String(selectedRoleId) : undefined}
+                        onValueChange={(value) => setSelectedRoleId(Number(value))}
+                        required
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder={roles.length ? 'Selecciona un rol' : 'Cargando roles...'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!roles.length && (
+                        <p className="text-xs text-gray-500">
+                          Si no aparecen roles, crea al menos 1 en el backend (tabla `roles`).
+                        </p>
+                      )}
+                    </div>
+
                     <div className="space-y-1">
                       <Label htmlFor="register-phone" className="text-sm">
                         Teléfono <span className="text-red-500">*</span>
@@ -835,19 +863,6 @@ export function LoginPage({ onLogin }) {
             </Tabs>
           </CardHeader>
         </Card>
-
-        {/* Demo Credentials - Only show on login tab */}
-        {activeTab === 'login' && (
-          <div className="mt-4 text-center">
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="p-3">
-                <p className="text-sm text-blue-700 mb-1 font-medium">Credenciales de demostración:</p>
-                <p className="text-xs text-blue-600">Admin: admin@jrepuestos.com (cualquier contraseña)</p>
-                <p className="text-xs text-blue-600">Cliente: usuario@test.com (cualquier contraseña)</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
 
       {/* Password Recovery Modal */}

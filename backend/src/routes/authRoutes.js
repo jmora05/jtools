@@ -18,4 +18,4 @@ router.post('/reset-password', resetPassword);
 router.post('/verify-code', verifyCode);
 router.post('/resend-code', resendCode);
 
-module.exports = router;
+module.exports = router; 
