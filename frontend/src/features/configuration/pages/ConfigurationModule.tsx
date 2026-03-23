@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card'; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Badge } from '@/shared/components/ui/badge';
-import { RoleManagement } from '@/features/users/pages/RoleManagement';
+import { RoleManagement } from '@/features/roles/pages/RoleManagement';
 import { UserManagement } from '@/features/users/pages/UserManagement';
 import { 
   ShieldIcon, 
@@ -22,7 +22,7 @@ export function ConfigurationModule() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl text-gray-900">Configuración del Sistema</h1>
-          <p className="text-gray-600">Gestiona usuarios, roles y permisos del sistema</p>
+          <p className="text-blue-600">Gestiona usuarios, roles y permisos del sistema</p>
         </div>
         
         <div className="flex items-center gap-4">

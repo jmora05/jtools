@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import * as permisosService from '@/services/permisosService';
+import * as permisosService from '@/features/permisos/services/permisosService';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -19,7 +19,7 @@ import {
 import { Badge } from '@/shared/components/ui/badge';
 import { Card } from '@/shared/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   PlusIcon, 
   EditIcon, 
@@ -40,7 +40,7 @@ import {
   TagIcon,
   ShoppingCartIcon
 } from 'lucide-react';
-import * as rolesService from '@/services/rolesService';
+import * as rolesService from '@/features/roles/services/rolesService';
 
 const availableModules = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -299,7 +299,7 @@ const handleSubmit = async (e) => {
   };
 
   const getPageNumbers = () => {
-    const pages = [];
+    const pages: (number | string)[] = [];
     if (totalPages <= 5) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {

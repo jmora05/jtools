@@ -23,7 +23,7 @@ import {
     updateProducto,
     deleteProducto,
     getCategorias,
-} from '@/services/productosService';
+} from '@/features/products/services/productosService';
 
 // ── Tipos ────────────────────────────────────────────────
 interface Categoria {

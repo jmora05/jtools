@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   EyeIcon, 
   EyeOffIcon, 
@@ -23,8 +23,20 @@ import {
   KeyIcon,
   ShieldCheckIcon
 } from 'lucide-react';
-import * as authService from '@/services/authService';
-import * as rolesService from '@/services/rolesService';
+import * as authService from '@/features/auth/services/authService';
+import * as rolesService from '@/features/roles/services/rolesService';
+
+const mapDocumentType = (type: string) => {
+  const map: Record<string, string> = {
+    'CC': 'cedula',
+    'CE': 'cedula de extranjeria',
+    'NIT': 'nit',
+    'Pasaporte': 'pasaporte',
+    'RUT': 'rut',
+  };
+  return map[type] || 'cedula';
+};
+
 
 export function LoginPage({ onLogin }) {
   const [activeTab, setActiveTab] = useState('login');
@@ -84,22 +96,22 @@ export function LoginPage({ onLogin }) {
     special: false
   });
 
-  useEffect(() => {
-    let mounted = true;
-    rolesService
-      .getRoles()
-      .then((data) => {
-        if (!mounted) return;
-        setRoles(data.map((r) => ({ id: r.id, name: r.name })));
-        if (data.length > 0) setSelectedRoleId(data[0].id);
-      })
-      .catch(() => {
-        // Si no hay roles o el backend aún no responde, no bloqueamos el login/register
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // useEffect(() => {
+  //   let mounted = true;
+  //   rolesService
+  //     .getRoles()
+  //     .then((data) => {
+  //       if (!mounted) return;
+  //       setRoles(data.map((r) => ({ id: r.id, name: r.name })));
+  //       if (data.length > 0) setSelectedRoleId(data[0].id);
+  //     })
+  //     .catch(() => {
+  //       // Si no hay roles o el backend aún no responde, no bloqueamos el login/register
+  //     });
+  //   return () => {
+  //     mounted = false;
+  //   };
+  // }, []);
 
   // Validate password in real time
   useEffect(() => {
@@ -181,80 +193,70 @@ export function LoginPage({ onLogin }) {
     e.preventDefault();
     setLoading(true);
 
-    // Validate all required fields
-    if (!registerForm.email || !registerForm.firstName || !registerForm.lastName || !registerForm.phone || 
-        !registerForm.password || !registerForm.confirmPassword || 
-        !registerForm.address || !registerForm.city || !registerForm.personType) {
-      toast.error('Todos los campos marcados con (*) son obligatorios');
-      setLoading(false);
-      return;
+    // Validar campos comunes a ambos tipos de persona
+    if (
+        !registerForm.email ||
+        !registerForm.phone ||
+        !registerForm.password ||
+        !registerForm.confirmPassword ||
+        !registerForm.address ||
+        !registerForm.city ||
+        !registerForm.documentNumber
+    ) {
+        toast.error('Todos los campos marcados con (*) son obligatorios');
+        setLoading(false);
+        return;
     }
 
-    // Validate document based on person type
-    if (registerForm.personType === 'natural' && !registerForm.cedula) {
-      toast.error('La cédula es obligatoria para personas naturales');
-      setLoading(false);
-      return;
-    }
-
-    if (registerForm.personType === 'empresa' && !registerForm.rut) {
-      toast.error('El RUT es obligatorio para empresas');
-      setLoading(false);
-      return;
-    }
-
-    // Validate document format
-    const documentToValidate = registerForm.personType === 'natural' ? registerForm.cedula : registerForm.rut;
-    if (!validateDocument(documentToValidate, registerForm.personType)) {
-      if (registerForm.personType === 'natural') {
-        toast.error('La cédula debe tener entre 8 y 10 dígitos');
-      } else {
-        toast.error('El RUT debe tener el formato: 900123456-7');
-      }
-      setLoading(false);
-      return;
+    // Validar campos según tipo de persona
+    if (registerForm.personType === 'natural') {
+        if (!registerForm.firstName || !registerForm.lastName) {
+            toast.error('Nombre y apellido son obligatorios');
+            setLoading(false);
+            return;
+        }
+    } else {
+        if (!registerForm.businessName) {
+            toast.error('La razón social es obligatoria');
+            setLoading(false);
+            return;
+        }
     }
 
     if (!validateEmail(registerForm.email)) {
-      toast.error('Ingresa un correo electrónico válido');
-      setLoading(false);
-      return;
+        toast.error('Ingresa un correo electrónico válido');
+        setLoading(false);
+        return;
     }
 
     if (!isPasswordValid()) {
-      toast.error('La contraseña no cumple con los requisitos de seguridad');
-      setLoading(false);
-      return;
+        toast.error('La contraseña no cumple con los requisitos de seguridad');
+        setLoading(false);
+        return;
     }
 
     if (registerForm.password !== registerForm.confirmPassword) {
-      toast.error('Las contraseñas no coinciden');
-      setLoading(false);
-      return;
+        toast.error('Las contraseñas no coinciden');
+        setLoading(false);
+        return;
     }
 
     try {
-      const roleIdToUse = selectedRoleId ?? 1;
-      const resp = await authService.register(roleIdToUse, registerForm.email, registerForm.password);
-      toast.success(resp.message || 'Cuenta creada exitosamente');
-      // Luego de registrar, hacemos login automático con las credenciales recién creadas
-      const loginResp = await authService.login(registerForm.email, registerForm.password);
-      localStorage.setItem('jrepuestos_token', loginResp.token);
-      const userType = loginResp.usuario.rolesId === 1 ? 'admin' : 'client';
-      onLogin({
-        id: loginResp.usuario.id,
-        email: loginResp.usuario.email,
-        rolesId: loginResp.usuario.rolesId,
-        userType,
-        role: userType === 'admin' ? 'Administrador' : 'Cliente',
-        name: `${registerForm.firstName || ''} ${registerForm.lastName || ''}`.trim() || loginResp.usuario.email,
-      });
+        const resp = await authService.register({
+            email: registerForm.email,
+            password: registerForm.password,
+            rolesId: selectedRoleId ?? 1,
+        });
+
+        toast.success(resp.message || 'Cuenta creada exitosamente');
+        setActiveTab('login');
+
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al registrar');
+        toast.error(err instanceof Error ? err.message : 'Error al registrar');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   const handleForgotPassword = () => {
     setIsRecoveryModalOpen(true);
@@ -683,7 +685,9 @@ export function LoginPage({ onLogin }) {
                     </div>
 
                     {/* Rol (toma datos desde backend) */}
-                    <div className="space-y-1">
+                    {/* campo de rol que anida el rol 
+                     */}
+                    {/* <div className="space-y-1">
                       <Label className="text-sm">
                         Rol <span className="text-red-500">*</span>
                       </Label>
@@ -708,7 +712,7 @@ export function LoginPage({ onLogin }) {
                           Si no aparecen roles, crea al menos 1 en el backend (tabla `roles`).
                         </p>
                       )}
-                    </div>
+                    </div> */}
 
                     <div className="space-y-1">
                       <Label htmlFor="register-phone" className="text-sm">

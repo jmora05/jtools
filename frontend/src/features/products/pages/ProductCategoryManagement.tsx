@@ -22,7 +22,7 @@ import {
     createCategoria,
     updateCategoria,
     deleteCategoria,
-} from '@/services/categoriaProductosService';
+} from '@/features/products/services/categoriaProductosService';
 
 // ── Tipos ────────────────────────────────────────────────
 interface Categoria {

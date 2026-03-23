@@ -1,4 +1,4 @@
-import { getApiBaseUrl, handleResponse, buildAuthHeaders } from './http';
+import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '../../../services/http';
 
 export type SafeUser = {
   id: number;
@@ -23,11 +23,28 @@ export async function login(email: string, password: string) {
   return handleResponse<LoginResponse>(response);
 }
 
-export async function register(rolesId: number, email: string, password: string) {
+export type RegisterPayload = {
+  email: string;
+  password: string;
+  nombres: string;
+  apellidos: string;
+  razon_social: string;
+  tipo_documento: string;
+  numero_documento: string;
+  telefono: string;
+  ciudad: string;
+  direccion?: string;
+};
+
+export async function register(payload: {
+  email: string;
+  password: string;
+  rolesId?: number;
+}) {
   const response = await fetch(`${getApiBaseUrl()}/auth/register`, {
     method: 'POST',
     headers: buildAuthHeaders(),
-    body: JSON.stringify({ rolesId, email, password }),
+    body: JSON.stringify(payload),
   });
   return handleResponse<{ message: string; usuario: SafeUser }>(response);
 }
