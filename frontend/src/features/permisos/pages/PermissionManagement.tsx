@@ -14,9 +14,9 @@ import {
   AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
 import { Card } from '@/shared/components/ui/card';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { PlusIcon, EditIcon, TrashIcon, ShieldIcon, AlertTriangleIcon } from 'lucide-react';
-import * as permisosService from '@/services/permisosService';
+import * as permisosService from '@/features/permisos/services/permisosService';
 
 export function PermissionManagement() {
   const [permisos, setPermisos] = useState<Array<{ id: number; name: string; description?: string }>>([]);

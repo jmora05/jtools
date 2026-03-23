@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   PlusIcon, 
   SearchIcon, 

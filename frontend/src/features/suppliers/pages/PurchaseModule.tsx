@@ -26,7 +26,7 @@ import {
     deleteCompra,
     getProveedores,
     getInsumos,
-} from '@/services/comprasService';
+} from '@/features/sales/services/comprasService';
 
 // ── Tipos ────────────────────────────────────────────────
 interface Proveedor {

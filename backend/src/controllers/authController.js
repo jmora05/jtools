@@ -1,4 +1,5 @@
-const { Usuarios, Roles } = require('../models/index.js');
+const { Usuarios, Roles, Clientes } = require('../models');
+const { sequelize } = require('../config/jtools_db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -70,28 +71,76 @@ const login = async (req, res) => {
 // POST /api/auth/register
 const register = async (req, res) => {
   try {
-    const rolesId = req.body?.rolesId;
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || '');
 
-    if (!rolesId || !email || !password) {
-      return res.status(400).json({ message: 'rolesId, email y password son requeridos' });
-    }
+    // 👇 Nuevos campos para el cliente
+    const nombres = req.body?.nombres;
+    const apellidos = req.body?.apellidos;
+    const razon_social = req.body?.razon_social;
+    const numero_documento = req.body?.numero_documento;
+    const ciudad = req.body?.ciudad;
+    const telefono = req.body?.telefono;
+    const tipo_documento = req.body?.tipo_documento || null;
+    const direccion = req.body?.direccion || null;
 
-    const rol = await Roles.findByPk(rolesId);
-    if (!rol) {
-      return res.status(404).json({ message: 'El rol especificado no existe' });
+    // Validación de campos requeridos
+    if (!email || !password || !nombres || !apellidos || !razon_social || !numero_documento || !ciudad || !telefono) {
+      return res.status(400).json({ 
+        message: 'Faltan campos requeridos: email, password, nombres, apellidos, razon_social, numero_documento, ciudad, telefono' 
+      });
     }
+    
+    // aqui hice unos cambios de validacion ya que el boton de crear no queria dar toca organizar la posicion de las constantes para tener lo organizado
+    // Busca el rol Cliente automáticamente
+    const rolCliente = await Roles.findOne({ where: { name: 'Cliente' } });
+    if (!rolCliente) {
+      return res.status(500).json({ message: 'El rol Cliente no existe en la base de datos' });
+    }
+    const rolesId = rolCliente.id;
 
     const existing = await Usuarios.findOne({ where: { email } });
     if (existing) {
       return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
     }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-    const usuario = await Usuarios.create({ rolesId, email, password: passwordHash });
 
-    return res.status(201).json({ message: 'Usuario creado correctamente', usuario: safeUser(usuario) });
+    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+
+    // Transacción: si algo falla, se revierte todo
+    const resultado = await sequelize.transaction(async (t) => {
+
+      // 1. Crear el usuario
+      const usuario = await Usuarios.create(
+        { rolesId, email, password: passwordHash },
+        { transaction: t }
+      );
+
+      // 2. Crear el cliente automáticamente con los datos del registro
+      const cliente = await Clientes.create(
+        {
+          email,
+          nombres,
+          apellidos,
+          razon_social,
+          numero_documento,
+          ciudad,
+          telefono,
+          tipo_documento,
+          direccion,
+          estado: 'activo',
+        },
+        { transaction: t }
+      );
+
+      return { usuario, cliente };
+    });
+
+    return res.status(201).json({
+      message: 'Usuario y cliente creados correctamente',
+      usuario: safeUser(resultado.usuario),
+    });
+
   } catch (error) {
     if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
       const mensajes = error.errors.map(e => e.message);
@@ -99,12 +148,6 @@ const register = async (req, res) => {
     }
     return res.status(500).json({ message: 'Error al crear usuario', error: error.message });
   }
-};
-
-// POST /api/auth/logout
-// Con JWT stateless, "logout" es del lado del cliente (borrar token).
-const logout = async (_req, res) => {
-  return res.status(200).json({ message: 'Logout exitoso' });
 };
 
 // POST /api/auth/forgot-password
@@ -232,6 +275,10 @@ const resetPassword = async (req, res) => {
     }
     return res.status(500).json({ message: 'Error al actualizar la contraseña', error: error.message });
   }
+};
+
+const logout = (_req, res) => {
+  return res.status(200).json({ message: 'Sesión cerrada correctamente' });
 };
 
 module.exports = {

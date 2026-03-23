@@ -3,8 +3,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Switch } from '../../../shared/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
+import { Switch } from '@/shared/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../../shared/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +18,7 @@ import {
 import { Card } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   PlusIcon, 
   EyeIcon, 
@@ -29,8 +29,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon
 } from 'lucide-react';
-import * as usuariosService from '@/services/usuariosService';
-import * as rolesService from '@/services/rolesService';
+import * as usuariosService from '@/features/users/services/usuariosService';
+import * as rolesService from '@/features/roles/services/rolesService';
 
 export function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -219,7 +219,7 @@ const handleSubmit = (e) => {
   };
 
   const getPageNumbers = () => {
-    const pages = [];
+    const pages: (number | string)[] = [];
     if (totalPages <= 5) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {

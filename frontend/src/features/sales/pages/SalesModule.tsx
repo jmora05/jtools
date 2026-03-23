@@ -17,7 +17,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   PlusIcon, 
   SearchIcon, 

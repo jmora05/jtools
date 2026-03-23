@@ -1,4 +1,4 @@
-import { getApiBaseUrl, handleResponse, buildAuthHeaders } from './http';
+import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '@/services/http';
 
 export type Permiso = {
   id: number;
