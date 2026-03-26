@@ -1,54 +1,51 @@
-// src/services/categoriaProductosService.ts
+import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '@/services/http';
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = getApiBaseUrl();
 
-const handleResponse = async (response: Response) => {
-    const data = await response.json();
-    if (!response.ok) {
-        const errorMessage = data.errores
-            ? data.errores.join(', ')
-            : data.message || 'Error desconocido';
-        throw new Error(errorMessage);
-    }
-    return data;
-};
-
-// GET /api/categorias
 export const getCategorias = async () => {
-    const response = await fetch(`${BASE_URL}/categorias`);
+    const response = await fetch(`${BASE_URL}/categorias`, {
+        headers: buildAuthHeaders(),
+    });
     return handleResponse(response);
 };
 
-// GET /api/categorias/:id  (incluye productos asociados)
 export const getCategoriaById = async (id: number) => {
-    const response = await fetch(`${BASE_URL}/categorias/${id}`);
+    const response = await fetch(`${BASE_URL}/categorias/${id}`, {
+        headers: buildAuthHeaders(),
+    });
     return handleResponse(response);
 };
 
-// POST /api/categorias
-export const createCategoria = async (categoriaData: { nombreCategoria: string; descripcion: string }) => {
+export const createCategoria = async (data: {
+    nombreCategoria: string;
+    descripcion?: string;
+    estado: 'activo' | 'inactivo';
+}) => {
     const response = await fetch(`${BASE_URL}/categorias`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoriaData),
+        headers: buildAuthHeaders(),
+        body: JSON.stringify(data),
     });
     return handleResponse(response);
 };
 
-// PUT /api/categorias/:id
-export const updateCategoria = async (id: number, categoriaData: { nombreCategoria: string; descripcion: string }) => {
+export const updateCategoria = async (id: number, data: {
+    nombreCategoria?: string;
+    descripcion?: string;
+    estado?: 'activo' | 'inactivo';
+}) => {
     const response = await fetch(`${BASE_URL}/categorias/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoriaData),
+        headers: buildAuthHeaders(),
+        body: JSON.stringify(data),
     });
     return handleResponse(response);
 };
 
-// DELETE /api/categorias/:id
 export const deleteCategoria = async (id: number) => {
     const response = await fetch(`${BASE_URL}/categorias/${id}`, {
         method: 'DELETE',
+        headers: buildAuthHeaders(),
     });
     return handleResponse(response);
 };

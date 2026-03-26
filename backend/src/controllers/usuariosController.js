@@ -1,5 +1,5 @@
 const { Usuarios, Roles } = require('../models/index.js');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10);
 

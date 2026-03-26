@@ -1,5 +1,3 @@
-// src/features/purchases/PurchaseModule.tsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle
@@ -14,7 +12,8 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import {
     PlusIcon, SearchIcon, ShoppingCartIcon, EyeIcon,
     Trash2, FileDown, CalendarIcon, ChevronLeft, ChevronRight,
-    Loader2, PackageIcon, TruckIcon, CheckCircleIcon, ClockIcon
+    Loader2, PackageIcon, TruckIcon, CheckCircleIcon, ClockIcon,
+    CheckCircle2, Info, AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,9 +25,9 @@ import {
     deleteCompra,
     getProveedores,
     getInsumos,
-} from '@/features/sales/services/comprasService';
+} from '../../sales/services/comprasService';
 
-// ── Tipos ────────────────────────────────────────────────
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 interface Proveedor {
     id: number;
     nombreEmpresa: string;
@@ -74,12 +73,61 @@ interface ItemCarrito {
     unidad: string;
 }
 
-// ── Helper estado badge ───────────────────────────────────
+// ── Tipos de errores del formulario ───────────────────────────────────────────
+interface CompraFormErrors {
+    proveedoresId?: string;
+    fecha?: string;
+}
+
+// ── Validación del formulario ─────────────────────────────────────────────────
+function validateCompraForm(form: {
+    proveedoresId: string;
+    fecha: string;
+    metodoPago: string;
+    estado: string;
+    notas: string;
+    numeroFactura: string;
+}): CompraFormErrors {
+    const errors: CompraFormErrors = {};
+    if (!form.proveedoresId) errors.proveedoresId = 'Selecciona un proveedor';
+    if (!form.fecha) errors.fecha = 'La fecha es obligatoria';
+    return errors;
+}
+
+// ── Mensaje de error bajo campo ───────────────────────────────────────────────
+const FieldError = ({ message }: { message?: string }) =>
+    message ? (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+            {message}
+        </p>
+    ) : null;
+
+// ── Banner informativo azul ───────────────────────────────────────────────────
+const InfoAlert = ({ message }: { message: string }) => (
+    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+        <Info className="w-4 h-4 shrink-0 text-blue-500" />
+        <span>{message}</span>
+    </div>
+);
+
+// ── Bloqueo de teclas: solo enteros positivos ─────────────────────────────────
+const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
+};
+
+// ── Bloqueo: solo letras y caracteres no numéricos ────────────────────────────
+const blockDigits = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (/^\d$/.test(e.key)) e.preventDefault();
+};
+
+// ── Helper estado badge ───────────────────────────────────────────────────────
 const EstadoBadge = ({ estado }: { estado: string }) => {
     const config: Record<string, { icon: React.ReactNode; clase: string }> = {
-        'pendiente':    { icon: <ClockIcon className="w-3 h-3 mr-1" />,        clase: 'bg-blue-50 text-blue-700 border border-blue-200' },
-        'en transito':  { icon: <TruckIcon className="w-3 h-3 mr-1" />,        clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
-        'completada':   { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />,  clase: 'bg-blue-900 text-white border border-blue-900' },
+        'pendiente':   { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-50 text-blue-700 border border-blue-200' },
+        'en transito': { icon: <TruckIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
+        'completada':  { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-blue-900 text-white border border-blue-900' },
     };
     const { icon, clase } = config[estado] ?? { icon: null, clase: 'bg-gray-100 text-gray-600' };
     return (
@@ -89,7 +137,7 @@ const EstadoBadge = ({ estado }: { estado: string }) => {
     );
 };
 
-// ── Formulario fuera del componente (evita pérdida de foco) ──
+// ── Formulario de compra ──────────────────────────────────────────────────────
 interface CompraFormProps {
     proveedores: Proveedor[];
     form: {
@@ -101,14 +149,20 @@ interface CompraFormProps {
         numeroFactura: string;
     };
     onChange: (field: string, value: string) => void;
+    errors: CompraFormErrors;
+    touched: Partial<Record<string, boolean>>;
+    onBlur: (field: string) => void;
 }
 
-const CompraForm = ({ proveedores, form, onChange }: CompraFormProps) => (
+const CompraForm = ({ proveedores, form, onChange, errors, touched, onBlur }: CompraFormProps) => (
     <div className="space-y-4">
         <div className="space-y-2">
-            <Label>Proveedor *</Label>
-            <Select value={form.proveedoresId} onValueChange={(v) => onChange('proveedoresId', v)}>
-                <SelectTrigger>
+            <Label>Proveedor <span className="text-red-500">*</span></Label>
+            <Select
+                value={form.proveedoresId}
+                onValueChange={(v) => { onChange('proveedoresId', v); onBlur('proveedoresId'); }}
+            >
+                <SelectTrigger className={touched.proveedoresId && errors.proveedoresId ? 'border-red-400' : ''}>
                     <SelectValue placeholder="Seleccionar proveedor..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -119,6 +173,7 @@ const CompraForm = ({ proveedores, form, onChange }: CompraFormProps) => (
                     ))}
                 </SelectContent>
             </Select>
+            <FieldError message={touched.proveedoresId ? errors.proveedoresId : undefined} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -129,25 +184,28 @@ const CompraForm = ({ proveedores, form, onChange }: CompraFormProps) => (
                     placeholder="Ej: 1001"
                     value={form.numeroFactura}
                     onChange={(e) => onChange('numeroFactura', e.target.value)}
+                    onKeyDown={blockNonInteger}
+                    min="1"
                 />
             </div>
             <div className="space-y-2">
-                <Label>Fecha *</Label>
+                <Label>Fecha <span className="text-red-500">*</span></Label>
                 <div className="relative">
                     <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                         type="date"
                         value={form.fecha}
-                        onChange={(e) => onChange('fecha', e.target.value)}
-                        className="pl-10"
+                        onChange={(e) => { onChange('fecha', e.target.value); onBlur('fecha'); }}
+                        className={`pl-10 ${touched.fecha && errors.fecha ? 'border-red-400' : ''}`}
                     />
                 </div>
+                <FieldError message={touched.fecha ? errors.fecha : undefined} />
             </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-                <Label>Método de Pago *</Label>
+                <Label>Método de Pago <span className="text-red-500">*</span></Label>
                 <Select value={form.metodoPago} onValueChange={(v) => onChange('metodoPago', v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -181,7 +239,7 @@ const CompraForm = ({ proveedores, form, onChange }: CompraFormProps) => (
     </div>
 );
 
-// ── Componente principal ─────────────────────────────────
+// ── Componente principal ──────────────────────────────────────────────────────
 export function PurchaseModule() {
     const [compras, setCompras]         = useState<Compra[]>([]);
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -202,6 +260,9 @@ export function PurchaseModule() {
     const [supplySearch, setSupplySearch] = useState('');
     const [carrito, setCarrito]           = useState<ItemCarrito[]>([]);
 
+    // ── Errores de precio en el carrito ──────────────────────────────────────
+    const [precioErrors, setPrecioErrors] = useState<Record<number, string>>({});
+
     const emptyForm = {
         proveedoresId: '',
         fecha: new Date().toISOString().split('T')[0],
@@ -211,8 +272,17 @@ export function PurchaseModule() {
         numeroFactura: '',
     };
     const [form, setForm] = useState(emptyForm);
+    const [formErrors, setFormErrors] = useState<CompraFormErrors>({});
+    const [touched, setTouched]       = useState<Partial<Record<string, boolean>>>({});
 
-    // ── Cargar datos ─────────────────────────────────────
+    // ── Feedback banner ───────────────────────────────────────────────────────
+    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+    const showFeedback = (msg: string) => {
+        setFeedbackMsg(msg);
+        setTimeout(() => setFeedbackMsg(null), 4000);
+    };
+
+    // ── Cargar datos ──────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -233,18 +303,34 @@ export function PurchaseModule() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // ── Formulario ───────────────────────────────────────
+    // Re-validar en tiempo real
+    useEffect(() => {
+        setFormErrors(validateCompraForm(form));
+    }, [form]);
+
+    // ── Formulario ────────────────────────────────────────────────────────────
     const handleFormChange = (field: string, value: string) => {
         setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleBlur = (field: string) => {
+        setTouched((prev) => ({ ...prev, [field]: true }));
+    };
+
+    const touchAll = () => {
+        setTouched({ proveedoresId: true, fecha: true });
     };
 
     const resetForm = () => {
         setForm(emptyForm);
         setCarrito([]);
         setSupplySearch('');
+        setFormErrors({});
+        setTouched({});
+        setPrecioErrors({});
     };
 
-    // ── Carrito ──────────────────────────────────────────
+    // ── Carrito ───────────────────────────────────────────────────────────────
     const agregarInsumo = (insumo: Insumo) => {
         setCarrito((prev) => {
             const existe = prev.find((i) => i.insumoId === insumo.id);
@@ -267,6 +353,8 @@ export function PurchaseModule() {
     const actualizarCantidad = (insumoId: number, cantidad: number) => {
         if (cantidad <= 0) {
             setCarrito((prev) => prev.filter((i) => i.insumoId !== insumoId));
+            // Limpiar error de precio si se elimina
+            setPrecioErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
         } else {
             setCarrito((prev) =>
                 prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad } : i)
@@ -274,13 +362,43 @@ export function PurchaseModule() {
         }
     };
 
+    // Actualizar precio individual con validación
+    const actualizarPrecio = (insumoId: number, rawValue: string) => {
+        const valor = parseFloat(rawValue);
+        // Actualizar en carrito
+        setCarrito((prev) =>
+            prev.map((i) => i.insumoId === insumoId ? { ...i, precio: isNaN(valor) ? 0 : valor } : i)
+        );
+        // Validar
+        if (rawValue === '' || isNaN(valor) || valor <= 0) {
+            setPrecioErrors((prev) => ({ ...prev, [insumoId]: 'El precio debe ser mayor a 0' }));
+        } else {
+            setPrecioErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
+        }
+    };
+
     const totalCarrito = carrito.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
 
-    // ── CREAR COMPRA  →  POST /api/compras ───────────────
+    // Verificar si el carrito tiene errores de precio
+    const carritoTienePreciosInvalidos = carrito.some((i) => i.precio <= 0);
+
+    // ── Crear compra ──────────────────────────────────────────────────────────
     const handleCreateCompra = async () => {
-        if (!form.proveedoresId) { toast.error('Selecciona un proveedor'); return; }
-        if (!form.fecha)         { toast.error('La fecha es obligatoria'); return; }
-        if (carrito.length === 0){ toast.error('Agrega al menos un insumo'); return; }
+        touchAll();
+        const errors = validateCompraForm(form);
+
+        if (Object.keys(errors).length > 0) {
+            toast.error('Completa los campos obligatorios');
+            return;
+        }
+        if (carrito.length === 0) {
+            toast.error('Agrega al menos un insumo al carrito');
+            return;
+        }
+        if (carritoTienePreciosInvalidos) {
+            toast.error('Todos los insumos en el carrito deben tener un precio mayor a 0');
+            return;
+        }
 
         try {
             setSaving(true);
@@ -291,6 +409,7 @@ export function PurchaseModule() {
                 metodoPago: form.metodoPago as 'efectivo' | 'transferencia',
                 estado: form.estado as 'pendiente' | 'en transito' | 'completada',
             });
+            showFeedback('✓ Compra registrada exitosamente');
             toast.success('Compra creada exitosamente');
             setIsNewPurchaseOpen(false);
             resetForm();
@@ -302,10 +421,11 @@ export function PurchaseModule() {
         }
     };
 
-    // ── CAMBIAR ESTADO  →  PATCH /api/compras/:id/estado ─
+    // ── Cambiar estado ────────────────────────────────────────────────────────
     const handleCambiarEstado = async (id: number, nuevoEstado: string) => {
         try {
             await cambiarEstadoCompra(id, nuevoEstado);
+            showFeedback(`✓ Estado actualizado a "${nuevoEstado}"`);
             toast.success(`Estado actualizado a "${nuevoEstado}"`);
             fetchData();
         } catch (error: any) {
@@ -313,11 +433,12 @@ export function PurchaseModule() {
         }
     };
 
-    // ── ELIMINAR  →  DELETE /api/compras/:id ─────────────
+    // ── Eliminar ──────────────────────────────────────────────────────────────
     const handleDelete = async (id: number) => {
-        if (!confirm('¿Eliminar esta compra? Solo se pueden eliminar compras pendientes sin insumos.')) return;
+        if (!confirm('¿Eliminar esta compra? Solo se pueden eliminar compras pendientes.')) return;
         try {
             await deleteCompra(id);
+            showFeedback('✓ Compra eliminada correctamente');
             toast.success('Compra eliminada correctamente');
             fetchData();
         } catch (error: any) {
@@ -325,7 +446,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── VER DETALLE  →  GET /api/compras/:id ─────────────
+    // ── Ver detalle ───────────────────────────────────────────────────────────
     const verDetalle = async (compra: Compra) => {
         setShowDetailModal(true);
         setViewingCompra(null);
@@ -340,7 +461,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Filtrado ─────────────────────────────────────────
+    // ── Filtrado ──────────────────────────────────────────────────────────────
     const filteredCompras = compras.filter((c) => {
         const matchesSearch =
             c.proveedor?.nombreEmpresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -358,8 +479,8 @@ export function PurchaseModule() {
         return matchesSearch && matchesDate;
     });
 
-    const totalPages      = Math.ceil(filteredCompras.length / itemsPerPage);
-    const currentCompras  = filteredCompras.slice(
+    const totalPages     = Math.ceil(filteredCompras.length / itemsPerPage);
+    const currentCompras = filteredCompras.slice(
         (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
     );
 
@@ -368,9 +489,23 @@ export function PurchaseModule() {
         (i.codigoInsumo ?? '').toLowerCase().includes(supplySearch.toLowerCase())
     );
 
-    // ── RENDER ───────────────────────────────────────────
+    // ── Condiciones para poder procesar la compra ────────────────────────────
+    const canSubmit =
+        Object.keys(validateCompraForm(form)).length === 0 &&
+        carrito.length > 0 &&
+        !carritoTienePreciosInvalidos;
+
+    // ── RENDER ────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
+
+            {/* ── Feedback Banner ── */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -378,8 +513,10 @@ export function PurchaseModule() {
                     <h1 className="text-3xl font-bold text-blue-900 mb-1">Compras de Insumos</h1>
                     <p className="text-blue-600">Gestión y control de adquisiciones</p>
                 </div>
-                <Button onClick={() => { resetForm(); setIsNewPurchaseOpen(true); }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
+                <Button
+                    onClick={() => { resetForm(); setIsNewPurchaseOpen(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                >
                     <PlusIcon className="w-4 h-4 mr-2" />
                     Nueva Compra
                 </Button>
@@ -506,7 +643,6 @@ export function PurchaseModule() {
                                                 <div>
                                                     <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Pago</p>
                                                     <p className="text-gray-900 capitalize">{compra.metodoPago}</p>
-                                                    {/* Cambiar estado rápido */}
                                                     {compra.estado !== 'completada' && (
                                                         <button
                                                             onClick={() => handleCambiarEstado(
@@ -569,7 +705,7 @@ export function PurchaseModule() {
             </Card>
 
             {/* ════ MODAL — NUEVA COMPRA ════ */}
-            <Dialog open={isNewPurchaseOpen} onOpenChange={setIsNewPurchaseOpen}>
+            <Dialog open={isNewPurchaseOpen} onOpenChange={(open) => { if (!open) { resetForm(); setIsNewPurchaseOpen(false); } }}>
                 <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl text-blue-900">Nueva Compra de Insumos</DialogTitle>
@@ -585,10 +721,19 @@ export function PurchaseModule() {
                                 <h3 className="font-semibold text-blue-900">Datos de la Compra</h3>
                             </div>
                             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                                {/* Alerta si hay errores tocados en el formulario */}
+                                {Object.keys(touched).length > 0 && Object.keys(formErrors).length > 0 && (
+                                    <div className="mb-4">
+                                        <InfoAlert message="Completa los campos obligatorios antes de procesar la compra." />
+                                    </div>
+                                )}
                                 <CompraForm
                                     proveedores={proveedores}
                                     form={form}
                                     onChange={handleFormChange}
+                                    errors={formErrors}
+                                    touched={touched}
+                                    onBlur={handleBlur}
                                 />
                             </div>
                         </div>
@@ -649,6 +794,13 @@ export function PurchaseModule() {
                                 )}
                             </div>
 
+                            {/* Advertencia de precios inválidos */}
+                            {carritoTienePreciosInvalidos && (
+                                <div className="mb-3">
+                                    <InfoAlert message="Uno o más insumos tienen precio 0 o sin definir. Establece un precio mayor a 0 para poder procesar la compra." />
+                                </div>
+                            )}
+
                             {carrito.length === 0 ? (
                                 <div className="text-center py-8 border-2 border-dashed border-blue-100 rounded-lg text-gray-400">
                                     <ShoppingCartIcon className="w-10 h-10 mx-auto mb-2 opacity-20" />
@@ -658,26 +810,52 @@ export function PurchaseModule() {
                                 <div className="border border-blue-100 rounded-lg overflow-hidden">
                                     <div className="divide-y divide-blue-50">
                                         {carrito.map((item) => (
-                                            <div key={item.insumoId} className="flex items-center justify-between p-3 hover:bg-blue-50">
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-blue-900 truncate">{item.nombre}</p>
-                                                    <p className="text-xs text-gray-400">{item.unidad}
-                                                        {item.precio > 0 ? ` • $${Number(item.precio).toLocaleString()} c/u` : ''}
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-2 ml-3">
-                                                    <Button size="sm" variant="outline"
-                                                        onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
-                                                        className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">-</Button>
-                                                    <span className="w-8 text-center text-sm font-bold text-blue-900">{item.cantidad}</span>
-                                                    <Button size="sm" variant="outline"
-                                                        onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
-                                                        className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">+</Button>
-                                                    {item.precio > 0 && (
-                                                        <span className="text-xs font-semibold text-blue-600 w-20 text-right">
-                                                            ${(item.precio * item.cantidad).toLocaleString()}
-                                                        </span>
-                                                    )}
+                                            <div key={item.insumoId} className="p-3 hover:bg-blue-50">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-blue-900 truncate">{item.nombre}</p>
+                                                        <p className="text-xs text-gray-400">{item.unidad}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 ml-3 flex-wrap justify-end">
+                                                        {/* Cantidad */}
+                                                        <div className="flex items-center gap-1">
+                                                            <Button size="sm" variant="outline"
+                                                                onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
+                                                                className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">-</Button>
+                                                            <span className="w-8 text-center text-sm font-bold text-blue-900">{item.cantidad}</span>
+                                                            <Button size="sm" variant="outline"
+                                                                onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
+                                                                className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">+</Button>
+                                                        </div>
+                                                        {/* Precio editable */}
+                                                        <div className="flex flex-col items-end">
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-xs text-gray-400">$</span>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={item.precio === 0 ? '' : item.precio}
+                                                                    onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                                                                        if (!allowed.includes(e.key) && !/[\d.]/.test(e.key)) e.preventDefault();
+                                                                    }}
+                                                                    placeholder="Precio"
+                                                                    min="0.01"
+                                                                    step="0.01"
+                                                                    className={`w-24 h-7 text-xs text-right ${precioErrors[item.insumoId] ? 'border-red-400' : ''}`}
+                                                                />
+                                                            </div>
+                                                            {precioErrors[item.insumoId] && (
+                                                                <p className="text-red-500 text-xs mt-0.5">{precioErrors[item.insumoId]}</p>
+                                                            )}
+                                                        </div>
+                                                        {/* Total ítem */}
+                                                        {item.precio > 0 && (
+                                                            <span className="text-xs font-semibold text-blue-600 w-20 text-right">
+                                                                ${(item.precio * item.cantidad).toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -695,12 +873,19 @@ export function PurchaseModule() {
 
                     {/* Botones */}
                     <div className="flex gap-4 pt-4 border-t border-blue-100 mt-4">
-                        <Button variant="outline" onClick={() => { resetForm(); setIsNewPurchaseOpen(false); }}
-                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50" disabled={saving}>
+                        <Button
+                            variant="outline"
+                            onClick={() => { resetForm(); setIsNewPurchaseOpen(false); }}
+                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50"
+                            disabled={saving}
+                        >
                             Cancelar
                         </Button>
-                        <Button onClick={handleCreateCompra} disabled={saving || carrito.length === 0}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button
+                            onClick={handleCreateCompra}
+                            disabled={saving}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                        >
                             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                             🛒 Procesar Compra
                         </Button>
@@ -733,9 +918,7 @@ export function PurchaseModule() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 uppercase">Proveedor</p>
-                                    <p className="font-semibold text-blue-900">
-                                        {viewingCompra.proveedor?.nombreEmpresa}
-                                    </p>
+                                    <p className="font-semibold text-blue-900">{viewingCompra.proveedor?.nombreEmpresa}</p>
                                     <p className="text-xs text-gray-500">{viewingCompra.proveedor?.email}</p>
                                 </div>
                                 <div>
@@ -777,11 +960,17 @@ export function PurchaseModule() {
                             )}
 
                             <div className="flex gap-3">
-                                <Button variant="outline" onClick={() => setShowDetailModal(false)} className="flex-1 border-blue-900 text-blue-900">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowDetailModal(false)}
+                                    className="flex-1 border-blue-900 text-blue-900"
+                                >
                                     Cerrar
                                 </Button>
-                                <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={() => toast.info('Función de PDF próximamente')}>
+                                <Button
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={() => toast.info('Función de PDF próximamente')}
+                                >
                                     <FileDown className="w-4 h-4 mr-2" />
                                     Descargar PDF
                                 </Button>

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
+import { Switch } from '@/shared/components/ui/switch';
 import {
     Card, CardContent, CardDescription, CardHeader, CardTitle
 } from '@/shared/components/ui/card';
@@ -11,10 +12,12 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from '@/shared/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
+import { Badge } from '@/shared/components/ui/badge';
 import { toast } from 'sonner';
 import {
     PlusIcon, SearchIcon, EditIcon, TrashIcon, EyeIcon,
-    TagIcon, ChevronLeft, ChevronRight, Loader2Icon
+    TagIcon, ChevronLeft, ChevronRight, Loader2Icon,
+    CheckCircle2, Info, AlertTriangle
 } from 'lucide-react';
 import {
     getCategorias,
@@ -22,40 +25,85 @@ import {
     createCategoria,
     updateCategoria,
     deleteCategoria,
-} from '@/features/products/services/categoriaProductosService';
+} from '../services/categoriaProductosService';
 
-// ── Tipos ────────────────────────────────────────────────
 interface Categoria {
     id: number;
     nombreCategoria: string;
     descripcion: string | null;
+    estado: 'activo' | 'inactivo';
     productos?: { id: number; nombreProducto: string; precio: number; stock: number }[];
 }
 
 interface FormData {
     nombreCategoria: string;
     descripcion: string;
+    estado: 'activo' | 'inactivo';
 }
 
-// ── Formulario FUERA del componente principal ────────────
-// Esto evita que el input pierda el foco al escribir
+interface FormErrors {
+    nombreCategoria?: string;
+}
+
+// ── Validación ────────────────────────────────────────────────────────────────
+function validateCategoryForm(form: FormData): FormErrors {
+    const errors: FormErrors = {};
+    if (!form.nombreCategoria.trim())
+        errors.nombreCategoria = 'El nombre es obligatorio';
+    else if (form.nombreCategoria.trim().length < 2)
+        errors.nombreCategoria = 'Mínimo 2 caracteres';
+    return errors;
+}
+
+// ── Mensaje de error bajo campo ───────────────────────────────────────────────
+const FieldError = ({ message }: { message?: string }) =>
+    message ? (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+            {message}
+        </p>
+    ) : null;
+
+// ── Banner informativo azul ───────────────────────────────────────────────────
+const InfoAlert = ({ message }: { message: string }) => (
+    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+        <Info className="w-4 h-4 shrink-0 text-blue-500" />
+        <span>{message}</span>
+    </div>
+);
+
+// ── Bloqueo de dígitos en campos de texto ─────────────────────────────────────
+const blockDigits = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (/^\d$/.test(e.key)) e.preventDefault();
+};
+
+// ── Formulario de categoría ───────────────────────────────────────────────────
 interface CategoryFormProps {
     formData: FormData;
     onChange: (field: keyof FormData, value: string) => void;
+    errors: FormErrors;
+    touched: Partial<Record<keyof FormData, boolean>>;
+    onBlur: (field: keyof FormData) => void;
 }
 
-const CategoryForm = ({ formData, onChange }: CategoryFormProps) => (
+const CategoryForm = ({ formData, onChange, errors, touched, onBlur }: CategoryFormProps) => (
     <div className="grid gap-4">
         <div className="space-y-2">
-            <Label htmlFor="nombreCategoria">Nombre de la categoría *</Label>
+            <Label htmlFor="nombreCategoria">
+                Nombre de la categoría <span className="text-red-500">*</span>
+            </Label>
             <Input
                 id="nombreCategoria"
                 placeholder="Ej: Frenos"
                 value={formData.nombreCategoria}
                 onChange={(e) => onChange('nombreCategoria', e.target.value)}
+                onBlur={() => onBlur('nombreCategoria')}
+                onKeyDown={blockDigits}
                 maxLength={50}
                 autoFocus
+                className={touched.nombreCategoria && errors.nombreCategoria ? 'border-red-400 focus-visible:ring-red-300' : ''}
             />
+            <FieldError message={touched.nombreCategoria ? errors.nombreCategoria : undefined} />
         </div>
         <div className="space-y-2">
             <Label htmlFor="descripcion">Descripción</Label>
@@ -67,10 +115,22 @@ const CategoryForm = ({ formData, onChange }: CategoryFormProps) => (
                 maxLength={255}
             />
         </div>
+        <div className="space-y-2">
+            <Label>Estado</Label>
+            <div className="flex items-center space-x-2 pt-1">
+                <Switch
+                    checked={formData.estado === 'activo'}
+                    onCheckedChange={(checked) => onChange('estado', checked ? 'activo' : 'inactivo')}
+                />
+                <span className="text-sm text-gray-600">
+                    {formData.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                </span>
+            </div>
+        </div>
     </div>
 );
 
-// ── Componente principal ─────────────────────────────────
+// ── Componente principal ──────────────────────────────────────────────────────
 export function ProductCategoryManagement() {
 
     const [categories, setCategories] = useState<Categoria[]>([]);
@@ -89,12 +149,25 @@ export function ProductCategoryManagement() {
     const [categoryDetail, setCategoryDetail]         = useState<Categoria | null>(null);
     const [loadingDetail, setLoadingDetail]           = useState(false);
 
+    // Estado para verificar si la categoría tiene productos antes de eliminar
+    const [deleteHasProducts, setDeleteHasProducts]   = useState(false);
+    const [loadingDeleteCheck, setLoadingDeleteCheck] = useState(false);
+
     const [formData, setFormData] = useState<FormData>({
         nombreCategoria: '',
         descripcion: '',
+        estado: 'activo',
     });
+    const [formErrors, setFormErrors] = useState<FormErrors>({});
+    const [touched, setTouched]       = useState<Partial<Record<keyof FormData, boolean>>>({});
 
-    // ── Cargar categorías ────────────────────────────────
+    // ── Feedback banner ───────────────────────────────────────────────────────
+    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+    const showFeedback = (msg: string) => {
+        setFeedbackMsg(msg);
+        setTimeout(() => setFeedbackMsg(null), 4000);
+    };
+
     const fetchCategorias = useCallback(async () => {
         try {
             setLoading(true);
@@ -107,11 +180,13 @@ export function ProductCategoryManagement() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchCategorias();
-    }, [fetchCategorias]);
+    useEffect(() => { fetchCategorias(); }, [fetchCategorias]);
 
-    // ── Filtrado y paginación ────────────────────────────
+    // Re-validar en tiempo real
+    useEffect(() => {
+        setFormErrors(validateCategoryForm(formData));
+    }, [formData]);
+
     const filteredCategories = categories.filter((cat) =>
         cat.nombreCategoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (cat.descripcion ?? '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -127,22 +202,36 @@ export function ProductCategoryManagement() {
         if (page >= 1 && page <= totalPages) setCurrentPage(page);
     };
 
-    // ── Formulario ───────────────────────────────────────
-    const resetForm = () => setFormData({ nombreCategoria: '', descripcion: '' });
+    const resetForm = () => {
+        setFormData({ nombreCategoria: '', descripcion: '', estado: 'activo' });
+        setFormErrors({});
+        setTouched({});
+    };
 
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
     };
 
-    // ── CREAR  →  POST /api/categorias ───────────────────
+    const handleBlur = (field: keyof FormData) => {
+        setTouched((prev) => ({ ...prev, [field]: true }));
+    };
+
+    const touchAll = () => {
+        setTouched({ nombreCategoria: true });
+    };
+
+    // ── Crear ─────────────────────────────────────────────────────────────────
     const handleCreateCategory = async () => {
-        if (!formData.nombreCategoria.trim()) {
-            toast.error('El nombre de la categoría es obligatorio');
+        touchAll();
+        const errors = validateCategoryForm(formData);
+        if (Object.keys(errors).length > 0) {
+            toast.error('Completa los campos obligatorios');
             return;
         }
         try {
             setSaving(true);
-            await createCategoria(formData);
+            await createCategoria({ ...formData, nombreCategoria: formData.nombreCategoria.trim() });
+            showFeedback('✓ Categoría creada exitosamente');
             toast.success('Categoría creada exitosamente');
             setIsCreateDialogOpen(false);
             resetForm();
@@ -154,15 +243,18 @@ export function ProductCategoryManagement() {
         }
     };
 
-    // ── EDITAR  →  PUT /api/categorias/:id ───────────────
+    // ── Editar ────────────────────────────────────────────────────────────────
     const handleEditCategory = async () => {
-        if (!selectedCategory || !formData.nombreCategoria.trim()) {
-            toast.error('El nombre de la categoría es obligatorio');
+        touchAll();
+        const errors = validateCategoryForm(formData);
+        if (!selectedCategory || Object.keys(errors).length > 0) {
+            toast.error('Completa los campos obligatorios');
             return;
         }
         try {
             setSaving(true);
-            await updateCategoria(selectedCategory.id, formData);
+            await updateCategoria(selectedCategory.id, { ...formData, nombreCategoria: formData.nombreCategoria.trim() });
+            showFeedback('✓ Categoría actualizada correctamente');
             toast.success('Categoría actualizada exitosamente');
             setIsEditDialogOpen(false);
             setSelectedCategory(null);
@@ -175,12 +267,29 @@ export function ProductCategoryManagement() {
         }
     };
 
-    // ── ELIMINAR  →  DELETE /api/categorias/:id ──────────
+    // ── Abrir diálogo eliminar: verificar si tiene productos ──────────────────
+    const openDeleteDialog = async (category: Categoria) => {
+        setSelectedCategory(category);
+        setDeleteHasProducts(false);
+        setIsDeleteDialogOpen(true);
+        setLoadingDeleteCheck(true);
+        try {
+            const detail = await getCategoriaById(category.id);
+            setDeleteHasProducts((detail.productos?.length ?? 0) > 0);
+        } catch {
+            // Si falla la verificación, el backend rechazará si hay productos
+        } finally {
+            setLoadingDeleteCheck(false);
+        }
+    };
+
+    // ── Eliminar ──────────────────────────────────────────────────────────────
     const handleDeleteCategory = async () => {
-        if (!selectedCategory) return;
+        if (!selectedCategory || deleteHasProducts) return;
         try {
             setSaving(true);
             await deleteCategoria(selectedCategory.id);
+            showFeedback('✓ Categoría eliminada exitosamente');
             toast.success('Categoría eliminada exitosamente');
             setIsDeleteDialogOpen(false);
             setSelectedCategory(null);
@@ -192,7 +301,6 @@ export function ProductCategoryManagement() {
         }
     };
 
-    // ── VER DETALLE  →  GET /api/categorias/:id ──────────
     const openViewDialog = async (category: Categoria) => {
         setIsViewDialogOpen(true);
         setCategoryDetail(null);
@@ -212,13 +320,11 @@ export function ProductCategoryManagement() {
         setFormData({
             nombreCategoria: category.nombreCategoria,
             descripcion: category.descripcion ?? '',
+            estado: category.estado ?? 'activo',
         });
+        setFormErrors({});
+        setTouched({});
         setIsEditDialogOpen(true);
-    };
-
-    const openDeleteDialog = (category: Categoria) => {
-        setSelectedCategory(category);
-        setIsDeleteDialogOpen(true);
     };
 
     const openCreateDialog = () => {
@@ -226,9 +332,16 @@ export function ProductCategoryManagement() {
         setIsCreateDialogOpen(true);
     };
 
-    // ── RENDER ───────────────────────────────────────────
     return (
         <div className="space-y-6 p-6">
+
+            {/* ── Feedback Banner ── */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -292,12 +405,12 @@ export function ProductCategoryManagement() {
                         <>
                             <div className="rounded-lg border overflow-hidden">
                                 <Table>
-                                    <TableHeader className="bg-blue-900">
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableHead className="text-white font-semibold">ID</TableHead>
-                                            <TableHead className="text-white font-semibold">Nombre</TableHead>
-                                            <TableHead className="text-white font-semibold">Descripción</TableHead>
-                                            <TableHead className="text-white font-semibold">Acciones</TableHead>
+                                            <TableHead className="text-black font-semibold">ID</TableHead>
+                                            <TableHead className="text-black font-semibold">Nombre</TableHead>
+                                            <TableHead className="text-black font-semibold">Descripción</TableHead>
+                                            <TableHead className="text-black font-semibold">Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -324,21 +437,18 @@ export function ProductCategoryManagement() {
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openViewDialog(category)}
                                                             className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                                            title="Ver detalle"
                                                         >
                                                             <EyeIcon className="w-4 h-4" />
                                                         </Button>
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openEditDialog(category)}
                                                             className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                                            title="Editar"
                                                         >
                                                             <EditIcon className="w-4 h-4" />
                                                         </Button>
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openDeleteDialog(category)}
-                                                            className="border-red-500 text-red-600 hover:bg-red-50"
-                                                            title="Eliminar"
+                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50"
                                                         >
                                                             <TrashIcon className="w-4 h-4" />
                                                         </Button>
@@ -388,17 +498,26 @@ export function ProductCategoryManagement() {
             </Card>
 
             {/* DIALOG — CREAR */}
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { if (!open) { setIsCreateDialogOpen(false); resetForm(); } }}>
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle>Nueva categoría</DialogTitle>
-                        <DialogDescription>
-                            Complete la información para crear una nueva categoría.
-                        </DialogDescription>
+                        <DialogDescription>Complete la información para crear una nueva categoría.</DialogDescription>
                     </DialogHeader>
-                    <CategoryForm formData={formData} onChange={handleInputChange} />
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsCreateDialogOpen(false)} disabled={saving}>
+
+                    {Object.keys(touched).length > 0 && Object.keys(formErrors).length > 0 && (
+                        <InfoAlert message="Completa los campos obligatorios antes de continuar." />
+                    )}
+
+                    <CategoryForm
+                        formData={formData}
+                        onChange={handleInputChange}
+                        errors={formErrors}
+                        touched={touched}
+                        onBlur={handleBlur}
+                    />
+                    <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => { setIsCreateDialogOpen(false); resetForm(); }} disabled={saving}>
                             Cancelar
                         </Button>
                         <Button
@@ -414,23 +533,32 @@ export function ProductCategoryManagement() {
             </Dialog>
 
             {/* DIALOG — EDITAR */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog open={isEditDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetForm(); } }}>
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle>Editar categoría</DialogTitle>
-                        <DialogDescription>
-                            Modifique los campos que desea actualizar.
-                        </DialogDescription>
+                        <DialogDescription>Modifique los campos que desea actualizar.</DialogDescription>
                     </DialogHeader>
-                    <CategoryForm formData={formData} onChange={handleInputChange} />
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)} disabled={saving}>
+
+                    {Object.keys(touched).length > 0 && Object.keys(formErrors).length > 0 && (
+                        <InfoAlert message="Completa los campos obligatorios antes de continuar." />
+                    )}
+
+                    <CategoryForm
+                        formData={formData}
+                        onChange={handleInputChange}
+                        errors={formErrors}
+                        touched={touched}
+                        onBlur={handleBlur}
+                    />
+                    <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+                        <Button variant="ghost" onClick={() => { setIsEditDialogOpen(false); resetForm(); }} disabled={saving}>
                             Cancelar
                         </Button>
                         <Button
                             onClick={handleEditCategory}
                             disabled={saving}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="bg-blue-600 hover:bg-blue-800 text-white"
                         >
                             {saving && <Loader2Icon className="w-4 h-4 animate-spin mr-2" />}
                             Guardar cambios
@@ -441,89 +569,127 @@ export function ProductCategoryManagement() {
 
             {/* DIALOG — VER DETALLE */}
             <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                <DialogContent className="sm:max-w-[550px]">
+                <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Detalle de categoría</DialogTitle>
-                        <DialogDescription>Información completa incluyendo productos asociados.</DialogDescription>
                     </DialogHeader>
                     {loadingDetail ? (
-                        <div className="flex justify-center py-8">
+                        <div className="flex justify-center py-6">
                             <Loader2Icon className="w-6 h-6 animate-spin text-blue-600" />
                         </div>
                     ) : categoryDetail ? (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 bg-blue-50 p-3 rounded-lg text-sm">
                                 <div>
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">ID</p>
+                                    <p className="text-xs text-gray-500 uppercase">ID</p>
                                     <p className="font-mono font-semibold">#{categoryDetail.id}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">Nombre</p>
+                                    <p className="text-xs text-gray-500 uppercase">Estado</p>
+                                    <Badge className={
+                                        categoryDetail.estado === 'activo'
+                                            ? 'bg-blue-100 text-blue-900 border border-blue-300 mt-0.5'
+                                            : 'bg-gray-100 text-gray-500 border border-gray-300 mt-0.5'
+                                    }>
+                                        {categoryDetail.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                                    </Badge>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-xs text-gray-500 uppercase">Nombre</p>
                                     <p className="font-semibold text-blue-900">{categoryDetail.nombreCategoria}</p>
                                 </div>
                                 <div className="col-span-2">
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">Descripción</p>
-                                    <p className="text-sm">{categoryDetail.descripcion ?? 'Sin descripción'}</p>
+                                    <p className="text-xs text-gray-500 uppercase">Descripción</p>
+                                    <p className="text-gray-700">{categoryDetail.descripcion ?? 'Sin descripción'}</p>
                                 </div>
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-gray-700 mb-2">
+                                <p className="text-sm font-semibold text-gray-700 mb-1">
                                     Productos asociados ({categoryDetail.productos?.length ?? 0})
                                 </p>
                                 {categoryDetail.productos && categoryDetail.productos.length > 0 ? (
-                                    <div className="max-h-48 overflow-y-auto rounded border divide-y">
+                                    <div className="max-h-36 overflow-y-auto rounded border divide-y">
                                         {categoryDetail.productos.map((p) => (
-                                            <div key={p.id} className="flex justify-between items-center px-3 py-2 text-sm">
+                                            <div key={p.id} className="flex justify-between items-center px-3 py-1.5 text-sm">
                                                 <span className="font-medium">{p.nombreProducto}</span>
                                                 <span className="text-gray-500">Stock: {p.stock}</span>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-gray-400 italic">Esta categoría no tiene productos</p>
+                                    <p className="text-sm text-gray-400 italic">Sin productos asociados</p>
                                 )}
                             </div>
                         </div>
                     ) : null}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                            Cerrar
-                        </Button>
+                    <DialogFooter className="pt-2">
+                        <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Cerrar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* DIALOG — ELIMINAR */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent>
+                <DialogContent className>
                     <DialogHeader>
                         <DialogTitle>Eliminar categoría</DialogTitle>
-                        <DialogDescription>
-                            Esta acción no se puede deshacer. ¿Confirma que desea eliminar esta categoría?
-                        </DialogDescription>
+                        <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
                     </DialogHeader>
+
                     {selectedCategory && (
-                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="font-semibold text-red-800">{selectedCategory.nombreCategoria}</p>
-                            <p className="text-sm text-red-600 mt-1">{selectedCategory.descripcion ?? 'Sin descripción'}</p>
-                            <p className="text-xs text-red-500 mt-2">
-                                ⚠️ Solo se puede eliminar si no tiene productos asociados
-                            </p>
+                        <div className="space-y-3">
+                            {/* Datos de la categoría */}
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="font-semibold text-blue-900">{selectedCategory.nombreCategoria}</p>
+                                <p className="text-sm text-blue-700 mt-1">{selectedCategory.descripcion ?? 'Sin descripción'}</p>
+                            </div>
+
+                            {/* Verificación de productos */}
+                            {loadingDeleteCheck ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                                    <Loader2Icon className="w-4 h-4 animate-spin text-blue-500" />
+                                    Verificando productos asociados...
+                                </div>
+                            ) : deleteHasProducts ? (
+                                // ── Tiene productos: advertencia clara para el usuario final ──
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                    <div className="text-sm space-y-1">
+                                        <p className="font-semibold">No es posible eliminar esta categoría</p>
+                                        <p className="text-amber-700">
+                                            Esta categoría está siendo utilizada por uno o más productos. Para poder
+                                            eliminarla, primero debes ir al módulo de{' '}
+                                            <span className="font-semibold">Gestión de Productos</span> y reasignar
+                                            o eliminar los productos que pertenecen a esta categoría.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                // ── Sin productos: confirmación segura ──
+                                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+                                    <Info className="w-4 h-4 shrink-0 text-blue-500" />
+                                    <span>Esta categoría no tiene productos asociados y puede eliminarse sin problema.</span>
+                                </div>
+                            )}
                         </div>
                     )}
-                    <DialogFooter>
+
+                    <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
                         <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} disabled={saving}>
                             Cancelar
                         </Button>
                         <Button
-                            onClick={handleDeleteCategory}
-                            disabled={saving}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            {saving && <Loader2Icon className="w-4 h-4 animate-spin mr-2" />}
-                            Eliminar
-                        </Button>
-                    </DialogFooter>
+    onClick={deleteHasProducts ? undefined : handleDeleteCategory}
+    className={
+        deleteHasProducts
+            ? "bg-blue-100 text-blue-400 border border-blue-200 cursor-not-allowed hover:bg-blue-100 pointer-events-none"
+            : "bg-blue-white hover:bg-blue-400 text-blue-900 border border-blue-900"
+                        }
+                    >
+                        {saving && <Loader2Icon className="w-4 h-4 animate-spin mr-2" />}
+                        {deleteHasProducts ? 'No se puede eliminar' : 'Sí, eliminar'}
+                    </Button>
+                                        </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

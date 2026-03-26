@@ -1,6 +1,6 @@
 const { Usuarios, Roles, Clientes } = require('../models');
 const { sequelize } = require('../config/jtools_db');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -64,6 +64,7 @@ const login = async (req, res) => {
       usuario: safeUser(usuario)
     });
   } catch (error) {
+    console.error('ERROR LOGIN:', error);
     return res.status(500).json({ message: 'Error al iniciar sesión', error: error.message });
   }
 };
