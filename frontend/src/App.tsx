@@ -17,7 +17,7 @@ import { PurchaseModule } from '@/features/suppliers/pages/PurchaseModule';
 import { SupplierManagement } from '@/features/suppliers/pages/SupplierManagement';
 import { SupplyManagement } from '@/features/suppliers/pages/SupplyManagement';
 import { TechnicalSheetModule } from '@/features/production/pages/TechnicalSheetModule';
-import { NewsModule } from '@/features/employed/pages/NewsModule';
+import { NewsModule } from '@/features/novedades/NewsModule';
 import {
   DropdownMenu,
   DropdownMenuContent,
