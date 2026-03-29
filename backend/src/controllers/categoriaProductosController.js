@@ -6,6 +6,7 @@ const getCategorias = async (req, res) => {
         const categorias = await CategoriaProductos.findAll();
         res.status(200).json(categorias);
     } catch (error) {
+        console.error('Error al obtener categorías:', error);
         res.status(500).json({ message: 'Error al obtener las categorías', error: error.message });
     }
 };
@@ -26,6 +27,7 @@ const getCategoriaById = async (req, res) => {
 
         res.status(200).json(categoria);
     } catch (error) {
+        console.error('Error al obtener categoría por ID:', error);
         res.status(500).json({ message: 'Error al obtener la categoría', error: error.message });
     }
 };
@@ -33,15 +35,25 @@ const getCategoriaById = async (req, res) => {
 // POST - crear categoría
 const createCategoria = async (req, res) => {
     try {
-        const { nombreCategoria, descripcion } = req.body;
+        console.log('📦 Body recibido:', req.body);
+        
+        const { nombreCategoria, descripcion, estado } = req.body;
+
+        const estadoValido = (estado === true || estado === 'true' || estado === 'activo')
+            ? 'activo' : 'inactivo';
+
+        console.log('✅ Estado a insertar:', estadoValido);
 
         const categoria = await CategoriaProductos.create({
             nombreCategoria,
-            descripcion
+            descripcion,
+            estado: estadoValido
         });
 
         res.status(201).json({ message: 'Categoría creada correctamente', categoria });
     } catch (error) {
+        console.error('❌ ERROR COMPLETO:', error.message);
+        console.error('❌ ERROR NOMBRE:', error.name);
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
             return res.status(400).json({ message: 'Error de validación', errores: mensajes });
@@ -60,12 +72,22 @@ const updateCategoria = async (req, res) => {
             return res.status(404).json({ message: 'Categoría no encontrada' });
         }
 
-        const { nombreCategoria, descripcion } = req.body;
+        const { nombreCategoria, descripcion, estado } = req.body;
 
-        await categoria.update({ nombreCategoria, descripcion });
+        // Convertir el valor del toggle (true/false) al ENUM ('activo'/'inactivo')
+        const estadoValido = (estado === true || estado === 'true' || estado === 'activo')
+            ? 'activo'
+            : 'inactivo';
+
+        await categoria.update({
+            nombreCategoria,
+            descripcion,
+            estado: estadoValido
+        });
 
         res.status(200).json({ message: 'Categoría actualizada correctamente', categoria });
     } catch (error) {
+        console.error('Error al actualizar categoría:', error);
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
             return res.status(400).json({ message: 'Error de validación', errores: mensajes });
@@ -84,7 +106,7 @@ const deleteCategoria = async (req, res) => {
             return res.status(404).json({ message: 'Categoría no encontrada' });
         }
 
-        // verificar si tiene productos asociados
+        // Verificar si tiene productos asociados
         const productosAsociados = await Productos.findOne({
             where: { categoriaProductoId: id }
         });
@@ -96,6 +118,7 @@ const deleteCategoria = async (req, res) => {
         await categoria.destroy();
         res.status(200).json({ message: 'Categoría eliminada correctamente' });
     } catch (error) {
+        console.error('Error al eliminar categoría:', error);
         res.status(500).json({ message: 'Error al eliminar la categoría', error: error.message });
     }
 };
