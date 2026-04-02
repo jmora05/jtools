@@ -97,11 +97,13 @@ InsumoProducto.belongsTo(Productos, {
 
 // Novedades
 Novedades.belongsTo(Empleados, {
-    foreignKey: 'registrado_por'
+    foreignKey: 'registrado_por',
+    as: 'registradoPor'
 });
 
 Novedades.belongsTo(Empleados, {
-    foreignKey: 'empleado_responsable'
+    foreignKey: 'empleado_responsable',
+    as: 'empleadoResponsable'
 });
 
 
