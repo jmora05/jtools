@@ -1,222 +1,228 @@
-//Novedades empleados - Gestión de incidencias, mejoras y novedades del equipo
-import React, { useState } from 'react';
+// Novedades empleados - Gestión de incidencias, mejoras y novedades del equipo
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Badge } from '@/shared/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { PlusIcon, SearchIcon, EditIcon, TrashIcon, XIcon, CalendarIcon, BellIcon, AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/shared/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/shared/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/shared/components/ui/tooltip';
+import {
+  PlusIcon, EditIcon, TrashIcon, CalendarIcon, AlertCircleIcon,
+  ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon,
+  CheckIcon, XIcon,
+} from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
-interface Issue { 
-  title: string;
-  description: string;
-  status: 'Registrada' | 'Aprobada' | 'Rechazada';
-  responsibleEmployee: string;
-  reportedBy: string;
-  reportDate: string;
-}
+import { getNovedades, createNovedad, updateNovedad, deleteNovedad, cambiarEstadoNovedad, type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO } from '../services/novedadesService';// ajusta el path a tu proyecto
+
+// ─── ID del empleado autenticado ──────────────────────────────────────────────
+// Reemplaza esto con tu hook/contexto de autenticación real, por ejemplo:
+// const { empleado } = useAuth();
+// const EMPLEADO_ACTUAL_ID = empleado.id;
+const EMPLEADO_ACTUAL_ID = 1;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ESTADO_COLORS: Record<string, string> = {
+  registrada: 'bg-blue-100 text-blue-700 border-blue-200',
+  aprobada:   'bg-green-100 text-green-700 border-green-200',
+  rechazada:  'bg-red-100 text-red-700 border-red-200',
+};
+
+const ESTADO_LABELS: Record<string, string> = {
+  registrada: 'Registrada',
+  aprobada:   'Aprobada',
+  rechazada:  'Rechazada',
+};
+
+const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
+  emp ? `${emp.nombres} ${emp.apellidos}` : '—';
+
+const formatFecha = (fecha?: string) =>
+  fecha ? fecha.split('T')[0] : '—';
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 
 export function NewsModule() {
-  const [issues, setIssues] = useState<Issue[]>([
-    {
-      title: 'Falla en sistema de facturación',
-      description: 'El sistema de facturación no permite generar facturas electrónicas desde esta mañana. Los clientes están reportando demoras.',
-      status: 'Aprobada',
-      responsibleEmployee: 'Carlos Ramírez',
-      reportedBy: 'María González',
-      reportDate: '2024-11-05'
-    },
-    {
-      title: 'Equipo de aire acondicionado requiere mantenimiento',
-      description: 'El aire acondicionado de la sala de ventas no está enfriando adecuadamente. Se requiere revisión técnica.',
-      status: 'Aprobada',
-      responsibleEmployee: 'Luis Torres',
-      reportedBy: 'Ana Rodríguez',
-      reportDate: '2024-11-04'
-    },
-    {
-      title: 'Falta de inventario en productos de alta rotación',
-      description: 'Se han agotado varias referencias de filtros de aceite que son de alta demanda. Clientes están solicitando.',
-      status: 'Aprobada',
-      responsibleEmployee: 'Pedro Sánchez',
-      reportedBy: 'Carlos Medina',
-      reportDate: '2024-11-03'
-    },
-    {
-      title: 'Actualización de precios en catálogo',
-      description: 'Algunos productos tienen precios desactualizados en el sistema. Se requiere actualización urgente.',
-      status: 'Aprobada',
-      responsibleEmployee: 'Andrea López',
-      reportedBy: 'Roberto Díaz',
-      reportDate: '2024-11-01'
-    },
-    {
-      title: 'Mejora en proceso de recepción de mercancía',
-      description: 'Propuesta para optimizar el proceso de recepción y registro de mercancía en bodega.',
-      status: 'Aprobada ',
-      responsibleEmployee: 'Javier Morales',
-      reportedBy: 'Laura Gómez',
-      reportDate: '2024-10-30'
-    },
-    {
-      title: 'Capacitación en nuevo sistema de ventas',
-      description: 'Se requiere programar capacitación para el equipo de ventas sobre las nuevas funcionalidades del sistema.',
-      status: 'Aprobada',
-      responsibleEmployee: 'Diana Martínez',
-      reportedBy: 'Andrés Castro',
-      reportDate: '2024-10-28'
-    }
-  ]);
 
-  const [searchTerm, setSearchTerm] = useState('');
+  // ── Estado de datos ────────────────────────────────────────────────────────
+  const [novedades, setNovedades]   = useState<Novedad[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // ── Filtros y paginación ───────────────────────────────────────────────────
+  const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage]   = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
+  // ── Diálogos ───────────────────────────────────────────────────────────────
+  const [isNewDialogOpen,    setIsNewDialogOpen]    = useState(false);
+  const [isEditDialogOpen,   setIsEditDialogOpen]   = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [isViewDialogOpen,   setIsViewDialogOpen]   = useState(false);
+  const [selectedNovedad,    setSelectedNovedad]    = useState<Novedad | null>(null);
 
-  const [issueForm, setIssueForm] = useState({
-    title: '',
-    description: '',
-    status: 'Registrada' as 'Registrada' | 'Aprobada' | 'Rechazada',
-    responsibleEmployee: '',
-    reportedBy: 'Usuario Actual'
+  // ── Formulario ─────────────────────────────────────────────────────────────
+  const emptyForm = { titulo: '', descripcion_detallada: '', empleado_responsable: '' };
+  const [form, setForm] = useState(emptyForm);
+
+  // ── Carga inicial ──────────────────────────────────────────────────────────
+  const fetchNovedades = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getNovedades();
+      setNovedades(data);
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al cargar las novedades');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchNovedades(); }, [fetchNovedades]);
+
+  // Reset página al cambiar filtros
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
+
+  // ── Filtrado y paginación ──────────────────────────────────────────────────
+  const filtered = novedades.filter(n => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch =
+      n.titulo.toLowerCase().includes(q) ||
+      n.descripcion_detallada.toLowerCase().includes(q) ||
+      nombreCompleto(n.registradoPor).toLowerCase().includes(q) ||
+      nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || n.estado === statusFilter;
+    return matchSearch && matchStatus;
   });
 
-  const itemsPerPage = 5;
-
-  // Filtrado de novedades
-  const filteredIssues = issues.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.responsibleEmployee.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.reportedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    
-    return matchesSearch && matchesStatus
-  });
-
-  const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
-  const paginatedIssues = filteredIssues.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated  = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
-  const resetForm = () => {
-    setIssueForm({
-      title: '',
-      description: '',
-      status: 'Registrada',
-      responsibleEmployee: '',
-      reportedBy: 'Usuario Actual'
-    });
-  };
+  // ── CRUD ───────────────────────────────────────────────────────────────────
 
-  const handleCreateIssue = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const newIssue: Issue = {
-      id: Math.max(...issues.map(n => n.id), 0) + 1,
-      ...issueForm,
-      reportDate: new Date().toISOString().split('T')[0]
-    };
-
-    setIssues([...issues, newIssue]);
-    resetForm();
-    setIsNewDialogOpen(false);
-    toast.success('Novedad registrada exitosamente');
+    setSubmitting(true);
+    try {
+      const dto: CreateNovedadDTO = {
+        titulo:                form.titulo,
+        descripcion_detallada: form.descripcion_detallada,
+        registrado_por:        EMPLEADO_ACTUAL_ID,
+        empleado_responsable:  form.empleado_responsable !== ''
+                                 ? Number(form.empleado_responsable)
+                                 : null,
+      };
+      const nueva = await createNovedad(dto);
+      setNovedades(prev => [nueva, ...prev]);
+      setForm(emptyForm);
+      setIsNewDialogOpen(false);
+      toast.success('Novedad registrada exitosamente');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al crear la novedad');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleUpdateIssue = (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!selectedIssue) return;
-
-    const updatedIssues = issues.map(item =>
-      item.id === selectedIssue.id
-        ? {
-            ...item,
-            ...issueForm
-          }
-        : item
-    );
-
-    setIssues(updatedIssues);
-    setIsEditDialogOpen(false);
-    setSelectedIssue(null);
-    resetForm();
-    toast.success('Novedad actualizada exitosamente');
+    if (!selectedNovedad) return;
+    setSubmitting(true);
+    try {
+      const dto: UpdateNovedadDTO = {
+        titulo:                form.titulo,
+        descripcion_detallada: form.descripcion_detallada,
+        empleado_responsable:  form.empleado_responsable !== ''
+                                 ? Number(form.empleado_responsable)
+                                 : null,
+      };
+      const updated = await updateNovedad(selectedNovedad.id, dto);
+      setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      setIsEditDialogOpen(false);
+      setSelectedNovedad(null);
+      setForm(emptyForm);
+      toast.success('Novedad actualizada exitosamente');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al actualizar la novedad');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteIssue = () => {
-    if (!selectedIssue) return;
-
-    setIssues(issues.filter(item => item.id !== selectedIssue.id));
-    setIsDeleteDialogOpen(false);
-    setSelectedIssue(null);
-    toast.success('Novedad eliminada exitosamente');
+  const handleDelete = async () => {
+    if (!selectedNovedad) return;
+    setSubmitting(true);
+    try {
+      await deleteNovedad(selectedNovedad.id);
+      setNovedades(prev => prev.filter(n => n.id !== selectedNovedad.id));
+      setIsDeleteDialogOpen(false);
+      setSelectedNovedad(null);
+      toast.success('Novedad eliminada exitosamente');
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al eliminar la novedad');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const openEditDialog = (issue: Issue) => {
-    setSelectedIssue(issue);
-    setIssueForm({
-      title: issue.title,
-      description: issue.description,
-      status: issue.status,
-      responsibleEmployee: issue.responsibleEmployee,
-      reportedBy: issue.reportedBy
+  const handleCambiarEstado = async (
+    novedad: Novedad,
+    estado: 'aprobada' | 'rechazada'
+  ) => {
+    try {
+      const updated = await cambiarEstadoNovedad(novedad.id, estado);
+      setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      toast.success(`Novedad ${ESTADO_LABELS[estado].toLowerCase()} correctamente`);
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al cambiar el estado');
+    }
+  };
+
+  // ── Abrir diálogos ─────────────────────────────────────────────────────────
+  const openView = (n: Novedad) => {
+    setSelectedNovedad(n);
+    setIsViewDialogOpen(true);
+  };
+
+  const openEdit = (n: Novedad) => {
+    setSelectedNovedad(n);
+    setForm({
+      titulo:                n.titulo,
+      descripcion_detallada: n.descripcion_detallada,
+      empleado_responsable:  n.empleado_responsable?.toString() ?? '',
     });
     setIsEditDialogOpen(true);
   };
 
-  const openViewDialog = (issue: Issue) => {
-    setSelectedIssue(issue);
-    setIsViewDialogOpen(true);
-  };
-
-  const openDeleteDialog = (issue: Issue) => {
-    setSelectedIssue(issue);
+  const openDelete = (n: Novedad) => {
+    setSelectedNovedad(n);
     setIsDeleteDialogOpen(true);
   };
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const getPageNumbers = () => {
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Registrada':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Aprobada':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Rechazada':
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-        {/* Header */}
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl text-gray-900 flex items-center gap-3">
@@ -228,7 +234,11 @@ export function NewsModule() {
             </p>
           </div>
 
-          <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
+          {/* Botón nueva novedad */}
+          <Dialog open={isNewDialogOpen} onOpenChange={open => {
+            setIsNewDialogOpen(open);
+            if (!open) setForm(emptyForm);
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
                 <PlusIcon className="w-4 h-4 mr-2" />
@@ -242,84 +252,46 @@ export function NewsModule() {
                   Completa el formulario para registrar una nueva novedad o incidencia.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleCreateIssue} className="space-y-6">
+              <form onSubmit={handleCreate} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Título *</Label>
+                  <Label htmlFor="new-titulo">Título *</Label>
                   <Input
-                    id="title"
+                    id="new-titulo"
                     placeholder="Breve descripción del problema o novedad..."
-                    value={issueForm.title}
-                    onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+                    value={form.titulo}
+                    onChange={e => setForm({ ...form, titulo: e.target.value })}
                     required
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descripción Detallada *</Label>
+                  <Label htmlFor="new-descripcion">Descripción Detallada *</Label>
                   <Textarea
-                    id="description"
+                    id="new-descripcion"
                     placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
-                    value={issueForm.description}
-                    onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+                    value={form.descripcion_detallada}
+                    onChange={e => setForm({ ...form, descripcion_detallada: e.target.value })}
                     rows={5}
                     required
                   />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Estado *</Label>
-                    <Select
-                      value={issueForm.status}
-                      onValueChange={(value) => setIssueForm({ ...issueForm, status: value as any })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Registrada">Registrada</SelectItem>
-                        <SelectItem value="Aprobada">Aprobada</SelectItem>
-                        <SelectItem value="Rechazada">Rechazada</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="responsibleEmployee">Empleado Responsable *</Label>
-                    <Input
-                      id="responsibleEmployee"
-                      placeholder="Nombre del responsable..."
-                      value={issueForm.responsibleEmployee}
-                      onChange={(e) => setIssueForm({ ...issueForm, responsibleEmployee: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="reportedBy">Reportado por</Label>
-                    <Input
-                      id="reportedBy"
-                      placeholder="Nombre de quien reporta..."
-                      value={issueForm.reportedBy}
-                      onChange={(e) => setIssueForm({ ...issueForm, reportedBy: e.target.value })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-responsable">ID Empleado Responsable</Label>
+                  <Input
+                    id="new-responsable"
+                    type="number"
+                    min={1}
+                    placeholder="ID del empleado responsable (opcional)..."
+                    value={form.empleado_responsable}
+                    onChange={e => setForm({ ...form, empleado_responsable: e.target.value })}
+                  />
                 </div>
-
                 <div className="flex gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      resetForm();
-                      setIsNewDialogOpen(false);
-                    }}
-                    className="flex-1"
-                  >
+                  <Button type="button" variant="outline" className="flex-1"
+                    onClick={() => { setForm(emptyForm); setIsNewDialogOpen(false); }}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
+                  <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                    {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
                     Registrar Novedad
                   </Button>
                 </div>
@@ -328,16 +300,14 @@ export function NewsModule() {
           </Dialog>
         </div>
 
-        {/* Search and Filters */}
+        {/* ── Filtros ──────────────────────────────────────────────────────── */}
         <Card className="shadow-lg border border-gray-100 p-6">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex-1">
               <Input
-                type="text"
-                placeholder="Buscar novedades por título, responsable o descripción..."
+                placeholder="Buscar por título, responsable o descripción..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
+                onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="w-full sm:w-48">
@@ -347,35 +317,45 @@ export function NewsModule() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="Registrada">Registrada</SelectItem>
-                  <SelectItem value="Aprobada">Aprobada</SelectItem>
-                  <SelectItem value="Rechazada">Rechazada</SelectItem>
+                  <SelectItem value="registrada">Registrada</SelectItem>
+                  <SelectItem value="aprobada">Aprobada</SelectItem>
+                  <SelectItem value="rechazada">Rechazada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-sm text-gray-600 text-center sm:text-left">
-              {filteredIssues.length} novedad(es)
+            <span className="text-sm text-gray-600 whitespace-nowrap">
+              {filtered.length} novedad(es)
             </span>
           </div>
         </Card>
-{/*LISTA DE NOVEDADES*/}
-        {/* Tabla de Novedades */}
+
+        {/* ── Tabla ────────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Título</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Responsable</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {paginatedIssues.length === 0 ? (
+                {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3 text-gray-400">
+                        <Loader2Icon className="w-8 h-8 animate-spin" />
+                        <p>Cargando novedades...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center text-gray-500">
                         <AlertCircleIcon className="w-12 h-12 mb-3 text-gray-300" />
                         <p className="text-gray-900">No se encontraron novedades</p>
                         <p className="text-sm">Intenta ajustar los filtros de búsqueda</p>
@@ -383,62 +363,100 @@ export function NewsModule() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedIssues.map((issue) => (
-                    <tr key={issue.id} className="hover:bg-gray-50 transition-colors">
+                  paginated.map(novedad => (
+                    <tr key={novedad.id} className="hover:bg-gray-50 transition-colors">
 
-                      <td className="px-10 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate">{issue.title}</div>
-                        <div className="text-sm text-gray-500">{issue.reportedBy}</div>
-                      </td>
+                      {/* Título + registrado por */}
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{issue.reportDate}</div>
+                        <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
+                          {novedad.titulo}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {nombreCompleto(novedad.registradoPor)}
+                        </div>
                       </td>
+
+                      {/* Estado */}
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{issue.responsibleEmployee}</div>
+                        <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
+                          {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
+                        </Badge>
                       </td>
+
+                      {/* Fecha */}
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatFecha(novedad.fecha_registro)}
+                      </td>
+
+                      {/* Responsable */}
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {nombreCompleto(novedad.empleadoResponsable)}
+                      </td>
+
+                      {/* Acciones */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-center space-x-2">
+                        <div className="flex items-center justify-center gap-2">
+
+                          {/* Ver siempre */}
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openViewDialog(issue)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
+                              <Button variant="outline" size="sm"
+                                onClick={() => openView(novedad)}
+                                className="text-blue-900 border-blue-900 hover:bg-blue-50">
                                 <EyeIcon className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent><p>Ver detalles</p></TooltipContent>
                           </Tooltip>
 
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openEditDialog(issue)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
-                                <EditIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Editar novedad</p></TooltipContent>
-                          </Tooltip>
+                          {/* Solo si está en 'registrada' */}
+                          {novedad.estado === 'registrada' && (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm"
+                                    onClick={() => openEdit(novedad)}
+                                    className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                    <EditIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Editar novedad</p></TooltipContent>
+                              </Tooltip>
 
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDeleteDialog(issue)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Eliminar novedad</p></TooltipContent>
-                          </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm"
+                                    onClick={() => handleCambiarEstado(novedad, 'aprobada')}
+                                    className="text-green-700 border-green-700 hover:bg-green-50">
+                                    <CheckIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Aprobar</p></TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm"
+                                    onClick={() => handleCambiarEstado(novedad, 'rechazada')}
+                                    className="text-red-700 border-red-700 hover:bg-red-50">
+                                    <XIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Rechazar</p></TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm"
+                                    onClick={() => openDelete(novedad)}
+                                    className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                    <TrashIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Eliminar novedad</p></TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -449,101 +467,79 @@ export function NewsModule() {
           </div>
 
           {/* Paginación */}
-          {filteredIssues.length > 0 && (
-            <div className="border-t border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-                >
-                  <ChevronLeftIcon className="w-4 h-4" />
+          {!loading && filtered.length > ITEMS_PER_PAGE && (
+            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-center gap-2">
+              <Button variant="outline" size="sm"
+                onClick={() => setCurrentPage(p => p - 1)}
+                disabled={currentPage === 1}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
+                <ChevronLeftIcon className="w-4 h-4" />
+              </Button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button key={page} variant={currentPage === page ? 'default' : 'ghost'} size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className={currentPage === page
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]'
+                    : 'min-w-[32px]'}>
+                  {currentPage === page ? page : '•'}
                 </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {getPageNumbers().map((page, index) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => handlePageChange(page)}
-                      className={currentPage === page ? "bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]" : "min-w-[32px]"}
-                    >
-                      {currentPage === page ? page : '•'}
-                    </Button>
-                  ))}
-                </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-                >
-                  <ChevronRightIcon className="w-4 h-4" />
-                </Button>
-              </div>
+              ))}
+
+              <Button variant="outline" size="sm"
+                onClick={() => setCurrentPage(p => p + 1)}
+                disabled={currentPage === totalPages}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
+                <ChevronRightIcon className="w-4 h-4" />
+              </Button>
             </div>
           )}
         </div>
 
-        {/* View Dialog */}
+        {/* ── Diálogo Ver ──────────────────────────────────────────────────── */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalles de la Novedad</DialogTitle>
-              <DialogDescription>
-                Información completa de la novedad registrada
-              </DialogDescription>
+              <DialogDescription>Información completa de la novedad registrada</DialogDescription>
             </DialogHeader>
-            {selectedIssue && (
+            {selectedNovedad && (
               <div className="space-y-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <h2 className="text-2xl text-gray-900">{selectedIssue.title}</h2>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getStatusColor(selectedIssue.status)}>
-                        {selectedIssue.status}
-                      </Badge>
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl text-gray-900">{selectedNovedad.titulo}</h2>
+                  <Badge className={ESTADO_COLORS[selectedNovedad.estado]}>
+                    {ESTADO_LABELS[selectedNovedad.estado]}
+                  </Badge>
                 </div>
-
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Información General</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-base">Información General</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <div>
                       <p className="text-sm text-gray-500">Empleado Responsable:</p>
                       <p className="text-gray-900 flex items-center gap-2 mt-1">
                         <UserIcon className="w-4 h-4" />
-                        {selectedIssue.responsibleEmployee}
+                        {nombreCompleto(selectedNovedad.empleadoResponsable)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Reportado por:</p>
-                      <p className="text-gray-900 mt-1">{selectedIssue.reportedBy}</p>
+                      <p className="text-sm text-gray-500">Registrado por:</p>
+                      <p className="text-gray-900 mt-1">{nombreCompleto(selectedNovedad.registradoPor)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Fecha de Reporte:</p>
+                      <p className="text-sm text-gray-500">Fecha de Registro:</p>
                       <p className="text-gray-900 flex items-center gap-2 mt-1">
                         <CalendarIcon className="w-4 h-4" />
-                        {selectedIssue.reportDate}
+                        {formatFecha(selectedNovedad.fecha_registro)}
                       </p>
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Descripción Detallada</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="text-base">Descripción Detallada</CardTitle></CardHeader>
                   <CardContent>
-                    <p className="text-gray-700 whitespace-pre-line">{selectedIssue.description}</p>
+                    <p className="text-gray-700 whitespace-pre-line">
+                      {selectedNovedad.descripcion_detallada}
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -551,94 +547,55 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* ── Diálogo Editar ────────────────────────────────────────────────── */}
+        <Dialog open={isEditDialogOpen} onOpenChange={open => {
+          setIsEditDialogOpen(open);
+          if (!open) { setForm(emptyForm); setSelectedNovedad(null); }
+        }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Novedad</DialogTitle>
               <DialogDescription>
-                Modifica la información de la novedad.
+                Solo puedes editar novedades en estado <strong>Registrada</strong>.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleUpdateIssue} className="space-y-6">
+            <form onSubmit={handleUpdate} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Título *</Label>
+                <Label htmlFor="edit-titulo">Título *</Label>
                 <Input
-                  id="edit-title"
-                  placeholder="Breve descripción del problema o novedad..."
-                  value={issueForm.title}
-                  onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+                  id="edit-titulo"
+                  value={form.titulo}
+                  onChange={e => setForm({ ...form, titulo: e.target.value })}
                   required
                 />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Descripción Detallada *</Label>
+                <Label htmlFor="edit-descripcion">Descripción Detallada *</Label>
                 <Textarea
-                  id="edit-description"
-                  placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
-                  value={issueForm.description}
-                  onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+                  id="edit-descripcion"
                   rows={5}
+                  value={form.descripcion_detallada}
+                  onChange={e => setForm({ ...form, descripcion_detallada: e.target.value })}
                   required
                 />
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-status">Estado *</Label>
-                  <Select
-                    value={issueForm.status}
-                    onValueChange={(value) => setIssueForm({ ...issueForm, status: value as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Registrada">Registrada</SelectItem>
-                      <SelectItem value="Aprobada">Aprobada</SelectItem>
-                      <SelectItem value="Rechazada">Rechazada</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-responsibleEmployee">Empleado Responsable *</Label>
-                  <Input
-                    id="edit-responsibleEmployee"
-                    placeholder="Nombre del responsable..."
-                    value={issueForm.responsibleEmployee}
-                    onChange={(e) => setIssueForm({ ...issueForm, responsibleEmployee: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-reportedBy">Reportado por</Label>
-                  <Input
-                    id="edit-reportedBy"
-                    placeholder="Nombre de quien reporta..."
-                    value={issueForm.reportedBy}
-                    onChange={(e) => setIssueForm({ ...issueForm, reportedBy: e.target.value })}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-responsable">ID Empleado Responsable</Label>
+                <Input
+                  id="edit-responsable"
+                  type="number"
+                  min={1}
+                  value={form.empleado_responsable}
+                  onChange={e => setForm({ ...form, empleado_responsable: e.target.value })}
+                />
               </div>
-
               <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    resetForm();
-                    setIsEditDialogOpen(false);
-                    setSelectedIssue(null);
-                  }}
-                  className="flex-1"
-                >
+                <Button type="button" variant="outline" className="flex-1"
+                  onClick={() => { setForm(emptyForm); setIsEditDialogOpen(false); setSelectedNovedad(null); }}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                  {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
                   Actualizar Novedad
                 </Button>
               </div>
@@ -646,38 +603,38 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Dialog */}
+        {/* ── Diálogo Eliminar ──────────────────────────────────────────────── */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>¿Eliminar esta novedad?</AlertDialogTitle>
               <AlertDialogDescription>
                 Esta acción no se puede deshacer. La novedad será eliminada permanentemente.
-                {selectedIssue && (
+                {selectedNovedad && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-sm text-gray-900">
-                      <strong>Título:</strong> {selectedIssue.title}
+                      <strong>Título:</strong> {selectedNovedad.titulo}
                     </p>
                     <p className="text-sm text-gray-600 mt-1">
-                      <strong>Responsable:</strong> {selectedIssue.responsibleEmployee}
+                      <strong>Responsable:</strong> {nombreCompleto(selectedNovedad.empleadoResponsable)}
                     </p>
                   </div>
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setSelectedIssue(null)}>
+              <AlertDialogCancel onClick={() => setSelectedNovedad(null)}>
                 Cancelar
               </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteIssue}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
+              <AlertDialogAction onClick={handleDelete} disabled={submitting}
+                className="bg-blue-600 hover:bg-blue-700">
+                {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
                 Eliminar
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </div>
     </TooltipProvider>
   );
