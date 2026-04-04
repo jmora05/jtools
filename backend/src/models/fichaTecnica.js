@@ -1,62 +1,80 @@
-const {DataTypes} = require('sequelize');
-const {sequelize} = require('../config/jtools_db');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/jtools_db');
 
-const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
+const FichaTecnica = sequelize.define('FichaTecnica', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
-        comment: 'Identificador único de la orden de producción'
+        comment: 'Identificador único de la ficha técnica'
+    },
+
+    codigoFicha: {
+        type: DataTypes.STRING(30),
+        allowNull: false,
+        unique: {
+            name: 'unique_codigo_ficha',
+            msg: 'Este código de ficha ya existe'
+        },
+        comment: 'Código único de la ficha (ej: FT-2025-001)'
     },
 
     productoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        comment: 'Identificador del producto asociado a la orden de producción'
-    },
-
-    cantidad: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
         validate: {
-            min: { args: [1], msg: 'La cantidad debe ser al menos 1' }
+            notNull: { msg: 'El producto es obligatorio' },
+            isInt: { msg: 'El productoId debe ser un número entero' }
         },
-        comment: 'Cantidad de producto a producir'
+        comment: 'Producto al que pertenece esta ficha técnica'
     },
 
-    unidadMedida: {
-        type: DataTypes.STRING(20),
+    estado: {
+        type: DataTypes.ENUM('Activa', 'Inactiva'),
         allowNull: false,
-        validate: {
-            notEmpty: { msg: 'La unidad de medida no puede estar vacía' },
-            len: { args: [2, 20], msg: 'La unidad de medida debe tener entre 2 y 20 caracteres' }
-        },
-        comment: 'Unidad de medida para la cantidad a producir'
+        defaultValue: 'Activa',
+        comment: 'Estado de la ficha técnica'
     },
 
-    fechaCreacion: {
-        type: DataTypes.DATE,
+    // Materiales, procesos, medidas e insumos se guardan como JSON
+    materiales: {
+        type: DataTypes.JSON,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
-        comment: 'Fecha de creación de la orden de producción'
+        defaultValue: [],
+        comment: 'Lista de materiales requeridos [{name, quantity, unit}]'
     },
 
-    descripcion: {
-        type: DataTypes.STRING(255),
+    procesos: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        defaultValue: [],
+        comment: 'Pasos del proceso de fabricación [{step, description, duration}]'
+    },
+
+    medidas: {
+        type: DataTypes.JSON,
         allowNull: true,
-        validate: {
-            len: { args: [0, 255], msg: 'La descripción debe tener como máximo 255 caracteres' }
-        },
-        comment: 'Descripción adicional sobre la orden de producción'
-    }   
-},
-{
+        defaultValue: [],
+        comment: 'Medidas y especificaciones [{parameter, value, tolerance}]'
+    },
+
+    insumos: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+        comment: 'Insumos requeridos [{name, quantity, unit}]'
+    },
+
+    notas: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Notas o instrucciones adicionales'
+    }
+
+}, {
     timestamps: true,
-    tableName: 'ordenes_produccion',
-    comment: 'Tabla que almacena las órdenes de producción'
+    tableName: 'fichas_tecnicas',
+    comment: 'Tabla que almacena las fichas técnicas de los productos'
 });
 
-// Relaciones
-
-
-module.exports = OrdenesProduccion;
+module.exports = FichaTecnica;

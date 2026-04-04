@@ -1,39 +1,106 @@
-const { DataTypes } = require('sequelize'); // ✅ quitado 'or' que no se usa
+const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/jtools_db');
 
-const DetalleOrden = sequelize.define('DetalleOrden', { // ✅ nombre correcto
+const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
-        comment: 'Identificador único del detalle de la orden'
+        comment: 'Identificador único de la orden de producción'
     },
 
-    productosId: {
-        type: DataTypes.INTEGER,
+    codigoOrden: {
+        type: DataTypes.STRING(30),
         allowNull: false,
-        comment: 'Identificador del producto asociado al detalle'
-    },
-
-    ordenProduccionId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        comment: 'Identificador de la orden de producción a la que pertenece el detalle'
-    },
-
-    descripcion: { // ✅ typo corregido
-        type: DataTypes.STRING(255),
-        allowNull: true,
-        validate: {
-            len: { args: [0, 255], msg: 'La descripción debe tener como máximo 255 caracteres' }
+        unique: {
+            name: 'unique_codigo_orden',
+            msg: 'Este código de orden ya existe'
         },
-        comment: 'Descripción adicional sobre el detalle de la orden de producción'
+        comment: 'Código único de la orden (ej: OP-2025-001)'
+    },
+
+    productoId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+            notNull: { msg: 'El producto es obligatorio' },
+            isInt: { msg: 'El productoId debe ser un número entero' }
+        },
+        comment: 'Identificador del producto a fabricar'
+    },
+
+    cantidad: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+            notNull: { msg: 'La cantidad es obligatoria' },
+            isInt: { msg: 'La cantidad debe ser un número entero' },
+            min: { args: [1], msg: 'La cantidad debe ser mayor a 0' }
+        },
+        comment: 'Cantidad de unidades a producir'
+    },
+
+    responsableId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+            notNull: { msg: 'El responsable es obligatorio' },
+            isInt: { msg: 'El responsableId debe ser un número entero' }
+        },
+        comment: 'Identificador del empleado responsable'
+    },
+
+    pedidoId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Identificador del pedido asociado (opcional)'
+    },
+
+    estado: {
+        type: DataTypes.ENUM('Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'),
+        allowNull: false,
+        defaultValue: 'Pendiente',
+        comment: 'Estado actual de la orden de producción'
+    },
+
+    fechaEntrega: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        validate: {
+            notNull: { msg: 'La fecha de entrega es obligatoria' },
+            isDate: { msg: 'La fecha de entrega debe ser una fecha válida' }
+        },
+        comment: 'Fecha límite de entrega de la orden'
+    },
+
+    fechaInicio: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: 'Fecha en que se inició la producción'
+    },
+
+    fechaFin: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: 'Fecha en que se finalizó la producción'
+    },
+
+    nota: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Notas o instrucciones adicionales'
+    },
+
+    motivoAnulacion: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Motivo de anulación si el estado es Anulada'
     }
 
 }, {
     timestamps: true,
-    tableName: 'detalle_orden',
-    comment: 'Tabla que almacena los detalles de las órdenes de producción'
+    tableName: 'ordenes_produccion',
+    comment: 'Tabla que almacena las órdenes de producción'
 });
 
-module.exports = DetalleOrden; // ✅ nombre correcto
+module.exports = OrdenesProduccion;

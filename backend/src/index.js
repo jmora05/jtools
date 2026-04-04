@@ -31,6 +31,7 @@ const usuarios                     = require('./routes/usuariosRoutes.js');
 const permisos                     = require('./routes/permisosRoutes.js');
 const roles                        = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
+const fichaTecnicaRoutes = require('./routes/fichaTecnicaRoutes.js');
 const {verifyToken}               = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
@@ -57,6 +58,7 @@ app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
 app.use('/api/usuarios',                verifyToken, usuarios);
 app.use('/api/permisos',                verifyToken, permisos);
 app.use('/api/roles',                   verifyToken, roles);
+app.use('/api/fichas-tecnicas',         verifyToken, fichaTecnicaRoutes);
 
 // ================= SINCRONIZAR BASE DE DATOS =================
 sequelize.sync().then(() => {
