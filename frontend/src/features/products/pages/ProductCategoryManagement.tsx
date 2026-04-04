@@ -27,6 +27,7 @@ import {
     deleteCategoria,
 } from '../services/categoriaProductosService';
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Categoria {
     id: number;
     nombreCategoria: string;
@@ -43,19 +44,54 @@ interface FormData {
 
 interface FormErrors {
     nombreCategoria?: string;
+    descripcion?: string;
 }
 
-// ── Validación ────────────────────────────────────────────────────────────────
+// ─── Regex (deben coincidir con las del backend) ───────────────────────────────
+const SOLO_TEXTO_REGEX       = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]*$/;
+const SOLO_DESCRIPCION_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]*$/;
+
+// Chars bloqueados en onKeyDown
+const CHARS_BLOQUEADOS_TEXTO = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';:]/;
+const CHARS_BLOQUEADOS_DESC  = /[$%@#&*|\\^`~<>=+{}[\]¡¿]/;
+
+// ─── Validación del formulario ────────────────────────────────────────────────
 function validateCategoryForm(form: FormData): FormErrors {
     const errors: FormErrors = {};
+
     if (!form.nombreCategoria.trim())
-        errors.nombreCategoria = 'El nombre es obligatorio';
+        errors.nombreCategoria = 'El nombre es obligatorio.';
     else if (form.nombreCategoria.trim().length < 2)
-        errors.nombreCategoria = 'Mínimo 2 caracteres';
+        errors.nombreCategoria = 'Mínimo 2 caracteres.';
+    else if (!SOLO_TEXTO_REGEX.test(form.nombreCategoria))
+        errors.nombreCategoria = 'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.';
+
+    if (form.descripcion && !SOLO_DESCRIPCION_REGEX.test(form.descripcion))
+        errors.descripcion = 'La descripción contiene caracteres no permitidos ($, %, @, #, &, *, etc.).';
+
     return errors;
 }
 
-// ── Mensaje de error bajo campo ───────────────────────────────────────────────
+// ─── Handlers de teclado ──────────────────────────────────────────────────────
+const bloquearCaracteresTexto = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const teclaControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'];
+    if (teclaControl.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (CHARS_BLOQUEADOS_TEXTO.test(e.key)) {
+        e.preventDefault();
+        toast.warning(`El carácter "${e.key}" no está permitido. Solo letras, números y los signos - . , ( )`);
+    }
+};
+
+const bloquearCaracteresDescripcion = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const teclaControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'];
+    if (teclaControl.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (CHARS_BLOQUEADOS_DESC.test(e.key)) {
+        e.preventDefault();
+        toast.warning(`El carácter "${e.key}" no está permitido en la descripción.`);
+    }
+};
+
+// ─── Componentes de UI ────────────────────────────────────────────────────────
 const FieldError = ({ message }: { message?: string }) =>
     message ? (
         <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -64,7 +100,6 @@ const FieldError = ({ message }: { message?: string }) =>
         </p>
     ) : null;
 
-// ── Banner informativo azul ───────────────────────────────────────────────────
 const InfoAlert = ({ message }: { message: string }) => (
     <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
         <Info className="w-4 h-4 shrink-0 text-blue-500" />
@@ -72,12 +107,7 @@ const InfoAlert = ({ message }: { message: string }) => (
     </div>
 );
 
-// ── Bloqueo de dígitos en campos de texto ─────────────────────────────────────
-const blockDigits = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (/^\d$/.test(e.key)) e.preventDefault();
-};
-
-// ── Formulario de categoría ───────────────────────────────────────────────────
+// ─── Formulario de categoría ──────────────────────────────────────────────────
 interface CategoryFormProps {
     formData: FormData;
     onChange: (field: keyof FormData, value: string) => void;
@@ -88,6 +118,7 @@ interface CategoryFormProps {
 
 const CategoryForm = ({ formData, onChange, errors, touched, onBlur }: CategoryFormProps) => (
     <div className="grid gap-4">
+        {/* Nombre */}
         <div className="space-y-2">
             <Label htmlFor="nombreCategoria">
                 Nombre de la categoría <span className="text-red-500">*</span>
@@ -98,13 +129,15 @@ const CategoryForm = ({ formData, onChange, errors, touched, onBlur }: CategoryF
                 value={formData.nombreCategoria}
                 onChange={(e) => onChange('nombreCategoria', e.target.value)}
                 onBlur={() => onBlur('nombreCategoria')}
-                onKeyDown={blockDigits}
+                onKeyDown={bloquearCaracteresTexto}
                 maxLength={50}
                 autoFocus
                 className={touched.nombreCategoria && errors.nombreCategoria ? 'border-red-400 focus-visible:ring-red-300' : ''}
             />
             <FieldError message={touched.nombreCategoria ? errors.nombreCategoria : undefined} />
         </div>
+
+        {/* Descripción */}
         <div className="space-y-2">
             <Label htmlFor="descripcion">Descripción</Label>
             <Input
@@ -112,9 +145,15 @@ const CategoryForm = ({ formData, onChange, errors, touched, onBlur }: CategoryF
                 placeholder="Descripción de la categoría (opcional)"
                 value={formData.descripcion}
                 onChange={(e) => onChange('descripcion', e.target.value)}
+                onBlur={() => onBlur('descripcion')}
+                onKeyDown={bloquearCaracteresDescripcion}
                 maxLength={255}
+                className={touched.descripcion && errors.descripcion ? 'border-red-400 focus-visible:ring-red-300' : ''}
             />
+            <FieldError message={touched.descripcion ? errors.descripcion : undefined} />
         </div>
+
+        {/* Estado */}
         <div className="space-y-2">
             <Label>Estado</Label>
             <div className="flex items-center space-x-2 pt-1">
@@ -127,10 +166,20 @@ const CategoryForm = ({ formData, onChange, errors, touched, onBlur }: CategoryF
                 </span>
             </div>
         </div>
+
+        {/* Aviso caracteres especiales */}
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2">
+            <span className="mt-0.5">⚠️</span>
+            <span>
+                Los campos de texto <strong>no aceptan caracteres especiales</strong> como{' '}
+                <code className="bg-amber-100 px-1 rounded">$ % @ # & * ! ¡ ? ¿ | \ ^ ` ~</code>.
+                Si intentas escribirlos, serán bloqueados automáticamente.
+            </span>
+        </div>
     </div>
 );
 
-// ── Componente principal ──────────────────────────────────────────────────────
+// ─── Componente principal ─────────────────────────────────────────────────────
 export function ProductCategoryManagement() {
 
     const [categories, setCategories] = useState<Categoria[]>([]);
@@ -149,7 +198,6 @@ export function ProductCategoryManagement() {
     const [categoryDetail, setCategoryDetail]         = useState<Categoria | null>(null);
     const [loadingDetail, setLoadingDetail]           = useState(false);
 
-    // Estado para verificar si la categoría tiene productos antes de eliminar
     const [deleteHasProducts, setDeleteHasProducts]   = useState(false);
     const [loadingDeleteCheck, setLoadingDeleteCheck] = useState(false);
 
@@ -161,7 +209,6 @@ export function ProductCategoryManagement() {
     const [formErrors, setFormErrors] = useState<FormErrors>({});
     const [touched, setTouched]       = useState<Partial<Record<keyof FormData, boolean>>>({});
 
-    // ── Feedback banner ───────────────────────────────────────────────────────
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
     const showFeedback = (msg: string) => {
         setFeedbackMsg(msg);
@@ -182,7 +229,6 @@ export function ProductCategoryManagement() {
 
     useEffect(() => { fetchCategorias(); }, [fetchCategorias]);
 
-    // Re-validar en tiempo real
     useEffect(() => {
         setFormErrors(validateCategoryForm(formData));
     }, [formData]);
@@ -217,7 +263,7 @@ export function ProductCategoryManagement() {
     };
 
     const touchAll = () => {
-        setTouched({ nombreCategoria: true });
+        setTouched({ nombreCategoria: true, descripcion: true });
     };
 
     // ── Crear ─────────────────────────────────────────────────────────────────
@@ -225,7 +271,7 @@ export function ProductCategoryManagement() {
         touchAll();
         const errors = validateCategoryForm(formData);
         if (Object.keys(errors).length > 0) {
-            toast.error('Completa los campos obligatorios');
+            toast.error('Completa los campos obligatorios correctamente');
             return;
         }
         try {
@@ -237,7 +283,13 @@ export function ProductCategoryManagement() {
             resetForm();
             fetchCategorias();
         } catch (error: any) {
-            toast.error(`Error al crear: ${error.message}`);
+            if (error.errores && Array.isArray(error.errores)) {
+                error.errores.forEach((e: { campo: string; mensaje: string }) => {
+                    toast.error(`${e.campo}: ${e.mensaje}`);
+                });
+            } else {
+                toast.error(`Error al crear: ${error.message}`);
+            }
         } finally {
             setSaving(false);
         }
@@ -248,7 +300,7 @@ export function ProductCategoryManagement() {
         touchAll();
         const errors = validateCategoryForm(formData);
         if (!selectedCategory || Object.keys(errors).length > 0) {
-            toast.error('Completa los campos obligatorios');
+            toast.error('Completa los campos obligatorios correctamente');
             return;
         }
         try {
@@ -261,13 +313,19 @@ export function ProductCategoryManagement() {
             resetForm();
             fetchCategorias();
         } catch (error: any) {
-            toast.error(`Error al actualizar: ${error.message}`);
+            if (error.errores && Array.isArray(error.errores)) {
+                error.errores.forEach((e: { campo: string; mensaje: string }) => {
+                    toast.error(`${e.campo}: ${e.mensaje}`);
+                });
+            } else {
+                toast.error(`Error al actualizar: ${error.message}`);
+            }
         } finally {
             setSaving(false);
         }
     };
 
-    // ── Abrir diálogo eliminar: verificar si tiene productos ──────────────────
+    // ── Abrir diálogo eliminar ────────────────────────────────────────────────
     const openDeleteDialog = async (category: Categoria) => {
         setSelectedCategory(category);
         setDeleteHasProducts(false);
@@ -335,7 +393,7 @@ export function ProductCategoryManagement() {
     return (
         <div className="space-y-6 p-6">
 
-            {/* ── Feedback Banner ── */}
+            {/* Feedback Banner */}
             {feedbackMsg && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
                     <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
@@ -436,20 +494,17 @@ export function ProductCategoryManagement() {
                                                     <div className="flex items-center gap-2">
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openViewDialog(category)}
-                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                                        >
+                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50">
                                                             <EyeIcon className="w-4 h-4" />
                                                         </Button>
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openEditDialog(category)}
-                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                                        >
+                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50">
                                                             <EditIcon className="w-4 h-4" />
                                                         </Button>
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => openDeleteDialog(category)}
-                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                                        >
+                                                            className="border-blue-900 text-blue-900 hover:bg-blue-50">
                                                             <TrashIcon className="w-4 h-4" />
                                                         </Button>
                                                     </div>
@@ -471,23 +526,20 @@ export function ProductCategoryManagement() {
                                 <div className="flex justify-center items-center gap-2 mt-6">
                                     <Button variant="outline" size="sm"
                                         onClick={() => handlePageChange(currentPage - 1)}
-                                        disabled={currentPage === 1}
-                                    >
+                                        disabled={currentPage === 1}>
                                         <ChevronLeft className="w-4 h-4" />
                                     </Button>
                                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                                         <Button key={page} size="sm"
                                             variant={currentPage === page ? 'default' : 'ghost'}
                                             onClick={() => handlePageChange(page)}
-                                            className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                                        >
+                                            className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700' : ''}>
                                             {page}
                                         </Button>
                                     ))}
                                     <Button variant="outline" size="sm"
                                         onClick={() => handlePageChange(currentPage + 1)}
-                                        disabled={currentPage === totalPages}
-                                    >
+                                        disabled={currentPage === totalPages}>
                                         <ChevronRight className="w-4 h-4" />
                                     </Button>
                                 </div>
@@ -630,7 +682,7 @@ export function ProductCategoryManagement() {
 
             {/* DIALOG — ELIMINAR */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className>
+                <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Eliminar categoría</DialogTitle>
                         <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
@@ -638,20 +690,17 @@ export function ProductCategoryManagement() {
 
                     {selectedCategory && (
                         <div className="space-y-3">
-                            {/* Datos de la categoría */}
                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="font-semibold text-blue-900">{selectedCategory.nombreCategoria}</p>
                                 <p className="text-sm text-blue-700 mt-1">{selectedCategory.descripcion ?? 'Sin descripción'}</p>
                             </div>
 
-                            {/* Verificación de productos */}
                             {loadingDeleteCheck ? (
                                 <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
                                     <Loader2Icon className="w-4 h-4 animate-spin text-blue-500" />
                                     Verificando productos asociados...
                                 </div>
                             ) : deleteHasProducts ? (
-                                // ── Tiene productos: advertencia clara para el usuario final ──
                                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
                                     <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
                                     <div className="text-sm space-y-1">
@@ -665,7 +714,6 @@ export function ProductCategoryManagement() {
                                     </div>
                                 </div>
                             ) : (
-                                // ── Sin productos: confirmación segura ──
                                 <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
                                     <Info className="w-4 h-4 shrink-0 text-blue-500" />
                                     <span>Esta categoría no tiene productos asociados y puede eliminarse sin problema.</span>
@@ -679,17 +727,17 @@ export function ProductCategoryManagement() {
                             Cancelar
                         </Button>
                         <Button
-    onClick={deleteHasProducts ? undefined : handleDeleteCategory}
-    className={
-        deleteHasProducts
-            ? "bg-blue-100 text-blue-400 border border-blue-200 cursor-not-allowed hover:bg-blue-100 pointer-events-none"
-            : "bg-blue-white hover:bg-blue-400 text-blue-900 border border-blue-900"
-                        }
-                    >
-                        {saving && <Loader2Icon className="w-4 h-4 animate-spin mr-2" />}
-                        {deleteHasProducts ? 'No se puede eliminar' : 'Sí, eliminar'}
-                    </Button>
-                                        </DialogFooter>
+                            onClick={deleteHasProducts ? undefined : handleDeleteCategory}
+                            className={
+                                deleteHasProducts
+                                    ? 'bg-blue-100 text-blue-400 border border-blue-200 cursor-not-allowed hover:bg-blue-100 pointer-events-none'
+                                    : 'bg-blue-white hover:bg-blue-400 text-blue-900 border border-blue-900'
+                            }
+                        >
+                            {saving && <Loader2Icon className="w-4 h-4 animate-spin mr-2" />}
+                            {deleteHasProducts ? 'No se puede eliminar' : 'Sí, eliminar'}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

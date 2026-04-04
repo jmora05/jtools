@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 import { getProductos, getProductoById, createProducto, updateProducto, getCategorias } from '../services/productosService';
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Categoria { id: number; nombreCategoria: string; descripcion: string | null; }
 interface Producto {
     id: number; nombreProducto: string; referencia: string;
@@ -36,31 +37,101 @@ interface FormErrors {
     nombreProducto?: string;
     referencia?: string;
     categoriaProductoId?: string;
+    descripcion?: string;
     precio?: string;
     stock?: string;
 }
 
+// ─── Regex (deben coincidir con las del backend) ───────────────────────────────
+const SOLO_TEXTO_REGEX       = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]*$/;
+const SOLO_REFERENCIA_REGEX  = /^[a-zA-Z0-9\-_./]*$/;
+const SOLO_DESCRIPCION_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]*$/;
+
+// Chars que se bloquean en onKeyDown
+const CHARS_BLOQUEADOS_TEXTO = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';:]/;
+const CHARS_BLOQUEADOS_REF   = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';: áéíóúÁÉÍÓÚñÑüÜ]/;
+const CHARS_BLOQUEADOS_DESC  = /[$%@#&*|\\^`~<>=+{}[\]¡¿]/;
+
+// ─── Validación completa del formulario ───────────────────────────────────────
 function validateProductoForm(form: ProductoForm): FormErrors {
     const errors: FormErrors = {};
+
     if (!form.nombreProducto.trim())
-        errors.nombreProducto = 'El nombre es obligatorio';
+        errors.nombreProducto = 'El nombre es obligatorio.';
     else if (form.nombreProducto.trim().length < 2)
-        errors.nombreProducto = 'Mínimo 2 caracteres';
+        errors.nombreProducto = 'Mínimo 2 caracteres.';
+    else if (!SOLO_TEXTO_REGEX.test(form.nombreProducto))
+        errors.nombreProducto = 'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.';
+
     if (!form.referencia.trim())
-        errors.referencia = 'La referencia es obligatoria';
+        errors.referencia = 'La referencia es obligatoria.';
+    else if (form.referencia.trim().length < 2)
+        errors.referencia = 'Mínimo 2 caracteres.';
+    else if (!SOLO_REFERENCIA_REGEX.test(form.referencia))
+        errors.referencia = 'Solo letras, números, guiones (-), guión bajo (_), punto (.) y barra (/).';
+
     if (!form.categoriaProductoId)
-        errors.categoriaProductoId = 'Selecciona una categoría';
+        errors.categoriaProductoId = 'Selecciona una categoría.';
+
+    if (form.descripcion && !SOLO_DESCRIPCION_REGEX.test(form.descripcion))
+        errors.descripcion = 'La descripción contiene caracteres no permitidos ($, %, @, #, &, *, etc.).';
+
     if (form.precio === '')
-        errors.precio = 'El precio es obligatorio';
-    else if (parseFloat(form.precio) <= 0)
-        errors.precio = 'El precio debe ser mayor a 0';
+        errors.precio = 'El precio es obligatorio.';
+    else if (isNaN(parseFloat(form.precio)) || parseFloat(form.precio) <= 0)
+        errors.precio = 'El precio debe ser mayor a 0.';
+    else if (parseFloat(form.precio) > 999999999.99)
+        errors.precio = 'El precio supera el máximo permitido.';
+
     if (form.stock === '')
-        errors.stock = 'El stock es obligatorio';
-    else if (parseInt(form.stock) < 1)
-        errors.stock = 'El stock debe ser al menos 1';
+        errors.stock = 'El stock es obligatorio.';
+    else if (!Number.isInteger(Number(form.stock)) || Number(form.stock) < 0)
+        errors.stock = 'El stock debe ser un número entero mayor o igual a 0.';
+    else if (Number(form.stock) > 999999)
+        errors.stock = 'El stock no puede superar 999,999 unidades.';
+
     return errors;
 }
 
+// ─── Handlers de teclado ──────────────────────────────────────────────────────
+const bloquearCaracteresTexto = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const teclaControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'];
+    if (teclaControl.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (CHARS_BLOQUEADOS_TEXTO.test(e.key)) {
+        e.preventDefault();
+        toast.warning(`El carácter "${e.key}" no está permitido. Solo se aceptan letras, números y los signos - . , ( )`);
+    }
+};
+
+const bloquearCaracteresReferencia = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const teclaControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (teclaControl.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (CHARS_BLOQUEADOS_REF.test(e.key)) {
+        e.preventDefault();
+        toast.warning(`El carácter "${e.key}" no está permitido. Solo letras, números, - _ . /`);
+    }
+};
+
+const bloquearCaracteresDescripcion = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const teclaControl = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'];
+    if (teclaControl.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (CHARS_BLOQUEADOS_DESC.test(e.key)) {
+        e.preventDefault();
+        toast.warning(`El carácter "${e.key}" no está permitido en la descripción.`);
+    }
+};
+
+const bloquearNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!allowed.includes(e.key) && !/[\d.]/.test(e.key)) e.preventDefault();
+};
+
+const bloquearNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
+};
+
+// ─── Componentes de UI ────────────────────────────────────────────────────────
 const FieldError = ({ message }: { message?: string }) =>
     message ? (
         <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -76,21 +147,7 @@ const InfoAlert = ({ message }: { message: string }) => (
     </div>
 );
 
-const blockDigits = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (/^\d$/.test(e.key)) e.preventDefault();
-};
-
-const blockNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    if (!allowed.includes(e.key) && !/[\d.]/.test(e.key)) e.preventDefault();
-};
-
-const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
-};
-
-// ── Dropdown personalizado sin portal — funciona dentro de cualquier Dialog ──
+// ── Dropdown personalizado sin portal — funciona dentro de cualquier Dialog ───
 interface CustomSelectProps {
     value: string;
     onChange: (value: string) => void;
@@ -107,9 +164,7 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Seleccionar...'
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -172,6 +227,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
 
     return (
         <div className="space-y-4">
+            {/* ── Nombre / Referencia ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
@@ -181,7 +237,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                         value={form.nombreProducto}
                         onChange={(e) => onChange('nombreProducto', e.target.value)}
                         onBlur={() => onBlur('nombreProducto')}
-                        onKeyDown={blockDigits}
+                        onKeyDown={bloquearCaracteresTexto}
                         placeholder="Ej: Filtro de Aceite Toyota"
                         maxLength={100}
                         autoFocus
@@ -189,6 +245,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                     />
                     <FieldError message={touched.nombreProducto ? errors.nombreProducto : undefined} />
                 </div>
+
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
                         Referencia <span className="text-red-500">*</span>
@@ -197,6 +254,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                         value={form.referencia}
                         onChange={(e) => onChange('referencia', e.target.value)}
                         onBlur={() => onBlur('referencia')}
+                        onKeyDown={bloquearCaracteresReferencia}
                         placeholder="Ej: FO-TOY-001"
                         maxLength={50}
                         className={touched.referencia && errors.referencia ? 'border-red-400 focus-visible:ring-red-300' : ''}
@@ -205,6 +263,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                 </div>
             </div>
 
+            {/* ── Categoría / Estado ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
@@ -219,6 +278,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                     />
                     <FieldError message={touched.categoriaProductoId ? errors.categoriaProductoId : undefined} />
                 </div>
+
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">Estado</label>
                     <div className="flex items-center space-x-2 pt-2">
@@ -226,22 +286,30 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                             checked={form.estado === 'activo'}
                             onCheckedChange={(checked) => onChange('estado', checked ? 'activo' : 'inactivo')}
                         />
-                        <span className="text-sm text-gray-600">{form.estado === 'activo' ? 'Activo' : 'Inactivo'}</span>
+                        <span className="text-sm text-gray-600">
+                            {form.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                        </span>
                     </div>
                 </div>
             </div>
 
+            {/* ── Descripción ── */}
             <div>
                 <label className="block text-sm text-gray-700 mb-2">Descripción</label>
                 <Textarea
                     value={form.descripcion}
                     onChange={(e) => onChange('descripcion', e.target.value)}
+                    onKeyDown={bloquearCaracteresDescripcion}
                     rows={3}
-                    placeholder="Descripción del producto"
+                    placeholder="Descripción del producto (sin caracteres especiales como $, %, @, #...)"
                     maxLength={255}
+                    className={touched.descripcion && errors.descripcion ? 'border-red-400 focus-visible:ring-red-300' : ''}
                 />
+                <FieldError message={touched.descripcion ? errors.descripcion : undefined} />
+                <p className="text-xs text-gray-400 mt-1">{form.descripcion.length}/255 caracteres</p>
             </div>
 
+            {/* ── Precio / Stock ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
@@ -252,7 +320,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                         value={form.precio}
                         onChange={(e) => onChange('precio', e.target.value)}
                         onBlur={() => onBlur('precio')}
-                        onKeyDown={blockNonNumeric}
+                        onKeyDown={bloquearNonNumeric}
                         placeholder="0"
                         min="0.01"
                         step="0.01"
@@ -260,6 +328,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                     />
                     <FieldError message={touched.precio ? errors.precio : undefined} />
                 </div>
+
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
                         Stock <span className="text-red-500">*</span>
@@ -269,13 +338,23 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur }: Pr
                         value={form.stock}
                         onChange={(e) => onChange('stock', e.target.value)}
                         onBlur={() => onBlur('stock')}
-                        onKeyDown={blockNonInteger}
+                        onKeyDown={bloquearNonInteger}
                         placeholder="0"
-                        min="1"
+                        min="0"
                         className={touched.stock && errors.stock ? 'border-red-400 focus-visible:ring-red-300' : ''}
                     />
                     <FieldError message={touched.stock ? errors.stock : undefined} />
                 </div>
+            </div>
+
+            {/* ── Aviso caracteres especiales ── */}
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2">
+                <span className="mt-0.5">⚠️</span>
+                <span>
+                    Los campos de texto <strong>no aceptan caracteres especiales</strong> como{' '}
+                    <code className="bg-amber-100 px-1 rounded">$ % @ # & * ! ¡ ? ¿ | \ ^ ` ~</code>.
+                    Si intentas escribirlos, serán bloqueados automáticamente.
+                </span>
             </div>
         </div>
     );
@@ -353,7 +432,10 @@ export function ProductCatalog() {
     };
 
     const touchAll = () => {
-        setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, stock: true });
+        setTouched({
+            nombreProducto: true, referencia: true,
+            categoriaProductoId: true, precio: true, stock: true, descripcion: true,
+        });
     };
 
     const resetForm = () => {
@@ -387,7 +469,14 @@ export function ProductCatalog() {
             resetForm();
             fetchProductos();
         } catch (error: any) {
-            toast.error(`Error: ${error.message}`);
+            // Mostrar errores del backend campo por campo si vienen estructurados
+            if (error.errores && Array.isArray(error.errores)) {
+                error.errores.forEach((e: { campo: string; mensaje: string }) => {
+                    toast.error(`${e.campo}: ${e.mensaje}`);
+                });
+            } else {
+                toast.error(`Error: ${error.message}`);
+            }
         } finally {
             setSaving(false);
         }
@@ -416,7 +505,13 @@ export function ProductCatalog() {
             resetForm();
             fetchProductos();
         } catch (error: any) {
-            toast.error(`Error: ${error.message}`);
+            if (error.errores && Array.isArray(error.errores)) {
+                error.errores.forEach((e: { campo: string; mensaje: string }) => {
+                    toast.error(`${e.campo}: ${e.mensaje}`);
+                });
+            } else {
+                toast.error(`Error: ${error.message}`);
+            }
         } finally {
             setSaving(false);
         }
