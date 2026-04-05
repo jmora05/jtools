@@ -31,14 +31,14 @@ const usuarios                     = require('./routes/usuariosRoutes.js');
 const permisos                     = require('./routes/permisosRoutes.js');
 const roles                        = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
-const fichaTecnicaRoutes = require('./routes/fichaTecnicaRoutes.js');
-const {verifyToken}               = require('./middleware/authMiddleware.js');
+const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
+const { verifyToken }              = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
-// ── Rutas PÚBLICAS (no requieren token) ──
+// ── Rutas PÚBLICAS ──
 app.use('/api/auth', authRoutes);
 
-// ── Rutas PROTEGIDAS (requieren token) ──
+// ── Rutas PROTEGIDAS ──
 app.use('/api/empleados',               verifyToken, empleadosRoutes);
 app.use('/api/ordenes-produccion',      verifyToken, ordenesProduccionRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
@@ -60,14 +60,21 @@ app.use('/api/permisos',                verifyToken, permisos);
 app.use('/api/roles',                   verifyToken, roles);
 app.use('/api/fichas-tecnicas',         verifyToken, fichaTecnicaRoutes);
 
-// ================= SINCRONIZAR BASE DE DATOS =================
-sequelize.sync().then(() => {
-    console.log("Tablas sincronizadas correctamente");
-}).catch(err => {
-    console.error("Error al sincronizar tablas:", err.message);
-});
+// ================= CONEXIÓN + SINCRONIZACIÓN =================
+testConnection()
+.then(() => {
+    return sequelize.sync({ alter: true }); // 🔥 sincroniza estructura sin borrar datos
+})
 
-// ================= INICIAR SERVIDOR =================
-app.listen(5000, () => {
-    console.log("Servidor corriendo en http://localhost:5000");
+.then(() => {
+    console.log("✅ Tablas sincronizadas correctamente");
+
+    // ================= INICIAR SERVIDOR =================
+    app.listen(process.env.PORT, () => {
+        console.log(`🚀 Servidor corriendo en http://localhost:${process.env.PORT}`);
+    });
+})
+
+.catch(err => {
+    console.error("❌ Error al iniciar:", err.message);
 });
