@@ -226,4 +226,6 @@ module.exports = {
     createFichaTecnica,
     updateFichaTecnica,
     deleteFichaTecnica
+    
+
 };

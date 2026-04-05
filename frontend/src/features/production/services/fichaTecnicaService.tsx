@@ -4,7 +4,7 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 
 export type Material   = { name: string; quantity: number; unit: string };
 export type Proceso    = { step: number; description: string; duration: string };
-export type Medida     = { parameter: string; value: string; tolerance?: string };
+export type Medida     = { parameter: string; value: string };
 export type InsumoFT   = { name: string; quantity: number; unit: string };
 
 export type FichaTecnica = {

@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { PlusIcon, EyeIcon, EditIcon, TrashIcon, UsersIcon, SearchIcon, ArrowLeftIcon, AlertTriangleIcon, ChevronLeftIcon, ChevronRightIcon, BriefcaseIcon, CalendarIcon, PhoneIcon, MailIcon, MapPinIcon, UserCheckIcon, UserXIcon, RefreshCwIcon } from 'lucide-react';
 import { getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado, type Empleado } from '../services/empleadosService';
+import { validarFormEmpleado, hayErrores, type FormErrors } from '../utils/empleadosValidations';
 
 const AREAS: Empleado['area'][] = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
 const CARGOS: Empleado['cargo'][] = ['Supervisor de Producción', 'Jefe de Área', 'Operario', 'Técnico de Calidad', 'Asistente'];
@@ -43,101 +44,206 @@ const EMPTY_FORM: FormState = {
   estado: 'activo',
 };
 
-// Formulario SIN Select de Radix — usa <select> nativo para evitar el bug de portales anidados
-function FormFields({ form, setForm }: { form: FormState; setForm: (f: FormState) => void }) {
-  const base = "w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white";
+// ─── Componente de campo con mensaje de error ──────────────────────────────
+function FieldError({ mensaje }: { mensaje?: string }) {
+  if (!mensaje) return null;
+  return <p className="text-red-500 text-xs mt-1">{mensaje}</p>;
+}
+
+// ─── Formulario con validaciones por campo ─────────────────────────────────
+function FormFields({
+  form,
+  setForm,
+  errores = {},
+}: {
+  form: FormState;
+  setForm: (f: FormState) => void;
+  errores?: FormErrors;
+}) {
+  const base = "w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white";
+  const inputClass = (campo: keyof FormErrors) =>
+    `${base} ${errores[campo] ? 'border-red-400 focus:ring-red-400' : 'border-gray-300'}`;
+
   return (
     <div className="space-y-6">
-      {/* Información Personal */}
+      {/* ── Información Personal ── */}
       <Card className="border-2 border-purple-100">
         <CardHeader className="bg-gradient-to-r from-purple-50 to-white py-3">
           <CardTitle className="text-base">Información Personal</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
             <div className="space-y-1">
               <Label className="text-xs">Nombres *</Label>
-              <Input placeholder="Nombres" value={form.nombres} onChange={e => setForm({ ...form, nombres: e.target.value })} required />
+              <Input
+                placeholder="Nombres"
+                value={form.nombres}
+                onChange={e => setForm({ ...form, nombres: e.target.value })}
+                className={errores.nombres ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.nombres} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Apellidos *</Label>
-              <Input placeholder="Apellidos" value={form.apellidos} onChange={e => setForm({ ...form, apellidos: e.target.value })} required />
+              <Input
+                placeholder="Apellidos"
+                value={form.apellidos}
+                onChange={e => setForm({ ...form, apellidos: e.target.value })}
+                className={errores.apellidos ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.apellidos} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Tipo de Documento *</Label>
-              <select className={base} value={form.tipoDocumento} onChange={e => setForm({ ...form, tipoDocumento: e.target.value as FormState['tipoDocumento'] })}>
+              <select
+                className={inputClass('tipoDocumento')}
+                value={form.tipoDocumento}
+                onChange={e => setForm({ ...form, tipoDocumento: e.target.value as FormState['tipoDocumento'], numeroDocumento: '' })}
+              >
                 <option value="CC">Cédula de Ciudadanía</option>
                 <option value="CE">Cédula de Extranjería</option>
                 <option value="Pasaporte">Pasaporte</option>
               </select>
+              <FieldError mensaje={errores.tipoDocumento} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Número de Documento *</Label>
-              <Input placeholder="Número de documento" value={form.numeroDocumento} onChange={e => setForm({ ...form, numeroDocumento: e.target.value })} required />
+              <Input
+                placeholder={
+                  form.tipoDocumento === 'Pasaporte'
+                    ? 'Ej: AB123456'
+                    : 'Solo dígitos'
+                }
+                value={form.numeroDocumento}
+                onChange={e => setForm({ ...form, numeroDocumento: e.target.value })}
+                className={errores.numeroDocumento ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.numeroDocumento} />
             </div>
+
           </div>
         </CardContent>
       </Card>
 
-      {/* Contacto */}
+      {/* ── Información de Contacto ── */}
       <Card className="border-2 border-purple-100">
         <CardHeader className="bg-gradient-to-r from-purple-50 to-white py-3">
           <CardTitle className="text-base">Información de Contacto</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
             <div className="space-y-1">
               <Label className="text-xs">Correo Electrónico *</Label>
-              <Input type="email" placeholder="correo@ejemplo.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
+              <Input
+                type="email"
+                placeholder="correo@ejemplo.com"
+                value={form.email}
+                onChange={e => setForm({ ...form, email: e.target.value })}
+                className={errores.email ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.email} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Teléfono *</Label>
-              <Input placeholder="+57 300 123 4567" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} required />
+              <Input
+                placeholder="+57 300 123 4567"
+                value={form.telefono}
+                onChange={e => setForm({ ...form, telefono: e.target.value })}
+                className={errores.telefono ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.telefono} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Ciudad</Label>
-              <Input placeholder="Ciudad" value={form.ciudad} onChange={e => setForm({ ...form, ciudad: e.target.value })} />
+              <Input
+                placeholder="Ciudad"
+                value={form.ciudad}
+                onChange={e => setForm({ ...form, ciudad: e.target.value })}
+                className={errores.ciudad ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.ciudad} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Dirección</Label>
-              <Input placeholder="Dirección de residencia" value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} />
+              <Input
+                placeholder="Dirección de residencia"
+                value={form.direccion}
+                onChange={e => setForm({ ...form, direccion: e.target.value })}
+                className={errores.direccion ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.direccion} />
             </div>
+
           </div>
         </CardContent>
       </Card>
 
-      {/* Laboral */}
+      {/* ── Información Laboral ── */}
       <Card className="border-2 border-purple-100">
         <CardHeader className="bg-gradient-to-r from-purple-50 to-white py-3">
           <CardTitle className="text-base">Información Laboral</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
             <div className="space-y-1">
               <Label className="text-xs">Cargo *</Label>
-              <select className={base} value={form.cargo} onChange={e => setForm({ ...form, cargo: e.target.value })} required>
+              <select
+                className={inputClass('cargo')}
+                value={form.cargo}
+                onChange={e => setForm({ ...form, cargo: e.target.value })}
+              >
                 <option value="">Seleccionar cargo</option>
                 {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <FieldError mensaje={errores.cargo} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Área *</Label>
-              <select className={base} value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} required>
+              <select
+                className={inputClass('area')}
+                value={form.area}
+                onChange={e => setForm({ ...form, area: e.target.value })}
+              >
                 <option value="">Seleccionar área</option>
                 {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
+              <FieldError mensaje={errores.area} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Fecha de Ingreso *</Label>
-              <Input type="date" value={form.fechaIngreso} onChange={e => setForm({ ...form, fechaIngreso: e.target.value })} required />
+              <Input
+                type="date"
+                value={form.fechaIngreso}
+                onChange={e => setForm({ ...form, fechaIngreso: e.target.value })}
+                className={errores.fechaIngreso ? 'border-red-400 focus:ring-red-400' : ''}
+              />
+              <FieldError mensaje={errores.fechaIngreso} />
             </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Estado *</Label>
-              <select className={base} value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value as 'activo' | 'inactivo' })}>
+              <select
+                className={inputClass('estado')}
+                value={form.estado}
+                onChange={e => setForm({ ...form, estado: e.target.value as 'activo' | 'inactivo' })}
+              >
                 <option value="activo">Activo</option>
                 <option value="inactivo">Inactivo</option>
               </select>
+              <FieldError mensaje={errores.estado} />
             </div>
+
           </div>
         </CardContent>
       </Card>
@@ -145,15 +251,20 @@ function FormFields({ form, setForm }: { form: FormState; setForm: (f: FormState
   );
 }
 
+// ─── Badge de estado ───────────────────────────────────────────────────────
 function StatusBadge({ estado }: { estado: string }) {
   return estado === 'activo' ? (
-    <Badge className="bg-green-100 text-green-700 border-green-200"><UserCheckIcon className="w-3 h-3 mr-1" />Activo</Badge>
+    <Badge className="bg-green-100 text-green-700 border-green-200">
+      <UserCheckIcon className="w-3 h-3 mr-1" />Activo
+    </Badge>
   ) : (
-    <Badge className="bg-red-100 text-red-700 border-red-200"><UserXIcon className="w-3 h-3 mr-1" />Inactivo</Badge>
+    <Badge className="bg-red-100 text-red-700 border-red-200">
+      <UserXIcon className="w-3 h-3 mr-1" />Inactivo
+    </Badge>
   );
 }
 
-// Filtros también con select nativo
+// ─── Select de filtros ─────────────────────────────────────────────────────
 function FilterSelect({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
     <select
@@ -166,6 +277,9 @@ function FilterSelect({ value, onChange, children }: { value: string; onChange: 
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════════
 export function EmployeeManagement() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState(false);
@@ -190,6 +304,11 @@ export function EmployeeManagement() {
   const [createForm, setCreateForm] = useState<FormState>(EMPTY_FORM);
   const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
 
+  // ── Estado de errores por formulario ──────────────────────────────
+  const [createErrors, setCreateErrors] = useState<FormErrors>({});
+  const [editErrors, setEditErrors] = useState<FormErrors>({});
+
+  // ── Carga inicial ──────────────────────────────────────────────────
   const fetchEmpleados = useCallback(async () => {
     setLoading(true);
     try {
@@ -203,10 +322,13 @@ export function EmployeeManagement() {
 
   useEffect(() => { fetchEmpleados(); }, [fetchEmpleados]);
 
+  // ── Filtros y ordenamiento ─────────────────────────────────────────
   const filtered = empleados.filter(emp => {
     const name = `${emp.nombres} ${emp.apellidos}`.toLowerCase();
     return (
-      (name.includes(searchTerm.toLowerCase()) || emp.numeroDocumento.includes(searchTerm) || emp.cargo.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (name.includes(searchTerm.toLowerCase()) ||
+        emp.numeroDocumento.includes(searchTerm) ||
+        emp.cargo.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (filterArea === 'all' || emp.area === filterArea) &&
       (filterCargo === 'all' || emp.cargo === filterCargo) &&
       (filterEstado === 'all' || emp.estado === filterEstado)
@@ -222,17 +344,15 @@ export function EmployeeManagement() {
   const totalPages = Math.ceil(sorted.length / itemsPerPage);
   const paginated = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const validate = (form: FormState) => {
-    if (!form.nombres || !form.apellidos || !form.numeroDocumento || !form.email || !form.telefono || !form.cargo || !form.area || !form.fechaIngreso) {
-      toast.error('Completa todos los campos obligatorios (*)');
-      return false;
-    }
-    return true;
-  };
-
+  // ── Crear ──────────────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate(createForm)) return;
+    const errores = validarFormEmpleado(createForm);
+    setCreateErrors(errores);
+    if (hayErrores(errores)) {
+      toast.error('Corrige los errores antes de continuar');
+      return;
+    }
     setSaving(true);
     try {
       await createEmpleado({
@@ -252,6 +372,7 @@ export function EmployeeManagement() {
       toast.success('Empleado registrado exitosamente');
       setShowCreateModal(false);
       setCreateForm(EMPTY_FORM);
+      setCreateErrors({});
       fetchEmpleados();
     } catch (err: any) {
       toast.error('Error al registrar: ' + (err?.message ?? 'Error desconocido'));
@@ -260,9 +381,16 @@ export function EmployeeManagement() {
     }
   };
 
+  // ── Actualizar ─────────────────────────────────────────────────────
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployee?.id || !validate(editForm)) return;
+    if (!selectedEmployee?.id) return;
+    const errores = validarFormEmpleado(editForm);
+    setEditErrors(errores);
+    if (hayErrores(errores)) {
+      toast.error('Corrige los errores antes de continuar');
+      return;
+    }
     setSaving(true);
     try {
       await updateEmpleado(selectedEmployee.id, {
@@ -282,6 +410,7 @@ export function EmployeeManagement() {
       toast.success('Empleado actualizado correctamente');
       setShowEditModal(false);
       setSelectedEmployee(null);
+      setEditErrors({});
       fetchEmpleados();
     } catch (err: any) {
       toast.error('Error al actualizar: ' + (err?.message ?? 'Error desconocido'));
@@ -290,6 +419,7 @@ export function EmployeeManagement() {
     }
   };
 
+  // ── Desactivar ─────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!employeeToDelete?.id) return;
     setSaving(true);
@@ -306,8 +436,10 @@ export function EmployeeManagement() {
     }
   };
 
+  // ── Abrir edición ──────────────────────────────────────────────────
   const openEdit = (emp: Empleado) => {
     setSelectedEmployee(emp);
+    setEditErrors({});
     setEditForm({
       tipoDocumento: emp.tipoDocumento,
       numeroDocumento: emp.numeroDocumento,
@@ -325,9 +457,13 @@ export function EmployeeManagement() {
     setShowEditModal(true);
   };
 
+  // ══════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════════════════════════
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl text-gray-900 flex items-center gap-3">
@@ -341,7 +477,15 @@ export function EmployeeManagement() {
             <RefreshCwIcon className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
-          <Dialog open={showCreateModal} onOpenChange={open => { setShowCreateModal(open); if (!open) setCreateForm(EMPTY_FORM); }}>
+
+          {/* Modal Crear */}
+          <Dialog
+            open={showCreateModal}
+            onOpenChange={open => {
+              setShowCreateModal(open);
+              if (!open) { setCreateForm(EMPTY_FORM); setCreateErrors({}); }
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
                 <PlusIcon className="w-4 h-4 mr-2" />Registrar Empleado
@@ -353,10 +497,15 @@ export function EmployeeManagement() {
                 <DialogDescription>Completa todos los campos obligatorios (*).</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4 mt-2">
-                <FormFields form={createForm} setForm={setCreateForm} />
+                <FormFields form={createForm} setForm={setCreateForm} errores={createErrors} />
                 <div className="flex gap-4 pt-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setCreateForm(EMPTY_FORM); setShowCreateModal(false); }}>Cancelar</Button>
-                  <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700" disabled={saving}>{saving ? 'Guardando...' : 'Registrar Empleado'}</Button>
+                  <Button type="button" variant="outline" className="flex-1"
+                    onClick={() => { setCreateForm(EMPTY_FORM); setCreateErrors({}); setShowCreateModal(false); }}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700" disabled={saving}>
+                    {saving ? 'Guardando...' : 'Registrar Empleado'}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
@@ -364,7 +513,7 @@ export function EmployeeManagement() {
         </div>
       </div>
 
-      {/* Filtros con selects nativos */}
+      {/* ── Filtros ── */}
       <Card className="shadow-lg border-gray-100">
         <CardContent className="p-6">
           <div className="space-y-4">
@@ -406,7 +555,7 @@ export function EmployeeManagement() {
         </CardContent>
       </Card>
 
-      {/* Tabla */}
+      {/* ── Tabla ── */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -447,32 +596,18 @@ export function EmployeeManagement() {
                         onClick={async () => {
                           try {
                             const nuevoEstado = emp.estado === 'activo' ? 'inactivo' : 'activo';
-
-                            await updateEmpleado(emp.id, {
-                              ...emp,
-                              estado: nuevoEstado,
-                            });
-
+                            await updateEmpleado(emp.id!, { ...emp, estado: nuevoEstado });
                             toast.success(`Empleado ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`);
                             fetchEmpleados();
-                          } catch (error: any) {
+                          } catch {
                             toast.error('Error al cambiar estado');
                           }
                         }}
-                        className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${
-                          emp.estado === 'activo' ? 'bg-blue-600' : 'bg-gray-800'
-                        }`}
+                        className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors ${emp.estado === 'activo' ? 'bg-blue-600' : 'bg-gray-800'}`}
                       >
-                        <div
-                          className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                            emp.estado === 'activo' ? 'translate-x-6' : 'translate-x-0'
-                          }`}
-                        />
+                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${emp.estado === 'activo' ? 'translate-x-6' : 'translate-x-0'}`} />
                       </button>
-
-                      <span className={`text-xs font-medium ${
-                        emp.estado === 'activo' ? 'text-blue-700' : 'text-gray-500'
-                      }`}>
+                      <span className={`text-xs font-medium ${emp.estado === 'activo' ? 'text-blue-700' : 'text-gray-500'}`}>
                         {emp.estado === 'activo' ? 'Activo' : 'Inactivo'}
                       </span>
                     </div>
@@ -501,6 +636,8 @@ export function EmployeeManagement() {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
         {totalPages > 1 && (
           <div className="border-t border-gray-200 px-6 py-4">
             <div className="flex items-center justify-center space-x-2">
@@ -525,7 +662,7 @@ export function EmployeeManagement() {
         )}
       </div>
 
-      {/* Modal: Ver Detalle */}
+      {/* ── Modal: Ver Detalle ── */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -566,32 +703,45 @@ export function EmployeeManagement() {
                 </CardContent>
               </Card>
               <div className="flex gap-4">
-                <Button variant="outline" className="flex-1" onClick={() => setShowDetailModal(false)}><ArrowLeftIcon className="w-4 h-4 mr-2" />Volver</Button>
-                <Button className="flex-1 bg-purple-600 hover:bg-purple-700" onClick={() => { setShowDetailModal(false); openEdit(selectedEmployee); }}><EditIcon className="w-4 h-4 mr-2" />Editar</Button>
+                <Button variant="outline" className="flex-1" onClick={() => setShowDetailModal(false)}>
+                  <ArrowLeftIcon className="w-4 h-4 mr-2" />Volver
+                </Button>
+                <Button className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  onClick={() => { setShowDetailModal(false); openEdit(selectedEmployee); }}>
+                  <EditIcon className="w-4 h-4 mr-2" />Editar
+                </Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Editar */}
-      <Dialog open={showEditModal} onOpenChange={open => { setShowEditModal(open); if (!open) setSelectedEmployee(null); }}>
+      {/* ── Modal: Editar ── */}
+      <Dialog open={showEditModal} onOpenChange={open => {
+        setShowEditModal(open);
+        if (!open) { setSelectedEmployee(null); setEditErrors({}); }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Actualizar Datos del Empleado</DialogTitle>
             <DialogDescription>Los campos con (*) son obligatorios.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-4 mt-2">
-            <FormFields form={editForm} setForm={setEditForm} />
+            <FormFields form={editForm} setForm={setEditForm} errores={editErrors} />
             <div className="flex gap-4 pt-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEditModal(false); setSelectedEmployee(null); }}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700" disabled={saving}>{saving ? 'Guardando...' : 'Guardar Cambios'}</Button>
+              <Button type="button" variant="outline" className="flex-1"
+                onClick={() => { setShowEditModal(false); setSelectedEmployee(null); setEditErrors({}); }}>
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700" disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Confirmar desactivar */}
+      {/* ── Confirmar desactivar ── */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -620,6 +770,7 @@ export function EmployeeManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 }

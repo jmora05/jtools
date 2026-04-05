@@ -18,60 +18,57 @@ import {
 import {
   getOrdenesProduccion, createOrdenProduccion, updateOrdenProduccion,
   anularOrdenProduccion, type OrdenProduccion, type EstadoOrden
-} from '../services/ordenesProduccionService';
+} from '../services/ordenesproduccionservice';
 import { getEmpleados, type Empleado } from '../../employed/services/empleadosService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
+import {
+  validarCrearOrden, validarEditarOrden, validarAnulacion, hayErrores, estadosPermitidos,
+  type FormCreate, type FormEdit, type CreateErrors, type EditErrors, type AnularErrors,
+} from '../utils/ordenesProduccionValidations';
 
 // ─── Tipos locales ────────────────────────────────────────────────────────────
 
 type Producto = { id: number; nombreProducto: string; referencia: string };
 
-type FormCreate = {
-  productoId: string;
-  cantidad: string;
-  responsableId: string;
-  pedidoId: string;
-  fechaEntrega: string;
-  nota: string;
-};
-
-type FormEdit = {
-  responsableId: string;
-  fechaEntrega: string;
-  nota: string;
-  estado: EstadoOrden;
-};
-
 const EMPTY_CREATE: FormCreate = {
-  productoId: '',
-  cantidad: '',
-  responsableId: '',
-  pedidoId: '',
-  fechaEntrega: '',
-  nota: '',
+  productoId: '', cantidad: '', responsableId: '',
+  pedidoId: '', fechaEntrega: '', nota: '',
 };
 
 const ESTADOS: EstadoOrden[] = ['Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'];
 
-// ─── Select nativo (igual que en EmployeeManagement — evita bug de portales) ──
 const nativeSelectClass =
   'w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
-// ─── Badges de estado ─────────────────────────────────────────────────────────
+const nativeSelectError =
+  'w-full border border-red-400 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white';
+
+// ─── Badge de estado ──────────────────────────────────────────────────────────
+
 function StatusBadge({ estado }: { estado: EstadoOrden | string }) {
   const map: Record<string, React.ReactNode> = {
-    Pendiente:  <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200"><ClockIcon className="w-3 h-3 mr-1" />Pendiente</Badge>,
+    Pendiente:    <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200"><ClockIcon className="w-3 h-3 mr-1" />Pendiente</Badge>,
     'En Proceso': <Badge className="bg-blue-100 text-blue-700 border-blue-200"><PlayIcon className="w-3 h-3 mr-1" />En Proceso</Badge>,
-    Pausada:    <Badge className="bg-orange-100 text-orange-700 border-orange-200"><PauseIcon className="w-3 h-3 mr-1" />Pausada</Badge>,
-    Finalizada: <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircleIcon className="w-3 h-3 mr-1" />Finalizada</Badge>,
-    Anulada:    <Badge className="bg-red-100 text-red-700 border-red-200"><XCircleIcon className="w-3 h-3 mr-1" />Anulada</Badge>,
+    Pausada:      <Badge className="bg-orange-100 text-orange-700 border-orange-200"><PauseIcon className="w-3 h-3 mr-1" />Pausada</Badge>,
+    Finalizada:   <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircleIcon className="w-3 h-3 mr-1" />Finalizada</Badge>,
+    Anulada:      <Badge className="bg-red-100 text-red-700 border-red-200"><XCircleIcon className="w-3 h-3 mr-1" />Anulada</Badge>,
   };
   return <>{map[estado] ?? <Badge>{estado}</Badge>}</>;
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ─── Mensaje de error por campo ───────────────────────────────────────────────
+
+function FieldError({ mensaje }: { mensaje?: string }) {
+  if (!mensaje) return null;
+  return <p className="text-red-500 text-xs mt-1">{mensaje}</p>;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function ProductionOrderModule() {
-  // Datos de la API
+  // Datos
   const [ordenes, setOrdenes] = useState<OrdenProduccion[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -83,22 +80,24 @@ export function ProductionOrderModule() {
   const [showEditModal, setShowEditModal]     = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAnularDialog, setShowAnularDialog] = useState(false);
-  const [showEstadoDialog, setShowEstadoDialog] = useState(false);
 
-  // Paso del wizard de creación
+  // Wizard de creación
   const [orderTypeStep, setOrderTypeStep] = useState(false);
   const [selectedOrderType, setSelectedOrderType] = useState<'Pedido' | 'Venta' | ''>('');
 
-  // Ordenes seleccionadas
-  const [selectedOrden, setSelectedOrden]   = useState<OrdenProduccion | null>(null);
-  const [ordenToAnular, setOrdenToAnular]   = useState<OrdenProduccion | null>(null);
-  const [ordenToEstado, setOrdenToEstado]   = useState<OrdenProduccion | null>(null);
+  // Selección
+  const [selectedOrden, setSelectedOrden] = useState<OrdenProduccion | null>(null);
+  const [ordenToAnular, setOrdenToAnular] = useState<OrdenProduccion | null>(null);
 
   // Formularios
   const [createForm, setCreateForm] = useState<FormCreate>(EMPTY_CREATE);
   const [editForm, setEditForm]     = useState<FormEdit>({ responsableId: '', fechaEntrega: '', nota: '', estado: 'Pendiente' });
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
-  const [newEstado, setNewEstado]   = useState<EstadoOrden>('Pendiente');
+
+  // Errores por formulario
+  const [createErrors, setCreateErrors] = useState<CreateErrors>({});
+  const [editErrors, setEditErrors]     = useState<EditErrors>({});
+  const [anularErrors, setAnularErrors] = useState<AnularErrors>({});
 
   // Filtros
   const [searchTerm, setSearchTerm]       = useState('');
@@ -109,7 +108,9 @@ export function ProductionOrderModule() {
   const [currentPage, setCurrentPage]     = useState(1);
   const itemsPerPage = 5;
 
-  // ─── Carga de datos ──────────────────────────────────────────────────────────
+  const today = new Date().toISOString().split('T')[0];
+
+  // ── Carga de datos ──────────────────────────────────────────────────
 
   const fetchOrdenes = useCallback(async () => {
     setLoading(true);
@@ -126,20 +127,15 @@ export function ProductionOrderModule() {
     try {
       const BASE = getApiBaseUrl();
       const res = await fetch(`${BASE}/productos`, { headers: buildAuthHeaders() });
-      const data = await handleResponse<Producto[]>(res);
-      setProductos(data);
-    } catch {
-      // silencioso — la lista de productos puede estar vacía
-    }
+      setProductos(await handleResponse<Producto[]>(res));
+    } catch { /* silencioso */ }
   }, []);
 
   const fetchEmpleados = useCallback(async () => {
     try {
       const data = await getEmpleados();
       setEmpleados(data.filter(e => e.estado === 'activo'));
-    } catch {
-      // silencioso
-    }
+    } catch { /* silencioso */ }
   }, []);
 
   useEffect(() => {
@@ -148,18 +144,18 @@ export function ProductionOrderModule() {
     fetchEmpleados();
   }, [fetchOrdenes, fetchProductos, fetchEmpleados]);
 
-  // ─── Filtrado y paginación ───────────────────────────────────────────────────
+  // ── Filtrado y paginación ───────────────────────────────────────────
 
   const filtered = ordenes.filter(o => {
-    const codigo   = (o.codigoOrden ?? '').toLowerCase();
-    const producto = (o.producto?.nombreProducto ?? '').toLowerCase();
-    const ref      = (o.producto?.referencia ?? '').toLowerCase();
-    const search   = searchTerm.toLowerCase();
-    const matchSearch = codigo.includes(search) || producto.includes(search) || ref.includes(search);
+    const search = searchTerm.toLowerCase();
+    const matchSearch =
+      (o.codigoOrden ?? '').toLowerCase().includes(search) ||
+      (o.producto?.nombreProducto ?? '').toLowerCase().includes(search) ||
+      (o.producto?.referencia ?? '').toLowerCase().includes(search);
     const matchEstado = filterEstado === 'all' || o.estado === filterEstado;
-    const fechaCreacion = (o.createdAt ?? '').slice(0, 10);
-    const matchFrom = !filterDateFrom || fechaCreacion >= filterDateFrom;
-    const matchTo   = !filterDateTo   || fechaCreacion <= filterDateTo;
+    const fecha = (o.createdAt ?? '').slice(0, 10);
+    const matchFrom = !filterDateFrom || fecha >= filterDateFrom;
+    const matchTo   = !filterDateTo   || fecha <= filterDateTo;
     return matchSearch && matchEstado && matchFrom && matchTo;
   });
 
@@ -169,32 +165,35 @@ export function ProductionOrderModule() {
     return 0;
   });
 
-  const totalPages    = Math.ceil(sorted.length / itemsPerPage);
-  const paginated     = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sorted.length / itemsPerPage);
+  const paginated  = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // ─── Acciones CRUD ───────────────────────────────────────────────────────────
+  // ── Crear ───────────────────────────────────────────────────────────
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.productoId || !createForm.cantidad || !createForm.responsableId || !createForm.fechaEntrega) {
-      toast.error('Completa todos los campos obligatorios (*)');
+    const errores = validarCrearOrden(createForm);
+    setCreateErrors(errores);
+    if (hayErrores(errores)) {
+      toast.error('Corrige los errores antes de continuar');
       return;
     }
     setSaving(true);
     try {
       const res = await createOrdenProduccion({
-        productoId:   parseInt(createForm.productoId),
-        cantidad:     parseInt(createForm.cantidad),
+        productoId:    parseInt(createForm.productoId),
+        cantidad:      parseInt(createForm.cantidad),
         responsableId: parseInt(createForm.responsableId),
-        pedidoId:     createForm.pedidoId ? parseInt(createForm.pedidoId) : null,
-        fechaEntrega: createForm.fechaEntrega,
-        nota:         createForm.nota || undefined,
+        pedidoId:      createForm.pedidoId ? parseInt(createForm.pedidoId) : null,
+        fechaEntrega:  createForm.fechaEntrega,
+        nota:          createForm.nota || undefined,
       });
       toast.success(`Orden ${res.orden.codigoOrden} creada exitosamente`);
       setShowCreateModal(false);
       setOrderTypeStep(false);
       setSelectedOrderType('');
       setCreateForm(EMPTY_CREATE);
+      setCreateErrors({});
       fetchOrdenes();
     } catch (err: any) {
       toast.error('Error al crear: ' + (err?.message ?? 'Error desconocido'));
@@ -203,10 +202,17 @@ export function ProductionOrderModule() {
     }
   };
 
+  // ── Actualizar ──────────────────────────────────────────────────────
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOrden?.id || !editForm.responsableId || !editForm.fechaEntrega) {
-      toast.error('Completa los campos obligatorios (*)');
+    if (!selectedOrden?.id) return;
+
+    const estadoActual = selectedOrden.estado ?? 'Pendiente';
+    const errores = validarEditarOrden(editForm, estadoActual);
+    setEditErrors(errores);
+    if (hayErrores(errores)) {
+      toast.error('Corrige los errores antes de continuar');
       return;
     }
     setSaving(true);
@@ -220,6 +226,7 @@ export function ProductionOrderModule() {
       toast.success('Orden actualizada correctamente');
       setShowEditModal(false);
       setSelectedOrden(null);
+      setEditErrors({});
       fetchOrdenes();
     } catch (err: any) {
       toast.error('Error al actualizar: ' + (err?.message ?? 'Error desconocido'));
@@ -228,12 +235,14 @@ export function ProductionOrderModule() {
     }
   };
 
+  // ── Anular ──────────────────────────────────────────────────────────
+
   const handleAnular = async () => {
     if (!ordenToAnular?.id) return;
-    if (!motivoAnulacion.trim()) {
-      toast.error('El motivo de anulación es obligatorio');
-      return;
-    }
+    const errores = validarAnulacion(motivoAnulacion);
+    setAnularErrors(errores);
+    if (hayErrores(errores)) return;
+
     setSaving(true);
     try {
       await anularOrdenProduccion(ordenToAnular.id, motivoAnulacion);
@@ -241,6 +250,7 @@ export function ProductionOrderModule() {
       setShowAnularDialog(false);
       setOrdenToAnular(null);
       setMotivoAnulacion('');
+      setAnularErrors({});
       fetchOrdenes();
     } catch (err: any) {
       toast.error('Error al anular: ' + (err?.message ?? 'Error desconocido'));
@@ -249,24 +259,34 @@ export function ProductionOrderModule() {
     }
   };
 
-  const handleCambiarEstado = async () => {
-    if (!ordenToEstado?.id) return;
-    setSaving(true);
+  // ── Cambio rápido de estado desde la tabla ──────────────────────────
+
+  const handleEstadoDirecto = async (id: number | undefined, nuevoEstado: EstadoOrden) => {
+    if (!id) return;
+    const orden = ordenes.find(o => o.id === id);
+    if (!orden) return;
+
+    const estadoActual = orden.estado ?? 'Pendiente';
+    const permitidos = estadosPermitidos(estadoActual);
+
+    if (!permitidos.includes(nuevoEstado)) {
+      toast.error(`No se puede cambiar de "${estadoActual}" a "${nuevoEstado}"`);
+      return;
+    }
     try {
-      await updateOrdenProduccion(ordenToEstado.id, { estado: newEstado });
-      toast.success(`Estado cambiado a ${newEstado}`);
-      setShowEstadoDialog(false);
-      setOrdenToEstado(null);
+      await updateOrdenProduccion(id, { estado: nuevoEstado });
+      toast.success(`Estado cambiado a ${nuevoEstado}`);
       fetchOrdenes();
     } catch (err: any) {
       toast.error('Error al cambiar estado: ' + (err?.message ?? 'Error desconocido'));
-    } finally {
-      setSaving(false);
     }
   };
 
+  // ── Abrir edición ───────────────────────────────────────────────────
+
   const openEdit = (o: OrdenProduccion) => {
     setSelectedOrden(o);
+    setEditErrors({});
     setEditForm({
       responsableId: String(o.responsableId ?? ''),
       fechaEntrega:  o.fechaEntrega,
@@ -276,14 +296,14 @@ export function ProductionOrderModule() {
     setShowEditModal(true);
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
-  const today = new Date().toISOString().split('T')[0];
+  // ══════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════════════════════════
 
   return (
     <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl text-gray-900 flex items-center gap-3">
@@ -299,13 +319,10 @@ export function ProductionOrderModule() {
           </Button>
 
           {/* Modal crear */}
-          <Dialog
-            open={showCreateModal}
-            onOpenChange={open => {
-              setShowCreateModal(open);
-              if (!open) { setOrderTypeStep(false); setSelectedOrderType(''); setCreateForm(EMPTY_CREATE); }
-            }}
-          >
+          <Dialog open={showCreateModal} onOpenChange={open => {
+            setShowCreateModal(open);
+            if (!open) { setOrderTypeStep(false); setSelectedOrderType(''); setCreateForm(EMPTY_CREATE); setCreateErrors({}); }
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
                 <PlusIcon className="w-4 h-4 mr-2" />Registrar Orden
@@ -347,7 +364,7 @@ export function ProductionOrderModule() {
                   </div>
                 </>
               ) : (
-                /* Paso 2: Formulario — sin Select de Radix, solo select nativo */
+                /* Paso 2: Formulario */
                 <>
                   <DialogHeader>
                     <DialogTitle>Registrar Orden de Producción — {selectedOrderType}</DialogTitle>
@@ -364,10 +381,9 @@ export function ProductionOrderModule() {
                           <div className="space-y-1">
                             <Label className="text-xs">Producto *</Label>
                             <select
-                              className={nativeSelectClass}
+                              className={createErrors.productoId ? nativeSelectError : nativeSelectClass}
                               value={createForm.productoId}
                               onChange={e => setCreateForm({ ...createForm, productoId: e.target.value })}
-                              required
                             >
                               <option value="">Seleccionar producto</option>
                               {productos.map(p => (
@@ -376,6 +392,7 @@ export function ProductionOrderModule() {
                                 </option>
                               ))}
                             </select>
+                            <FieldError mensaje={createErrors.productoId} />
                           </div>
 
                           <div className="space-y-1">
@@ -384,17 +401,17 @@ export function ProductionOrderModule() {
                               type="number" min="1" placeholder="Unidades a producir"
                               value={createForm.cantidad}
                               onChange={e => setCreateForm({ ...createForm, cantidad: e.target.value })}
-                              required
+                              className={createErrors.cantidad ? 'border-red-400 focus:ring-red-400' : ''}
                             />
+                            <FieldError mensaje={createErrors.cantidad} />
                           </div>
 
                           <div className="space-y-1">
                             <Label className="text-xs">Responsable *</Label>
                             <select
-                              className={nativeSelectClass}
+                              className={createErrors.responsableId ? nativeSelectError : nativeSelectClass}
                               value={createForm.responsableId}
                               onChange={e => setCreateForm({ ...createForm, responsableId: e.target.value })}
-                              required
                             >
                               <option value="">Seleccionar responsable</option>
                               {empleados.map(emp => (
@@ -403,6 +420,7 @@ export function ProductionOrderModule() {
                                 </option>
                               ))}
                             </select>
+                            <FieldError mensaje={createErrors.responsableId} />
                           </div>
 
                           <div className="space-y-1">
@@ -411,8 +429,9 @@ export function ProductionOrderModule() {
                               type="date" min={today}
                               value={createForm.fechaEntrega}
                               onChange={e => setCreateForm({ ...createForm, fechaEntrega: e.target.value })}
-                              required
+                              className={createErrors.fechaEntrega ? 'border-red-400 focus:ring-red-400' : ''}
                             />
+                            <FieldError mensaje={createErrors.fechaEntrega} />
                           </div>
 
                           <div className="space-y-1 md:col-span-2">
@@ -422,19 +441,22 @@ export function ProductionOrderModule() {
                               value={createForm.nota}
                               onChange={e => setCreateForm({ ...createForm, nota: e.target.value })}
                               rows={3}
+                              className={createErrors.nota ? 'border-red-400 focus:ring-red-400' : ''}
                             />
+                            <FieldError mensaje={createErrors.nota} />
                           </div>
+
                         </div>
                       </CardContent>
                     </Card>
 
                     <div className="flex gap-4">
                       <Button type="button" variant="outline" className="flex-1"
-                        onClick={() => { setOrderTypeStep(false); setSelectedOrderType(''); }}>
+                        onClick={() => { setOrderTypeStep(false); setSelectedOrderType(''); setCreateErrors({}); }}>
                         <ArrowLeftIcon className="w-4 h-4 mr-2" />Atrás
                       </Button>
                       <Button type="button" variant="outline" className="flex-1"
-                        onClick={() => { setShowCreateModal(false); setOrderTypeStep(false); setCreateForm(EMPTY_CREATE); }}>
+                        onClick={() => { setShowCreateModal(false); setOrderTypeStep(false); setCreateForm(EMPTY_CREATE); setCreateErrors({}); }}>
                         Cancelar
                       </Button>
                       <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={saving}>
@@ -449,7 +471,7 @@ export function ProductionOrderModule() {
         </div>
       </div>
 
-      {/* Filtros — todos con select nativo */}
+      {/* ── Filtros ── */}
       <Card className="shadow-lg border-gray-100">
         <CardContent className="p-6">
           <div className="space-y-4">
@@ -469,15 +491,15 @@ export function ProductionOrderModule() {
                 {ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <Input type="date" value={filterDateFrom}
-                onChange={e => { setFilterDateFrom(e.target.value); setCurrentPage(1); }} placeholder="Desde" />
+                onChange={e => { setFilterDateFrom(e.target.value); setCurrentPage(1); }} />
               <Input type="date" value={filterDateTo}
-                onChange={e => { setFilterDateTo(e.target.value); setCurrentPage(1); }} placeholder="Hasta" />
+                onChange={e => { setFilterDateTo(e.target.value); setCurrentPage(1); }} />
             </div>
             <div className="flex items-center justify-between text-sm text-gray-600">
               <span>{sorted.length} orden(es) encontrada(s)</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs">Ordenar por:</span>
-                <select className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                <select className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white"
                   value={sortBy} onChange={e => setSortBy(e.target.value)}>
                   <option value="codigo">Código de Orden</option>
                   <option value="fecha">Fecha (reciente)</option>
@@ -488,7 +510,7 @@ export function ProductionOrderModule() {
         </CardContent>
       </Card>
 
-      {/* Tabla */}
+      {/* ── Tabla ── */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -543,14 +565,16 @@ export function ProductionOrderModule() {
                     ) : (
                       <select
                         value={orden.estado}
-                        onChange={(e) => handleEstadoDirecto(orden.id, e.target.value as EstadoOrden)}
+                        onChange={e => handleEstadoDirecto(orden.id, e.target.value as EstadoOrden)}
                         className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        {ESTADOS.filter(e => e !== 'Anulada').map((estado) => (
-                          <option key={estado} value={estado}>
-                            {estado}
-                          </option>
-                        ))}
+                        {/* Solo muestra el estado actual + los permitidos */}
+                        {[orden.estado ?? 'Pendiente', ...estadosPermitidos(orden.estado ?? 'Pendiente')]
+                          .filter((v, i, arr) => arr.indexOf(v) === i)
+                          .filter(e => e !== 'Anulada')
+                          .map(estado => (
+                            <option key={estado} value={estado}>{estado}</option>
+                          ))}
                       </select>
                     )}
                   </td>
@@ -613,7 +637,7 @@ export function ProductionOrderModule() {
         )}
       </div>
 
-      {/* Modal: Ver Detalle */}
+      {/* ── Modal: Ver Detalle ── */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -637,7 +661,7 @@ export function ProductionOrderModule() {
                     <div><Label className="text-xs text-gray-500">Cantidad</Label><p className="mt-1 text-sm">{selectedOrden.cantidad} unidades</p></div>
                     <div><Label className="text-xs text-gray-500">Fecha de Entrega</Label><p className="mt-1 text-sm">{selectedOrden.fechaEntrega}</p></div>
                     {selectedOrden.fechaInicio && <div><Label className="text-xs text-gray-500">Fecha Inicio</Label><p className="mt-1 text-sm">{selectedOrden.fechaInicio}</p></div>}
-                    {selectedOrden.fechaFin && <div><Label className="text-xs text-gray-500">Fecha Fin</Label><p className="mt-1 text-sm">{selectedOrden.fechaFin}</p></div>}
+                    {selectedOrden.fechaFin    && <div><Label className="text-xs text-gray-500">Fecha Fin</Label><p className="mt-1 text-sm">{selectedOrden.fechaFin}</p></div>}
                   </div>
                 </CardContent>
               </Card>
@@ -679,15 +703,18 @@ export function ProductionOrderModule() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Editar — select nativo para estado y responsable */}
-      <Dialog open={showEditModal} onOpenChange={open => { setShowEditModal(open); if (!open) setSelectedOrden(null); }}>
+      {/* ── Modal: Editar ── */}
+      <Dialog open={showEditModal} onOpenChange={open => {
+        setShowEditModal(open);
+        if (!open) { setSelectedOrden(null); setEditErrors({}); }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Actualizar Orden de Producción</DialogTitle>
             <DialogDescription>Orden: {selectedOrden?.codigoOrden}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-6 mt-2">
-            {/* Lectura */}
+            {/* Solo lectura */}
             <Card className="border-2 border-blue-100">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-white py-3">
                 <CardTitle className="text-base">Datos de la Orden (solo lectura)</CardTitle>
@@ -708,10 +735,14 @@ export function ProductionOrderModule() {
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                   <div className="space-y-1">
                     <Label className="text-xs">Responsable *</Label>
-                    <select className={nativeSelectClass} value={editForm.responsableId}
-                      onChange={e => setEditForm({ ...editForm, responsableId: e.target.value })} required>
+                    <select
+                      className={editErrors.responsableId ? nativeSelectError : nativeSelectClass}
+                      value={editForm.responsableId}
+                      onChange={e => setEditForm({ ...editForm, responsableId: e.target.value })}
+                    >
                       <option value="">Seleccionar responsable</option>
                       {empleados.map(emp => (
                         <option key={emp.id} value={emp.id}>
@@ -719,34 +750,56 @@ export function ProductionOrderModule() {
                         </option>
                       ))}
                     </select>
+                    <FieldError mensaje={editErrors.responsableId} />
                   </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs">Estado *</Label>
-                    <select className={nativeSelectClass} value={editForm.estado}
-                      onChange={e => setEditForm({ ...editForm, estado: e.target.value as EstadoOrden })}>
-                      {(['Pendiente', 'En Proceso', 'Pausada', 'Finalizada'] as EstadoOrden[]).map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
+                    <select
+                      className={editErrors.estado ? nativeSelectError : nativeSelectClass}
+                      value={editForm.estado}
+                      onChange={e => setEditForm({ ...editForm, estado: e.target.value as EstadoOrden })}
+                    >
+                      {/* Estado actual + transiciones permitidas (sin Anulada — eso va por su propio botón) */}
+                      {[editForm.estado, ...estadosPermitidos(selectedOrden?.estado ?? 'Pendiente')]
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .filter(e => e !== 'Anulada')
+                        .map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                    <FieldError mensaje={editErrors.estado} />
                   </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs">Fecha de Entrega *</Label>
-                    <Input type="date" value={editForm.fechaEntrega}
-                      onChange={e => setEditForm({ ...editForm, fechaEntrega: e.target.value })} required />
+                    <Input
+                      type="date"
+                      value={editForm.fechaEntrega}
+                      onChange={e => setEditForm({ ...editForm, fechaEntrega: e.target.value })}
+                      className={editErrors.fechaEntrega ? 'border-red-400 focus:ring-red-400' : ''}
+                    />
+                    <FieldError mensaje={editErrors.fechaEntrega} />
                   </div>
+
                   <div className="space-y-1 md:col-span-2">
                     <Label className="text-xs">Notas</Label>
-                    <Textarea value={editForm.nota} rows={3}
+                    <Textarea
+                      value={editForm.nota} rows={3}
                       onChange={e => setEditForm({ ...editForm, nota: e.target.value })}
-                      placeholder="Instrucciones adicionales..." />
+                      placeholder="Instrucciones adicionales..."
+                      className={editErrors.nota ? 'border-red-400 focus:ring-red-400' : ''}
+                    />
+                    <FieldError mensaje={editErrors.nota} />
                   </div>
+
                 </div>
               </CardContent>
             </Card>
 
             <div className="flex gap-4">
               <Button type="button" variant="outline" className="flex-1"
-                onClick={() => { setShowEditModal(false); setSelectedOrden(null); }}>Cancelar</Button>
+                onClick={() => { setShowEditModal(false); setSelectedOrden(null); setEditErrors({}); }}>
+                Cancelar
+              </Button>
               <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={saving}>
                 {saving ? 'Guardando...' : 'Guardar Cambios'}
               </Button>
@@ -755,8 +808,11 @@ export function ProductionOrderModule() {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo: Anular */}
-      <AlertDialog open={showAnularDialog} onOpenChange={setShowAnularDialog}>
+      {/* ── Diálogo: Anular ── */}
+      <AlertDialog open={showAnularDialog} onOpenChange={open => {
+        setShowAnularDialog(open);
+        if (!open) { setOrdenToAnular(null); setMotivoAnulacion(''); setAnularErrors({}); }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-red-600">
@@ -774,20 +830,24 @@ export function ProductionOrderModule() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  <Label className="text-sm">Motivo de Anulación *</Label>
+                  <Label className="text-sm">Motivo de Anulación * <span className="text-gray-400 text-xs">(mínimo 10 caracteres)</span></Label>
                   <Textarea
                     placeholder="Indica el motivo de la anulación..."
                     value={motivoAnulacion}
-                    onChange={e => setMotivoAnulacion(e.target.value)}
+                    onChange={e => { setMotivoAnulacion(e.target.value); setAnularErrors({}); }}
                     rows={3}
+                    className={anularErrors.motivoAnulacion ? 'border-red-400 focus:ring-red-400' : ''}
                   />
+                  <FieldError mensaje={anularErrors.motivoAnulacion} />
                 </div>
                 <p className="text-sm text-red-600">La orden cambiará a "Anulada" y no podrá procesarse.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setOrdenToAnular(null); setMotivoAnulacion(''); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setOrdenToAnular(null); setMotivoAnulacion(''); setAnularErrors({}); }}>
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction onClick={handleAnular} className="bg-red-600 hover:bg-red-700" disabled={saving}>
               {saving ? 'Procesando...' : 'Anular Orden'}
             </AlertDialogAction>
