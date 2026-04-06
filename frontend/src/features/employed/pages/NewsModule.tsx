@@ -24,17 +24,18 @@ import {
   ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon,
   CheckIcon, XIcon,
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
-import { getNovedades, createNovedad, updateNovedad, deleteNovedad, cambiarEstadoNovedad, type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO } from '../services/novedadesService';// ajusta el path a tu proyecto
+import {
+  getNovedades, createNovedad, updateNovedad, deleteNovedad, cambiarEstadoNovedad,
+  type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO,
+} from '../services/novedadesService';
 
 // ─── ID del empleado autenticado ──────────────────────────────────────────────
-// Reemplaza esto con tu hook/contexto de autenticación real, por ejemplo:
-// const { empleado } = useAuth();
-// const EMPLEADO_ACTUAL_ID = empleado.id;
+// Reemplaza con tu hook/contexto real: const { empleado } = useAuth();
 const EMPLEADO_ACTUAL_ID = 1;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_COLORS: Record<string, string> = {
   registrada: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -54,11 +55,93 @@ const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
 const formatFecha = (fecha?: string) =>
   fecha ? fecha.split('T')[0] : '—';
 
-// ─── Componente ───────────────────────────────────────────────────────────────
+// ─── Tipos del formulario ────────────────────────────────────────────────────
+
+interface FormValues {
+  titulo: string;
+  descripcion_detallada: string;
+  empleado_responsable: string;
+}
+
+interface FormErrors {
+  titulo?: string;
+  descripcion_detallada?: string;
+  empleado_responsable?: string;
+}
+
+const emptyForm: FormValues = {
+  titulo: '',
+  descripcion_detallada: '',
+  empleado_responsable: '',
+};
+
+// ─── Validaciones ─────────────────────────────────────────────────────────────
+
+function validateForm(values: FormValues, isEdit = false): FormErrors {
+  const errors: FormErrors = {};
+
+  // titulo
+  const titulo = values.titulo.trim();
+  if (!titulo) {
+    errors.titulo = 'El título es obligatorio';
+  } else if (titulo.length < 3) {
+    errors.titulo = 'El título debe tener al menos 3 caracteres';
+  } else if (titulo.length > 50) {
+    errors.titulo = `El título no puede superar 50 caracteres (${titulo.length}/50)`;
+  }
+
+  // descripcion_detallada
+  const desc = values.descripcion_detallada.trim();
+  if (!desc) {
+    errors.descripcion_detallada = 'La descripción es obligatoria';
+  } else if (desc.length < 10) {
+    errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
+  }
+
+  // empleado_responsable (opcional)
+  const resp = values.empleado_responsable.trim();
+  if (resp !== '') {
+    const num = Number(resp);
+    if (!Number.isInteger(num) || num <= 0) {
+      errors.empleado_responsable = 'Debe ser un número entero positivo';
+    }
+  }
+
+  return errors;
+}
+
+// ─── Componente campo con error ───────────────────────────────────────────────
+
+interface FieldProps {
+  label: string;
+  required?: boolean;
+  error?: string;
+  hint?: string;
+  children: React.ReactNode;
+}
+
+function Field({ label, required, error, hint, children }: FieldProps) {
+  return (
+    <div className="space-y-1">
+      <Label className={error ? 'text-red-600' : ''}>
+        {label} {required && <span className="text-red-500">*</span>}
+      </Label>
+      {children}
+      {error
+        ? <p className="text-xs text-red-600 flex items-center gap-1"><XIcon className="w-3 h-3" />{error}</p>
+        : hint
+          ? <p className="text-xs text-gray-400">{hint}</p>
+          : null
+      }
+    </div>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export function NewsModule() {
 
-  // ── Estado de datos ────────────────────────────────────────────────────────
+  // ── Datos ──────────────────────────────────────────────────────────────────
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -76,9 +159,10 @@ export function NewsModule() {
   const [isViewDialogOpen,   setIsViewDialogOpen]   = useState(false);
   const [selectedNovedad,    setSelectedNovedad]    = useState<Novedad | null>(null);
 
-  // ── Formulario ─────────────────────────────────────────────────────────────
-  const emptyForm = { titulo: '', descripcion_detallada: '', empleado_responsable: '' };
-  const [form, setForm] = useState(emptyForm);
+  // ── Formulario + errores ───────────────────────────────────────────────────
+  const [form, setForm]       = useState<FormValues>(emptyForm);
+  const [errors, setErrors]   = useState<FormErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const fetchNovedades = useCallback(async () => {
@@ -94,11 +178,50 @@ export function NewsModule() {
   }, []);
 
   useEffect(() => { fetchNovedades(); }, [fetchNovedades]);
-
-  // Reset página al cambiar filtros
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
 
-  // ── Filtrado y paginación ──────────────────────────────────────────────────
+  // Revalidar en tiempo real cuando cambia el form
+  useEffect(() => {
+    if (Object.keys(touched).length > 0) {
+      setErrors(validateForm(form));
+    }
+  }, [form, touched]);
+
+  // ── Handlers de campo ─────────────────────────────────────────────────────
+  const handleChange = (field: keyof FormValues) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setForm(prev => ({ ...prev, [field]: e.target.value }));
+    };
+
+  const handleBlur = (field: keyof FormValues) => () => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    setErrors(validateForm(form));
+  };
+
+  // Restricción de longitud máxima en keydown para título
+  const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+    if (form.titulo.length >= 50 && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+    }
+  };
+
+  // Solo números para el campo de responsable
+  const handleResponsableKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+    if (!/^\d$/.test(e.key) && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+    }
+  };
+
+  // ── Reset formulario ───────────────────────────────────────────────────────
+  const resetForm = () => {
+    setForm(emptyForm);
+    setErrors({});
+    setTouched({});
+  };
+
+  // ── Filtrado ───────────────────────────────────────────────────────────────
   const filtered = novedades.filter(n => {
     const q = searchTerm.toLowerCase();
     const matchSearch =
@@ -113,18 +236,24 @@ export function NewsModule() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated  = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Marcar todos los campos como tocados para mostrar todos los errores
+    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true });
+    const validationErrors = validateForm(form);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) return;
+
     setSubmitting(true);
     try {
       const dto: CreateNovedadDTO = {
-        titulo:                form.titulo,
-        descripcion_detallada: form.descripcion_detallada,
+        titulo:                form.titulo.trim(),
+        descripcion_detallada: form.descripcion_detallada.trim(),
         registrado_por:        EMPLEADO_ACTUAL_ID,
         empleado_responsable:  form.empleado_responsable !== ''
                                  ? Number(form.empleado_responsable)
@@ -132,11 +261,13 @@ export function NewsModule() {
       };
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
-      setForm(emptyForm);
+      resetForm();
       setIsNewDialogOpen(false);
       toast.success('Novedad registrada exitosamente');
     } catch (err: any) {
-      toast.error(err.message ?? 'Error al crear la novedad');
+      // Mostrar errores que devuelve el backend
+      const msg = err.errores ? err.errores.join(', ') : (err.message ?? 'Error al crear la novedad');
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -144,12 +275,16 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedNovedad) return;
+    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true });
+    const validationErrors = validateForm(form, true);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
+
     setSubmitting(true);
     try {
       const dto: UpdateNovedadDTO = {
-        titulo:                form.titulo,
-        descripcion_detallada: form.descripcion_detallada,
+        titulo:                form.titulo.trim(),
+        descripcion_detallada: form.descripcion_detallada.trim(),
         empleado_responsable:  form.empleado_responsable !== ''
                                  ? Number(form.empleado_responsable)
                                  : null,
@@ -158,10 +293,11 @@ export function NewsModule() {
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
       setIsEditDialogOpen(false);
       setSelectedNovedad(null);
-      setForm(emptyForm);
+      resetForm();
       toast.success('Novedad actualizada exitosamente');
     } catch (err: any) {
-      toast.error(err.message ?? 'Error al actualizar la novedad');
+      const msg = err.errores ? err.errores.join(', ') : (err.message ?? 'Error al actualizar la novedad');
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -183,10 +319,7 @@ export function NewsModule() {
     }
   };
 
-  const handleCambiarEstado = async (
-    novedad: Novedad,
-    estado: 'aprobada' | 'rechazada'
-  ) => {
+  const handleCambiarEstado = async (novedad: Novedad, estado: 'aprobada' | 'rechazada') => {
     try {
       const updated = await cambiarEstadoNovedad(novedad.id, estado);
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
@@ -197,10 +330,7 @@ export function NewsModule() {
   };
 
   // ── Abrir diálogos ─────────────────────────────────────────────────────────
-  const openView = (n: Novedad) => {
-    setSelectedNovedad(n);
-    setIsViewDialogOpen(true);
-  };
+  const openView = (n: Novedad) => { setSelectedNovedad(n); setIsViewDialogOpen(true); };
 
   const openEdit = (n: Novedad) => {
     setSelectedNovedad(n);
@@ -209,20 +339,99 @@ export function NewsModule() {
       descripcion_detallada: n.descripcion_detallada,
       empleado_responsable:  n.empleado_responsable?.toString() ?? '',
     });
+    resetForm();
+    setForm({
+      titulo:                n.titulo,
+      descripcion_detallada: n.descripcion_detallada,
+      empleado_responsable:  n.empleado_responsable?.toString() ?? '',
+    });
     setIsEditDialogOpen(true);
   };
 
-  const openDelete = (n: Novedad) => {
-    setSelectedNovedad(n);
-    setIsDeleteDialogOpen(true);
-  };
+  const openDelete = (n: Novedad) => { setSelectedNovedad(n); setIsDeleteDialogOpen(true); };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render del formulario (reutilizado en crear y editar) ──────────────────
+  const renderForm = (onSubmit: (e: React.FormEvent) => void, submitLabel: string) => (
+    <form onSubmit={onSubmit} className="space-y-5" noValidate>
+
+      <Field
+        label="Título"
+        required
+        error={touched.titulo ? errors.titulo : undefined}
+        hint={!errors.titulo ? `${form.titulo.length}/50 caracteres` : undefined}
+      >
+        <Input
+          value={form.titulo}
+          onChange={handleChange('titulo')}
+          onBlur={handleBlur('titulo')}
+          onKeyDown={handleTituloKeyDown}
+          placeholder="Breve descripción del problema o novedad..."
+          maxLength={50}
+          className={touched.titulo && errors.titulo ? 'border-red-400 focus-visible:ring-red-400' : ''}
+        />
+      </Field>
+
+      <Field
+        label="Descripción Detallada"
+        required
+        error={touched.descripcion_detallada ? errors.descripcion_detallada : undefined}
+        hint={!errors.descripcion_detallada ? 'Mínimo 10 caracteres' : undefined}
+      >
+        <Textarea
+          value={form.descripcion_detallada}
+          onChange={handleChange('descripcion_detallada')}
+          onBlur={handleBlur('descripcion_detallada')}
+          placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
+          rows={5}
+          className={touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}
+        />
+      </Field>
+
+      <Field
+        label="ID Empleado Responsable"
+        error={touched.empleado_responsable ? errors.empleado_responsable : undefined}
+        hint={!errors.empleado_responsable ? 'Opcional — solo números enteros positivos' : undefined}
+      >
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={form.empleado_responsable}
+          onChange={handleChange('empleado_responsable')}
+          onBlur={handleBlur('empleado_responsable')}
+          onKeyDown={handleResponsableKeyDown}
+          placeholder="Ej: 3"
+          className={touched.empleado_responsable && errors.empleado_responsable ? 'border-red-400 focus-visible:ring-red-400' : ''}
+        />
+      </Field>
+
+      <div className="flex gap-4 pt-2">
+        <Button type="button" variant="outline" className="flex-1"
+          onClick={() => {
+            resetForm();
+            setIsNewDialogOpen(false);
+            setIsEditDialogOpen(false);
+            setSelectedNovedad(null);
+          }}>
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          disabled={submitting}
+          className="flex-1 bg-blue-600 hover:bg-blue-700"
+        >
+          {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
+          {submitLabel}
+        </Button>
+      </div>
+    </form>
+  );
+
+  // ── Render principal ───────────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl text-gray-900 flex items-center gap-3">
@@ -237,7 +446,7 @@ export function NewsModule() {
           {/* Botón nueva novedad */}
           <Dialog open={isNewDialogOpen} onOpenChange={open => {
             setIsNewDialogOpen(open);
-            if (!open) setForm(emptyForm);
+            if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
@@ -252,55 +461,12 @@ export function NewsModule() {
                   Completa el formulario para registrar una nueva novedad o incidencia.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="new-titulo">Título *</Label>
-                  <Input
-                    id="new-titulo"
-                    placeholder="Breve descripción del problema o novedad..."
-                    value={form.titulo}
-                    onChange={e => setForm({ ...form, titulo: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-descripcion">Descripción Detallada *</Label>
-                  <Textarea
-                    id="new-descripcion"
-                    placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
-                    value={form.descripcion_detallada}
-                    onChange={e => setForm({ ...form, descripcion_detallada: e.target.value })}
-                    rows={5}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-responsable">ID Empleado Responsable</Label>
-                  <Input
-                    id="new-responsable"
-                    type="number"
-                    min={1}
-                    placeholder="ID del empleado responsable (opcional)..."
-                    value={form.empleado_responsable}
-                    onChange={e => setForm({ ...form, empleado_responsable: e.target.value })}
-                  />
-                </div>
-                <div className="flex gap-4">
-                  <Button type="button" variant="outline" className="flex-1"
-                    onClick={() => { setForm(emptyForm); setIsNewDialogOpen(false); }}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                    {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
-                    Registrar Novedad
-                  </Button>
-                </div>
-              </form>
+              {renderForm(handleCreate, 'Registrar Novedad')}
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* ── Filtros ──────────────────────────────────────────────────────── */}
+        {/* Filtros */}
         <Card className="shadow-lg border border-gray-100 p-6">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex-1">
@@ -329,7 +495,7 @@ export function NewsModule() {
           </div>
         </Card>
 
-        {/* ── Tabla ────────────────────────────────────────────────────────── */}
+        {/* Tabla */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -365,8 +531,6 @@ export function NewsModule() {
                 ) : (
                   paginated.map(novedad => (
                     <tr key={novedad.id} className="hover:bg-gray-50 transition-colors">
-
-                      {/* Título + registrado por */}
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
                           {novedad.titulo}
@@ -375,29 +539,20 @@ export function NewsModule() {
                           {nombreCompleto(novedad.registradoPor)}
                         </div>
                       </td>
-
-                      {/* Estado */}
                       <td className="px-6 py-4">
                         <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
                           {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
                         </Badge>
                       </td>
-
-                      {/* Fecha */}
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {formatFecha(novedad.fecha_registro)}
                       </td>
-
-                      {/* Responsable */}
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {nombreCompleto(novedad.empleadoResponsable)}
                       </td>
-
-                      {/* Acciones */}
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
 
-                          {/* Ver siempre */}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="sm"
@@ -409,7 +564,6 @@ export function NewsModule() {
                             <TooltipContent><p>Ver detalles</p></TooltipContent>
                           </Tooltip>
 
-                          {/* Solo si está en 'registrada' */}
                           {novedad.estado === 'registrada' && (
                             <>
                               <Tooltip>
@@ -475,7 +629,6 @@ export function NewsModule() {
                 className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
                 <ChevronLeftIcon className="w-4 h-4" />
               </Button>
-
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                 <Button key={page} variant={currentPage === page ? 'default' : 'ghost'} size="sm"
                   onClick={() => setCurrentPage(page)}
@@ -485,7 +638,6 @@ export function NewsModule() {
                   {currentPage === page ? page : '•'}
                 </Button>
               ))}
-
               <Button variant="outline" size="sm"
                 onClick={() => setCurrentPage(p => p + 1)}
                 disabled={currentPage === totalPages}
@@ -496,7 +648,7 @@ export function NewsModule() {
           )}
         </div>
 
-        {/* ── Diálogo Ver ──────────────────────────────────────────────────── */}
+        {/* Diálogo Ver */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -547,10 +699,10 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Diálogo Editar ────────────────────────────────────────────────── */}
+        {/* Diálogo Editar */}
         <Dialog open={isEditDialogOpen} onOpenChange={open => {
           setIsEditDialogOpen(open);
-          if (!open) { setForm(emptyForm); setSelectedNovedad(null); }
+          if (!open) { resetForm(); setSelectedNovedad(null); }
         }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -559,51 +711,11 @@ export function NewsModule() {
                 Solo puedes editar novedades en estado <strong>Registrada</strong>.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleUpdate} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="edit-titulo">Título *</Label>
-                <Input
-                  id="edit-titulo"
-                  value={form.titulo}
-                  onChange={e => setForm({ ...form, titulo: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-descripcion">Descripción Detallada *</Label>
-                <Textarea
-                  id="edit-descripcion"
-                  rows={5}
-                  value={form.descripcion_detallada}
-                  onChange={e => setForm({ ...form, descripcion_detallada: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-responsable">ID Empleado Responsable</Label>
-                <Input
-                  id="edit-responsable"
-                  type="number"
-                  min={1}
-                  value={form.empleado_responsable}
-                  onChange={e => setForm({ ...form, empleado_responsable: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-4">
-                <Button type="button" variant="outline" className="flex-1"
-                  onClick={() => { setForm(emptyForm); setIsEditDialogOpen(false); setSelectedNovedad(null); }}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                  {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
-                  Actualizar Novedad
-                </Button>
-              </div>
-            </form>
+            {renderForm(handleUpdate, 'Actualizar Novedad')}
           </DialogContent>
         </Dialog>
 
-        {/* ── Diálogo Eliminar ──────────────────────────────────────────────── */}
+        {/* Diálogo Eliminar */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -623,9 +735,7 @@ export function NewsModule() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setSelectedNovedad(null)}>
-                Cancelar
-              </AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setSelectedNovedad(null)}>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={handleDelete} disabled={submitting}
                 className="bg-blue-600 hover:bg-blue-700">
                 {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}

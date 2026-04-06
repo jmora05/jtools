@@ -110,12 +110,11 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     photoPreview: null,
   });
 
-  // ── Fetch clientes desde el backend ──────────────────────────────────────────
+  // ── Fetch clientes ────────────────────────────────────────────────────────────
   const fetchClientes = async () => {
     try {
       setLoading(true);
       const data = await getClientes();
-      // Enriquecer con clientType deducido de razon_social vs nombres
       const enriched = data.map((c: Cliente) => ({
         ...c,
         clientType: c.nombres === 'N/A' ? 'Empresa' : 'Particular',
@@ -131,7 +130,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
   useEffect(() => { fetchClientes(); }, []);
 
-  // ── Submit (crear / editar) ───────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -162,7 +161,11 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
       await fetchClientes();
       resetForm();
     } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+      if (error.errores && Array.isArray(error.errores)) {
+        error.errores.forEach((err: string) => toast.error(err));
+      } else {
+        toast.error(`Error: ${error.message}`);
+      }
     } finally {
       setSaving(false);
     }
@@ -240,11 +243,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({
-          ...formData,
-          foto: file,
-          photoPreview: reader.result as string,
-        });
+        setFormData({ ...formData, foto: file, photoPreview: reader.result as string });
       };
       reader.readAsDataURL(file);
     }
@@ -254,11 +253,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     setFormData({ ...formData, foto: null, photoPreview: null });
   };
 
-  // ── Nombre para mostrar en la tabla ──────────────────────────────────────────
   const getDisplayName = (client: Cliente) => {
-    if (client.clientType === 'Empresa' || client.nombres === 'N/A') {
-      return client.razon_social;
-    }
+    if (client.clientType === 'Empresa' || client.nombres === 'N/A') return client.razon_social;
     return `${client.nombres} ${client.apellidos}`.trim();
   };
 
@@ -283,8 +279,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     return matchesSearch && matchesStatus;
   });
 
-  const totalPages  = Math.ceil(filteredClients.length / itemsPerPage);
-  const startIndex  = (currentPage - 1) * itemsPerPage;
+  const totalPages     = Math.ceil(filteredClients.length / itemsPerPage);
+  const startIndex     = (currentPage - 1) * itemsPerPage;
   const currentClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
@@ -322,7 +318,11 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
           </div>
           <Dialog open={showModal} onOpenChange={setShowModal}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700" size="lg" onClick={() => { resetForm(); setShowModal(true); }}>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                size="lg"
+                onClick={() => { resetForm(); setShowModal(true); }}
+              >
                 <PlusIcon className="w-4 h-4 mr-2" />
                 Nuevo Cliente
               </Button>
@@ -332,7 +332,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
               <DialogHeader>
                 <DialogTitle>{editingClient ? 'Editar Cliente' : 'Crear Nuevo Cliente'}</DialogTitle>
                 <DialogDescription>
-                  {editingClient ? 'Modifica los datos del cliente.' : 'Completa el formulario para registrar un nuevo cliente.'}
+                  {editingClient
+                    ? 'Modifica los datos del cliente.'
+                    : 'Completa el formulario para registrar un nuevo cliente.'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -366,7 +368,10 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                         <Input
                           id="nombres"
                           value={formData.nombres}
-                          onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
+                          onChange={(e) => {
+                            const valor = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+                            setFormData({ ...formData, nombres: valor });
+                          }}
                           placeholder="Ej: Carlos"
                           required
                         />
@@ -376,7 +381,10 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                         <Input
                           id="apellidos"
                           value={formData.apellidos}
-                          onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
+                          onChange={(e) => {
+                            const valor = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+                            setFormData({ ...formData, apellidos: valor });
+                          }}
                           placeholder="Ej: Medina López"
                           required
                         />
@@ -403,7 +411,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                       <Label htmlFor="tipo_documento">Tipo de documento *</Label>
                       <Select
                         value={formData.tipo_documento}
-                        onValueChange={(value) => setFormData({ ...formData, tipo_documento: value })}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, tipo_documento: value, numero_documento: '' })
+                        }
                       >
                         <SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger>
                         <SelectContent>
@@ -420,8 +430,27 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                       <Input
                         id="numero_documento"
                         value={formData.numero_documento}
-                        onChange={(e) => setFormData({ ...formData, numero_documento: e.target.value })}
-                        placeholder="123456789"
+                        onChange={(e) => {
+                          let valor = e.target.value;
+                          if (formData.tipo_documento === 'cedula' || formData.tipo_documento === 'rut') {
+                            valor = valor.replace(/[^0-9]/g, '');
+                          } else if (formData.tipo_documento === 'nit') {
+                            valor = valor.replace(/[^0-9\-]/g, '');
+                          } else if (
+                            formData.tipo_documento === 'pasaporte' ||
+                            formData.tipo_documento === 'cedula de extranjeria'
+                          ) {
+                            valor = valor.replace(/[^a-zA-Z0-9]/g, '');
+                          }
+                          setFormData({ ...formData, numero_documento: valor });
+                        }}
+                        placeholder={
+                          formData.tipo_documento === 'nit'
+                            ? '900123456-7'
+                            : formData.tipo_documento === 'pasaporte'
+                            ? 'AB123456'
+                            : '123456789'
+                        }
                         required
                       />
                     </div>
@@ -435,7 +464,10 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                         id="telefono"
                         type="tel"
                         value={formData.telefono}
-                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                        onChange={(e) => {
+                          const valor = e.target.value.replace(/[^0-9+\s\-]/g, '');
+                          setFormData({ ...formData, telefono: valor });
+                        }}
                         placeholder="+57 300 123 4567"
                         required
                       />
@@ -446,7 +478,10 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                         id="email"
                         type="email"
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        onChange={(e) => {
+                          const valor = e.target.value.replace(/\s/g, '');
+                          setFormData({ ...formData, email: valor });
+                        }}
                         placeholder="cliente@email.com"
                         required
                       />
@@ -460,7 +495,10 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                       <Input
                         id="ciudad"
                         value={formData.ciudad}
-                        onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
+                        onChange={(e) => {
+                          const valor = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+                          setFormData({ ...formData, ciudad: valor });
+                        }}
                         placeholder="Medellín"
                         required
                       />
@@ -470,14 +508,17 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                       <Input
                         id="direccion"
                         value={formData.direccion}
-                        onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                        onChange={(e) => {
+                          const valor = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-\.]/g, '');
+                          setFormData({ ...formData, direccion: valor });
+                        }}
                         placeholder="Calle 50 #25-30"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* Foto del Cliente */}
+                  {/* Foto */}
                   <div className="border-t border-gray-200 pt-6">
                     <Label className="mb-3 block">Foto del Cliente</Label>
                     <div className="flex items-start gap-6">
@@ -515,7 +556,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                     </div>
                   </div>
 
-                  {/* Estado - Solo visible al editar */}
+                  {/* Estado - solo al editar */}
                   {editingClient && (
                     <div className="border-t border-gray-200 pt-6">
                       <div className="flex items-center space-x-3">
@@ -544,7 +585,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
           </Dialog>
         </div>
 
-        {/* Search */}
+        {/* Búsqueda */}
         <Card className="shadow-lg border border-gray-100 p-6">
           <div className="flex items-center space-x-4">
             <div className="flex-1">
@@ -803,7 +844,11 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-blue-600 hover:bg-blue-700" disabled={saving}>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={saving}
+              >
                 {saving ? 'Eliminando...' : 'Eliminar Cliente'}
               </AlertDialogAction>
             </AlertDialogFooter>
