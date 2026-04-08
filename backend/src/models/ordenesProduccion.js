@@ -60,7 +60,7 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
         type: DataTypes.ENUM('Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'),
         allowNull: false,
         defaultValue: 'Pendiente',
-        comment: 'Estado actual de la orden de producción'
+        
     },
 
     fechaEntrega: {

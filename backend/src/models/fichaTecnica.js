@@ -33,7 +33,7 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         type: DataTypes.ENUM('Activa', 'Inactiva'),
         allowNull: false,
         defaultValue: 'Activa',
-        comment: 'Estado de la ficha técnica'
+        
     },
 
     // Materiales, procesos, medidas e insumos se guardan como JSON
