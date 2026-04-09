@@ -11,7 +11,7 @@ export function getApiBaseUrl() {
 }
 
 export function getAuthToken() {
-  return localStorage.getItem('jrepuestos_token') || '';
+  return localStorage.getItem('jrepuestos_user') || '';
 }
 
 export function buildAuthHeaders(extra?: Record<string, string>) {

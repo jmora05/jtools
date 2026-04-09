@@ -25,7 +25,7 @@ import {
     deleteCompra,
     getProveedores,
     getInsumos,
-} from '../../sales/services/comprasService';
+} from '../services/comprasService';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface Proveedor {

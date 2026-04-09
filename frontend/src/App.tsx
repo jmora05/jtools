@@ -43,14 +43,13 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesClientFilter, setSalesClientFilter] = useState(null);
 
-  useEffect(() => {
-    // Check if user is already logged in
-    const savedUser = localStorage.getItem('jrepuestos_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsLoggedIn(true);
-    }
-  }, []);
+const handleLogin = (userData) => {
+  setUser(userData);
+  setIsLoggedIn(true);
+  setCurrentModule('dashboard');
+  localStorage.setItem('jrepuestos_user', JSON.stringify(userData));
+  // ✅ El token ya lo guarda LoginPage.tsx, no hace falta aquí
+};
 
   // Auto-expand configuration when users or roles are selected
   useEffect(() => {

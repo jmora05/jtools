@@ -94,11 +94,14 @@ Permisos.belongsToMany(Roles, { through: RolPermiso, foreignKey: 'permisosId', o
  
  
 // Ventas
-Ventas.belongsTo(Clientes, { foreignKey: 'clientesId' });
-Clientes.hasMany(Ventas,   { foreignKey: 'clientesId', as: 'ventas' });
-Clientes.hasMany(Pedidos,  { foreignKey: 'clienteId',  as: 'pedidos' });
+Ventas.belongsTo(Clientes,      { foreignKey: 'clientesId',  as: 'cliente' });
+Clientes.hasMany(Ventas,        { foreignKey: 'clientesId',  as: 'ventas' });
+Clientes.hasMany(Pedidos,       { foreignKey: 'clienteId',   as: 'pedidos' });
+Ventas.hasMany(DetalleVentas,   { foreignKey: 'ventasId',    as: 'detalles' });
+DetalleVentas.belongsTo(Ventas, { foreignKey: 'ventasId' });
+DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' }); 
  
- 
+
  
 // ================= EXPORTACIÓN =================
  
