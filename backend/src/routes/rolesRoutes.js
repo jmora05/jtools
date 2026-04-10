@@ -16,7 +16,7 @@ router.get('/:id', getRolesById);
 router.post('/', createRoles);
 router.put('/:id', updateRoles);
 router.delete('/:id', deleteRoles);
-router.post('/:id/permisos', getRolPermisos);
+router.get('/:id/permisos', getRolPermisos);
 router.put('/:id/permisos', setRolPermisos);
 
 module.exports = router;

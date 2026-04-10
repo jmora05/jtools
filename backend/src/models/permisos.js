@@ -23,14 +23,26 @@ const Permisos = sequelize.define('Permisos', {
     },
     description: {
         type: DataTypes.STRING(200),
-        allowNull: true,  // campo opcional
+        allowNull: true,
         defaultValue: null
+    },
+    isSystem: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'Indica si el permiso corresponde a un módulo del sistema (no eliminable)'
+    },
+    moduleKey: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Clave única del módulo del sistema (ej: dashboard, clients, sales)'
     }
 }, 
 
 {
-  tableName: 'permisos',   // nombre exacto de la tabla en MySQL
-  timestamps: true      // agrega createdAt y updatedAt automáticamente
+  tableName: 'permisos',
+  timestamps: true
 });
 
 module.exports = Permisos;

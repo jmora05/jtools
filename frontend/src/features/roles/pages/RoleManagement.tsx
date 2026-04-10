@@ -237,9 +237,16 @@ const handleSubmit = async (e) => {
     }
 };
 
-  const handleViewDetail = (role) => {
+  const handleViewDetail = async (role) => {
     setViewingRole(role);
     setShowDetailModal(true);
+    // Cargar permisos reales del rol para el detalle
+    try {
+      const permsDelRol = await rolesService.getRolPermisos(role.id);
+      setViewingRole({ ...role, permissionsData: permsDelRol });
+    } catch {
+      // si falla, se muestra con los datos que ya tiene
+    }
   };
 
   const handleDelete = (role) => {
@@ -591,20 +598,21 @@ const handleSubmit = async (e) => {
 
                 <div>
                   <Label className="text-gray-600 mb-3 block">
-                    Permisos asignados ({viewingRole.permissionCount})
+                    Permisos asignados ({viewingRole.permissionsData?.length ?? viewingRole.permissionCount})
                   </Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {availableModules
-                      .filter(module => viewingRole.permissions.includes(module.id))
-                      .map(module => {
-                        const IconComponent = module.icon;
-                        return (
-                          <div key={module.id} className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                            <IconComponent className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm text-gray-900">{module.name}</span>
-                          </div>
-                        );
-                      })}
+                    {(viewingRole.permissionsData ?? []).map((perm) => (
+                      <div key={perm.id} className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                        <ShieldIcon className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm text-gray-900">{perm.name}</span>
+                      </div>
+                    ))}
+                    {!viewingRole.permissionsData && (
+                      <p className="text-sm text-gray-500 col-span-2">Cargando permisos...</p>
+                    )}
+                    {viewingRole.permissionsData?.length === 0 && (
+                      <p className="text-sm text-gray-500 col-span-2">Sin permisos asignados</p>
+                    )}
                   </div>
                 </div>
               </div>

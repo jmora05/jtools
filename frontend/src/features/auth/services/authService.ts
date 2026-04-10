@@ -39,7 +39,14 @@ export type RegisterPayload = {
 export async function register(payload: {
   email: string;
   password: string;
-  rolesId?: number;
+  nombres: string;
+  apellidos: string;
+  razon_social?: string;
+  tipo_documento?: string;
+  numero_documento: string;
+  telefono: string;
+  ciudad: string;
+  direccion?: string;
 }) {
   const response = await fetch(`${getApiBaseUrl()}/auth/register`, {
     method: 'POST',

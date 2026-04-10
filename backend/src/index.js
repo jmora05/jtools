@@ -27,9 +27,9 @@ const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes
 const comprasRoutes                = require('./routes/comprasRoutes.js');
 const clientesRoutes               = require('./routes/clientesRoutes.js');
 const categoriaProductosRoutes     = require('./routes/categoriaProductosRoutes.js');
-const usuarios                     = require('./routes/usuariosRoutes.js');
-const permisos                     = require('./routes/permisosRoutes.js');
-const roles                        = require('./routes/rolesRoutes.js');
+const usuariosRoutes               = require('./routes/usuariosRoutes.js');
+const permisosRoutes               = require('./routes/permisosRoutes.js');
+const rolesRoutes                  = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
 const { verifyToken }              = require('./middleware/authMiddleware.js');
@@ -55,9 +55,9 @@ app.use('/api/detalle-compra-insumo',   verifyToken, detalleCompraInsumoRoutes);
 app.use('/api/compras',                 verifyToken, comprasRoutes);
 app.use('/api/clientes',                verifyToken, clientesRoutes);
 app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
-app.use('/api/usuarios',                verifyToken, usuarios);
-app.use('/api/permisos',                verifyToken, permisos);
-app.use('/api/roles',                   verifyToken, roles);
+app.use('/api/usuarios',                verifyToken, usuariosRoutes);
+app.use('/api/permisos',                verifyToken, permisosRoutes);
+app.use('/api/roles',                   verifyToken, rolesRoutes);
 app.use('/api/fichas-tecnicas',         verifyToken, fichaTecnicaRoutes);
 
 // ================= CONEXIÓN + SINCRONIZACIÓN =================

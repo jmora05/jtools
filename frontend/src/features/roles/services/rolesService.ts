@@ -1,4 +1,4 @@
-import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '../../../services/http';
+import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '@/services/http';
 
 export type Role = {
   id: number;
@@ -45,7 +45,7 @@ export async function getRolPermisos(id: number) {
   const response = await fetch(`${getApiBaseUrl()}/roles/${id}/permisos`, {
     headers: buildAuthHeaders(),
   });
-  return handleResponse<import('../../../services/permisosService').Permiso[]>(response);
+  return handleResponse<import('@/features/permisos/services/permisosService').Permiso[]>(response);
 }
 
 export async function setRolPermisos(id: number, permisosIds: number[]) {

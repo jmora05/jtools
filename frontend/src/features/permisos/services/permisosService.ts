@@ -4,6 +4,8 @@ export type Permiso = {
   id: number;
   name: string;
   description?: string | null;
+  isSystem?: boolean;
+  moduleKey?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -41,3 +43,10 @@ export async function deletePermiso(id: number) {
   return handleResponse<{ message: string }>(response);
 }
 
+export async function syncSystemModules() {
+  const response = await fetch(`${getApiBaseUrl()}/permisos/sync-modules`, {
+    method: 'POST',
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<{ message: string; created: string[]; updated: string[] }>(response);
+}
