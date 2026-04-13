@@ -1,85 +1,240 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/shared/components/ui/dialog';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Textarea } from '@/shared/components/ui/textarea';
 import {
-    PlusIcon, SearchIcon, ShoppingCartIcon, EyeIcon,
-    Trash2, FileDown, CalendarIcon, ChevronLeft, ChevronRight,
-    Loader2, PackageIcon, TruckIcon, CheckCircleIcon, ClockIcon,
-    CheckCircle2, Info, AlertCircle
+    Plus, Search, Eye, Trash2, FileDown, CalendarIcon,
+    ChevronLeft, ChevronRight, Loader2, PackageIcon, TruckIcon,
+    CheckCircleIcon, ClockIcon, CheckCircle2, Info, ShoppingCart,
+    AlertTriangle, X, Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
+// ─── jsPDF (instalar con: npm install jspdf) ──────────────────────────────────
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // npm install jspdf-autotable
 
 import {
-    getCompras,
-    getCompraById,
-    createCompra,
-    cambiarEstadoCompra,
-    deleteCompra,
-    getProveedores,
-    getInsumos,
-} from '../services/comprasService';
+    getCompras, getCompraById, createCompra,
+    cambiarEstadoCompra, deleteCompra, getProveedores, getInsumos,
+} from '../../suppliers/services/comprasService';
 
-// ── Tipos ─────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Proveedor {
-    id: number;
-    nombreEmpresa: string;
-    personaContacto: string;
-    telefono: string;
-    email: string;
-    estado?: string;
+    id: number; nombreEmpresa: string; personaContacto: string;
+    telefono: string; email: string; estado?: string;
 }
-
 interface Insumo {
-    id: number;
-    nombreInsumo: string;
-    codigoInsumo?: string;
-    unidadMedida: string;
-    precioUnitario?: number;
-    stock?: number;
+    id: number; nombreInsumo: string; codigoInsumo?: string;
+    unidadMedida: string; precioUnitario?: number; stock?: number;
 }
-
 interface DetalleCompra {
-    id?: number;
-    insumosId: number;
-    cantidad: number;
-    precioUnitario: number;
-    insumo?: Insumo;
+    id?: number; insumosId: number; cantidad: number;
+    precioUnitario: number; insumo?: Insumo;
 }
-
 interface Compra {
-    id: number;
-    proveedoresId: number;
-    fecha: string;
-    metodoPago: string;
-    estado: 'pendiente' | 'en transito' | 'completada';
-    proveedor?: Proveedor;
-    detalles?: DetalleCompra[];
+    id: number; proveedoresId: number; fecha: string;
+    metodoPago: string; estado: 'pendiente' | 'en transito' | 'completada';
+    proveedor?: Proveedor; detalles?: DetalleCompra[];
 }
-
 interface ItemCarrito {
-    insumoId: number;
-    nombre: string;
-    codigo: string;
-    precio: number;
-    cantidad: number;
-    unidad: string;
+    insumoId: number; nombre: string; codigo: string;
+    precio: number; cantidad: number; unidad: string;
 }
 
-// ── Tipos de errores del formulario ───────────────────────────────────────────
+// ─── Tipos de error (todos los campos validables) ─────────────────────────────
 interface CompraFormErrors {
     proveedoresId?: string;
-    fecha?: string;
+    fecha?:         string;
+    metodoPago?:    string;
+    estado?:        string;
+    notas?:         string;
+    numeroFactura?: string;
+    carrito?:       string;
 }
 
-// ── Validación del formulario ─────────────────────────────────────────────────
+// ─── Constantes de validación ─────────────────────────────────────────────────
+const FECHA_MIN_ISO  = '2000-01-01';
+const NOTAS_MAX_CHARS = 500;
+const PRECIO_MAX      = 999_999_999;
+const CANTIDAD_MAX    = 100_000;
+const FACTURA_MAX     = 2_147_483_647;
+const METODOS_PAGO   = ['efectivo', 'transferencia'] as const;
+const ESTADOS        = ['pendiente', 'en transito', 'completada'] as const;
+const FLUJO_ESTADO: Record<string, number> = { pendiente: 0, 'en transito': 1, completada: 2 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERACIÓN DE PDF
+// ─────────────────────────────────────────────────────────────────────────────
+function generarPDFCompra(compra: Compra): void {
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    // ── Paleta de colores ─────────────────────────────────────────────────────
+    const azulOscuro : [number, number, number] = [30,  58, 138]; // blue-900
+    const azulMedio  : [number, number, number] = [37,  99, 235]; // blue-600
+    const azulClaro  : [number, number, number] = [219, 234, 254]; // blue-100
+    const grisTexto  : [number, number, number] = [55,  65,  81]; // gray-700
+    const grisClaro  : [number, number, number] = [243, 244, 246]; // gray-100
+
+    // ── Encabezado ────────────────────────────────────────────────────────────
+    doc.setFillColor(...azulOscuro);
+    doc.rect(0, 0, pageW, 38, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('COMPRA DE INSUMOS', margin, 18);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin, 28);
+
+    // N° Factura en esquina superior derecha
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`# ${compra.id}`, pageW - margin, 20, { align: 'right' });
+
+    // ── Badge de estado ───────────────────────────────────────────────────────
+    const estadoConfig: Record<string, { color: [number,number,number]; label: string }> = {
+        'pendiente':   { color: [59, 130, 246],  label: 'Pendiente'   },
+        'en transito': { color: [99, 102, 241],  label: 'En tránsito' },
+        'completada':  { color: [16, 185, 129],  label: 'Completada'  },
+    };
+    const ec = estadoConfig[compra.estado] ?? { color: [107, 114, 128], label: compra.estado };
+    doc.setFillColor(...ec.color);
+    doc.roundedRect(pageW - margin - 42, 24, 42, 10, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(ec.label, pageW - margin - 21, 30.5, { align: 'center' });
+
+    // ── Sección de información ────────────────────────────────────────────────
+    let y = 50;
+    doc.setFillColor(...azulClaro);
+    doc.roundedRect(margin, y, pageW - margin * 2, 38, 3, 3, 'F');
+
+    doc.setTextColor(...grisTexto);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    const col1x = margin + 4;
+    const col2x = pageW / 2 + 4;
+
+    // Fila 1
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROVEEDOR', col1x, y + 8);
+    doc.text('FECHA', col2x, y + 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(compra.proveedor?.nombreEmpresa ?? `ID #${compra.proveedoresId}`, col1x, y + 15);
+    doc.text(new Date(compra.fecha).toLocaleDateString('es-CO'), col2x, y + 15);
+
+    // Fila 2
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONTACTO', col1x, y + 23);
+    doc.text('MÉTODO DE PAGO', col2x, y + 23);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const contacto = [compra.proveedor?.personaContacto, compra.proveedor?.telefono]
+        .filter(Boolean).join(' · ') || '—';
+    doc.text(contacto, col1x, y + 30);
+    doc.text(
+        (compra.metodoPago ?? '').charAt(0).toUpperCase() + (compra.metodoPago ?? '').slice(1),
+        col2x, y + 30
+    );
+
+    // ── Tabla de insumos ──────────────────────────────────────────────────────
+    y += 48;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...azulOscuro);
+    doc.text('Detalle de Insumos', margin, y);
+    y += 4;
+
+    if (compra.detalles && compra.detalles.length > 0) {
+        const rows = compra.detalles.map((d, idx) => [
+            (idx + 1).toString(),
+            d.insumo?.nombreInsumo ?? `ID #${d.insumosId}`,
+            d.insumo?.unidadMedida ?? '—',
+            d.cantidad.toString(),
+            `$${Number(d.precioUnitario).toLocaleString('es-CO')}`,
+            `$${(d.cantidad * d.precioUnitario).toLocaleString('es-CO')}`,
+        ]);
+
+        const total = compra.detalles.reduce(
+            (sum, d) => sum + d.cantidad * d.precioUnitario, 0
+        );
+
+        (doc as any).autoTable({
+            startY: y,
+            head: [['#', 'Insumo', 'Unidad', 'Cant.', 'Precio Unit.', 'Subtotal']],
+            body: rows,
+            foot: [['', '', '', '', 'TOTAL', `$${total.toLocaleString('es-CO')}`]],
+            margin: { left: margin, right: margin },
+            styles: {
+                fontSize: 9,
+                cellPadding: 4,
+                textColor: grisTexto,
+            },
+            headStyles: {
+                fillColor: azulOscuro,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 9,
+            },
+            footStyles: {
+                fillColor: azulMedio,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 10,
+            },
+            alternateRowStyles: {
+                fillColor: grisClaro,
+            },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                3: { halign: 'center' },
+                4: { halign: 'right' },
+                5: { halign: 'right', fontStyle: 'bold' },
+            },
+        });
+    } else {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Sin detalles registrados.', margin, y + 8);
+    }
+
+    // ── Pie de página ─────────────────────────────────────────────────────────
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFillColor(...azulOscuro);
+    doc.rect(0, pageH - 14, pageW, 14, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Documento generado automáticamente — Sistema de Compras', pageW / 2, pageH - 5, { align: 'center' });
+
+    // ── Descarga ──────────────────────────────────────────────────────────────
+    doc.save(`compra_${compra.id}.pdf`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VALIDACIÓN — FORMULARIO COMPLETO
+// ─────────────────────────────────────────────────────────────────────────────
 function validateCompraForm(form: {
     proveedoresId: string;
     fecha: string;
@@ -89,45 +244,131 @@ function validateCompraForm(form: {
     numeroFactura: string;
 }): CompraFormErrors {
     const errors: CompraFormErrors = {};
-    if (!form.proveedoresId) errors.proveedoresId = 'Selecciona un proveedor';
-    if (!form.fecha) errors.fecha = 'La fecha es obligatoria';
+
+    if (form.numeroFactura.trim() !== '') {
+        const num = Number(form.numeroFactura);
+        if (!Number.isInteger(num))
+            errors.numeroFactura = 'El número de factura debe ser un entero';
+        else if (num <= 0)
+            errors.numeroFactura = 'El número de factura debe ser mayor a 0';
+        else if (num > FACTURA_MAX)
+            errors.numeroFactura = `El número de factura no puede superar ${FACTURA_MAX.toLocaleString()}`;
+        else if (form.numeroFactura.includes('.') || form.numeroFactura.includes(','))
+            errors.numeroFactura = 'El número de factura no puede contener decimales';
+    }
+
+    if (!form.proveedoresId || form.proveedoresId.trim() === '')
+        errors.proveedoresId = 'Debes seleccionar un proveedor';
+    else if (isNaN(Number(form.proveedoresId)) || Number(form.proveedoresId) <= 0)
+        errors.proveedoresId = 'El proveedor seleccionado no es válido';
+
+    if (!form.fecha || form.fecha.trim() === '') {
+        errors.fecha = 'La fecha es obligatoria';
+    } else {
+        const fechaDate  = new Date(form.fecha);
+        const hoy        = new Date();
+        const fechaMinDt = new Date(FECHA_MIN_ISO);
+        if (isNaN(fechaDate.getTime()))
+            errors.fecha = 'La fecha no es válida';
+        else if (fechaDate < fechaMinDt)
+            errors.fecha = 'La fecha no puede ser anterior al año 2000';
+        else if (fechaDate > hoy)
+            errors.fecha = 'La fecha no puede ser una fecha futura';
+    }
+
+    if (!form.metodoPago || form.metodoPago.trim() === '')
+        errors.metodoPago = 'El método de pago es obligatorio';
+    else if (!METODOS_PAGO.includes(form.metodoPago as typeof METODOS_PAGO[number]))
+        errors.metodoPago = `Método de pago inválido. Use: ${METODOS_PAGO.join(', ')}`;
+
+    if (!form.estado || form.estado.trim() === '')
+        errors.estado = 'El estado es obligatorio';
+    else if (!ESTADOS.includes(form.estado as typeof ESTADOS[number]))
+        errors.estado = `Estado inválido. Use: ${ESTADOS.join(', ')}`;
+
+    if (form.notas.length > NOTAS_MAX_CHARS)
+        errors.notas = `Las notas no pueden superar ${NOTAS_MAX_CHARS} caracteres (actuales: ${form.notas.length})`;
+
+    const patronPeligroso = /<script|javascript:|on\w+=/i;
+    if (patronPeligroso.test(form.notas))
+        errors.notas = 'Las notas contienen caracteres no permitidos';
+
     return errors;
 }
 
-// ── Mensaje de error bajo campo ───────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// VALIDACIÓN — CARRITO
+// ─────────────────────────────────────────────────────────────────────────────
+interface CarritoItemError {
+    precio?: string;
+    cantidad?: string;
+}
+
+function validateCarritoItem(item: ItemCarrito): CarritoItemError {
+    const err: CarritoItemError = {};
+    if (item.precio === null || item.precio === undefined || isNaN(item.precio))
+        err.precio = 'El precio no es un número válido';
+    else if (item.precio <= 0)
+        err.precio = 'El precio debe ser mayor a 0';
+    else if (item.precio > PRECIO_MAX)
+        err.precio = `El precio no puede superar $${PRECIO_MAX.toLocaleString()}`;
+    else if (!isFinite(item.precio))
+        err.precio = 'El precio no puede ser infinito';
+
+    if (!Number.isInteger(item.cantidad))
+        err.cantidad = 'La cantidad debe ser un número entero';
+    else if (item.cantidad <= 0)
+        err.cantidad = 'La cantidad debe ser mayor a 0';
+    else if (item.cantidad > CANTIDAD_MAX)
+        err.cantidad = `La cantidad no puede superar ${CANTIDAD_MAX.toLocaleString()}`;
+    return err;
+}
+
+function validateCarrito(carrito: ItemCarrito[]): Record<number, CarritoItemError> {
+    const errors: Record<number, CarritoItemError> = {};
+    carrito.forEach((item) => {
+        const err = validateCarritoItem(item);
+        if (Object.keys(err).length > 0) errors[item.insumoId] = err;
+    });
+    return errors;
+}
+
+// ─── Banner variant ───────────────────────────────────────────────────────────
+type BannerVariant = 'success' | 'error' | 'warning' | 'info';
+interface BannerMsg { text: string; variant: BannerVariant; }
+
+const bannerStyles: Record<BannerVariant, string> = {
+    success: 'bg-blue-50 border-blue-200 text-blue-800',
+    error:   'bg-red-50   border-red-200   text-red-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    info:    'bg-blue-50  border-blue-200  text-blue-800',
+};
+const bannerIcons: Record<BannerVariant, React.ReactNode> = {
+    success: <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />,
+    error:   <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />,
+    warning: <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />,
+    info:    <Info className="w-5 h-5 text-blue-500 shrink-0" />,
+};
+
 const FieldError = ({ message }: { message?: string }) =>
     message ? (
         <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-            {message}
+            <AlertTriangle className="w-3 h-3" />{message}
         </p>
     ) : null;
 
-// ── Banner informativo azul ───────────────────────────────────────────────────
 const InfoAlert = ({ message }: { message: string }) => (
-    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
-        <Info className="w-4 h-4 shrink-0 text-blue-500" />
+    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
         <span>{message}</span>
     </div>
 );
 
-// ── Bloqueo de teclas: solo enteros positivos ─────────────────────────────────
-const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
-};
-
-// ── Bloqueo: solo letras y caracteres no numéricos ────────────────────────────
-const blockDigits = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (/^\d$/.test(e.key)) e.preventDefault();
-};
-
-// ── Helper estado badge ───────────────────────────────────────────────────────
 const EstadoBadge = ({ estado }: { estado: string }) => {
     const config: Record<string, { icon: React.ReactNode; clase: string }> = {
         'pendiente':   { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-50 text-blue-700 border border-blue-200' },
         'en transito': { icon: <TruckIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
-        'completada':  { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-blue-900 text-white border border-blue-900' },
+        'completada':  { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
     };
     const { icon, clase } = config[estado] ?? { icon: null, clase: 'bg-gray-100 text-gray-600' };
     return (
@@ -137,109 +378,164 @@ const EstadoBadge = ({ estado }: { estado: string }) => {
     );
 };
 
-// ── Formulario de compra ──────────────────────────────────────────────────────
+const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
+};
+const blockNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!allowed.includes(e.key) && !/[\d.]/.test(e.key)) e.preventDefault();
+};
+const blockNonNumericPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (!/^\d*\.?\d*$/.test(pasted)) e.preventDefault();
+};
+const blockNonIntegerPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (!/^\d+$/.test(pasted)) e.preventDefault();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBCOMPONENTE — CompraForm
+// ─────────────────────────────────────────────────────────────────────────────
 interface CompraFormProps {
     proveedores: Proveedor[];
-    form: {
-        proveedoresId: string;
-        fecha: string;
-        metodoPago: string;
-        estado: string;
-        notas: string;
-        numeroFactura: string;
-    };
+    form: { proveedoresId: string; fecha: string; metodoPago: string; estado: string; notas: string; numeroFactura: string; };
     onChange: (field: string, value: string) => void;
     errors: CompraFormErrors;
     touched: Partial<Record<string, boolean>>;
     onBlur: (field: string) => void;
+    notasCharCount: number;
 }
 
-const CompraForm = ({ proveedores, form, onChange, errors, touched, onBlur }: CompraFormProps) => (
-    <div className="space-y-4">
-        <div className="space-y-2">
-            <Label>Proveedor <span className="text-red-500">*</span></Label>
-            <Select
-                value={form.proveedoresId}
-                onValueChange={(v) => { onChange('proveedoresId', v); onBlur('proveedoresId'); }}
-            >
-                <SelectTrigger className={touched.proveedoresId && errors.proveedoresId ? 'border-red-400' : ''}>
-                    <SelectValue placeholder="Seleccionar proveedor..." />
-                </SelectTrigger>
-                <SelectContent>
-                    {proveedores.map((p) => (
-                        <SelectItem key={p.id} value={p.id.toString()}>
-                            {p.nombreEmpresa}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <FieldError message={touched.proveedoresId ? errors.proveedoresId : undefined} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label>N° Factura (opcional)</Label>
-                <Input
-                    type="number"
-                    placeholder="Ej: 1001"
-                    value={form.numeroFactura}
-                    onChange={(e) => onChange('numeroFactura', e.target.value)}
-                    onKeyDown={blockNonInteger}
-                    min="1"
-                />
+const CompraForm = ({ proveedores, form, onChange, errors, touched, onBlur, notasCharCount }: CompraFormProps) => {
+    const today = new Date().toISOString().split('T')[0];
+    return (
+        <div className="space-y-4">
+            <div>
+                <label className="block text-sm text-gray-700 mb-2">
+                    Proveedor <span className="text-red-500">*</span>
+                </label>
+                <Select
+                    value={form.proveedoresId}
+                    onValueChange={(v) => { onChange('proveedoresId', v); onBlur('proveedoresId'); }}
+                >
+                    <SelectTrigger className={touched.proveedoresId && errors.proveedoresId ? 'border-red-400 focus-visible:ring-red-300' : ''}>
+                        <SelectValue placeholder="Seleccionar proveedor..." />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="z-[9999]">
+                        {proveedores.length === 0
+                            ? <SelectItem value="__none__" disabled>No hay proveedores activos</SelectItem>
+                            : proveedores.map((p) => (
+                                <SelectItem key={p.id} value={p.id.toString()}>{p.nombreEmpresa}</SelectItem>
+                            ))
+                        }
+                    </SelectContent>
+                </Select>
+                <FieldError message={touched.proveedoresId ? errors.proveedoresId : undefined} />
             </div>
-            <div className="space-y-2">
-                <Label>Fecha <span className="text-red-500">*</span></Label>
-                <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm text-gray-700 mb-2">N° Factura (opcional)</label>
                     <Input
-                        type="date"
-                        value={form.fecha}
-                        onChange={(e) => { onChange('fecha', e.target.value); onBlur('fecha'); }}
-                        className={`pl-10 ${touched.fecha && errors.fecha ? 'border-red-400' : ''}`}
+                        type="number"
+                        placeholder="Ej: 1001"
+                        value={form.numeroFactura}
+                        onChange={(e) => onChange('numeroFactura', e.target.value)}
+                        onBlur={() => onBlur('numeroFactura')}
+                        onKeyDown={blockNonInteger}
+                        onPaste={blockNonIntegerPaste}
+                        min="1"
+                        max={FACTURA_MAX}
+                        step="1"
+                        className={touched.numeroFactura && errors.numeroFactura ? 'border-red-400 focus-visible:ring-red-300' : ''}
                     />
+                    <FieldError message={touched.numeroFactura ? errors.numeroFactura : undefined} />
                 </div>
-                <FieldError message={touched.fecha ? errors.fecha : undefined} />
+                <div>
+                    <label className="block text-sm text-gray-700 mb-2">
+                        Fecha <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                        <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                            type="date"
+                            value={form.fecha}
+                            min={FECHA_MIN_ISO}
+                            max={today}
+                            onChange={(e) => { onChange('fecha', e.target.value); onBlur('fecha'); }}
+                            onBlur={() => onBlur('fecha')}
+                            className={`pl-10 ${touched.fecha && errors.fecha ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                        />
+                    </div>
+                    <FieldError message={touched.fecha ? errors.fecha : undefined} />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm text-gray-700 mb-2">
+                        Método de Pago <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                        value={form.metodoPago}
+                        onValueChange={(v) => { onChange('metodoPago', v); onBlur('metodoPago'); }}
+                    >
+                        <SelectTrigger className={touched.metodoPago && errors.metodoPago ? 'border-red-400 focus-visible:ring-red-300' : ''}>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="z-[9999]">
+                            <SelectItem value="efectivo">Efectivo</SelectItem>
+                            <SelectItem value="transferencia">Transferencia</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FieldError message={touched.metodoPago ? errors.metodoPago : undefined} />
+                </div>
+                <div>
+                    <label className="block text-sm text-gray-700 mb-2">Estado</label>
+                    <Select
+                        value={form.estado}
+                        onValueChange={(v) => { onChange('estado', v); onBlur('estado'); }}
+                    >
+                        <SelectTrigger className={touched.estado && errors.estado ? 'border-red-400 focus-visible:ring-red-300' : ''}>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="z-[9999]">
+                            <SelectItem value="pendiente">Pendiente</SelectItem>
+                            <SelectItem value="en transito">En tránsito</SelectItem>
+                            <SelectItem value="completada">Completada</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FieldError message={touched.estado ? errors.estado : undefined} />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm text-gray-700 mb-2">Notas (opcional)</label>
+                <Textarea
+                    placeholder="Comentarios adicionales..."
+                    value={form.notas}
+                    onChange={(e) => onChange('notas', e.target.value)}
+                    onBlur={() => onBlur('notas')}
+                    rows={3}
+                    maxLength={NOTAS_MAX_CHARS + 1}
+                    className={touched.notas && errors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                />
+                <div className="flex justify-between items-center mt-1">
+                    <FieldError message={touched.notas ? errors.notas : undefined} />
+                    <span className={`text-xs ml-auto ${notasCharCount > NOTAS_MAX_CHARS ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                        {notasCharCount}/{NOTAS_MAX_CHARS}
+                    </span>
+                </div>
             </div>
         </div>
+    );
+};
 
-        <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label>Método de Pago <span className="text-red-500">*</span></Label>
-                <Select value={form.metodoPago} onValueChange={(v) => onChange('metodoPago', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="efectivo">Efectivo</SelectItem>
-                        <SelectItem value="transferencia">Transferencia</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="space-y-2">
-                <Label>Estado</Label>
-                <Select value={form.estado} onValueChange={(v) => onChange('estado', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="pendiente">Pendiente</SelectItem>
-                        <SelectItem value="en transito">En tránsito</SelectItem>
-                        <SelectItem value="completada">Completada</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
-
-        <div className="space-y-2">
-            <Label>Notas (opcional)</Label>
-            <Textarea
-                placeholder="Comentarios adicionales..."
-                value={form.notas}
-                onChange={(e) => onChange('notas', e.target.value)}
-                rows={3}
-            />
-        </div>
-    </div>
-);
-
-// ── Componente principal ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPAL — PurchaseModule
+// ─────────────────────────────────────────────────────────────────────────────
 export function PurchaseModule() {
     const [compras, setCompras]         = useState<Compra[]>([]);
     const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -257,11 +553,12 @@ export function PurchaseModule() {
     const [showDetailModal, setShowDetailModal]     = useState(false);
     const [loadingDetail, setLoadingDetail]         = useState(false);
 
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelingCompra, setCancelingCompra] = useState<Compra | null>(null);
+
     const [supplySearch, setSupplySearch] = useState('');
     const [carrito, setCarrito]           = useState<ItemCarrito[]>([]);
-
-    // ── Errores de precio en el carrito ──────────────────────────────────────
-    const [precioErrors, setPrecioErrors] = useState<Record<number, string>>({});
+    const [carritoErrors, setCarritoErrors] = useState<Record<number, CarritoItemError>>({});
 
     const emptyForm = {
         proveedoresId: '',
@@ -271,25 +568,30 @@ export function PurchaseModule() {
         notas: '',
         numeroFactura: '',
     };
-    const [form, setForm] = useState(emptyForm);
-    const [formErrors, setFormErrors] = useState<CompraFormErrors>({});
-    const [touched, setTouched]       = useState<Partial<Record<string, boolean>>>({});
+    const [form, setForm]                         = useState(emptyForm);
+    const [formErrors, setFormErrors]             = useState<CompraFormErrors>({});
+    const [touched, setTouched]                   = useState<Partial<Record<string, boolean>>>({});
+    const [submitAttempted, setSubmitAttempted]   = useState(false);
+    const [banner, setBanner]                     = useState<BannerMsg | null>(null);
+    const [lockedBannerId, setLockedBannerId]     = useState<number | null>(null);
 
-    // ── Feedback banner ───────────────────────────────────────────────────────
-    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
-    const showFeedback = (msg: string) => {
-        setFeedbackMsg(msg);
-        setTimeout(() => setFeedbackMsg(null), 4000);
+    const notasCharCount = form.notas.length;
+
+    const showBanner = useCallback((text: string, variant: BannerVariant = 'info') => {
+        setBanner({ text, variant });
+        setTimeout(() => setBanner(null), 5000);
+    }, []);
+
+    const triggerLockedBanner = (id: number) => {
+        setLockedBannerId(id);
+        setTimeout(() => setLockedBannerId(null), 4000);
     };
 
-    // ── Cargar datos ──────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [comprasData, proveedoresData, insumosData] = await Promise.all([
-                getCompras(),
-                getProveedores(),
-                getInsumos(),
+                getCompras(), getProveedores(), getInsumos(),
             ]);
             setCompras(comprasData);
             setProveedores(proveedoresData.filter((p: Proveedor) => p.estado !== 'inactivo'));
@@ -303,23 +605,30 @@ export function PurchaseModule() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // Re-validar en tiempo real
     useEffect(() => {
-        setFormErrors(validateCompraForm(form));
-    }, [form]);
+        if (submitAttempted) {
+            setFormErrors(validateCompraForm(form));
+            setCarritoErrors(validateCarrito(carrito));
+        }
+    }, [form, carrito, submitAttempted]);
 
-    // ── Formulario ────────────────────────────────────────────────────────────
-    const handleFormChange = (field: string, value: string) => {
+    const handleFormChange = (field: string, value: string) =>
         setForm((prev) => ({ ...prev, [field]: value }));
-    };
 
-    const handleBlur = (field: string) => {
+    const handleBlur = (field: string) =>
         setTouched((prev) => ({ ...prev, [field]: true }));
+
+    const handleBlurWithValidation = (field: string) => {
+        setTouched((prev) => ({ ...prev, [field]: true }));
+        const errors = validateCompraForm(form);
+        setFormErrors(errors);
     };
 
-    const touchAll = () => {
-        setTouched({ proveedoresId: true, fecha: true });
-    };
+    const touchAll = () =>
+        setTouched({
+            proveedoresId: true, fecha: true, metodoPago: true,
+            estado: true, notas: true, numeroFactura: true,
+        });
 
     const resetForm = () => {
         setForm(emptyForm);
@@ -327,126 +636,196 @@ export function PurchaseModule() {
         setSupplySearch('');
         setFormErrors({});
         setTouched({});
-        setPrecioErrors({});
+        setCarritoErrors({});
+        setSubmitAttempted(false);
     };
 
-    // ── Carrito ───────────────────────────────────────────────────────────────
     const agregarInsumo = (insumo: Insumo) => {
         setCarrito((prev) => {
             const existe = prev.find((i) => i.insumoId === insumo.id);
             if (existe) {
+                if (existe.cantidad >= CANTIDAD_MAX) {
+                    toast.warning(`Cantidad máxima permitida: ${CANTIDAD_MAX.toLocaleString()}`);
+                    return prev;
+                }
                 return prev.map((i) =>
                     i.insumoId === insumo.id ? { ...i, cantidad: i.cantidad + 1 } : i
                 );
             }
             return [...prev, {
                 insumoId: insumo.id,
-                nombre: insumo.nombreInsumo,
-                codigo: insumo.codigoInsumo ?? '',
-                precio: insumo.precioUnitario ?? 0,
+                nombre:   insumo.nombreInsumo,
+                codigo:   insumo.codigoInsumo ?? '',
+                precio:   insumo.precioUnitario ?? 0,
                 cantidad: 1,
-                unidad: insumo.unidadMedida,
+                unidad:   insumo.unidadMedida,
             }];
         });
     };
 
-    const actualizarCantidad = (insumoId: number, cantidad: number) => {
-        if (cantidad <= 0) {
+    const actualizarCantidad = (insumoId: number, rawValue: number) => {
+        if (rawValue <= 0) {
             setCarrito((prev) => prev.filter((i) => i.insumoId !== insumoId));
-            // Limpiar error de precio si se elimina
-            setPrecioErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
-        } else {
-            setCarrito((prev) =>
-                prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad } : i)
-            );
+            setCarritoErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
+            return;
         }
+        if (!Number.isInteger(rawValue)) {
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], cantidad: 'La cantidad debe ser un entero' } }));
+            return;
+        }
+        if (rawValue > CANTIDAD_MAX) {
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], cantidad: `Máximo ${CANTIDAD_MAX.toLocaleString()}` } }));
+            return;
+        }
+        setCarritoErrors((prev) => {
+            const n = { ...prev };
+            if (n[insumoId]) { delete n[insumoId].cantidad; if (!Object.keys(n[insumoId]).length) delete n[insumoId]; }
+            return n;
+        });
+        setCarrito((prev) => prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad: rawValue } : i));
     };
 
-    // Actualizar precio individual con validación
     const actualizarPrecio = (insumoId: number, rawValue: string) => {
         const valor = parseFloat(rawValue);
-        // Actualizar en carrito
-        setCarrito((prev) =>
-            prev.map((i) => i.insumoId === insumoId ? { ...i, precio: isNaN(valor) ? 0 : valor } : i)
-        );
-        // Validar
-        if (rawValue === '' || isNaN(valor) || valor <= 0) {
-            setPrecioErrors((prev) => ({ ...prev, [insumoId]: 'El precio debe ser mayor a 0' }));
-        } else {
-            setPrecioErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
+        setCarrito((prev) => prev.map((i) => i.insumoId === insumoId ? { ...i, precio: isNaN(valor) ? 0 : valor } : i));
+        if (rawValue === '' || isNaN(valor))
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], precio: 'El precio no es un número válido' } }));
+        else if (valor <= 0)
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], precio: 'El precio debe ser mayor a 0' } }));
+        else if (valor > PRECIO_MAX)
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], precio: `El precio no puede superar $${PRECIO_MAX.toLocaleString()}` } }));
+        else if (!isFinite(valor))
+            setCarritoErrors((prev) => ({ ...prev, [insumoId]: { ...prev[insumoId], precio: 'El precio no puede ser infinito' } }));
+        else {
+            setCarritoErrors((prev) => {
+                const n = { ...prev };
+                if (n[insumoId]) { delete n[insumoId].precio; if (!Object.keys(n[insumoId]).length) delete n[insumoId]; }
+                return n;
+            });
         }
     };
 
     const totalCarrito = carrito.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
+    const carritoTieneErrores = Object.keys(carritoErrors).length > 0;
 
-    // Verificar si el carrito tiene errores de precio
-    const carritoTienePreciosInvalidos = carrito.some((i) => i.precio <= 0);
+    const carritoEsValido = (): boolean => {
+        if (carrito.length === 0) return false;
+        return Object.keys(validateCarrito(carrito)).length === 0;
+    };
 
-    // ── Crear compra ──────────────────────────────────────────────────────────
+    const insumoYaEnCarrito = (insumoId: number) =>
+        carrito.some((i) => i.insumoId === insumoId);
+
     const handleCreateCompra = async () => {
+        setSubmitAttempted(true);
         touchAll();
-        const errors = validateCompraForm(form);
+        const errors     = validateCompraForm(form);
+        const cartErrors = validateCarrito(carrito);
+        setFormErrors(errors);
+        setCarritoErrors(cartErrors);
 
         if (Object.keys(errors).length > 0) {
-            toast.error('Completa los campos obligatorios');
+            showBanner('Corrige los errores del formulario antes de continuar', 'warning');
             return;
         }
         if (carrito.length === 0) {
-            toast.error('Agrega al menos un insumo al carrito');
+            showBanner('Agrega al menos un insumo al carrito antes de continuar', 'warning');
             return;
         }
-        if (carritoTienePreciosInvalidos) {
-            toast.error('Todos los insumos en el carrito deben tener un precio mayor a 0');
+        if (Object.keys(cartErrors).length > 0) {
+            showBanner('Revisa los precios y cantidades del carrito', 'warning');
+            return;
+        }
+
+        const idsCarrito = carrito.map((i) => i.insumoId);
+        if (idsCarrito.length !== new Set(idsCarrito).size) {
+            showBanner('El carrito contiene insumos duplicados', 'error');
+            return;
+        }
+
+        const proveedorActivo = proveedores.find((p) => p.id.toString() === form.proveedoresId);
+        if (!proveedorActivo) {
+            showBanner('El proveedor seleccionado ya no está disponible. Recarga la página.', 'error');
             return;
         }
 
         try {
             setSaving(true);
             await createCompra({
-                ...(form.numeroFactura ? { id: parseInt(form.numeroFactura) } : {}),
+                ...(form.numeroFactura.trim() ? { id: parseInt(form.numeroFactura) } : {}),
                 proveedoresId: parseInt(form.proveedoresId),
-                fecha: form.fecha,
-                metodoPago: form.metodoPago as 'efectivo' | 'transferencia',
-                estado: form.estado as 'pendiente' | 'en transito' | 'completada',
+                fecha:         form.fecha,
+                metodoPago:    form.metodoPago as 'efectivo' | 'transferencia',
+                estado:        form.estado as 'pendiente' | 'en transito' | 'completada',
             });
-            showFeedback('✓ Compra registrada exitosamente');
+            showBanner('Compra registrada exitosamente', 'success');
             toast.success('Compra creada exitosamente');
             setIsNewPurchaseOpen(false);
             resetForm();
             fetchData();
         } catch (error: any) {
-            toast.error(`Error al crear compra: ${error.message}`);
+            const msg: string = error.message ?? 'Error desconocido';
+            if (msg.toLowerCase().includes('factura'))
+                showBanner(`Número de factura: ${msg}`, 'error');
+            else if (msg.toLowerCase().includes('proveedor'))
+                showBanner(`Proveedor: ${msg}`, 'error');
+            else
+                showBanner(`Error al crear la compra: ${msg}`, 'error');
+            toast.error(`Error al crear compra: ${msg}`);
         } finally {
             setSaving(false);
         }
     };
 
-    // ── Cambiar estado ────────────────────────────────────────────────────────
     const handleCambiarEstado = async (id: number, nuevoEstado: string) => {
+        const compra = compras.find((c) => c.id === id);
+        if (!compra) return;
+        const estadoActualIdx = FLUJO_ESTADO[compra.estado] ?? -1;
+        const nuevoEstadoIdx  = FLUJO_ESTADO[nuevoEstado]  ?? -1;
+        if (nuevoEstadoIdx <= estadoActualIdx) {
+            showBanner('No se puede retroceder el estado de una compra', 'warning'); return;
+        }
+        if (nuevoEstadoIdx - estadoActualIdx > 1) {
+            showBanner('No se puede saltar estados intermedios', 'warning'); return;
+        }
         try {
             await cambiarEstadoCompra(id, nuevoEstado);
-            showFeedback(`✓ Estado actualizado a "${nuevoEstado}"`);
+            showBanner(`Estado actualizado a "${nuevoEstado}"`, 'success');
             toast.success(`Estado actualizado a "${nuevoEstado}"`);
             fetchData();
         } catch (error: any) {
+            showBanner(`Error: ${error.message}`, 'error');
             toast.error(error.message);
         }
     };
 
-    // ── Eliminar ──────────────────────────────────────────────────────────────
-    const handleDelete = async (id: number) => {
-        if (!confirm('¿Eliminar esta compra? Solo se pueden eliminar compras pendientes.')) return;
+    const handleCancelar = (compra: Compra) => {
+        if (compra.estado !== 'pendiente') { triggerLockedBanner(compra.id); return; }
+        setCancelingCompra(compra);
+        setShowCancelModal(true);
+    };
+
+    const confirmCancelar = async () => {
+        if (!cancelingCompra) return;
+        const compraActual = compras.find((c) => c.id === cancelingCompra.id);
+        if (compraActual && compraActual.estado !== 'pendiente') {
+            showBanner('La compra ya fue avanzada de estado y no puede cancelarse', 'error');
+            setShowCancelModal(false); setCancelingCompra(null); return;
+        }
         try {
-            await deleteCompra(id);
-            showFeedback('✓ Compra eliminada correctamente');
-            toast.success('Compra eliminada correctamente');
+            setSaving(true);
+            await deleteCompra(cancelingCompra.id);
+            showBanner('Compra cancelada correctamente', 'success');
+            toast.success('Compra cancelada correctamente');
             fetchData();
         } catch (error: any) {
+            showBanner(`No se puede cancelar: ${error.message}`, 'error');
             toast.error(error.message);
+        } finally {
+            setSaving(false); setShowCancelModal(false); setCancelingCompra(null);
         }
     };
 
-    // ── Ver detalle ───────────────────────────────────────────────────────────
     const verDetalle = async (compra: Compra) => {
         setShowDetailModal(true);
         setViewingCompra(null);
@@ -455,117 +834,102 @@ export function PurchaseModule() {
             const detail = await getCompraById(compra.id);
             setViewingCompra(detail);
         } catch (error: any) {
+            showBanner(`Error: ${error.message}`, 'error');
             toast.error(`Error: ${error.message}`);
         } finally {
             setLoadingDetail(false);
         }
     };
 
+    // ── Descarga de PDF ───────────────────────────────────────────────────────
+    const handleDescargarPDF = () => {
+        if (!viewingCompra) return;
+        try {
+            generarPDFCompra(viewingCompra);
+            toast.success(`PDF de la compra #${viewingCompra.id} descargado`);
+        } catch (error: any) {
+            toast.error(`Error al generar PDF: ${error.message}`);
+        }
+    };
+
     // ── Filtrado ──────────────────────────────────────────────────────────────
     const filteredCompras = compras.filter((c) => {
+        const term = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const matchesSearch =
-            c.proveedor?.nombreEmpresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.id.toString().includes(searchTerm);
-
-        let matchesDate = true;
+            c.proveedor?.nombreEmpresa.toLowerCase().includes(term.toLowerCase()) ||
+            c.id.toString().includes(term);
         const today     = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
         const weekAgo   = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-
+        let matchesDate = true;
         if (dateFilter === 'today')     matchesDate = c.fecha.startsWith(today);
         if (dateFilter === 'yesterday') matchesDate = c.fecha.startsWith(yesterday);
         if (dateFilter === 'week')      matchesDate = c.fecha >= weekAgo;
-
         return matchesSearch && matchesDate;
     });
 
     const totalPages     = Math.ceil(filteredCompras.length / itemsPerPage);
-    const currentCompras = filteredCompras.slice(
-        (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
-    );
-
+    const currentCompras = filteredCompras.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     const filteredInsumos = insumos.filter((i) =>
         i.nombreInsumo.toLowerCase().includes(supplySearch.toLowerCase()) ||
         (i.codigoInsumo ?? '').toLowerCase().includes(supplySearch.toLowerCase())
     );
 
-    // ── Condiciones para poder procesar la compra ────────────────────────────
-    const canSubmit =
-        Object.keys(validateCompraForm(form)).length === 0 &&
-        carrito.length > 0 &&
-        !carritoTienePreciosInvalidos;
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFilter]);
 
-    // ── RENDER ────────────────────────────────────────────────────────────────
+    const totalFormErrors = Object.keys(formErrors).length;
+    const totalCartErrors = Object.keys(carritoErrors).length;
+
+    // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
 
-            {/* ── Feedback Banner ── */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
+            {banner && (
+                <div className={`flex items-center gap-3 border rounded-xl px-5 py-3 shadow-sm ${bannerStyles[banner.variant]}`}>
+                    {bannerIcons[banner.variant]}
+                    <span className="text-sm font-medium flex-1">{banner.text}</span>
+                    <button onClick={() => setBanner(null)} className="opacity-60 hover:opacity-100">
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
             )}
 
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-blue-900 mb-1">Compras de Insumos</h1>
-                    <p className="text-blue-600">Gestión y control de adquisiciones</p>
+                    <h1 className="text-2xl text-blue-900 font-bold mb-2">Compras de Insumos</h1>
+                    <p className="text-blue-800">Gestión y control de adquisiciones</p>
                 </div>
                 <Button
                     onClick={() => { resetForm(); setIsNewPurchaseOpen(true); }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Nueva Compra
+                    <Plus className="w-4 h-4 mr-2" />Nueva Compra
                 </Button>
             </div>
 
-            {/* Estadísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border border-blue-100">
-                    <CardContent className="p-4">
-                        <p className="text-sm text-blue-500">Total compras</p>
-                        <p className="text-2xl font-bold text-blue-900">{compras.length}</p>
-                    </CardContent>
-                </Card>
-                <Card className="border border-blue-100">
-                    <CardContent className="p-4">
-                        <p className="text-sm text-gray-500">Pendientes</p>
-                        <p className="text-2xl font-bold text-blue-900">
-                            {compras.filter(c => c.estado === 'pendiente').length}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border border-blue-100">
-                    <CardContent className="p-4">
-                        <p className="text-sm text-gray-500">Completadas</p>
-                        <p className="text-2xl font-bold text-blue-900">
-                            {compras.filter(c => c.estado === 'completada').length}
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Filtros */}
             <Card>
                 <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="relative flex-1">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                        <div className="relative w-full sm:flex-[3]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                             <Input
                                 placeholder="Buscar por proveedor o N° factura..."
                                 value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                className="pl-10"
+                                onChange={(e) => {
+                                    if (e.target.value.length <= 100) {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }
+                                }}
+                                className="pl-10 w-full"
+                                maxLength={100}
                             />
                         </div>
-                        <Select value={dateFilter} onValueChange={setDateFilter}>
-                            <SelectTrigger className="w-full sm:w-48">
+                        <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setCurrentPage(1); }}>
+                            <SelectTrigger className="w-full sm:w-48 sm:flex-[1]">
                                 <SelectValue placeholder="Filtrar por fecha" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="z-[9999]">
                                 <SelectItem value="all">Todas las fechas</SelectItem>
                                 <SelectItem value="today">Hoy</SelectItem>
                                 <SelectItem value="yesterday">Ayer</SelectItem>
@@ -576,409 +940,481 @@ export function PurchaseModule() {
                 </CardContent>
             </Card>
 
-            {/* Lista de compras */}
-            <Card>
-                <CardHeader className="border-b border-blue-100">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-blue-900">Lista de Compras</CardTitle>
-                        <Badge variant="outline" className="text-blue-600 border-blue-300">
-                            {filteredCompras.length} registros
-                        </Badge>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {loading ? (
-                        <div className="flex justify-center items-center py-16">
-                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                            <span className="ml-2 text-gray-500">Cargando compras...</span>
-                        </div>
-                    ) : currentCompras.length === 0 ? (
-                        <div className="text-center py-16">
-                            <ShoppingCartIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <p className="text-gray-500">No se encontraron compras</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-blue-50">
-                            {currentCompras.map((compra) => (
-                                <div key={compra.id} className="p-5 hover:bg-blue-50 transition-colors">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <span className="font-mono font-bold text-blue-900 text-lg">
-                                                    #{compra.id}
-                                                </span>
-                                                <EstadoBadge estado={compra.estado} />
-                                                <span className="text-sm text-gray-400">
-                                                    {new Date(compra.fecha).toLocaleDateString('es-CO')}
-                                                </span>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                <div>
-                                                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Proveedor</p>
-                                                    <p className="text-gray-900 font-medium">
-                                                        {compra.proveedor?.nombreEmpresa ?? `ID #${compra.proveedoresId}`}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">{compra.proveedor?.telefono}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Insumos</p>
-                                                    {compra.detalles && compra.detalles.length > 0 ? (
-                                                        <>
-                                                            {compra.detalles.slice(0, 2).map((d, i) => (
-                                                                <p key={i} className="text-sm text-gray-700">
-                                                                    {d.cantidad}x {d.insumo?.nombreInsumo}
-                                                                </p>
-                                                            ))}
-                                                            {compra.detalles.length > 2 && (
-                                                                <p className="text-xs text-gray-400">
-                                                                    +{compra.detalles.length - 2} más
-                                                                </p>
+            {loading ? (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500">Cargando compras...</span>
+                </div>
+            ) : (
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-blue-900">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Compra</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Insumos</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Pago</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentCompras.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-12 text-gray-500">
+                                                No se encontraron compras
+                                            </td>
+                                        </tr>
+                                    ) : currentCompras.map((compra) => {
+                                        const isLocked      = compra.estado !== 'pendiente';
+                                        const showRowBanner = lockedBannerId === compra.id;
+                                        return (
+                                            <React.Fragment key={compra.id}>
+                                                <tr className={`border-b border-blue-100 transition-colors ${isLocked ? 'bg-gray-50' : 'hover:bg-blue-50'}`}>
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-gray-900 font-mono">#{compra.id}</span>
+                                                            <span className="text-sm text-blue-900">
+                                                                {new Date(compra.fecha).toLocaleDateString('es-CO')}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex flex-col">
+                                                            <span className={`font-semibold ${isLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                                                                {compra.proveedor?.nombreEmpresa ?? `ID #${compra.proveedoresId}`}
+                                                            </span>
+                                                            <span className="text-sm text-gray-400">{compra.proveedor?.telefono}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        {compra.detalles && compra.detalles.length > 0 ? (
+                                                            <div className="flex flex-col">
+                                                                {compra.detalles.slice(0, 2).map((d, i) => (
+                                                                    <span key={i} className="text-sm text-gray-700">
+                                                                        {d.cantidad}x {d.insumo?.nombreInsumo}
+                                                                    </span>
+                                                                ))}
+                                                                {compra.detalles.length > 2 && (
+                                                                    <span className="text-xs text-gray-400">+{compra.detalles.length - 2} más</span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-gray-400 italic">Sin detalles</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <span className="text-gray-900 capitalize">{compra.metodoPago}</span>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex flex-col gap-1">
+                                                            <EstadoBadge estado={compra.estado} />
+                                                            {compra.estado !== 'completada' && (
+                                                                <button
+                                                                    onClick={() => handleCambiarEstado(
+                                                                        compra.id,
+                                                                        compra.estado === 'pendiente' ? 'en transito' : 'completada'
+                                                                    )}
+                                                                    className="text-xs text-blue-600 hover:underline text-left"
+                                                                >
+                                                                    → Avanzar estado
+                                                                </button>
                                                             )}
-                                                        </>
-                                                    ) : (
-                                                        <p className="text-sm text-gray-400 italic">Sin detalles</p>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Pago</p>
-                                                    <p className="text-gray-900 capitalize">{compra.metodoPago}</p>
-                                                    {compra.estado !== 'completada' && (
-                                                        <button
-                                                            onClick={() => handleCambiarEstado(
-                                                                compra.id,
-                                                                compra.estado === 'pendiente' ? 'en transito' : 'completada'
-                                                            )}
-                                                            className="text-xs text-blue-600 hover:underline mt-1"
-                                                        >
-                                                            → Avanzar estado
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 ml-4">
-                                            <Button variant="outline" size="sm"
-                                                onClick={() => verDetalle(compra)}
-                                                className="text-blue-900 border-blue-900 hover:bg-blue-50">
-                                                <EyeIcon className="w-4 h-4" />
-                                            </Button>
-                                            {compra.estado === 'pendiente' && (
-                                                <Button variant="outline" size="sm"
-                                                    onClick={() => handleDelete(compra.id)}
-                                                    className="text-blue-900 border-blue-900 hover:bg-blue-50">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Button size="sm" onClick={() => verDetalle(compra)}
+                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                                                                <Eye className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button size="sm" onClick={() => handleCancelar(compra)}
+                                                                disabled={saving}
+                                                                title={isLocked ? 'Solo se pueden cancelar compras pendientes' : 'Cancelar compra'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    isLocked
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}>
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {showRowBanner && (
+                                                    <tr className="border-b border-amber-100">
+                                                        <td colSpan={6} className="px-6 py-0">
+                                                            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                                                                <span>
+                                                                    <strong>Compra bloqueada:</strong>{' '}
+                                                                    Solo se pueden cancelar compras en estado <strong>pendiente</strong>. Esta compra ya fue avanzada de estado.
+                                                                </span>
+                                                                <button onClick={() => setLockedBannerId(null)} className="ml-auto opacity-60 hover:opacity-100">
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
 
-                    {/* Paginación */}
-                    {totalPages > 1 && (
-                        <div className="border-t border-blue-100 px-6 py-4 flex justify-center items-center gap-2">
-                            <Button variant="outline" size="sm"
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}>
-                                <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <Button key={page} size="sm"
-                                    variant={currentPage === page ? 'default' : 'ghost'}
-                                    onClick={() => setCurrentPage(page)}
-                                    className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700' : ''}>
-                                    {page}
+                        {totalPages > 1 && (
+                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}>
+                                    <ChevronLeft className="w-4 h-4" />
                                 </Button>
-                            ))}
-                            <Button variant="outline" size="sm"
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}>
-                                <ChevronRight className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
+                                        {page}
+                                    </Button>
+                                ))}
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* ════ MODAL — NUEVA COMPRA ════ */}
-            <Dialog open={isNewPurchaseOpen} onOpenChange={(open) => { if (!open) { resetForm(); setIsNewPurchaseOpen(false); } }}>
-                <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl text-blue-900">Nueva Compra de Insumos</DialogTitle>
-                        <DialogDescription>Completa el formulario para registrar una nueva compra</DialogDescription>
-                    </DialogHeader>
+            <Dialog
+                open={isNewPurchaseOpen}
+                onOpenChange={(open) => { if (!open) { resetForm(); setIsNewPurchaseOpen(false); } }}
+            >
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Nueva Compra de Insumos</DialogTitle>
+                            <DialogDescription>Completa el formulario para registrar una nueva compra.</DialogDescription>
+                        </DialogHeader>
 
-                    <div className="space-y-6">
-
-                        {/* ── Paso 1: Datos de la compra ── */}
-                        <div>
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">1</span>
-                                <h3 className="font-semibold text-blue-900">Datos de la Compra</h3>
-                            </div>
-                            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                                {/* Alerta si hay errores tocados en el formulario */}
-                                {Object.keys(touched).length > 0 && Object.keys(formErrors).length > 0 && (
-                                    <div className="mb-4">
-                                        <InfoAlert message="Completa los campos obligatorios antes de procesar la compra." />
-                                    </div>
+                        {submitAttempted && (totalFormErrors > 0 || totalCartErrors > 0) && (
+                            <div className="mt-4 space-y-2">
+                                {totalFormErrors > 0 && (
+                                    <InfoAlert message={`Hay ${totalFormErrors} campo(s) del formulario que requieren atención.`} />
                                 )}
+                                {carrito.length === 0 && (
+                                    <InfoAlert message="Agrega al menos un insumo al carrito antes de continuar." />
+                                )}
+                                {carrito.length > 0 && totalCartErrors > 0 && (
+                                    <InfoAlert message={`${totalCartErrors} insumo(s) del carrito tienen errores de precio o cantidad.`} />
+                                )}
+                            </div>
+                        )}
+
+                        <div className="mt-4 space-y-6">
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">1</span>
+                                    <h3 className="font-semibold text-blue-900">Datos de la Compra</h3>
+                                </div>
                                 <CompraForm
                                     proveedores={proveedores}
                                     form={form}
                                     onChange={handleFormChange}
                                     errors={formErrors}
                                     touched={touched}
-                                    onBlur={handleBlur}
+                                    onBlur={handleBlurWithValidation}
+                                    notasCharCount={notasCharCount}
                                 />
                             </div>
-                        </div>
 
-                        {/* ── Paso 2: Seleccionar insumos ── */}
-                        <div>
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">2</span>
-                                <h3 className="font-semibold text-blue-900">Seleccionar Insumos</h3>
-                            </div>
-                            <div className="border border-blue-100 rounded-lg p-4 space-y-3">
-                                <div className="relative">
-                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <Input
-                                        placeholder="Buscar insumo por nombre o código..."
-                                        value={supplySearch}
-                                        onChange={(e) => setSupplySearch(e.target.value)}
-                                        className="pl-10"
-                                    />
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">2</span>
+                                    <h3 className="font-semibold text-blue-900">Seleccionar Insumos</h3>
                                 </div>
-                                <div className="overflow-y-auto max-h-52 space-y-2 pr-1">
-                                    {filteredInsumos.length === 0 ? (
-                                        <div className="text-center py-8 text-gray-400">
-                                            <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                            <p className="text-sm">No hay insumos disponibles</p>
-                                        </div>
-                                    ) : filteredInsumos.map((insumo) => (
-                                        <div key={insumo.id}
-                                            className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 truncate">{insumo.nombreInsumo}</p>
-                                                <p className="text-xs text-gray-400">
-                                                    {insumo.codigoInsumo} • {insumo.unidadMedida}
-                                                    {insumo.precioUnitario ? ` • $${Number(insumo.precioUnitario).toLocaleString()}` : ''}
-                                                </p>
-                                            </div>
-                                            <Button size="sm" onClick={() => agregarInsumo(insumo)}
-                                                className="ml-3 bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-                                                <PlusIcon className="w-3 h-3 mr-1" /> Agregar
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Paso 3: Carrito ── */}
-                        <div>
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">3</span>
-                                    <h3 className="font-semibold text-blue-900">Carrito de Compra</h3>
-                                </div>
-                                {carrito.length > 0 && (
-                                    <Badge className="bg-blue-600 text-white">
-                                        {carrito.reduce((s, i) => s + i.cantidad, 0)} items
-                                    </Badge>
-                                )}
-                            </div>
-
-                            {/* Advertencia de precios inválidos */}
-                            {carritoTienePreciosInvalidos && (
-                                <div className="mb-3">
-                                    <InfoAlert message="Uno o más insumos tienen precio 0 o sin definir. Establece un precio mayor a 0 para poder procesar la compra." />
-                                </div>
-                            )}
-
-                            {carrito.length === 0 ? (
-                                <div className="text-center py-8 border-2 border-dashed border-blue-100 rounded-lg text-gray-400">
-                                    <ShoppingCartIcon className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                                    <p className="text-sm">Agrega insumos desde el paso 2</p>
-                                </div>
-                            ) : (
-                                <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                    <div className="divide-y divide-blue-50">
-                                        {carrito.map((item) => (
-                                            <div key={item.insumoId} className="p-3 hover:bg-blue-50">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-blue-900 truncate">{item.nombre}</p>
-                                                        <p className="text-xs text-gray-400">{item.unidad}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 ml-3 flex-wrap justify-end">
-                                                        {/* Cantidad */}
-                                                        <div className="flex items-center gap-1">
-                                                            <Button size="sm" variant="outline"
-                                                                onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
-                                                                className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">-</Button>
-                                                            <span className="w-8 text-center text-sm font-bold text-blue-900">{item.cantidad}</span>
-                                                            <Button size="sm" variant="outline"
-                                                                onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
-                                                                className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">+</Button>
-                                                        </div>
-                                                        {/* Precio editable */}
-                                                        <div className="flex flex-col items-end">
-                                                            <div className="flex items-center gap-1">
-                                                                <span className="text-xs text-gray-400">$</span>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={item.precio === 0 ? '' : item.precio}
-                                                                    onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
-                                                                    onKeyDown={(e) => {
-                                                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-                                                                        if (!allowed.includes(e.key) && !/[\d.]/.test(e.key)) e.preventDefault();
-                                                                    }}
-                                                                    placeholder="Precio"
-                                                                    min="0.01"
-                                                                    step="0.01"
-                                                                    className={`w-24 h-7 text-xs text-right ${precioErrors[item.insumoId] ? 'border-red-400' : ''}`}
-                                                                />
-                                                            </div>
-                                                            {precioErrors[item.insumoId] && (
-                                                                <p className="text-red-500 text-xs mt-0.5">{precioErrors[item.insumoId]}</p>
-                                                            )}
-                                                        </div>
-                                                        {/* Total ítem */}
-                                                        {item.precio > 0 && (
-                                                            <span className="text-xs font-semibold text-blue-600 w-20 text-right">
-                                                                ${(item.precio * item.cantidad).toLocaleString()}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                <div className="border border-blue-100 rounded-lg p-4 space-y-3">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <Input
+                                            placeholder="Buscar insumo por nombre o código..."
+                                            value={supplySearch}
+                                            onChange={(e) => setSupplySearch(e.target.value)}
+                                            className="pl-10"
+                                            maxLength={100}
+                                        />
                                     </div>
-                                    {totalCarrito > 0 && (
-                                        <div className="bg-blue-900 px-4 py-3 flex justify-between items-center">
-                                            <span className="text-white font-semibold">Total estimado</span>
-                                            <span className="text-white font-bold text-lg">${totalCarrito.toLocaleString()}</span>
-                                        </div>
+                                    <div className="overflow-y-auto max-h-52 space-y-2 pr-1">
+                                        {filteredInsumos.length === 0 ? (
+                                            <div className="text-center py-8 text-gray-400">
+                                                <PackageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                                <p className="text-sm">No hay insumos disponibles</p>
+                                            </div>
+                                        ) : filteredInsumos.map((insumo) => {
+                                            const yaAgregado = insumoYaEnCarrito(insumo.id);
+                                            return (
+                                                <div key={insumo.id}
+                                                    className={`flex items-center justify-between p-3 bg-white rounded-lg border transition-colors ${
+                                                        yaAgregado ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:border-blue-300 hover:bg-blue-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-900 truncate">{insumo.nombreInsumo}</p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {insumo.codigoInsumo} • {insumo.unidadMedida}
+                                                            {insumo.precioUnitario ? ` • $${Number(insumo.precioUnitario).toLocaleString()}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <Button size="sm" onClick={() => agregarInsumo(insumo)}
+                                                        className={`ml-3 shrink-0 ${yaAgregado ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                                                        <Plus className="w-3 h-3 mr-1" />
+                                                        {yaAgregado ? 'Agregar más' : 'Agregar'}
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-blue-900 text-white text-xs flex items-center justify-center font-bold">3</span>
+                                        <h3 className="font-semibold text-blue-900">Carrito de Compra</h3>
+                                    </div>
+                                    {carrito.length > 0 && (
+                                        <Badge className="bg-blue-600 text-white">
+                                            {carrito.reduce((s, i) => s + i.cantidad, 0)} items
+                                        </Badge>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
 
-                    {/* Botones */}
-                    <div className="flex gap-4 pt-4 border-t border-blue-100 mt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => { resetForm(); setIsNewPurchaseOpen(false); }}
-                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50"
-                            disabled={saving}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={handleCreateCompra}
-                            disabled={saving}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                        >
-                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                            🛒 Procesar Compra
-                        </Button>
+                                {carrito.length === 0 ? (
+                                    <div className={`text-center py-8 border-2 border-dashed rounded-lg text-gray-400 ${submitAttempted ? 'border-red-300 bg-red-50' : 'border-blue-100'}`}>
+                                        <ShoppingCart className={`w-10 h-10 mx-auto mb-2 opacity-20 ${submitAttempted ? 'text-red-400' : ''}`} />
+                                        <p className="text-sm">Agrega insumos desde el paso 2</p>
+                                    </div>
+                                ) : (
+                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                        <div className="divide-y divide-blue-50">
+                                            {carrito.map((item) => {
+                                                const itemErr = carritoErrors[item.insumoId];
+                                                return (
+                                                    <div key={item.insumoId} className={`p-3 ${itemErr ? 'bg-red-50' : 'hover:bg-blue-50'}`}>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-blue-900 truncate">{item.nombre}</p>
+                                                                <p className="text-xs text-gray-400">{item.unidad}</p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 ml-3 flex-wrap justify-end">
+                                                                <div className="flex flex-col items-center">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Button size="sm" variant="outline"
+                                                                            onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
+                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">-</Button>
+                                                                        <span className="w-8 text-center text-sm font-bold text-blue-900">{item.cantidad}</span>
+                                                                        <Button size="sm" variant="outline"
+                                                                            onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
+                                                                            disabled={item.cantidad >= CANTIDAD_MAX}
+                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold">+</Button>
+                                                                    </div>
+                                                                    <FieldError message={itemErr?.cantidad} />
+                                                                </div>
+                                                                <div className="flex flex-col items-end">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-xs text-gray-400">$</span>
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={item.precio === 0 ? '' : item.precio}
+                                                                            onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
+                                                                            onKeyDown={blockNonNumeric}
+                                                                            onPaste={blockNonNumericPaste}
+                                                                            placeholder="Precio"
+                                                                            min="0.01"
+                                                                            max={PRECIO_MAX}
+                                                                            step="0.01"
+                                                                            className={`w-24 h-7 text-xs text-right ${itemErr?.precio ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                                                                        />
+                                                                    </div>
+                                                                    <FieldError message={itemErr?.precio} />
+                                                                </div>
+                                                                {item.precio > 0 && !itemErr && (
+                                                                    <span className="text-xs font-semibold text-blue-600 w-20 text-right">
+                                                                        ${(item.precio * item.cantidad).toLocaleString()}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {totalCarrito > 0 && !carritoTieneErrores && (
+                                            <div className="bg-blue-900 px-4 py-3 flex justify-between items-center">
+                                                <span className="text-white font-semibold">Total estimado</span>
+                                                <span className="text-white font-bold text-lg">
+                                                    ${totalCarrito.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                            <Button variant="outline"
+                                onClick={() => { resetForm(); setIsNewPurchaseOpen(false); }}
+                                disabled={saving}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleCreateCompra} disabled={saving}
+                                className="bg-blue-600 hover:bg-blue-700 text-white">
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Procesar Compra
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
 
             {/* ════ MODAL — DETALLE ════ */}
             <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-blue-900">Detalle de Compra</DialogTitle>
-                        <DialogDescription>Información completa de la compra seleccionada</DialogDescription>
-                    </DialogHeader>
-
-                    {loadingDetail ? (
-                        <div className="flex justify-center py-10">
-                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                        </div>
-                    ) : viewingCompra ? (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">N° Factura</p>
-                                    <p className="font-mono font-bold text-blue-900 text-lg">#{viewingCompra.id}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Estado</p>
-                                    <EstadoBadge estado={viewingCompra.estado} />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Proveedor</p>
-                                    <p className="font-semibold text-blue-900">{viewingCompra.proveedor?.nombreEmpresa}</p>
-                                    <p className="text-xs text-gray-500">{viewingCompra.proveedor?.email}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Fecha</p>
-                                    <p className="font-semibold">
-                                        {new Date(viewingCompra.fecha).toLocaleDateString('es-CO')}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Método de Pago</p>
-                                    <p className="capitalize font-semibold">{viewingCompra.metodoPago}</p>
-                                </div>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Detalle de Compra</DialogTitle>
+                            <DialogDescription>Información completa de la compra seleccionada.</DialogDescription>
+                        </DialogHeader>
+                        {loadingDetail ? (
+                            <div className="flex justify-center py-10">
+                                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                             </div>
-
-                            {viewingCompra.detalles && viewingCompra.detalles.length > 0 && (
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-700 mb-2">
-                                        Insumos ({viewingCompra.detalles.length})
-                                    </p>
-                                    <div className="divide-y rounded-lg border overflow-hidden">
-                                        {viewingCompra.detalles.map((d, i) => (
-                                            <div key={i} className="flex justify-between items-center px-4 py-3 bg-white hover:bg-blue-50">
-                                                <div>
-                                                    <p className="font-medium text-gray-900">{d.insumo?.nombreInsumo}</p>
-                                                    <p className="text-xs text-gray-500">{d.insumo?.unidadMedida}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-semibold text-blue-900">
-                                                        {d.cantidad} x ${Number(d.precioUnitario).toLocaleString()}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        = ${(d.cantidad * d.precioUnitario).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
+                        ) : viewingCompra ? (
+                            <div className="space-y-4 mt-4">
+                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">N° Factura</p>
+                                        <p className="font-mono font-bold text-blue-900 text-lg">#{viewingCompra.id}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Estado</p>
+                                        <EstadoBadge estado={viewingCompra.estado} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Proveedor</p>
+                                        <p className="font-semibold text-blue-900">{viewingCompra.proveedor?.nombreEmpresa}</p>
+                                        <p className="text-xs text-gray-500">{viewingCompra.proveedor?.email}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Fecha</p>
+                                        <p className="font-semibold">
+                                            {new Date(viewingCompra.fecha).toLocaleDateString('es-CO')}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Método de Pago</p>
+                                        <p className="capitalize font-semibold">{viewingCompra.metodoPago}</p>
                                     </div>
                                 </div>
-                            )}
-
-                            <div className="flex gap-3">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowDetailModal(false)}
-                                    className="flex-1 border-blue-900 text-blue-900"
-                                >
-                                    Cerrar
-                                </Button>
-                                <Button
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={() => toast.info('Función de PDF próximamente')}
-                                >
-                                    <FileDown className="w-4 h-4 mr-2" />
-                                    Descargar PDF
-                                </Button>
+                                {viewingCompra.detalles && viewingCompra.detalles.length > 0 && (
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-700 mb-2">
+                                            Insumos ({viewingCompra.detalles.length})
+                                        </p>
+                                        <div className="divide-y rounded-lg border overflow-hidden">
+                                            {viewingCompra.detalles.map((d, i) => (
+                                                <div key={i} className="flex justify-between items-center px-4 py-3 bg-white hover:bg-blue-50">
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">{d.insumo?.nombreInsumo}</p>
+                                                        <p className="text-xs text-gray-500">{d.insumo?.unidadMedida}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-semibold text-blue-900">
+                                                            {d.cantidad} x ${Number(d.precioUnitario).toLocaleString()}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500">
+                                                            = ${(d.cantidad * d.precioUnitario).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+                                        Cerrar
+                                    </Button>
+                                    {/* ── BOTÓN PDF — ahora funcional ── */}
+                                    <Button
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                        onClick={handleDescargarPDF}
+                                    >
+                                        <FileDown className="w-4 h-4 mr-2" />
+                                        Descargar PDF
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    ) : null}
+                        ) : null}
+                    </div>
                 </DialogContent>
             </Dialog>
+
+            {/* ════ MODAL — CONFIRMAR CANCELACIÓN ════ */}
+            <Dialog open={showCancelModal} onOpenChange={(open) => {
+                if (!open) { setShowCancelModal(false); setCancelingCompra(null); }
+            }}>
+                <DialogContent className="max-w-md p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-blue-900">
+                                <Trash2 className="w-5 h-5" />Cancelar Compra
+                            </DialogTitle>
+                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
+                        </DialogHeader>
+                        {cancelingCompra && (
+                            <div className="mt-4 space-y-3">
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="font-semibold text-blue-900 font-mono">#{cancelingCompra.id}</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        {cancelingCompra.proveedor?.nombreEmpresa ?? `Proveedor ID #${cancelingCompra.proveedoresId}`}
+                                    </p>
+                                    <p className="text-sm text-blue-700">
+                                        {new Date(cancelingCompra.fecha).toLocaleDateString('es-CO')} · {cancelingCompra.metodoPago}
+                                    </p>
+                                </div>
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">¿Estás seguro?</p>
+                                        <p className="text-amber-700 mt-0.5">La compra será eliminada permanentemente del sistema.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                            <Button variant="outline"
+                                onClick={() => { setShowCancelModal(false); setCancelingCompra(null); }}
+                                disabled={saving}>
+                                Volver
+                            </Button>
+                            <Button onClick={confirmCancelar} disabled={saving}
+                                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900">
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Sí, cancelar compra
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 }

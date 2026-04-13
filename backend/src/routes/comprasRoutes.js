@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const {
     getCompras,
     getCompraById,
@@ -7,15 +8,38 @@ const {
     createCompra,
     updateCompra,
     cambiarEstadoCompra,
-    deleteCompra
+    deleteCompra,
 } = require('../controllers/comprasController.js');
 
-router.get('/', getCompras);
-router.get('/estado/:estado', getComprasByEstado);
-router.get('/:id', getCompraById);
-router.post('/', createCompra);
-router.put('/:id', updateCompra);
-router.patch('/:id/estado', cambiarEstadoCompra);
-router.delete('/:id', deleteCompra);
+const {
+    validarCrearCompra,
+    validarActualizarCompra,
+    validarCambiarEstado,
+    validarEliminarCompra,
+    validarObtenerPorId,
+    validarObtenerPorEstado,
+    validarQueryListar,
+} = require('../validators/Comprasvalidator.js');
+
+// GET  /                  → listar todas (con filtros opcionales por query)
+router.get('/',                 validarQueryListar,      getCompras);
+
+// GET  /estado/:estado    → listar por estado  ⚠️ DEBE ir ANTES de /:id
+router.get('/estado/:estado',   validarObtenerPorEstado, getComprasByEstado);
+
+// GET  /:id               → obtener por ID
+router.get('/:id',              validarObtenerPorId,     getCompraById);
+
+// POST /                  → crear compra
+router.post('/',                validarCrearCompra,      createCompra);
+
+// PUT  /:id               → actualizar compra (solo pendiente)
+router.put('/:id',              validarActualizarCompra, updateCompra);
+
+// PATCH /:id/estado       → cambiar estado
+router.patch('/:id/estado',     validarCambiarEstado,    cambiarEstadoCompra);
+
+// DELETE /:id             → eliminar (solo pendiente sin detalles)
+router.delete('/:id',           validarEliminarCompra,   deleteCompra);
 
 module.exports = router;
