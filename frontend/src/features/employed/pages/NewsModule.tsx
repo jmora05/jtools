@@ -21,8 +21,7 @@ import {
 } from '@/shared/components/ui/tooltip';
 import {
   PlusIcon, EditIcon, TrashIcon, CalendarIcon, AlertCircleIcon,
-  ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon,
-  CheckIcon, XIcon,
+  ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon, XIcon, Lock, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,15 +31,14 @@ import {
 } from '../services/novedadesService';
 
 // ─── ID del empleado autenticado ──────────────────────────────────────────────
-// Reemplaza con tu hook/contexto real: const { empleado } = useAuth();
 const EMPLEADO_ACTUAL_ID = 1;
 
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_COLORS: Record<string, string> = {
-  registrada: 'bg-blue-100 text-blue-700 border-blue-200',
-  aprobada:   'bg-green-100 text-green-700 border-green-200',
-  rechazada:  'bg-red-100 text-red-700 border-red-200',
+  registrada: 'bg-blue-100 text-blue-900 border-blue-200',
+  aprobada:   'bg-blue-100 text-blue-900 border-blue-200',
+  rechazada:  'bg-gray-100 text-gray-900 border-gray-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -55,32 +53,51 @@ const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
 const formatFecha = (fecha?: string) =>
   fecha ? fecha.split('T')[0] : '—';
 
-// ─── Tipos del formulario ────────────────────────────────────────────────────
+// ─── Lógica de permisos por estado ───────────────────────────────────────────
+
+const canEdit   = (n: Novedad) => n.estado === 'registrada';
+const canDelete = (n: Novedad) => n.estado === 'registrada';
+
+const editBlockReason = (n: Novedad): string | null =>
+  n.estado !== 'registrada'
+    ? `No se puede editar: la novedad ya fue ${n.estado}`
+    : null;
+
+const deleteBlockReason = (n: Novedad): string | null =>
+  n.estado !== 'registrada'
+    ? `No se puede eliminar: la novedad ya fue ${n.estado}`
+    : null;
+
+// ─── Tipos del formulario ─────────────────────────────────────────────────────
 
 interface FormValues {
   titulo: string;
   descripcion_detallada: string;
   empleado_responsable: string;
+  empleado_afectado: string;
+  estado: 'registrada' | 'aprobada' | 'rechazada';
 }
 
 interface FormErrors {
   titulo?: string;
   descripcion_detallada?: string;
   empleado_responsable?: string;
+  empleado_afectado?: string;
 }
 
 const emptyForm: FormValues = {
   titulo: '',
   descripcion_detallada: '',
   empleado_responsable: '',
+  empleado_afectado: '',
+  estado: 'registrada',
 };
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 
-function validateForm(values: FormValues, isEdit = false): FormErrors {
+function validateForm(values: FormValues): FormErrors {
   const errors: FormErrors = {};
 
-  // titulo
   const titulo = values.titulo.trim();
   if (!titulo) {
     errors.titulo = 'El título es obligatorio';
@@ -90,7 +107,6 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     errors.titulo = `El título no puede superar 50 caracteres (${titulo.length}/50)`;
   }
 
-  // descripcion_detallada
   const desc = values.descripcion_detallada.trim();
   if (!desc) {
     errors.descripcion_detallada = 'La descripción es obligatoria';
@@ -98,12 +114,19 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
 
-  // empleado_responsable (opcional)
   const resp = values.empleado_responsable.trim();
   if (resp !== '') {
     const num = Number(resp);
     if (!Number.isInteger(num) || num <= 0) {
       errors.empleado_responsable = 'Debe ser un número entero positivo';
+    }
+  }
+
+  const afec = values.empleado_afectado.trim();
+  if (afec !== '') {
+    const num = Number(afec);
+    if (!Number.isInteger(num) || num <= 0) {
+      errors.empleado_afectado = 'Debe ser un número entero positivo';
     }
   }
 
@@ -141,28 +164,38 @@ function Field({ label, required, error, hint, children }: FieldProps) {
 
 export function NewsModule() {
 
-  // ── Datos ──────────────────────────────────────────────────────────────────
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Filtros y paginación ───────────────────────────────────────────────────
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage]   = useState(1);
   const ITEMS_PER_PAGE = 5;
 
-  // ── Diálogos ───────────────────────────────────────────────────────────────
   const [isNewDialogOpen,    setIsNewDialogOpen]    = useState(false);
   const [isEditDialogOpen,   setIsEditDialogOpen]   = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isViewDialogOpen,   setIsViewDialogOpen]   = useState(false);
   const [selectedNovedad,    setSelectedNovedad]    = useState<Novedad | null>(null);
 
-  // ── Formulario + errores ───────────────────────────────────────────────────
   const [form, setForm]       = useState<FormValues>(emptyForm);
   const [errors, setErrors]   = useState<FormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
+
+  // ─── Estado del banner inline ─────────────────────────────────────────────
+  const [bannerNovedadId,  setBannerNovedadId]  = useState<number | null>(null);
+  const [bannerAction,     setBannerAction]     = useState<'edit' | 'delete' | null>(null);
+
+  const showRowBanner = (novedadId: number, action: 'edit' | 'delete') => {
+    setBannerNovedadId(novedadId);
+    setBannerAction(action);
+  };
+
+  const closeBanner = () => {
+    setBannerNovedadId(null);
+    setBannerAction(null);
+  };
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const fetchNovedades = useCallback(async () => {
@@ -180,7 +213,6 @@ export function NewsModule() {
   useEffect(() => { fetchNovedades(); }, [fetchNovedades]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
 
-  // Revalidar en tiempo real cuando cambia el form
   useEffect(() => {
     if (Object.keys(touched).length > 0) {
       setErrors(validateForm(form));
@@ -198,7 +230,6 @@ export function NewsModule() {
     setErrors(validateForm(form));
   };
 
-  // Restricción de longitud máxima en keydown para título
   const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
     if (form.titulo.length >= 50 && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
@@ -206,15 +237,13 @@ export function NewsModule() {
     }
   };
 
-  // Solo números para el campo de responsable
-  const handleResponsableKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleNumericKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
     if (!/^\d$/.test(e.key) && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
     }
   };
 
-  // ── Reset formulario ───────────────────────────────────────────────────────
   const resetForm = () => {
     setForm(emptyForm);
     setErrors({});
@@ -228,7 +257,8 @@ export function NewsModule() {
       n.titulo.toLowerCase().includes(q) ||
       n.descripcion_detallada.toLowerCase().includes(q) ||
       nombreCompleto(n.registradoPor).toLowerCase().includes(q) ||
-      nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q);
+      nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q) ||
+      nombreCompleto(n.empleadoAfectado).toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || n.estado === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -243,8 +273,7 @@ export function NewsModule() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Marcar todos los campos como tocados para mostrar todos los errores
-    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true });
+    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true, empleado_afectado: true });
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
@@ -255,9 +284,8 @@ export function NewsModule() {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
         registrado_por:        EMPLEADO_ACTUAL_ID,
-        empleado_responsable:  form.empleado_responsable !== ''
-                                 ? Number(form.empleado_responsable)
-                                 : null,
+        empleado_responsable:  form.empleado_responsable !== '' ? Number(form.empleado_responsable) : null,
+        empleado_afectado:     form.empleado_afectado !== '' ? Number(form.empleado_afectado) : null,
       };
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
@@ -265,7 +293,6 @@ export function NewsModule() {
       setIsNewDialogOpen(false);
       toast.success('Novedad registrada exitosamente');
     } catch (err: any) {
-      // Mostrar errores que devuelve el backend
       const msg = err.errores ? err.errores.join(', ') : (err.message ?? 'Error al crear la novedad');
       toast.error(msg);
     } finally {
@@ -275,8 +302,8 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true });
-    const validationErrors = validateForm(form, true);
+    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true, empleado_afectado: true });
+    const validationErrors = validateForm(form);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
 
@@ -285,11 +312,15 @@ export function NewsModule() {
       const dto: UpdateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
-        empleado_responsable:  form.empleado_responsable !== ''
-                                 ? Number(form.empleado_responsable)
-                                 : null,
+        empleado_responsable:  form.empleado_responsable !== '' ? Number(form.empleado_responsable) : null,
+        empleado_afectado:     form.empleado_afectado !== '' ? Number(form.empleado_afectado) : null,
       };
-      const updated = await updateNovedad(selectedNovedad.id, dto);
+      let updated = await updateNovedad(selectedNovedad.id, dto);
+
+      if (form.estado !== selectedNovedad.estado) {
+        updated = await cambiarEstadoNovedad(selectedNovedad.id, form.estado);
+      }
+
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
       setIsEditDialogOpen(false);
       setSelectedNovedad(null);
@@ -319,39 +350,26 @@ export function NewsModule() {
     }
   };
 
-  const handleCambiarEstado = async (novedad: Novedad, estado: 'aprobada' | 'rechazada') => {
-    try {
-      const updated = await cambiarEstadoNovedad(novedad.id, estado);
-      setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
-      toast.success(`Novedad ${ESTADO_LABELS[estado].toLowerCase()} correctamente`);
-    } catch (err: any) {
-      toast.error(err.message ?? 'Error al cambiar el estado');
-    }
-  };
-
   // ── Abrir diálogos ─────────────────────────────────────────────────────────
   const openView = (n: Novedad) => { setSelectedNovedad(n); setIsViewDialogOpen(true); };
 
   const openEdit = (n: Novedad) => {
     setSelectedNovedad(n);
-    setForm({
-      titulo:                n.titulo,
-      descripcion_detallada: n.descripcion_detallada,
-      empleado_responsable:  n.empleado_responsable?.toString() ?? '',
-    });
     resetForm();
     setForm({
       titulo:                n.titulo,
       descripcion_detallada: n.descripcion_detallada,
       empleado_responsable:  n.empleado_responsable?.toString() ?? '',
+      empleado_afectado:     n.empleado_afectado?.toString() ?? '',
+      estado:                n.estado,
     });
     setIsEditDialogOpen(true);
   };
 
   const openDelete = (n: Novedad) => { setSelectedNovedad(n); setIsDeleteDialogOpen(true); };
 
-  // ── Render del formulario (reutilizado en crear y editar) ──────────────────
-  const renderForm = (onSubmit: (e: React.FormEvent) => void, submitLabel: string) => (
+  // ── Render del formulario ──────────────────────────────────────────────────
+  const renderForm = (onSubmit: (e: React.FormEvent) => void, submitLabel: string, isEdit = false) => (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
 
       <Field
@@ -398,11 +416,48 @@ export function NewsModule() {
           value={form.empleado_responsable}
           onChange={handleChange('empleado_responsable')}
           onBlur={handleBlur('empleado_responsable')}
-          onKeyDown={handleResponsableKeyDown}
+          onKeyDown={handleNumericKeyDown}
           placeholder="Ej: 3"
           className={touched.empleado_responsable && errors.empleado_responsable ? 'border-red-400 focus-visible:ring-red-400' : ''}
         />
       </Field>
+
+      <Field
+        label="ID Empleado Afectado"
+        error={touched.empleado_afectado ? errors.empleado_afectado : undefined}
+        hint={!errors.empleado_afectado ? 'Opcional — solo números enteros positivos' : undefined}
+      >
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={form.empleado_afectado}
+          onChange={handleChange('empleado_afectado')}
+          onBlur={handleBlur('empleado_afectado')}
+          onKeyDown={handleNumericKeyDown}
+          placeholder="Ej: 5"
+          className={touched.empleado_afectado && errors.empleado_afectado ? 'border-red-400 focus-visible:ring-red-400' : ''}
+        />
+      </Field>
+
+      {isEdit && (
+        <Field label="Estado">
+          <Select
+            value={form.estado}
+            onValueChange={(value: 'registrada' | 'aprobada' | 'rechazada') =>
+              setForm(prev => ({ ...prev, estado: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="registrada">Registrada</SelectItem>
+              <SelectItem value="aprobada">Aprobada</SelectItem>
+              <SelectItem value="rechazada">Rechazada</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
       <div className="flex gap-4 pt-2">
         <Button type="button" variant="outline" className="flex-1"
@@ -434,16 +489,15 @@ export function NewsModule() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl text-gray-900 flex items-center gap-3">
-              <AlertCircleIcon className="w-8 h-8 text-blue-600" />
+            <h1 className="text-2xl text-blue-900 font-bold mb-2 flex items-center gap-2">
+              <AlertCircleIcon className="w-8 h-8 text-blue-900" />
               Gestión de Novedades
             </h1>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-blue-900 mt-1">
               Registra y gestiona novedades, incidencias y mejoras del equipo
             </p>
           </div>
 
-          {/* Botón nueva novedad */}
           <Dialog open={isNewDialogOpen} onOpenChange={open => {
             setIsNewDialogOpen(open);
             if (!open) resetForm();
@@ -471,15 +525,15 @@ export function NewsModule() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Buscar por título, responsable o descripción..."
+                placeholder="Buscar por título, responsable, afectado o descripción..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="w-full sm:w-48">
+            <div className="w-full sm:w-52">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Estado" />
+                  <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
@@ -505,13 +559,14 @@ export function NewsModule() {
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Responsable</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3 text-gray-400">
                         <Loader2Icon className="w-8 h-8 animate-spin" />
                         <p>Cargando novedades...</p>
@@ -520,7 +575,7 @@ export function NewsModule() {
                   </tr>
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center text-gray-500">
                         <AlertCircleIcon className="w-12 h-12 mb-3 text-gray-300" />
                         <p className="text-gray-900">No se encontraron novedades</p>
@@ -530,90 +585,140 @@ export function NewsModule() {
                   </tr>
                 ) : (
                   paginated.map(novedad => (
-                    <tr key={novedad.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
-                          {novedad.titulo}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {nombreCompleto(novedad.registradoPor)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
-                          {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {formatFecha(novedad.fecha_registro)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {nombreCompleto(novedad.empleadoResponsable)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
+                    <React.Fragment key={novedad.id}>
+                      <tr className="hover:bg-gray-50 transition-colors">
 
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="outline" size="sm"
-                                onClick={() => openView(novedad)}
-                                className="text-blue-900 border-blue-900 hover:bg-blue-50">
-                                <EyeIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Ver detalles</p></TooltipContent>
-                          </Tooltip>
+                        {/* Título */}
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
+                            {novedad.titulo}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Por: {nombreCompleto(novedad.registradoPor)}
+                          </div>
+                        </td>
 
-                          {novedad.estado === 'registrada' && (
-                            <>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="outline" size="sm"
-                                    onClick={() => openEdit(novedad)}
-                                    className="text-blue-900 border-blue-900 hover:bg-blue-50">
-                                    <EditIcon className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Editar novedad</p></TooltipContent>
-                              </Tooltip>
+                        {/* Estado */}
+                        <td className="px-6 py-4">
+                          <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
+                            {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
+                          </Badge>
+                        </td>
 
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="outline" size="sm"
-                                    onClick={() => handleCambiarEstado(novedad, 'aprobada')}
-                                    className="text-green-700 border-green-700 hover:bg-green-50">
-                                    <CheckIcon className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Aprobar</p></TooltipContent>
-                              </Tooltip>
+                        {/* Fecha */}
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {formatFecha(novedad.fecha_registro)}
+                        </td>
 
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="outline" size="sm"
-                                    onClick={() => handleCambiarEstado(novedad, 'rechazada')}
-                                    className="text-red-700 border-red-700 hover:bg-red-50">
-                                    <XIcon className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Rechazar</p></TooltipContent>
-                              </Tooltip>
+                        {/* Responsable */}
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {nombreCompleto(novedad.empleadoResponsable)}
+                        </td>
 
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="outline" size="sm"
-                                    onClick={() => openDelete(novedad)}
-                                    className="text-blue-900 border-blue-900 hover:bg-blue-50">
-                                    <TrashIcon className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Eliminar novedad</p></TooltipContent>
-                              </Tooltip>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                        {/* Afectado */}
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {nombreCompleto(novedad.empleadoAfectado)}
+                        </td>
+
+                        {/* Acciones */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center gap-2">
+
+                            {/* Ver — siempre activo */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="sm"
+                                  onClick={() => openView(novedad)}
+                                  className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                  <EyeIcon className="w-4 h-4 text-blue-900" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Ver detalles</p></TooltipContent>
+                            </Tooltip>
+
+                            {/* Editar */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!canEdit(novedad)) {
+                                      showRowBanner(novedad.id, 'edit');
+                                      return;
+                                    }
+                                    closeBanner();
+                                    openEdit(novedad);
+                                  }}
+                                  className={`border-blue-900 transition-opacity ${
+                                    canEdit(novedad)
+                                      ? 'text-blue-900 hover:bg-blue-50'
+                                      : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'
+                                  }`}
+                                >
+                                  <EditIcon className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{canEdit(novedad) ? 'Editar novedad' : editBlockReason(novedad)}</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            {/* Eliminar */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!canDelete(novedad)) {
+                                      showRowBanner(novedad.id, 'delete');
+                                      return;
+                                    }
+                                    closeBanner();
+                                    openDelete(novedad);
+                                  }}
+                                  className={`border-blue-900 transition-opacity ${
+                                    canDelete(novedad)
+                                      ? 'text-blue-900 hover:bg-blue-50'
+                                      : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'
+                                  }`}
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{canDelete(novedad) ? 'Eliminar novedad' : deleteBlockReason(novedad)}</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* ── Banner inline por fila ── */}
+                      {bannerNovedadId === novedad.id && (
+                        <tr className="border-b border-amber-100">
+                          <td colSpan={6} className="px-6 py-0">
+                            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                              <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                              <span>
+                                <strong>Novedad bloqueada:</strong>{' '}
+                                {bannerAction === 'edit'
+                                  ? `No puedes editar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`
+                                  : `No puedes eliminar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`}
+                              </span>
+                              <button
+                                onClick={closeBanner}
+                                className="ml-auto opacity-60 hover:opacity-100"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
@@ -649,55 +754,101 @@ export function NewsModule() {
         </div>
 
         {/* Diálogo Ver */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Detalles de la Novedad</DialogTitle>
-              <DialogDescription>Información completa de la novedad registrada</DialogDescription>
-            </DialogHeader>
-            {selectedNovedad && (
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl text-gray-900">{selectedNovedad.titulo}</h2>
-                  <Badge className={ESTADO_COLORS[selectedNovedad.estado]}>
-                    {ESTADO_LABELS[selectedNovedad.estado]}
-                  </Badge>
-                </div>
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Información General</CardTitle></CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-500">Empleado Responsable:</p>
-                      <p className="text-gray-900 flex items-center gap-2 mt-1">
-                        <UserIcon className="w-4 h-4" />
-                        {nombreCompleto(selectedNovedad.empleadoResponsable)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Registrado por:</p>
-                      <p className="text-gray-900 mt-1">{nombreCompleto(selectedNovedad.registradoPor)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Fecha de Registro:</p>
-                      <p className="text-gray-900 flex items-center gap-2 mt-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        {formatFecha(selectedNovedad.fecha_registro)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Descripción Detallada</CardTitle></CardHeader>
-                  <CardContent>
-                    <p className="text-gray-700 whitespace-pre-line">
-                      {selectedNovedad.descripcion_detallada}
-                    </p>
-                  </CardContent>
-                </Card>
+       {/* Diálogo Ver */}
+<Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+  <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+    <div className="overflow-y-auto max-h-[90vh] p-6">
+      <DialogHeader>
+        <DialogTitle>Detalles de la Novedad</DialogTitle>
+        <DialogDescription>Información completa de la novedad registrada</DialogDescription>
+      </DialogHeader>
+
+      {selectedNovedad && (
+        <div className="space-y-4 mt-4">
+
+          {/* Bloque principal */}
+          <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+
+            {/* Título + estado */}
+            <div className="col-span-2 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <AlertCircleIcon className="w-8 h-8 text-blue-600" />
               </div>
+              <div>
+                <p className="font-semibold text-blue-900 text-lg leading-tight">
+                  {selectedNovedad.titulo}
+                </p>
+                <Badge className={`mt-1 ${ESTADO_COLORS[selectedNovedad.estado]}`}>
+                  {ESTADO_LABELS[selectedNovedad.estado]}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Registrado por */}
+            <div>
+              <p className="text-xs text-gray-500">Registrado por</p>
+              <p className="font-semibold text-sm mt-0.5">
+                {nombreCompleto(selectedNovedad.registradoPor)}
+              </p>
+            </div>
+
+            {/* Fecha */}
+            <div>
+              <p className="text-xs text-gray-500">Fecha de registro</p>
+              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                {formatFecha(selectedNovedad.fecha_registro)}
+              </p>
+            </div>
+
+            {/* Responsable */}
+            <div>
+              <p className="text-xs text-gray-500">Empleado responsable</p>
+              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                {nombreCompleto(selectedNovedad.empleadoResponsable)}
+              </p>
+            </div>
+
+            {/* Afectado */}
+            <div>
+              <p className="text-xs text-gray-500">Empleado afectado</p>
+              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                {nombreCompleto(selectedNovedad.empleadoAfectado)}
+              </p>
+            </div>
+
+            {/* Descripción — ancho completo */}
+            <div className="col-span-2">
+              <p className="text-xs text-gray-500">Descripción detallada</p>
+              <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
+                {selectedNovedad.descripcion_detallada}
+              </p>
+            </div>
+
+          </div>
+
+          {/* Acciones */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Cerrar
+            </Button>
+            {selectedNovedad.estado === 'registrada' && (
+              <Button
+                onClick={() => { openEdit(selectedNovedad); setIsViewDialogOpen(false); }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Editar Novedad
+              </Button>
             )}
-          </DialogContent>
-        </Dialog>
+          </div>
+
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
 
         {/* Diálogo Editar */}
         <Dialog open={isEditDialogOpen} onOpenChange={open => {
@@ -708,10 +859,10 @@ export function NewsModule() {
             <DialogHeader>
               <DialogTitle>Editar Novedad</DialogTitle>
               <DialogDescription>
-                Solo puedes editar novedades en estado <strong>Registrada</strong>.
+                Modifica los datos de la novedad y cambia su estado si es necesario.
               </DialogDescription>
             </DialogHeader>
-            {renderForm(handleUpdate, 'Actualizar Novedad')}
+            {renderForm(handleUpdate, 'Actualizar Novedad', true)}
           </DialogContent>
         </Dialog>
 
@@ -729,6 +880,9 @@ export function NewsModule() {
                     </p>
                     <p className="text-sm text-gray-600 mt-1">
                       <strong>Responsable:</strong> {nombreCompleto(selectedNovedad.empleadoResponsable)}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>Afectado:</strong> {nombreCompleto(selectedNovedad.empleadoAfectado)}
                     </p>
                   </div>
                 )}

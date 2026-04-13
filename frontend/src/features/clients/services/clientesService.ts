@@ -86,3 +86,10 @@ export const deleteCliente = async (id: number) => {
     });
     return handleResponse(response);
 };
+export const forceDeleteCliente = async (id: number) => {
+    const response = await fetch(`${BASE_URL}/clientes/${id}/force`, {
+        method: 'DELETE',
+        headers: buildAuthHeaders(),
+    });
+    return handleResponse(response);
+};
