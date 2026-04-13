@@ -69,18 +69,21 @@ const getOrdenProduccionById = async (req, res) => {
 // ────────────────────────────────────────────────────────────
 const createOrdenProduccion = async (req, res) => {
   try {
-    // 1. Validaciones de negocio
+    // 1. Validaciones de formato y negocio
     const errores = validarCrearOrden(req.body);
     if (errores.length > 0) {
       return res.status(400).json({ message: 'Error de validación', errores });
     }
 
-    const { productoId, cantidad, responsableId, pedidoId, fechaEntrega, nota } = req.body;
+    const { productoId, cantidad, responsableId, pedidoId, tipoOrden, fechaEntrega, nota } = req.body;
 
-    // 2. Verificar que el producto existe
+    // 2. Verificar que el producto existe y está activo
     const producto = await Productos.findByPk(productoId);
     if (!producto) {
       return res.status(404).json({ message: 'El producto especificado no existe' });
+    }
+    if (producto.estado === 'inactivo') {
+      return res.status(400).json({ message: 'No se puede crear una orden para un producto inactivo' });
     }
 
     // 3. Verificar que el empleado existe y está activo
@@ -92,7 +95,7 @@ const createOrdenProduccion = async (req, res) => {
       return res.status(400).json({ message: 'El empleado responsable está inactivo y no puede ser asignado' });
     }
 
-    // 4. Verificar que el pedido existe si se proporcionó
+    // 4. Si viene pedidoId, verificar que el pedido existe (independiente del tipoOrden)
     if (pedidoId) {
       const pedido = await Pedidos.findByPk(pedidoId);
       if (!pedido) {
@@ -109,6 +112,7 @@ const createOrdenProduccion = async (req, res) => {
       cantidad:      Number(cantidad),
       responsableId: Number(responsableId),
       pedidoId:      pedidoId ? Number(pedidoId) : null,
+      tipoOrden,
       fechaEntrega,
       nota:          nota?.trim() || null,
       estado:        'Pendiente',
@@ -141,7 +145,7 @@ const updateOrdenProduccion = async (req, res) => {
       return res.status(404).json({ message: 'Orden de producción no encontrada' });
     }
 
-    // 1. Validaciones de negocio (incluye validación de transición de estado)
+    // 1. Validaciones de negocio (estado actual como contexto)
     const errores = validarActualizarOrden(req.body, orden.estado);
     if (errores.length > 0) {
       return res.status(400).json({ message: 'Error de validación', errores });
@@ -160,7 +164,14 @@ const updateOrdenProduccion = async (req, res) => {
       }
     }
 
-    // 3. Calcular fechas automáticas según el nuevo estado
+    // 3. ✅ Bloquear cambio de estado a 'Anulada' por esta ruta — usar /anular
+    if (estado === 'Anulada') {
+      return res.status(400).json({
+        message: 'Para anular una orden usa el endpoint PUT /ordenes-produccion/:id/anular',
+      });
+    }
+
+    // 4. Construir objeto de actualización (solo campos permitidos)
     const updates = {
       responsableId: responsableId ? Number(responsableId) : orden.responsableId,
       fechaEntrega:  fechaEntrega  || orden.fechaEntrega,
@@ -168,6 +179,7 @@ const updateOrdenProduccion = async (req, res) => {
       estado:        estado        || orden.estado,
     };
 
+    // 5. Asignar fechas automáticas según transición de estado
     if (estado === 'En Proceso' && !orden.fechaInicio) {
       updates.fechaInicio = new Date().toISOString().split('T')[0];
     }
@@ -204,7 +216,6 @@ const anularOrdenProduccion = async (req, res) => {
       return res.status(404).json({ message: 'Orden de producción no encontrada' });
     }
 
-    // Validaciones de negocio para anulación
     const errores = validarAnularOrden(req.body, orden.estado);
     if (errores.length > 0) {
       return res.status(400).json({ message: 'Error de validación', errores });
@@ -221,7 +232,7 @@ const anularOrdenProduccion = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────────────────
-//  DELETE /ordenes-produccion/:id  —  eliminar
+//  DELETE /ordenes-produccion/:id  —  eliminar físico
 // ────────────────────────────────────────────────────────────
 const deleteOrdenProduccion = async (req, res) => {
   try {

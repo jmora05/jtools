@@ -1,19 +1,11 @@
-// ============================================================
-//  Validaciones frontend — Módulo Órdenes de Producción
-//  JRepuestos Medellín
-// ============================================================
-
-import type { EstadoOrden } from '../services/ordenesproduccionservice';
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+import type { EstadoOrden, TipoOrden } from '../services/ordenesproduccionservice';
 
 export type FormCreate = {
   productoId: string;
   cantidad: string;
   responsableId: string;
-  pedidoId: string;
+  tipoOrden: TipoOrden | '';
   fechaEntrega: string;
-  nota: string;
 };
 
 export type FormEdit = {
@@ -27,7 +19,6 @@ export type CreateErrors = Partial<Record<keyof FormCreate, string>>;
 export type EditErrors   = Partial<Record<keyof FormEdit, string>>;
 export type AnularErrors = { motivoAnulacion?: string };
 
-// Transiciones de estado válidas (espejo del backend)
 const TRANSICIONES_PERMITIDAS: Record<EstadoOrden, EstadoOrden[]> = {
   'Pendiente':   ['En Proceso', 'Pausada'],
   'En Proceso':  ['Pausada', 'Finalizada'],
@@ -36,143 +27,170 @@ const TRANSICIONES_PERMITIDAS: Record<EstadoOrden, EstadoOrden[]> = {
   'Anulada':     [],
 };
 
-// ─── Validación: formulario de creación ───────────────────────────────────────
+const REGEX_TEXTO = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()\\/°%&'"!?¿¡\n\r]*$/;
+const CHARS_PROHIBIDOS_TEXTO  = /[<>{}|\\^`[\]]/g;
+const CHARS_PROHIBIDOS_MOTIVO = /[<>{}|\\^`[\]]/g;
+
+export function filtrarTextoLibre(valor: string): string {
+  return valor.replace(CHARS_PROHIBIDOS_TEXTO, '');
+}
+
+export function filtrarSoloEnteros(valor: string): string {
+  return valor.replace(/\D/g, '');
+}
+
+export function filtrarMotivo(valor: string): string {
+  return valor.replace(CHARS_PROHIBIDOS_MOTIVO, '');
+}
+
+export function validarCampoCrear<K extends keyof FormCreate>(
+  campo: K,
+  valor: string,
+  _form?: FormCreate
+): string | undefined {
+  switch (campo) {
+    case 'tipoOrden':
+      if (!valor || (valor !== 'Pedido' && valor !== 'Venta'))
+        return 'Debe seleccionar el tipo de orden';
+      break;
+
+    case 'productoId':
+      if (!valor) return 'Debe seleccionar un producto';
+      break;
+
+    case 'cantidad': {
+      if (!valor) return 'La cantidad es obligatoria';
+      if (!/^\d+$/.test(valor)) return 'Solo se permiten números enteros (sin decimales ni letras)';
+      const cant = parseInt(valor, 10);
+      if (cant <= 0) return 'La cantidad debe ser mayor a 0';
+      if (cant > 100000) return 'La cantidad no puede superar 100.000 unidades';
+      break;
+    }
+
+    case 'responsableId':
+      if (!valor) return 'Debe seleccionar un responsable';
+      break;
+
+    case 'fechaEntrega': {
+      if (!valor) return 'La fecha de entrega es obligatoria';
+      const fecha = new Date(valor);
+      if (isNaN(fecha.getTime())) return 'Formato de fecha inválido';
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      if (fecha < hoy) return 'La fecha de entrega no puede ser una fecha pasada';
+      const limiteMax = new Date(); limiteMax.setFullYear(limiteMax.getFullYear() + 5);
+      if (fecha > limiteMax) return 'La fecha no puede ser mayor a 5 años en el futuro';
+      break;
+    }
+  }
+  return undefined;
+}
+
+export function validarCampoEditar<K extends keyof FormEdit>(
+  campo: K,
+  valor: string,
+  estadoActual: EstadoOrden
+): string | undefined {
+  switch (campo) {
+    case 'responsableId':
+      if (!valor) return 'Debe seleccionar un responsable';
+      break;
+
+    case 'fechaEntrega': {
+      if (!valor) return 'La fecha de entrega es obligatoria';
+      const fecha = new Date(valor);
+      if (isNaN(fecha.getTime())) return 'Formato de fecha inválido';
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      if (fecha < hoy) return 'La fecha de entrega no puede ser una fecha pasada';
+      const limiteMax = new Date(); limiteMax.setFullYear(limiteMax.getFullYear() + 5);
+      if (fecha > limiteMax) return 'La fecha no puede ser mayor a 5 años en el futuro';
+      break;
+    }
+
+    case 'estado': {
+      const nuevoEstado = valor as EstadoOrden;
+      if (nuevoEstado !== estadoActual) {
+        const permitidos = TRANSICIONES_PERMITIDAS[estadoActual] ?? [];
+        if (!permitidos.includes(nuevoEstado)) {
+          return (
+            `No se puede pasar de "${estadoActual}" a "${nuevoEstado}". ` +
+            (permitidos.length > 0
+              ? `Permitidos: ${permitidos.join(', ')}`
+              : 'Este estado es final y no admite cambios')
+          );
+        }
+      }
+      break;
+    }
+
+    case 'nota':
+      if (valor && valor.trim().length > 1000)
+        return `Las notas no pueden superar 1.000 caracteres (${valor.trim().length}/1000)`;
+      if (valor && !REGEX_TEXTO.test(valor))
+        return 'Las notas contienen caracteres no permitidos';
+      break;
+  }
+  return undefined;
+}
 
 export function validarCrearOrden(form: FormCreate): CreateErrors {
   const errores: CreateErrors = {};
-
-  // Producto
-  if (!form.productoId) {
-    errores.productoId = 'Debe seleccionar un producto';
-  }
-
-  // Cantidad
-  if (!form.cantidad) {
-    errores.cantidad = 'La cantidad es obligatoria';
-  } else {
-    const cant = Number(form.cantidad);
-    if (!Number.isInteger(cant) || cant <= 0) {
-      errores.cantidad = 'La cantidad debe ser un número entero mayor a 0';
-    } else if (cant > 100000) {
-      errores.cantidad = 'La cantidad no puede superar las 100.000 unidades';
-    }
-  }
-
-  // Responsable
-  if (!form.responsableId) {
-    errores.responsableId = 'Debe seleccionar un responsable';
-  }
-
-  // Fecha de entrega
-  if (!form.fechaEntrega) {
-    errores.fechaEntrega = 'La fecha de entrega es obligatoria';
-  } else {
-    const fecha = new Date(form.fechaEntrega);
-    if (isNaN(fecha.getTime())) {
-      errores.fechaEntrega = 'Formato de fecha inválido';
-    } else {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      if (fecha < hoy) {
-        errores.fechaEntrega = 'La fecha de entrega no puede ser una fecha pasada';
-      } else {
-        const limiteMax = new Date();
-        limiteMax.setFullYear(limiteMax.getFullYear() + 5);
-        if (fecha > limiteMax) {
-          errores.fechaEntrega = 'La fecha no puede ser mayor a 5 años en el futuro';
-        }
-      }
-    }
-  }
-
-  // pedidoId (opcional — solo validar si se ingresó algo)
-  if (form.pedidoId && (isNaN(Number(form.pedidoId)) || Number(form.pedidoId) <= 0)) {
-    errores.pedidoId = 'El ID de pedido debe ser un número válido';
-  }
-
-  // Nota (opcional, límite)
-  if (form.nota && form.nota.trim().length > 1000) {
-    errores.nota = 'Las notas no pueden superar los 1000 caracteres';
-  }
-
+  const campos: (keyof FormCreate)[] = ['tipoOrden', 'productoId', 'cantidad', 'responsableId', 'fechaEntrega'];
+  campos.forEach(campo => {
+    const err = validarCampoCrear(campo, form[campo] as string, form);
+    if (err) errores[campo] = err;
+  });
   return errores;
 }
-
-// ─── Validación: formulario de edición ───────────────────────────────────────
 
 export function validarEditarOrden(form: FormEdit, estadoActual: EstadoOrden): EditErrors {
   const errores: EditErrors = {};
-
-  // Responsable
-  if (!form.responsableId) {
-    errores.responsableId = 'Debe seleccionar un responsable';
-  }
-
-  // Fecha de entrega
-  if (!form.fechaEntrega) {
-    errores.fechaEntrega = 'La fecha de entrega es obligatoria';
-  } else {
-    const fecha = new Date(form.fechaEntrega);
-    if (isNaN(fecha.getTime())) {
-      errores.fechaEntrega = 'Formato de fecha inválido';
-    } else {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      if (fecha < hoy) {
-        errores.fechaEntrega = 'La fecha de entrega no puede ser una fecha pasada';
-      } else {
-        const limiteMax = new Date();
-        limiteMax.setFullYear(limiteMax.getFullYear() + 5);
-        if (fecha > limiteMax) {
-          errores.fechaEntrega = 'La fecha no puede ser mayor a 5 años en el futuro';
-        }
-      }
-    }
-  }
-
-  // Transición de estado
-  if (form.estado !== estadoActual) {
-    const permitidos = TRANSICIONES_PERMITIDAS[estadoActual] ?? [];
-    if (!permitidos.includes(form.estado)) {
-      errores.estado =
-        `No se puede pasar de "${estadoActual}" a "${form.estado}". ` +
-        (permitidos.length > 0
-          ? `Permitidos: ${permitidos.join(', ')}`
-          : 'Este estado es final y no admite cambios');
-    }
-  }
-
-  // Nota (opcional, límite)
-  if (form.nota && form.nota.trim().length > 1000) {
-    errores.nota = 'Las notas no pueden superar los 1000 caracteres';
-  }
-
+  const camposStr: (keyof FormEdit)[] = ['responsableId', 'fechaEntrega', 'nota'];
+  camposStr.forEach(campo => {
+    const err = validarCampoEditar(campo, form[campo] as string, estadoActual);
+    if (err) errores[campo] = err;
+  });
+  const errEstado = validarCampoEditar('estado', form.estado, estadoActual);
+  if (errEstado) errores.estado = errEstado;
   return errores;
 }
 
-// ─── Validación: motivo de anulación ─────────────────────────────────────────
+export function validarCampoAnulacion(motivo: string): string | undefined {
+  if (!motivo.trim()) return 'El motivo de anulación es obligatorio';
+  if (motivo.trim().length < 10) return `El motivo debe tener al menos 10 caracteres (${motivo.trim().length}/10)`;
+  if (motivo.trim().length > 500) return `El motivo no puede superar los 500 caracteres (${motivo.trim().length}/500)`;
+  if (!REGEX_TEXTO.test(motivo)) return 'El motivo contiene caracteres no permitidos';
+  return undefined;
+}
 
 export function validarAnulacion(motivo: string): AnularErrors {
   const errores: AnularErrors = {};
-
-  if (!motivo.trim()) {
-    errores.motivoAnulacion = 'El motivo de anulación es obligatorio';
-  } else if (motivo.trim().length < 10) {
-    errores.motivoAnulacion = 'El motivo debe tener al menos 10 caracteres';
-  } else if (motivo.trim().length > 500) {
-    errores.motivoAnulacion = 'El motivo no puede superar los 500 caracteres';
-  }
-
+  const err = validarCampoAnulacion(motivo);
+  if (err) errores.motivoAnulacion = err;
   return errores;
 }
-
-// ─── Utilidad ─────────────────────────────────────────────────────────────────
 
 export function hayErrores(errores: object): boolean {
   return Object.keys(errores).length > 0;
 }
 
-/** Estados a los que puede pasar una orden desde su estado actual */
 export function estadosPermitidos(estadoActual: EstadoOrden): EstadoOrden[] {
   return TRANSICIONES_PERMITIDAS[estadoActual] ?? [];
+}
+
+export function contadorTexto(valor: string, limite: number): {
+  actual: number;
+  limite: number;
+  porcentaje: number;
+  enPeligro: boolean;
+  excedido: boolean;
+} {
+  const actual = valor.trim().length;
+  const porcentaje = Math.round((actual / limite) * 100);
+  return {
+    actual,
+    limite,
+    porcentaje,
+    enPeligro: porcentaje >= 80,
+    excedido: actual > limite,
+  };
 }

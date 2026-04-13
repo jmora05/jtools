@@ -4,98 +4,131 @@
 // ============================================================
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'];
+const TIPOS_VALIDOS   = ['Pedido', 'Venta'];
 
-// Transiciones de estado permitidas
-// Una orden solo puede avanzar o retroceder según este mapa
+// Transiciones de estado permitidas (máquina de estados)
 const TRANSICIONES_PERMITIDAS = {
-  'Pendiente':   ['En Proceso', 'Pausada', 'Anulada'],
-  'En Proceso':  ['Pausada', 'Finalizada', 'Anulada'],
-  'Pausada':     ['En Proceso', 'Anulada'],
-  'Finalizada':  [],   // estado final — no se puede cambiar
-  'Anulada':     [],   // estado final — no se puede cambiar
+  'Pendiente':  ['En Proceso', 'Pausada'],   // ✅ Anulada solo por /anular
+  'En Proceso': ['Pausada', 'Finalizada'],   // ✅ Anulada solo por /anular
+  'Pausada':    ['En Proceso'],              // ✅ Anulada solo por /anular
+  'Finalizada': [],
+  'Anulada':    [],
 };
 
+// ── Expresiones regulares ──────────────────────────────────────────────────────
+// Texto general: letras, números, tildes, ñ, espacios y puntuación básica
+const REGEX_TEXTO_GENERAL = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑüÜ0-9 .,;:\-()\\/°%&'"]+$/;
+
+// Motivo de anulación: igual que texto general + signos de pregunta/exclamación y saltos de línea
+const REGEX_MOTIVO = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑüÜ0-9 .,;:\-()\\/°%&'"!?¿¡\n\r]+$/;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function esEnteroPositivo(valor) {
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0;
+}
+
 /**
- * Valida los campos para CREAR una orden de producción.
- * @param {object} data - req.body
- * @returns {string[]} Array de errores. Vacío = válido.
+ * Valida una fecha de entrega: no puede ser pasada ni más de 5 años en el futuro.
+ */
+function validarFechaEntrega(fechaStr, errores, campo = 'La fecha de entrega') {
+  const fecha = new Date(fechaStr);
+  if (isNaN(fecha.getTime())) {
+    errores.push(`${campo} no tiene un formato válido (YYYY-MM-DD)`);
+    return;
+  }
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  if (fecha < hoy) {
+    errores.push(`${campo} no puede ser una fecha pasada`);
+  }
+  const limiteMax = new Date();
+  limiteMax.setFullYear(limiteMax.getFullYear() + 5);
+  if (fecha > limiteMax) {
+    errores.push(`${campo} no puede ser mayor a 5 años en el futuro`);
+  }
+}
+
+/**
+ * Valida el campo nota/texto libre.
+ */
+function validarNota(nota, errores) {
+  if (nota === undefined || nota === null || String(nota).trim() === '') return;
+  const notaStr = String(nota).trim();
+  if (notaStr.length > 1000) {
+    errores.push('Las notas no pueden superar los 1.000 caracteres');
+  } else if (!REGEX_TEXTO_GENERAL.test(notaStr)) {
+    errores.push('Las notas contienen caracteres no permitidos (evita <, >, {, }, |, \\, ^, `)');
+  }
+}
+
+// ── Validadores principales ────────────────────────────────────────────────────
+
+/**
+ * Valida los campos para CREAR una orden de producción (POST).
  */
 function validarCrearOrden(data) {
   const errores = [];
-  const { productoId, cantidad, responsableId, fechaEntrega, nota } = data;
+  const { productoId, cantidad, responsableId, tipoOrden, fechaEntrega, nota, pedidoId } = data;
 
-  // ── 1. Campos obligatorios ─────────────────────────────────────────
-  if (!productoId) errores.push('El producto es obligatorio');
-  if (!cantidad && cantidad !== 0) errores.push('La cantidad es obligatoria');
-  if (!responsableId) errores.push('El responsable es obligatorio');
-  if (!fechaEntrega) errores.push('La fecha de entrega es obligatoria');
+  // ── 1. Campos obligatorios ─────────────────────────────────────────────────
+  if (!tipoOrden)                                                    errores.push('El tipo de orden es obligatorio (Pedido o Venta)');
+  if (!productoId && productoId !== 0)                               errores.push('El producto es obligatorio');
+  if (cantidad === undefined || cantidad === null || cantidad === '') errores.push('La cantidad es obligatoria');
+  if (!responsableId && responsableId !== 0)                         errores.push('El responsable es obligatorio');
+  if (!fechaEntrega)                                                 errores.push('La fecha de entrega es obligatoria');
 
   if (errores.length > 0) return errores;
 
-  // ── 2. productoId ──────────────────────────────────────────────────
-  if (!Number.isInteger(Number(productoId)) || Number(productoId) <= 0) {
+  // ── 2. tipoOrden ───────────────────────────────────────────────────────────
+  if (!TIPOS_VALIDOS.includes(tipoOrden)) {
+    errores.push(`El tipo de orden debe ser uno de: ${TIPOS_VALIDOS.join(', ')}`);
+  }
+
+  // ── 3. productoId ──────────────────────────────────────────────────────────
+  if (!esEnteroPositivo(productoId)) {
     errores.push('El productoId debe ser un número entero positivo');
   }
 
-  // ── 3. Cantidad ────────────────────────────────────────────────────
+  // ── 4. Cantidad ────────────────────────────────────────────────────────────
   const cant = Number(cantidad);
   if (!Number.isInteger(cant) || cant <= 0) {
-    errores.push('La cantidad debe ser un número entero mayor a 0');
+    errores.push('La cantidad debe ser un número entero mayor a 0 (sin decimales)');
   } else if (cant > 100000) {
     errores.push('La cantidad no puede superar las 100.000 unidades por orden');
   }
 
-  // ── 4. responsableId ───────────────────────────────────────────────
-  if (!Number.isInteger(Number(responsableId)) || Number(responsableId) <= 0) {
+  // ── 5. responsableId ───────────────────────────────────────────────────────
+  if (!esEnteroPositivo(responsableId)) {
     errores.push('El responsableId debe ser un número entero positivo');
   }
 
-  // ── 5. pedidoId (opcional) ─────────────────────────────────────────
-  if (data.pedidoId !== undefined && data.pedidoId !== null && data.pedidoId !== '') {
-    if (!Number.isInteger(Number(data.pedidoId)) || Number(data.pedidoId) <= 0) {
+  // ── 6. pedidoId — opcional en ambos tipos de orden ────────────────────────
+  if (pedidoId !== undefined && pedidoId !== null && pedidoId !== '') {
+    if (!esEnteroPositivo(pedidoId)) {
       errores.push('El pedidoId debe ser un número entero positivo');
     }
   }
 
-  // ── 6. Fecha de entrega ────────────────────────────────────────────
-  if (fechaEntrega) {
-    const fecha = new Date(fechaEntrega);
-    if (isNaN(fecha.getTime())) {
-      errores.push('La fecha de entrega no tiene un formato válido (YYYY-MM-DD)');
-    } else {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      if (fecha < hoy) {
-        errores.push('La fecha de entrega no puede ser una fecha pasada');
-      }
-      // No puede ser más de 5 años en el futuro
-      const limiteMax = new Date();
-      limiteMax.setFullYear(limiteMax.getFullYear() + 5);
-      if (fecha > limiteMax) {
-        errores.push('La fecha de entrega no puede ser mayor a 5 años en el futuro');
-      }
-    }
-  }
+  // ── 7. Fecha de entrega ────────────────────────────────────────────────────
+  validarFechaEntrega(fechaEntrega, errores);
 
-  // ── 7. Nota (opcional, límite de longitud) ─────────────────────────
-  if (nota && String(nota).trim().length > 1000) {
-    errores.push('Las notas no pueden superar los 1000 caracteres');
-  }
+  // ── 8. Nota (opcional) ─────────────────────────────────────────────────────
+  validarNota(nota, errores);
 
   return errores;
 }
 
 /**
- * Valida los campos para ACTUALIZAR una orden de producción.
- * @param {object} data       - req.body
- * @param {string} estadoActual - Estado actual de la orden en BD
- * @returns {string[]} Array de errores. Vacío = válido.
+ * Valida los campos para ACTUALIZAR una orden de producción (PUT).
+ * Solo permite cambiar: responsableId, fechaEntrega, nota, estado.
+ * El estado 'Anulada' está bloqueado aquí — usar endpoint /anular.
  */
 function validarActualizarOrden(data, estadoActual) {
   const errores = [];
   const { responsableId, fechaEntrega, nota, estado } = data;
 
-  // ── 1. No se puede modificar una orden Anulada o Finalizada ────────
+  // ── 1. Órdenes terminales no se pueden modificar ───────────────────────────
   if (estadoActual === 'Anulada') {
     errores.push('No se puede modificar una orden anulada');
     return errores;
@@ -105,35 +138,33 @@ function validarActualizarOrden(data, estadoActual) {
     return errores;
   }
 
-  // ── 2. responsableId (si se envía) ─────────────────────────────────
+  // ── 2. Debe enviar al menos un campo ──────────────────────────────────────
+  const camposEnviados = [responsableId, fechaEntrega, nota, estado].filter(
+    v => v !== undefined
+  );
+  if (camposEnviados.length === 0) {
+    errores.push('Debe enviar al menos un campo para actualizar');
+    return errores;
+  }
+
+  // ── 3. responsableId (si se envía) ────────────────────────────────────────
   if (responsableId !== undefined && responsableId !== '') {
-    if (!Number.isInteger(Number(responsableId)) || Number(responsableId) <= 0) {
+    if (!esEnteroPositivo(responsableId)) {
       errores.push('El responsableId debe ser un número entero positivo');
     }
   }
 
-  // ── 3. Fecha de entrega (si se envía) ──────────────────────────────
+  // ── 4. Fecha de entrega (si se envía) ─────────────────────────────────────
   if (fechaEntrega) {
-    const fecha = new Date(fechaEntrega);
-    if (isNaN(fecha.getTime())) {
-      errores.push('La fecha de entrega no tiene un formato válido (YYYY-MM-DD)');
-    } else {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      if (fecha < hoy) {
-        errores.push('La fecha de entrega no puede ser una fecha pasada');
-      }
-      const limiteMax = new Date();
-      limiteMax.setFullYear(limiteMax.getFullYear() + 5);
-      if (fecha > limiteMax) {
-        errores.push('La fecha de entrega no puede ser mayor a 5 años en el futuro');
-      }
-    }
+    validarFechaEntrega(fechaEntrega, errores);
   }
 
-  // ── 4. Estado (si se envía) ────────────────────────────────────────
+  // ── 5. Estado (si se envía) ───────────────────────────────────────────────
   if (estado !== undefined) {
-    if (!ESTADOS_VALIDOS.includes(estado)) {
+    // ✅ Anulada no se permite por esta ruta
+    if (estado === 'Anulada') {
+      errores.push('Para anular una orden usa el endpoint PUT /ordenes-produccion/:id/anular');
+    } else if (!ESTADOS_VALIDOS.includes(estado)) {
       errores.push(`Estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(', ')}`);
     } else if (estado !== estadoActual) {
       const transicionesPermitidas = TRANSICIONES_PERMITIDAS[estadoActual] || [];
@@ -146,19 +177,14 @@ function validarActualizarOrden(data, estadoActual) {
     }
   }
 
-  // ── 5. Nota (si se envía) ──────────────────────────────────────────
-  if (nota && String(nota).trim().length > 1000) {
-    errores.push('Las notas no pueden superar los 1000 caracteres');
-  }
+  // ── 6. Nota (si se envía) ─────────────────────────────────────────────────
+  validarNota(nota, errores);
 
   return errores;
 }
 
 /**
- * Valida los datos para ANULAR una orden.
- * @param {object} data       - req.body
- * @param {string} estadoActual - Estado actual de la orden en BD
- * @returns {string[]} Array de errores. Vacío = válido.
+ * Valida los datos para ANULAR una orden (PUT /anular).
  */
 function validarAnularOrden(data, estadoActual) {
   const errores = [];
@@ -173,12 +199,18 @@ function validarAnularOrden(data, estadoActual) {
     return errores;
   }
 
+  // ✅ motivoAnulacion es obligatorio y con validación de contenido
   if (!motivoAnulacion || String(motivoAnulacion).trim() === '') {
     errores.push('El motivo de anulación es obligatorio');
-  } else if (String(motivoAnulacion).trim().length < 10) {
-    errores.push('El motivo de anulación debe tener al menos 10 caracteres');
-  } else if (String(motivoAnulacion).trim().length > 500) {
-    errores.push('El motivo de anulación no puede superar los 500 caracteres');
+  } else {
+    const motivo = String(motivoAnulacion).trim();
+    if (motivo.length < 10) {
+      errores.push('El motivo de anulación debe tener al menos 10 caracteres');
+    } else if (motivo.length > 500) {
+      errores.push('El motivo de anulación no puede superar los 500 caracteres');
+    } else if (!REGEX_MOTIVO.test(motivo)) {
+      errores.push('El motivo contiene caracteres no permitidos (evita <, >, {, }, |, \\, ^, `)');
+    }
   }
 
   return errores;

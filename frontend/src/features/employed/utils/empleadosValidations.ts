@@ -18,118 +18,196 @@ export type FormState = {
   estado: 'activo' | 'inactivo';
 };
 
-/** Mapa de campo → mensaje de error (solo los campos con error aparecen) */
+/** Mapa de campo → mensaje de error */
 export type FormErrors = Partial<Record<keyof FormState, string>>;
 
+// ─── Regex compartidas ────────────────────────────────────────────────────
+const SOLO_LETRAS    = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
+const SOLO_DIGITOS   = /^\d+$/;
+const ALFANUM        = /^[a-zA-Z0-9]+$/;
+const REGEX_EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REGEX_TELEFONO = /^[+]?[\d\s\-(). ]{7,20}$/;
+
+// ─── Sanitizadores en tiempo real ────────────────────────────────────────
+
 /**
- * Valida todos los campos del formulario de empleado.
- * Retorna un objeto con los errores encontrados.
- * Si el objeto está vacío, el formulario es válido.
+ * Filtra caracteres inválidos para nombres y apellidos.
+ * Bloquea números y caracteres especiales (excepto ' y -).
+ * Capitaliza automáticamente la primera letra de cada palabra.
+ */
+export function sanitizarNombre(valor: string): string {
+  const limpio = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]/g, '');
+  return limpio.replace(/(^|\s)([a-záéíóúñü])/g, (_, sep, letra) => sep + letra.toUpperCase());
+}
+
+/**
+ * Filtra el número de documento según el tipo:
+ * - CC / CE: solo dígitos, sin espacios
+ * - Pasaporte: alfanumérico en mayúsculas
+ */
+export function sanitizarDocumento(valor: string, tipo: FormState['tipoDocumento']): string {
+  if (tipo === 'CC' || tipo === 'CE') {
+    return valor.replace(/\D/g, '');
+  }
+  return valor.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
+/**
+ * Filtra el teléfono: solo dígitos, +, espacios, guiones y paréntesis.
+ */
+export function sanitizarTelefono(valor: string): string {
+  return valor.replace(/[^\d+\s\-(). ]/g, '');
+}
+
+/**
+ * Filtra ciudad: solo letras y espacios (sin números ni especiales).
+ * Capitaliza la primera letra de cada palabra.
+ */
+export function sanitizarCiudad(valor: string): string {
+  const limpio = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]/g, '');
+  return limpio.replace(/(^|\s)([a-záéíóúñü])/g, (_, sep, letra) => sep + letra.toUpperCase());
+}
+
+// ─── Validación campo por campo (tiempo real) ─────────────────────────────
+
+/** Valida un campo individual. Retorna string con el error o '' si es válido. */
+export function validarCampo(campo: keyof FormState, form: FormState): string {
+  const v = (form[campo] as string)?.trim?.() ?? '';
+
+  switch (campo) {
+
+    case 'nombres':
+      if (!v)                       return 'Los nombres son obligatorios';
+      if (v.length < 2)             return 'Mínimo 2 caracteres';
+      if (v.length > 100)           return 'Máximo 100 caracteres';
+      if (!SOLO_LETRAS.test(v))     return 'Solo letras, espacios, guiones y apóstrofes';
+      return '';
+
+    case 'apellidos':
+      if (!v)                       return 'Los apellidos son obligatorios';
+      if (v.length < 2)             return 'Mínimo 2 caracteres';
+      if (v.length > 100)           return 'Máximo 100 caracteres';
+      if (!SOLO_LETRAS.test(v))     return 'Solo letras, espacios, guiones y apóstrofes';
+      return '';
+
+    case 'numeroDocumento': {
+      if (!v) return 'El número de documento es obligatorio';
+      if (v.length < 2 || v.length > 20) return 'Debe tener entre 2 y 20 caracteres';
+      const tipo = form.tipoDocumento;
+      if ((tipo === 'CC' || tipo === 'CE') && !SOLO_DIGITOS.test(v))
+        return 'Para CC y CE solo se permiten dígitos';
+      if (tipo === 'Pasaporte' && !ALFANUM.test(v))
+        return 'El pasaporte solo puede contener letras y números';
+      return '';
+    }
+
+    case 'email':
+      if (!v)                       return 'El correo electrónico es obligatorio';
+      if (!REGEX_EMAIL.test(v))     return 'Formato inválido (ej: nombre@empresa.com)';
+      if (v.length > 50)            return 'Máximo 50 caracteres';
+      return '';
+
+    case 'telefono':
+      if (!v)                       return 'El teléfono es obligatorio';
+      if (!REGEX_TELEFONO.test(v))  return 'Formato inválido (ej: 3001234567 o +57 300 123 4567)';
+      return '';
+
+    case 'cargo':
+      if (!form.cargo) return 'Debe seleccionar un cargo';
+      return '';
+
+    case 'area':
+      if (!form.area) return 'Debe seleccionar un área';
+      return '';
+
+    case 'fechaIngreso': {
+      if (!v) return 'La fecha de ingreso es obligatoria';
+      const fecha = new Date(v);
+      if (isNaN(fecha.getTime())) return 'Formato de fecha inválido';
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      if (fecha > hoy) return 'La fecha de ingreso no puede ser futura';
+      const limite = new Date(); limite.setFullYear(limite.getFullYear() - 50);
+      if (fecha < limite) return 'La fecha no puede ser mayor a 50 años atrás';
+      return '';
+    }
+
+    case 'ciudad':
+      if (v && v.length > 50)       return 'Máximo 50 caracteres';
+      if (v && !SOLO_LETRAS.test(v)) return 'Solo letras, espacios y guiones';
+      return '';
+
+    case 'direccion':
+      if (v && v.length > 200) return 'Máximo 200 caracteres';
+      return '';
+
+    default:
+      return '';
+  }
+}
+
+/**
+ * Valida todos los campos y retorna un mapa de errores.
+ * Si el mapa está vacío → formulario válido.
  */
 export function validarFormEmpleado(form: FormState): FormErrors {
+  const campos: (keyof FormState)[] = [
+    'nombres', 'apellidos', 'numeroDocumento', 'email',
+    'telefono', 'cargo', 'area', 'fechaIngreso', 'ciudad', 'direccion',
+  ];
   const errores: FormErrors = {};
-
-  // ── 1. Nombres ──────────────────────────────────────────────────────
-  if (!form.nombres.trim()) {
-    errores.nombres = 'Los nombres son obligatorios';
-  } else if (form.nombres.trim().length < 2) {
-    errores.nombres = 'Los nombres deben tener al menos 2 caracteres';
-  } else if (form.nombres.trim().length > 100) {
-    errores.nombres = 'Los nombres no pueden superar los 100 caracteres';
-  } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(form.nombres.trim())) {
-    errores.nombres = 'Solo se permiten letras, espacios, guiones y apóstrofes';
+  for (const campo of campos) {
+    const msg = validarCampo(campo, form);
+    if (msg) errores[campo] = msg;
   }
-
-  // ── 2. Apellidos ────────────────────────────────────────────────────
-  if (!form.apellidos.trim()) {
-    errores.apellidos = 'Los apellidos son obligatorios';
-  } else if (form.apellidos.trim().length < 2) {
-    errores.apellidos = 'Los apellidos deben tener al menos 2 caracteres';
-  } else if (form.apellidos.trim().length > 100) {
-    errores.apellidos = 'Los apellidos no pueden superar los 100 caracteres';
-  } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(form.apellidos.trim())) {
-    errores.apellidos = 'Solo se permiten letras, espacios, guiones y apóstrofes';
-  }
-
-  // ── 3. Número de documento ──────────────────────────────────────────
-  if (!form.numeroDocumento.trim()) {
-    errores.numeroDocumento = 'El número de documento es obligatorio';
-  } else if (form.numeroDocumento.trim().length < 2 || form.numeroDocumento.trim().length > 20) {
-    errores.numeroDocumento = 'Debe tener entre 2 y 20 caracteres';
-  } else if (
-    (form.tipoDocumento === 'CC' || form.tipoDocumento === 'CE') &&
-    !/^\d+$/.test(form.numeroDocumento.trim())
-  ) {
-    errores.numeroDocumento = 'Para CC y CE solo se permiten dígitos';
-  } else if (
-    form.tipoDocumento === 'Pasaporte' &&
-    !/^[a-zA-Z0-9]+$/.test(form.numeroDocumento.trim())
-  ) {
-    errores.numeroDocumento = 'El pasaporte solo puede contener letras y números';
-  }
-
-  // ── 4. Email ────────────────────────────────────────────────────────
-  if (!form.email.trim()) {
-    errores.email = 'El correo electrónico es obligatorio';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-    errores.email = 'El correo electrónico no tiene un formato válido';
-  } else if (form.email.trim().length > 50) {
-    errores.email = 'El correo no puede superar los 50 caracteres';
-  }
-
-  // ── 5. Teléfono ─────────────────────────────────────────────────────
-  if (!form.telefono.trim()) {
-    errores.telefono = 'El teléfono es obligatorio';
-  } else if (!/^[+]?[\d\s\-(). ]{7,20}$/.test(form.telefono.trim())) {
-    errores.telefono = 'Formato inválido (ej: 3001234567 o +57 300 123 4567)';
-  }
-
-  // ── 6. Cargo ────────────────────────────────────────────────────────
-  if (!form.cargo) {
-    errores.cargo = 'Debe seleccionar un cargo';
-  }
-
-  // ── 7. Área ─────────────────────────────────────────────────────────
-  if (!form.area) {
-    errores.area = 'Debe seleccionar un área';
-  }
-
-  // ── 8. Fecha de ingreso ─────────────────────────────────────────────
-  if (!form.fechaIngreso) {
-    errores.fechaIngreso = 'La fecha de ingreso es obligatoria';
-  } else {
-    const fecha = new Date(form.fechaIngreso);
-    if (isNaN(fecha.getTime())) {
-      errores.fechaIngreso = 'Formato de fecha inválido';
-    } else {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      if (fecha > hoy) {
-        errores.fechaIngreso = 'La fecha de ingreso no puede ser futura';
-      } else {
-        const limite = new Date();
-        limite.setFullYear(limite.getFullYear() - 50);
-        if (fecha < limite) {
-          errores.fechaIngreso = 'La fecha no puede ser mayor a 50 años atrás';
-        }
-      }
-    }
-  }
-
-  // ── 9. Ciudad (opcional, con límite) ────────────────────────────────
-  if (form.ciudad && form.ciudad.trim().length > 50) {
-    errores.ciudad = 'La ciudad no puede superar los 50 caracteres';
-  }
-
-  // ── 10. Dirección (opcional, con límite) ────────────────────────────
-  if (form.direccion && form.direccion.trim().length > 200) {
-    errores.direccion = 'La dirección no puede superar los 200 caracteres';
-  }
-
   return errores;
 }
 
 /** Retorna true si hay al menos un error */
 export function hayErrores(errores: FormErrors): boolean {
   return Object.keys(errores).length > 0;
+}
+
+// ─── Validación de campos únicos (duplicados) ─────────────────────────────────
+
+/**
+ * Verifica que los campos críticos no estén ya en uso por otro empleado.
+ * Campos verificados: numeroDocumento, email, telefono
+ *
+ * @param form       Datos del formulario actual
+ * @param empleados  Lista completa de empleados cargada desde el servidor
+ * @param editandoId ID del empleado que se está editando (null si es nuevo)
+ * @returns          FormErrors con los campos duplicados encontrados
+ */
+export function validarUnicidad(
+  form: FormState,
+  empleados: {
+    id?: number;
+    numeroDocumento: string;
+    email: string;
+    telefono: string;
+  }[],
+  editandoId: number | null
+): FormErrors {
+  const errores: FormErrors = {};
+
+  // Excluye al propio empleado cuando es edición
+  const otros = empleados.filter(e => e.id !== editandoId);
+
+  const docNorm   = form.numeroDocumento.trim().toLowerCase();
+  const emailNorm = form.email.trim().toLowerCase();
+  const teleNorm  = form.telefono.replace(/[\s\-(). ]/g, '');
+
+  if (docNorm && otros.some(e => e.numeroDocumento.trim().toLowerCase() === docNorm)) {
+    errores.numeroDocumento = 'Ya existe un empleado con este número de documento';
+  }
+
+  if (emailNorm && otros.some(e => e.email.trim().toLowerCase() === emailNorm)) {
+    errores.email = 'Este correo electrónico ya está registrado';
+  }
+
+  if (teleNorm && otros.some(e => e.telefono.replace(/[\s\-(). ]/g, '') === teleNorm)) {
+    errores.telefono = 'Este número de teléfono ya está registrado';
+  }
+
+  return errores;
 }

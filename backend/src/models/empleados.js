@@ -46,22 +46,26 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     telefono: {
-        type: DataTypes.STRING(20),  // ampliado para formato +57 300 123 4567
+        type: DataTypes.STRING(20),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'El teléfono no puede estar vacío' },
-            len: { args: [2, 20], msg: 'El teléfono debe tener entre 2 y 20 caracteres' }
+            len: { args: [7, 20], msg: 'El teléfono debe tener entre 7 y 20 caracteres' }
         }
     },
 
     email: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        defaultValue: null,
+        // ✅ Eliminado defaultValue: null (contradecía allowNull: false)
+        unique: {
+            name: 'unique_email_empleado',
+            msg: 'Este correo ya está registrado en otro empleado'
+        },
         validate: {
             notEmpty: { msg: 'El email no puede estar vacío' },
             isEmail: { msg: 'El email no tiene un formato válido' },
-            len: { args: [0, 50], msg: 'El email debe tener máximo 50 caracteres' }
+            len: { args: [5, 50], msg: 'El email debe tener entre 5 y 50 caracteres' }
         }
     },
 

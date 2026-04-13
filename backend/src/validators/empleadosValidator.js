@@ -19,9 +19,19 @@ const AREAS = [
   'Administración',
 ];
 
+// ── Expresiones regulares (alineadas con el frontend) ──────────────────────────
+// Solo letras (incluye tildes, ñ), espacios, guiones y apóstrofes
+const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
+
+// Teléfono: dígitos, espacios, +, guiones, puntos y paréntesis — entre 7 y 20 chars
+const REGEX_TELEFONO = /^[+]?[\d\s\-(). ]{7,20}$/;
+
+// Solo letras, números, espacios y guiones (para ciudad)
+const REGEX_CIUDAD = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-]+$/;
+
 /**
  * Valida los datos de un empleado.
- * @param {object} data       - Cuerpo de la petición (req.body)
+ * @param {object}  data            - Cuerpo de la petición (req.body)
  * @param {boolean} esActualizacion - Si es PUT, los campos obligatorios son opcionales
  * @returns {string[]} Array de mensajes de error. Si está vacío, no hay errores.
  */
@@ -42,7 +52,7 @@ function validarEmpleado(data, esActualizacion = false) {
     ciudad,
   } = data;
 
-  // ── 1. Campos obligatorios (solo en creación) ──────────────────────
+  // ── 1. Campos obligatorios (solo en creación) ──────────────────────────────
   if (!esActualizacion) {
     const requeridos = {
       tipoDocumento,
@@ -64,14 +74,14 @@ function validarEmpleado(data, esActualizacion = false) {
     if (errores.length > 0) return errores;
   }
 
-  // ── 2. Tipo de documento ───────────────────────────────────────────
+  // ── 2. Tipo de documento ───────────────────────────────────────────────────
   if (tipoDocumento && !TIPOS_DOCUMENTO.includes(tipoDocumento)) {
     errores.push(
       `Tipo de documento inválido. Valores permitidos: ${TIPOS_DOCUMENTO.join(', ')}`
     );
   }
 
-  // ── 3. Número de documento ─────────────────────────────────────────
+  // ── 3. Número de documento ─────────────────────────────────────────────────
   if (numeroDocumento) {
     const doc = String(numeroDocumento).trim();
     if (doc.length < 2 || doc.length > 20) {
@@ -89,58 +99,59 @@ function validarEmpleado(data, esActualizacion = false) {
     }
   }
 
-  // ── 4. Nombres ─────────────────────────────────────────────────────
+  // ── 4. Nombres ─────────────────────────────────────────────────────────────
   if (nombres) {
     const n = nombres.trim();
     if (n.length < 2 || n.length > 100) {
       errores.push('Los nombres deben tener entre 2 y 100 caracteres');
-    } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(n)) {
+    } else if (!REGEX_NOMBRE.test(n)) {
       errores.push('Los nombres solo pueden contener letras, espacios, guiones y apóstrofes');
     }
   }
 
-  // ── 5. Apellidos ───────────────────────────────────────────────────
+  // ── 5. Apellidos ───────────────────────────────────────────────────────────
   if (apellidos) {
     const a = apellidos.trim();
     if (a.length < 2 || a.length > 100) {
       errores.push('Los apellidos deben tener entre 2 y 100 caracteres');
-    } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(a)) {
+    } else if (!REGEX_NOMBRE.test(a)) {
       errores.push('Los apellidos solo pueden contener letras, espacios, guiones y apóstrofes');
     }
   }
 
-  // ── 6. Teléfono ────────────────────────────────────────────────────
+  // ── 6. Teléfono ────────────────────────────────────────────────────────────
   if (telefono) {
     const tel = String(telefono).trim();
-    // Acepta: 3001234567 | +57 300 123 4567 | +573001234567 | (604) 123-4567
-    if (!/^[+]?[\d\s\-(). ]{7,20}$/.test(tel)) {
+    if (tel.length < 7 || tel.length > 20) {
+      errores.push('El teléfono debe tener entre 7 y 20 caracteres');
+    } else if (!REGEX_TELEFONO.test(tel)) {
       errores.push(
         'El teléfono tiene un formato inválido (ej: 3001234567 o +57 300 123 4567)'
       );
     }
   }
 
-  // ── 7. Email ───────────────────────────────────────────────────────
+  // ── 7. Email ───────────────────────────────────────────────────────────────
   if (email) {
     const mail = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+    if (mail.length < 5 || mail.length > 50) {
+      errores.push('El correo electrónico debe tener entre 5 y 50 caracteres');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
       errores.push('El correo electrónico no tiene un formato válido');
-    } else if (mail.length > 50) {
-      errores.push('El correo electrónico no puede superar los 50 caracteres');
     }
   }
 
-  // ── 8. Cargo ───────────────────────────────────────────────────────
+  // ── 8. Cargo ───────────────────────────────────────────────────────────────
   if (cargo && !CARGOS.includes(cargo)) {
     errores.push(`Cargo inválido. Valores permitidos: ${CARGOS.join(', ')}`);
   }
 
-  // ── 9. Área ────────────────────────────────────────────────────────
+  // ── 9. Área ────────────────────────────────────────────────────────────────
   if (area && !AREAS.includes(area)) {
     errores.push(`Área inválida. Valores permitidos: ${AREAS.join(', ')}`);
   }
 
-  // ── 10. Fecha de ingreso ───────────────────────────────────────────
+  // ── 10. Fecha de ingreso ───────────────────────────────────────────────────
   if (fechaIngreso) {
     const fecha = new Date(fechaIngreso);
     if (isNaN(fecha.getTime())) {
@@ -161,17 +172,29 @@ function validarEmpleado(data, esActualizacion = false) {
     }
   }
 
-  // ── 11. Estado ─────────────────────────────────────────────────────
-  if (estado && !['activo', 'inactivo'].includes(estado)) {
-    errores.push('El estado solo puede ser "activo" o "inactivo"');
+  // ── 11. Estado ─────────────────────────────────────────────────────────────
+  if (estado !== undefined && estado !== null && estado !== '') {
+    if (!['activo', 'inactivo'].includes(estado)) {
+      errores.push('El estado solo puede ser "activo" o "inactivo"');
+    }
   }
 
-  // ── 12. Campos opcionales con límite de longitud ───────────────────
-  if (direccion && String(direccion).trim().length > 200) {
-    errores.push('La dirección no puede superar los 200 caracteres');
+  // ── 12. Dirección (opcional) ───────────────────────────────────────────────
+  if (direccion !== undefined && direccion !== null && String(direccion).trim() !== '') {
+    const dir = String(direccion).trim();
+    if (dir.length > 200) {
+      errores.push('La dirección no puede superar los 200 caracteres');
+    }
   }
-  if (ciudad && String(ciudad).trim().length > 50) {
-    errores.push('La ciudad no puede superar los 50 caracteres');
+
+  // ── 13. Ciudad (opcional) ──────────────────────────────────────────────────
+  if (ciudad !== undefined && ciudad !== null && String(ciudad).trim() !== '') {
+    const ciu = String(ciudad).trim();
+    if (ciu.length < 2 || ciu.length > 50) {
+      errores.push('La ciudad debe tener entre 2 y 50 caracteres');
+    } else if (!REGEX_CIUDAD.test(ciu)) {
+      errores.push('La ciudad solo puede contener letras, números, espacios y guiones');
+    }
   }
 
   return errores;

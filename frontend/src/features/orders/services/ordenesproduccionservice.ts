@@ -1,8 +1,7 @@
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
-
 export type EstadoOrden = 'Pendiente' | 'En Proceso' | 'Pausada' | 'Finalizada' | 'Anulada';
+export type TipoOrden   = 'Pedido' | 'Venta';
 
 export type OrdenProduccion = {
   id?: number;
@@ -11,6 +10,7 @@ export type OrdenProduccion = {
   cantidad: number;
   responsableId: number;
   pedidoId?: number | null;
+  tipoOrden?: TipoOrden;
   estado?: EstadoOrden;
   fechaEntrega: string;
   fechaInicio?: string;
@@ -19,7 +19,6 @@ export type OrdenProduccion = {
   motivoAnulacion?: string;
   createdAt?: string;
   updatedAt?: string;
-  // Relaciones incluidas por el backend
   producto?: { id: number; nombreProducto: string; referencia: string };
   responsable?: { id: number; nombres: string; apellidos: string; cargo: string };
   pedido?: { id: number; fecha_pedido: string; total: number; ciudad: string } | null;
@@ -29,7 +28,7 @@ export type CreateOrdenPayload = {
   productoId: number;
   cantidad: number;
   responsableId: number;
-  pedidoId?: number | null;
+  tipoOrden: TipoOrden;
   fechaEntrega: string;
   nota?: string;
 };
@@ -40,8 +39,6 @@ export type UpdateOrdenPayload = {
   nota?: string;
   estado?: EstadoOrden;
 };
-
-// ─── Servicio ─────────────────────────────────────────────────────────────────
 
 const BASE = getApiBaseUrl();
 

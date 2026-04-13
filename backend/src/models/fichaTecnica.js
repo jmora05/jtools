@@ -22,9 +22,10 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
     productoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        references: { model: 'productos', key: 'id' },
         validate: {
             notNull: { msg: 'El producto es obligatorio' },
-            isInt: { msg: 'El productoId debe ser un número entero' }
+            isInt:   { msg: 'El productoId debe ser un número entero' }
         },
         comment: 'Producto al que pertenece esta ficha técnica'
     },
@@ -33,7 +34,8 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         type: DataTypes.ENUM('Activa', 'Inactiva'),
         allowNull: false,
         defaultValue: 'Activa',
-        
+        // ⚠️ Sin comment — PostgreSQL lanza error de sintaxis al hacer ALTER TYPE con USING
+        //    cuando alter:true intenta agregar el comentario sobre un ENUM ya existente.
     },
 
     // Materiales, procesos, medidas e insumos se guardan como JSON
@@ -55,7 +57,7 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: [],
-        comment: 'Medidas y especificaciones [{parameter, value, tolerance}]'
+        comment: 'Medidas y especificaciones [{parameter, value}]'
     },
 
     insumos: {
