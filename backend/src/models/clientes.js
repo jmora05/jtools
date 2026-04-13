@@ -53,6 +53,7 @@ const Clientes = sequelize.define('Clientes', {
             notEmpty: { msg: 'El nombre no puede estar vacío' },
             len: { args: [2, 50], msg: 'El nombre debe tener entre 2 y 50 caracteres' },
             soloLetras(value) {
+                if (value === 'N/A') return; // ← excepción para clientes tipo Empresa
                 if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
                     throw new Error('El nombre solo puede contener letras y espacios');
                 }
@@ -68,8 +69,25 @@ const Clientes = sequelize.define('Clientes', {
             notEmpty: { msg: 'El apellido no puede estar vacío' },
             len: { args: [2, 50], msg: 'El apellido debe tener entre 2 y 50 caracteres' },
             soloLetras(value) {
+                if (value === 'N/A') return; // ← excepción para clientes tipo Empresa
                 if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
                     throw new Error('El apellido solo puede contener letras y espacios');
+                }
+            }
+        }
+    },
+
+    // ── NUEVO: Persona de contacto para clientes tipo Empresa ──────────
+    contacto: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        defaultValue: null,
+        validate: {
+            len: { args: [0, 100], msg: 'El contacto debe tener máximo 100 caracteres' },
+            soloLetras(value) {
+                if (!value) return;
+                if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
+                    throw new Error('El nombre de contacto solo puede contener letras y espacios');
                 }
             }
         }
@@ -148,4 +166,3 @@ const Clientes = sequelize.define('Clientes', {
 });
  
 module.exports = Clientes;
- 

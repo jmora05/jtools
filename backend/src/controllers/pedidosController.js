@@ -45,6 +45,7 @@ const getPedidoById = async (req, res) => {
 };
 
 // POST - crear pedido
+// POST - crear pedido
 const createPedido = async (req, res) => {
     try {
         const {
@@ -54,33 +55,49 @@ const createPedido = async (req, res) => {
             direccion,
             ciudad,
             instrucciones_entrega,
-            notas_observaciones
+            notas_observaciones,
+            detalles = []
         } = req.body;
 
-        // verificar que el cliente existe y está activo
         const cliente = await Clientes.findByPk(clienteId);
-        if (!cliente) {
+        if (!cliente)
             return res.status(404).json({ message: 'El cliente especificado no existe' });
-        }
-        if (cliente.estado === 'inactivo') {
+        if (cliente.estado === 'inactivo')
             return res.status(400).json({ message: 'El cliente está inactivo' });
-        }
 
         const pedido = await Pedidos.create({
-            clienteId,
-            fecha_pedido,
-            total,
-            direccion,
-            ciudad,
-            instrucciones_entrega,
-            notas_observaciones
+            clienteId, fecha_pedido, total, direccion, ciudad,
+            instrucciones_entrega, notas_observaciones
+        });
+
+        if (detalles.length > 0) {
+            await DetallePedidos.bulkCreate(
+                detalles.map(d => ({
+                    pedidosId:      pedido.id,
+                    productosId:    d.productoId,
+                    cantidad:       d.cantidad,
+                    precioUnitario: d.precio_unitario,  // ← nombre real del modelo
+                    total:          d.cantidad * d.precio_unitario,
+            }))         
+        );
+
+        }
+
+        await pedido.reload({
+            include: [
+                { model: Clientes, as: 'cliente',
+                  attributes: ['id', 'nombres', 'apellidos', 'email', 'telefono'] },
+                { model: DetallePedidos, as: 'detalles',
+                  include: [{ model: Productos, as: 'producto',
+                              attributes: ['id', 'nombreProducto', 'referencia', 'precio'] }] }
+            ]
         });
 
         res.status(201).json({ message: 'Pedido creado correctamente', pedido });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-            const mensajes = error.errors.map(e => e.message);
-            return res.status(400).json({ message: 'Error de validación', errores: mensajes });
+            return res.status(400).json({ message: 'Error de validación',
+                                          errores: error.errors.map(e => e.message) });
         }
         res.status(500).json({ message: 'Error al crear el pedido', error: error.message });
     }
@@ -103,7 +120,8 @@ const updatePedido = async (req, res) => {
             direccion,
             ciudad,
             instrucciones_entrega,
-            notas_observaciones
+            notas_observaciones,
+            estado,
         } = req.body;
 
         // verificar que el cliente existe si se está actualizando
@@ -124,7 +142,8 @@ const updatePedido = async (req, res) => {
             direccion,
             ciudad,
             instrucciones_entrega,
-            notas_observaciones
+            notas_observaciones,
+            estado,              
         });
 
         res.status(200).json({ message: 'Pedido actualizado correctamente', pedido });

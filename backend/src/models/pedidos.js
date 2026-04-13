@@ -85,7 +85,13 @@ const Pedidos = sequelize.define('Pedidos', {
                 msg: 'Las notas no pueden superar 500 caracteres'
             }
         }
-    }
+    },
+
+    estado: {
+        type: DataTypes.ENUM('Pendiente', 'Completo', 'Cancelado'),
+        allowNull: false,
+        defaultValue: 'Pendiente',
+    },
 
 }, {
     tableName: 'pedidos',

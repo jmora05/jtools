@@ -1,14 +1,16 @@
 const { Novedades, Empleados } = require('../models/index.js');
 
+// Include base reutilizable con los tres empleados asociados
+const INCLUDE_EMPLEADOS = [
+    { model: Empleados, as: 'registradoPor',        attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
+    { model: Empleados, as: 'empleadoResponsable',  attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
+    { model: Empleados, as: 'empleadoAfectado',     attributes: ['id', 'nombres', 'apellidos', 'cargo'] } // ← NUEVO
+];
+
 // GET - listar todas las novedades
 const getNovedades = async (req, res) => {
     try {
-        const novedades = await Novedades.findAll({
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
+        const novedades = await Novedades.findAll({ include: INCLUDE_EMPLEADOS });
         res.status(200).json(novedades);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener las novedades', error: error.message });
@@ -19,12 +21,7 @@ const getNovedades = async (req, res) => {
 const getNovedadById = async (req, res) => {
     try {
         const { id } = req.params;
-        const novedad = await Novedades.findByPk(id, {
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
+        const novedad = await Novedades.findByPk(id, { include: INCLUDE_EMPLEADOS });
 
         if (!novedad) {
             return res.status(404).json({ message: 'Novedad no encontrada' });
@@ -46,14 +43,7 @@ const getNovedadesByEstado = async (req, res) => {
             return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada o rechazada' });
         }
 
-        const novedades = await Novedades.findAll({
-            where: { estado },
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
-
+        const novedades = await Novedades.findAll({ where: { estado }, include: INCLUDE_EMPLEADOS });
         res.status(200).json(novedades);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener las novedades por estado', error: error.message });
@@ -69,7 +59,8 @@ const createNovedad = async (req, res) => {
             estado,
             fecha_registro,
             registrado_por,
-            empleado_responsable
+            empleado_responsable,
+            empleado_afectado       // ← NUEVO
         } = req.body;
 
         // verificar que el empleado que registra existe y está activo
@@ -92,16 +83,30 @@ const createNovedad = async (req, res) => {
             }
         }
 
+        // verificar que el empleado afectado existe si se especificó ← NUEVO
+        if (empleado_afectado) {
+            const empleadoAf = await Empleados.findByPk(empleado_afectado);
+            if (!empleadoAf) {
+                return res.status(404).json({ message: 'El empleado afectado no existe' });
+            }
+            if (empleadoAf.estado === 'inactivo') {
+                return res.status(400).json({ message: 'El empleado afectado está inactivo' });
+            }
+        }
+
         const novedad = await Novedades.create({
             titulo,
             descripcion_detallada,
             estado,
             fecha_registro,
             registrado_por,
-            empleado_responsable
+            empleado_responsable,
+            empleado_afectado       // ← NUEVO
         });
 
-        res.status(201).json({ message: 'Novedad creada correctamente', novedad });
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(201).json(novedad);
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
@@ -111,7 +116,7 @@ const createNovedad = async (req, res) => {
     }
 };
 
-// PUT - actualizar novedad
+// PUT - actualizar novedad (solo campos editables, no el estado)
 const updateNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -129,10 +134,11 @@ const updateNovedad = async (req, res) => {
         const {
             titulo,
             descripcion_detallada,
-            empleado_responsable
+            empleado_responsable,
+            empleado_afectado       // ← NUEVO
         } = req.body;
 
-        // verificar que el empleado responsable existe si se está actualizando
+        // verificar que el empleado responsable existe si se actualizó
         if (empleado_responsable) {
             const empleadoResp = await Empleados.findByPk(empleado_responsable);
             if (!empleadoResp) {
@@ -140,9 +146,20 @@ const updateNovedad = async (req, res) => {
             }
         }
 
-        await novedad.update({ titulo, descripcion_detallada, empleado_responsable });
+        // verificar que el empleado afectado existe si se actualizó ← NUEVO
+        if (empleado_afectado) {
+            const empleadoAf = await Empleados.findByPk(empleado_afectado);
+            if (!empleadoAf) {
+                return res.status(404).json({ message: 'El empleado afectado no existe' });
+            }
+        }
 
-        res.status(200).json({ message: 'Novedad actualizada correctamente', novedad });
+        await novedad.update({ titulo, descripcion_detallada, empleado_responsable, empleado_afectado });
+
+        // Recargar con asociaciones para devolver el objeto completo
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(200).json(novedad);
     } catch (error) {
         if (error.name === 'SequelizeValidationError') {
             const mensajes = error.errors.map(e => e.message);
@@ -174,7 +191,11 @@ const cambiarEstadoNovedad = async (req, res) => {
         }
 
         await novedad.update({ estado });
-        res.status(200).json({ message: `Novedad ${estado} correctamente`, novedad });
+
+        // Recargar con asociaciones para devolver el objeto completo
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(200).json(novedad);
     } catch (error) {
         res.status(500).json({ message: 'Error al cambiar el estado de la novedad', error: error.message });
     }
