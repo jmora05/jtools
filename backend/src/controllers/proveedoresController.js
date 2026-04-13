@@ -1,4 +1,5 @@
-const { Proveedores, Compras } = require('../models/index.js');
+const { Proveedores, Insumos } = require('../models/index.js');
+const { validarProveedor } = require('../validators/proveedor.validator.js');
 
 // GET - listar todos los proveedores
 const getProveedores = async (req, res) => {
@@ -14,11 +15,7 @@ const getProveedores = async (req, res) => {
 const getProveedorById = async (req, res) => {
     try {
         const { id } = req.params;
-        const proveedor = await Proveedores.findByPk(id, {
-            include: [
-                { model: Compras, as: 'compras', attributes: ['id', 'fecha', 'metodoPago', 'estado'] }
-            ]
-        });
+        const proveedor = await Proveedores.findByPk(id);
 
         if (!proveedor) {
             return res.status(404).json({ message: 'Proveedor no encontrado' });
@@ -30,31 +27,68 @@ const getProveedorById = async (req, res) => {
     }
 };
 
+// GET - insumos asociados al proveedor
+const getInsumosProveedor = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const proveedor = await Proveedores.findByPk(id, {
+            include: [
+                { model: Insumos, as: 'insumos', attributes: ['id', 'nombre', 'descripcion', 'precio_unitario', 'stock', 'unidad_medida', 'estado'] }
+            ]
+        });
+
+        if (!proveedor) {
+            return res.status(404).json({ message: 'Proveedor no encontrado' });
+        }
+
+        res.status(200).json(proveedor);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener los insumos del proveedor', error: error.message });
+    }
+};
+
+// GET - listar proveedores activos
+const getProveedoresActivos = async (req, res) => {
+    try {
+        const proveedores = await Proveedores.findAll({ where: { estado: 'activo' } });
+        res.status(200).json(proveedores);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener los proveedores activos', error: error.message });
+    }
+};
+
 // POST - crear proveedor
 const createProveedor = async (req, res) => {
     try {
+        const errores = validarProveedor(req.body, false);
+        if (errores.length > 0) {
+            return res.status(400).json({ message: 'Error de validación', errores });
+        }
+
         const {
-            nombreEmpresa,
-            tipoDocumento,
-            numeroDocumento,
-            personaContacto,
-            telefono,
-            email,
+            razon_social,
+            tipo_documento,
+            numero_documento,
+            nombre_contacto,
             direccion,
             ciudad,
-            estado
+            telefono,
+            email,
+            estado,
+            foto,
         } = req.body;
 
         const proveedor = await Proveedores.create({
-            nombreEmpresa,
-            tipoDocumento,
-            numeroDocumento,
-            personaContacto,
-            telefono,
-            email,
+            razon_social,
+            tipo_documento,
+            numero_documento,
+            nombre_contacto,
             direccion,
             ciudad,
-            estado
+            telefono,
+            email,
+            estado,
+            foto,
         });
 
         res.status(201).json({ message: 'Proveedor creado correctamente', proveedor });
@@ -77,28 +111,35 @@ const updateProveedor = async (req, res) => {
             return res.status(404).json({ message: 'Proveedor no encontrado' });
         }
 
+        const errores = validarProveedor(req.body, true);
+        if (errores.length > 0) {
+            return res.status(400).json({ message: 'Error de validación', errores });
+        }
+
         const {
-            nombreEmpresa,
-            tipoDocumento,
-            numeroDocumento,
-            personaContacto,
-            telefono,
-            email,
+            razon_social,
+            tipo_documento,
+            numero_documento,
+            nombre_contacto,
             direccion,
             ciudad,
-            estado
+            telefono,
+            email,
+            estado,
+            foto,
         } = req.body;
 
         await proveedor.update({
-            nombreEmpresa,
-            tipoDocumento,
-            numeroDocumento,
-            personaContacto,
-            telefono,
-            email,
+            razon_social,
+            tipo_documento,
+            numero_documento,
+            nombre_contacto,
             direccion,
             ciudad,
-            estado
+            telefono,
+            email,
+            estado,
+            foto,
         });
 
         res.status(200).json({ message: 'Proveedor actualizado correctamente', proveedor });
@@ -111,7 +152,7 @@ const updateProveedor = async (req, res) => {
     }
 };
 
-// DELETE - desactivar proveedor (no se borra físicamente por historial de compras)
+// DELETE - desactivar proveedor (soft delete por historial)
 const deleteProveedor = async (req, res) => {
     try {
         const { id } = req.params;
@@ -121,13 +162,11 @@ const deleteProveedor = async (req, res) => {
             return res.status(404).json({ message: 'Proveedor no encontrado' });
         }
 
-        // verificar si tiene compras activas antes de desactivar
-        const comprasActivas = await Compras.findOne({
-            where: { proveedoresId: id, estado: 'pendiente' }
-        });
+        const insumosAsociados = await Insumos.findOne({ where: { proveedorId: id } });
 
-        if (comprasActivas) {
-            return res.status(400).json({ message: 'No se puede desactivar el proveedor porque tiene compras pendientes' });
+        if (insumosAsociados) {
+            await proveedor.update({ estado: 'inactivo' });
+            return res.status(200).json({ message: 'Proveedor desactivado correctamente (tiene insumos asociados)' });
         }
 
         await proveedor.update({ estado: 'inactivo' });
@@ -137,10 +176,35 @@ const deleteProveedor = async (req, res) => {
     }
 };
 
+// DELETE (force) - eliminar físicamente proveedor
+const forceDeleteProveedor = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const proveedor = await Proveedores.findByPk(id);
+
+        if (!proveedor) {
+            return res.status(404).json({ message: 'Proveedor no encontrado' });
+        }
+
+        const insumosAsociados = await Insumos.findOne({ where: { proveedorId: id } });
+        if (insumosAsociados) {
+            return res.status(400).json({ message: 'No se puede eliminar el proveedor porque tiene insumos asociados' });
+        }
+
+        await proveedor.destroy();
+        res.status(200).json({ message: 'Proveedor eliminado permanentemente' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al eliminar el proveedor', error: error.message });
+    }
+};
+
 module.exports = {
     getProveedores,
     getProveedorById,
+    getInsumosProveedor,
+    getProveedoresActivos,
     createProveedor,
     updateProveedor,
-    deleteProveedor
+    deleteProveedor,
+    forceDeleteProveedor,
 };

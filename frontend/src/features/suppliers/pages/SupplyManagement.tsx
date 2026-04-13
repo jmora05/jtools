@@ -1,557 +1,771 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
-import { Textarea } from '@/shared/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
+// src/features/supplies/SupplyManagement.tsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { Switch }                from '@/shared/components/ui/switch';
+import { Badge }                 from '@/shared/components/ui/badge';
+import { Button }                from '@/shared/components/ui/button';
+import { Input }                 from '@/shared/components/ui/input';
+import { Card, CardContent }     from '@/shared/components/ui/card';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
-import { Badge } from '@/shared/components/ui/badge';
-import { Card } from '@/shared/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { Switch } from '@/shared/components/ui/switch';
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/shared/components/ui/dialog';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/shared/components/ui/select';
 import { toast } from 'sonner';
 import {
-  PlusIcon,
-  EyeIcon,
-  EditIcon,
-  TrashIcon,
-  PackageIcon,
-  AlertTriangleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
+    Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight,
+    AlertTriangle, X, Search, Loader2, CheckCircle2, Info, Lock,
+    Package,
 } from 'lucide-react';
-
-// ─── Servicio ────────────────────────────────────────────────────────────────
 import {
-  getInsumos,
-  createInsumo,
-  updateInsumo,
-  deleteInsumo,
-  cambiarEstadoInsumo,
-  mapInsumoToSupply,
-  mapSupplyToDTO,
+    getInsumos,
+    createInsumo,
+    updateInsumo,
+    deleteInsumo,
+    cambiarEstadoInsumo,
+    mapInsumoToSupply,
+    mapSupplyToDTO,
 } from '../services/insumosService';
 
-// ─── Tipos locales ────────────────────────────────────────────────────────────
+// ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supply {
-  id:           number;
-  name:         string;
-  description:  string;
-  price:        number;
-  unit:         string;
-  status:       boolean;
-  stockCurrent: number;
+    id:           number;
+    name:         string;
+    description:  string;
+    price:        number;
+    unit:         string;
+    status:       boolean;
+    stockCurrent: number;
 }
 
 interface FormData {
-  name:        string;
-  description: string;
-  price:       string;
-  unit:        string;
-  status:      boolean;
+    name:        string;
+    description: string;
+    price:       string;
+    unit:        string;
+    status:      boolean;
 }
 
+interface FormErrors {
+    name?:        string;
+    description?: string;
+    price?:       string;
+    unit?:        string;
+}
+
+// ── Validación frontend ───────────────────────────────────────────────────────
+function validarFormulario(data: FormData): FormErrors {
+    const errs: FormErrors = {};
+
+    if (!data.name.trim())
+        errs.name = 'El nombre es obligatorio';
+    else if (data.name.trim().length < 2)
+        errs.name = 'Mínimo 2 caracteres';
+    else if (data.name.trim().length > 50)
+        errs.name = 'Máximo 50 caracteres';
+
+    if (data.description && data.description.trim().length > 255)
+        errs.description = 'Máximo 255 caracteres';
+
+    if (!data.price.trim())
+        errs.price = 'El precio es obligatorio';
+    else if (isNaN(parseFloat(data.price)) || parseFloat(data.price) < 0)
+        errs.price = 'Ingresa un precio válido (≥ 0)';
+
+    if (!data.unit.trim())
+        errs.unit = 'La unidad es obligatoria';
+
+    return errs;
+}
+
+// ── Banner de notificación inline ─────────────────────────────────────────────
+type BannerVariant = 'success' | 'error' | 'warning' | 'info';
+interface BannerMsg { text: string; variant: BannerVariant; }
+
+const bannerStyles: Record<BannerVariant, string> = {
+    success: 'bg-green-50 border-green-200 text-green-800',
+    error:   'bg-red-50   border-red-200   text-red-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    info:    'bg-blue-50  border-blue-200  text-blue-800',
+};
+const bannerIcons: Record<BannerVariant, React.ReactNode> = {
+    success: <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />,
+    error:   <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />,
+    warning: <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />,
+    info:    <Info className="w-5 h-5 text-blue-500 shrink-0" />,
+};
+
+// ── Componente de error de campo ──────────────────────────────────────────────
+function FieldError({ msg }: { msg?: string }) {
+    if (!msg) return null;
+    return (
+        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />{msg}
+        </p>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function SupplyManagement() {
-  // ─── Estado ───────────────────────────────────────────────────────────────
-  const [supplies, setSupplies] = useState<Supply[]>([]);
-  const [loading, setLoading]   = useState(false);
+    const [supplies, setSupplies]       = useState<Supply[]>([]);
+    const [loading, setLoading]         = useState(true);
+    const [saving, setSaving]           = useState(false);
+    const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
 
-  const [showModal, setShowModal]               = useState(false);
-  const [showDetailModal, setShowDetailModal]   = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editingSupply, setEditingSupply]       = useState<Supply | null>(null);
-  const [viewingSupply, setViewingSupply]       = useState<Supply | null>(null);
-  const [supplyToDelete, setSupplyToDelete]     = useState<Supply | null>(null);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [currentPage, setCurrentPage]           = useState(1);
-  const itemsPerPage = 5;
+    const [showModal, setShowModal]             = useState(false);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const emptyForm: FormData = {
-    name:        '',
-    description: '',
-    price:       '',
-    unit:        'Unidades',
-    status:      true,
-  };
+    const [editingSupply, setEditingSupply]   = useState<Supply | null>(null);
+    const [viewingSupply, setViewingSupply]   = useState<Supply | null>(null);
+    const [deletingSupply, setDeletingSupply] = useState<Supply | null>(null);
 
-  const [formData, setFormData] = useState<FormData>(emptyForm);
+    const [searchTerm, setSearchTerm]   = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
-  // ─── Carga inicial ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const data = await getInsumos();
-        setSupplies(data.map(mapInsumoToSupply));
-      } catch (e: any) {
-        toast.error(e.message || 'Error al cargar los insumos');
-      } finally {
-        setLoading(false);
-      }
+    // Banner global
+    const [banner, setBanner] = useState<BannerMsg | null>(null);
+    const showBanner = useCallback((text: string, variant: BannerVariant = 'info') => {
+        setBanner({ text, variant });
+        setTimeout(() => setBanner(null), 5000);
+    }, []);
+
+    // Banner de fila (insumo agotado al intentar eliminar)
+    const [inactiveBannerId, setInactiveBannerId] = useState<number | null>(null);
+    const triggerInactiveBanner = (id: number) => {
+        setInactiveBannerId(id);
+        setTimeout(() => setInactiveBannerId(null), 4000);
     };
-    load();
-  }, []);
 
-  // ─── CRUD ─────────────────────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const dto = mapSupplyToDTO(formData);
-      if (editingSupply) {
-        const { insumo } = await updateInsumo(editingSupply.id, dto);
-        setSupplies(supplies.map(s =>
-          s.id === editingSupply.id ? mapInsumoToSupply(insumo) : s
+    // Errores de formulario
+    const [formErrors, setFormErrors]         = useState<FormErrors>({});
+    const [submitAttempted, setSubmitAttempted] = useState(false);
+
+    const emptyForm: FormData = {
+        name: '', description: '', price: '', unit: 'Unidades', status: true,
+    };
+    const [formData, setFormData] = useState<FormData>(emptyForm);
+
+    // Revalidar en tiempo real
+    useEffect(() => {
+        if (submitAttempted) setFormErrors(validarFormulario(formData));
+    }, [formData, submitAttempted]);
+
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    const fetchInsumos = async () => {
+        try {
+            setLoading(true);
+            const data = await getInsumos();
+            setSupplies(data.map(mapInsumoToSupply));
+        } catch (error: any) {
+            toast.error(`Error al cargar insumos: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { fetchInsumos(); }, []);
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const resetForm = () => {
+        setFormData(emptyForm);
+        setFormErrors({});
+        setSubmitAttempted(false);
+        setEditingSupply(null);
+        setShowModal(false);
+    };
+
+    // ── Submit ────────────────────────────────────────────────────────────────
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitAttempted(true);
+
+        const errs = validarFormulario(formData);
+        setFormErrors(errs);
+        if (Object.keys(errs).length > 0) {
+            showBanner('Corrige los errores del formulario antes de continuar', 'warning');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            const dto = mapSupplyToDTO(formData);
+
+            if (editingSupply) {
+                await updateInsumo(editingSupply.id, dto);
+                showBanner('Insumo actualizado correctamente', 'success');
+                toast.success('Insumo actualizado exitosamente');
+            } else {
+                await createInsumo(dto);
+                showBanner('Insumo creado exitosamente', 'success');
+                toast.success('Insumo creado exitosamente');
+            }
+            await fetchInsumos();
+            resetForm();
+        } catch (error: any) {
+            const errores: string[] = error.errores ?? [];
+            if (errores.length > 0) {
+                const backendFieldErrors: FormErrors = {};
+                errores.forEach((msg: string) => {
+                    const lower = msg.toLowerCase();
+                    if (lower.includes('nombre'))         backendFieldErrors.name        = msg;
+                    else if (lower.includes('precio'))    backendFieldErrors.price       = msg;
+                    else if (lower.includes('unidad'))    backendFieldErrors.unit        = msg;
+                    else if (lower.includes('descripci')) backendFieldErrors.description = msg;
+                    else toast.error(msg);
+                });
+                if (Object.keys(backendFieldErrors).length > 0) {
+                    setFormErrors(backendFieldErrors);
+                    showBanner('Corrige los errores del formulario antes de continuar', 'warning');
+                } else {
+                    showBanner(errores[0], 'error');
+                }
+            } else {
+                showBanner(`Error: ${error.message}`, 'error');
+                toast.error(`Error: ${error.message}`);
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── Editar ────────────────────────────────────────────────────────────────
+    const handleEdit = (supply: Supply) => {
+        setFormData({
+            name:        supply.name,
+            description: supply.description,
+            price:       supply.price.toString(),
+            unit:        supply.unit,
+            status:      supply.status,
+        });
+        setFormErrors({});
+        setSubmitAttempted(false);
+        setEditingSupply(supply);
+        setShowModal(true);
+    };
+
+    // ── Toggle estado ─────────────────────────────────────────────────────────
+    const handleToggleStatus = async (supply: Supply) => {
+        const nuevoEstado = supply.status ? 'agotado' : 'disponible';
+        setSupplies(prev => prev.map(s =>
+            s.id === supply.id ? { ...s, status: !s.status } : s
         ));
-        toast.success('Insumo actualizado exitosamente');
-      } else {
-        const { insumo } = await createInsumo(dto);
-        setSupplies([mapInsumoToSupply(insumo), ...supplies]);
-        toast.success('Insumo creado exitosamente');
-      }
-      resetForm();
-    } catch (e: any) {
-      toast.error(e.message || 'Error al guardar el insumo');
-    }
-  };
+        setTogglingIds(prev => new Set(prev).add(supply.id));
+        try {
+            await cambiarEstadoInsumo(supply.id, nuevoEstado);
+            toast.success(`Insumo marcado como ${nuevoEstado}`);
+        } catch (error: any) {
+            setSupplies(prev => prev.map(s =>
+                s.id === supply.id ? { ...s, status: supply.status } : s
+            ));
+            toast.error(`Error: ${error.message}`);
+        } finally {
+            setTogglingIds(prev => { const n = new Set(prev); n.delete(supply.id); return n; });
+        }
+    };
 
-  const resetForm = () => {
-    setFormData(emptyForm);
-    setEditingSupply(null);
-    setShowModal(false);
-  };
+    // ── Eliminar ──────────────────────────────────────────────────────────────
+    const handleDelete = (supply: Supply) => {
+        if (supply.status) {
+            triggerInactiveBanner(supply.id);
+            return;
+        }
+        setDeletingSupply(supply);
+        setShowDeleteModal(true);
+    };
 
-  const handleEdit = (supply: Supply) => {
-    setFormData({
-      name:        supply.name,
-      description: supply.description,
-      price:       supply.price.toString(),
-      unit:        supply.unit,
-      status:      supply.status,
-    });
-    setEditingSupply(supply);
-    setShowModal(true);
-  };
+    const confirmDelete = async () => {
+        if (!deletingSupply) return;
+        try {
+            setSaving(true);
+            await deleteInsumo(deletingSupply.id);
+            showBanner('Insumo eliminado exitosamente', 'success');
+            toast.success('Insumo eliminado exitosamente');
+            await fetchInsumos();
+        } catch (error: any) {
+            toast.error(`No se puede eliminar: ${error.message}`);
+            showBanner(`No se puede eliminar: ${error.message}`, 'error');
+        } finally {
+            setSaving(false);
+            setShowDeleteModal(false);
+            setDeletingSupply(null);
+        }
+    };
 
-  const handleViewDetail = (supply: Supply) => {
-    setViewingSupply(supply);
-    setShowDetailModal(true);
-  };
+    // ── Filtros y paginación ──────────────────────────────────────────────────
+    const filteredSupplies = supplies.filter(s =>
+        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-  const handleDelete = (supply: Supply) => {
-    setSupplyToDelete(supply);
-    setShowDeleteDialog(true);
-  };
+    const totalPages      = Math.ceil(filteredSupplies.length / itemsPerPage);
+    const currentSupplies = filteredSupplies.slice(
+        (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
+    );
 
-  const confirmDelete = async () => {
-    if (!supplyToDelete) return;
-    try {
-      await deleteInsumo(supplyToDelete.id);
-      setSupplies(supplies.filter(s => s.id !== supplyToDelete.id));
-      toast.success('Insumo eliminado exitosamente');
-    } catch (e: any) {
-      toast.error(e.message || 'Error al eliminar el insumo');
-    } finally {
-      setShowDeleteDialog(false);
-      setSupplyToDelete(null);
-    }
-  };
+    useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
-  // Cambia estado disponible ↔ agotado directamente desde la tabla
-  const handleToggleStatus = async (supply: Supply) => {
-    const nuevoEstado = supply.status ? 'agotado' : 'disponible';
-    try {
-      const { insumo } = await cambiarEstadoInsumo(supply.id, nuevoEstado);
-      setSupplies(supplies.map(s =>
-        s.id === supply.id ? mapInsumoToSupply(insumo) : s
-      ));
-      toast.success(`Insumo marcado como ${nuevoEstado}`);
-    } catch (e: any) {
-      toast.error(e.message || 'Error al cambiar el estado');
-    }
-  };
+    // ─────────────────────────────────────────────────────────────────────────
+    return (
+        <div className="p-6 space-y-6">
 
-  // ─── Filtrado y paginación ────────────────────────────────────────────────
-  const filteredSupplies = supplies.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages       = Math.ceil(filteredSupplies.length / itemsPerPage);
-  const startIndex       = (currentPage - 1) * itemsPerPage;
-  const currentSupplies  = filteredSupplies.slice(startIndex, startIndex + itemsPerPage);
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
-  };
-
-  // ─── JSX ──────────────────────────────────────────────────────────────────
-  return (
-    <TooltipProvider>
-      <div className="p-6 space-y-6">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl text-gray-900 mb-2">Gestión de Insumos</h1>
-            <p className="text-gray-600">Administra el inventario de insumos</p>
-          </div>
-
-          <Dialog open={showModal} onOpenChange={(open) => { setShowModal(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Nuevo Insumo
-              </Button>
-            </DialogTrigger>
-
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingSupply ? 'Editar Insumo' : 'Crear Nuevo Insumo'}</DialogTitle>
-                <DialogDescription>
-                  {editingSupply
-                    ? 'Modifica los datos del insumo.'
-                    : 'Completa el formulario para agregar un nuevo insumo.'}
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Nombre */}
-                <div className="space-y-2">
-                  <Label>Nombre del insumo *</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ej: Aceite Motor 5W-30"
-                    required
-                  />
+            {/* ── Banner global ──────────────────────────────────────────── */}
+            {banner && (
+                <div className={`flex items-center gap-3 border rounded-xl px-5 py-3 shadow-sm ${bannerStyles[banner.variant]}`}>
+                    {bannerIcons[banner.variant]}
+                    <span className="text-sm font-medium flex-1">{banner.text}</span>
+                    <button onClick={() => setBanner(null)} className="opacity-60 hover:opacity-100">
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
-
-                {/* Descripción */}
-                <div className="space-y-2">
-                  <Label>Descripción</Label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Descripción detallada del insumo"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Precio y Unidad */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Precio unitario *</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      placeholder="45000"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Unidad de medida *</Label>
-                    <Select
-                      value={formData.unit}
-                      onValueChange={(value) => setFormData({ ...formData, unit: value })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Unidades">Unidades</SelectItem>
-                        <SelectItem value="Litros">Litros</SelectItem>
-                        <SelectItem value="Kilogramos">Kilogramos</SelectItem>
-                        <SelectItem value="Metros">Metros</SelectItem>
-                        <SelectItem value="Juegos">Juegos</SelectItem>
-                        <SelectItem value="Cajas">Cajas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Estado — solo al editar */}
-                {editingSupply && (
-                  <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
-                    <Label>Estado del Insumo</Label>
-                    <Switch
-                      checked={formData.status}
-                      onCheckedChange={(checked) => setFormData({ ...formData, status: checked })}
-                    />
-                  </div>
-                )}
-
-                <div className="flex justify-end space-x-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    {editingSupply ? 'Actualizar' : 'Crear'} Insumo
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Búsqueda */}
-        <Card className="shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Buscar insumos por nombre o descripción..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <span className="text-sm text-gray-600">{filteredSupplies.length} insumo(s)</span>
-          </div>
-        </Card>
-
-        {/* Tabla */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Nombre</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Descripción</th>
-                  <th className="px-6 py-3 text-right text-xs text-gray-600 uppercase tracking-wider">Precio</th>
-                  <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Unidad</th>
-                  <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                      <PackageIcon className="w-12 h-12 mx-auto mb-2 text-gray-300 animate-pulse" />
-                      <p>Cargando insumos...</p>
-                    </td>
-                  </tr>
-                ) : currentSupplies.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                      No se encontraron insumos
-                    </td>
-                  </tr>
-                ) : (
-                  currentSupplies.map((supply) => (
-                    <tr key={supply.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <PackageIcon className="w-5 h-5 text-blue-600 shrink-0" />
-                          <span className="text-sm text-gray-900">{supply.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                        {supply.description}
-                      </td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-900">
-                        ${supply.price.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-center text-sm text-gray-900">
-                        {supply.unit}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button onClick={() => handleToggleStatus(supply)}>
-                              <Badge
-                                className={
-                                  supply.status
-                                    ? 'bg-green-100 text-green-700 border-green-200 cursor-pointer hover:bg-green-200'
-                                    : 'bg-red-100 text-red-700 border-red-200 cursor-pointer hover:bg-red-200'
-                                }
-                              >
-                                {supply.status ? 'Disponible' : 'Agotado'}
-                              </Badge>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent><p>Click para cambiar estado</p></TooltipContent>
-                        </Tooltip>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center space-x-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline" size="sm"
-                                onClick={() => handleViewDetail(supply)}
-                                className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300 hover:bg-blue-50"
-                              >
-                                <EyeIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Ver detalle</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline" size="sm"
-                                onClick={() => handleEdit(supply)}
-                                className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300 hover:bg-blue-50"
-                              >
-                                <EditIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Editar insumo</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline" size="sm"
-                                onClick={() => handleDelete(supply)}
-                                disabled={supply.status}
-                                className="text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-40"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{supply.status ? 'Márcalo como agotado para eliminar' : 'Eliminar insumo'}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Paginación */}
-          {totalPages > 1 && (
-            <div className="border-t border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-blue-600"
-                >
-                  <ChevronLeftIcon className="w-4 h-4" />
-                </Button>
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant="ghost" size="sm"
-                      onClick={() => handlePageChange(page)}
-                      className={
-                        currentPage === page
-                          ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]'
-                          : 'text-gray-400 hover:text-gray-600 min-w-[32px]'
-                      }
-                    >
-                      {currentPage === page ? page : '•'}
-                    </Button>
-                  ))}
-                </div>
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-blue-600"
-                >
-                  <ChevronRightIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Detalle */}
-        <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Detalles del Insumo</DialogTitle>
-              <DialogDescription>Información completa del insumo seleccionado.</DialogDescription>
-            </DialogHeader>
-            {viewingSupply && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-600">Nombre</Label>
-                  <p className="text-gray-900 mt-1">{viewingSupply.name}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Precio unitario</Label>
-                  <p className="text-gray-900 mt-1">${viewingSupply.price.toLocaleString()}</p>
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-gray-600">Descripción</Label>
-                  <p className="text-gray-900 mt-1">{viewingSupply.description || '—'}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Unidad de medida</Label>
-                  <p className="text-gray-900 mt-1">{viewingSupply.unit}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Estado</Label>
-                  <div className="mt-1">
-                    <Badge className={
-                      viewingSupply.status
-                        ? 'bg-green-100 text-green-700 border-green-200'
-                        : 'bg-red-100 text-red-700 border-red-200'
-                    }>
-                      {viewingSupply.status ? 'Disponible' : 'Agotado'}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
             )}
-          </DialogContent>
-        </Dialog>
 
-        {/* Dialog Eliminar */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangleIcon className="w-5 h-5" />
-                Confirmar Eliminación
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>¿Estás seguro de que deseas eliminar este insumo?</p>
-                {supplyToDelete && (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
-                    <div>
-                      <span className="text-sm text-gray-600">Insumo: </span>
-                      <span className="text-sm text-gray-900">{supplyToDelete.name}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Unidad: </span>
-                      <span className="text-sm text-gray-900">{supplyToDelete.unit}</span>
-                    </div>
-                  </div>
-                )}
-                <p className="text-sm text-red-600">Esta acción no se puede deshacer.</p>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-                Eliminar Insumo
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+            {/* ── Header ─────────────────────────────────────────────────── */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Insumos</h1>
+                    <p className="text-blue-800">Administra el inventario de insumos</p>
+                </div>
+                <Button
+                    onClick={() => { resetForm(); setShowModal(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                    <Plus className="w-4 h-4 mr-2" />Nuevo Insumo
+                </Button>
+            </div>
 
-      </div>
-    </TooltipProvider>
-  );
+            {/* ── Filtros ─────────────────────────────────────────────────── */}
+            <Card>
+                <CardContent className="p-4">
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                        <div className="relative w-full">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                            <Input
+                                placeholder="Buscar por nombre o descripción..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="pl-10 w-full"
+                            />
+                        </div>
+                        <span className="text-sm text-gray-500 whitespace-nowrap self-center">
+                            {filteredSupplies.length} insumo(s)
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* ── Tabla ───────────────────────────────────────────────────── */}
+            {loading ? (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500">Cargando insumos...</span>
+                </div>
+            ) : (
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-blue-900">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Insumo</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Precio</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Unidad</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentSupplies.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-12 text-gray-500">
+                                                No se encontraron insumos
+                                            </td>
+                                        </tr>
+                                    ) : currentSupplies.map((supply) => {
+                                        const isToggling    = togglingIds.has(supply.id);
+                                        const isAgotado     = !supply.status;
+                                        const showRowBanner = inactiveBannerId === supply.id;
+
+                                        return (
+                                            <React.Fragment key={supply.id}>
+                                                <tr className={`border-b border-blue-100 transition-colors ${
+                                                    isAgotado ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'
+                                                }`}>
+
+                                                    {/* Insumo */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center space-x-3">
+                                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                                                                isAgotado ? 'bg-gray-200' : 'bg-blue-100'
+                                                            }`}>
+                                                                <Package className={`w-5 h-5 ${isAgotado ? 'text-gray-400' : 'text-blue-600'}`} />
+                                                            </div>
+                                                            <p className={`font-semibold text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                                {supply.name}
+                                                            </p>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Descripción */}
+                                                    <td className="py-4 px-6">
+                                                        <p className={`text-sm truncate max-w-xs ${isAgotado ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            {supply.description || '—'}
+                                                        </p>
+                                                    </td>
+
+                                                    {/* Precio */}
+                                                    <td className="py-4 px-6">
+                                                        <p className={`text-sm font-medium ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                            ${supply.price.toLocaleString()}
+                                                        </p>
+                                                    </td>
+
+                                                    {/* Unidad */}
+                                                    <td className="py-4 px-6">
+                                                        <Badge variant="secondary">{supply.unit}</Badge>
+                                                    </td>
+
+                                                    {/* Estado */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center gap-2">
+                                                            <Switch
+                                                                checked={supply.status}
+                                                                onCheckedChange={() => handleToggleStatus(supply)}
+                                                                disabled={isToggling}
+                                                            />
+                                                            {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Acciones */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center space-x-2">
+
+                                                            {/* Ver */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => { setViewingSupply(supply); setShowDetailModal(true); }}
+                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </Button>
+
+                                                            {/* Editar */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleEdit(supply)}
+                                                                disabled={isToggling}
+                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
+
+                                                            {/* Eliminar — solo si agotado */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleDelete(supply)}
+                                                                disabled={isToggling}
+                                                                title={supply.status ? 'Márcalo como agotado para eliminar' : 'Eliminar insumo'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    supply.status
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                {/* ── Banner inline fila (insumo disponible → no se puede eliminar) ── */}
+                                                {showRowBanner && (
+                                                    <tr className="border-b border-amber-100">
+                                                        <td colSpan={6} className="px-6 py-0">
+                                                            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                                                                <span>
+                                                                    <strong>Insumo disponible:</strong>{' '}
+                                                                    Márcalo como agotado usando el interruptor de estado antes de eliminarlo.
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => setInactiveBannerId(null)}
+                                                                    className="ml-auto opacity-60 hover:opacity-100"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Paginación */}
+                        {totalPages > 1 && (
+                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}>
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
+                                        {page}
+                                    </Button>
+                                ))}
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
+            <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>{editingSupply ? 'Editar Insumo' : 'Nuevo Insumo'}</DialogTitle>
+                            <DialogDescription>
+                                {editingSupply
+                                    ? 'Modifica los datos del insumo.'
+                                    : 'Completa el formulario para registrar un nuevo insumo.'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={handleSubmit} noValidate className="space-y-5 mt-4">
+
+                            {/* Nombre */}
+                            <div>
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Nombre del insumo <span className="text-red-500">*</span>
+                                    <span className="ml-1 text-xs text-gray-400">(2–50 caracteres)</span>
+                                </label>
+                                <Input
+                                    value={formData.name}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, name: e.target.value }))
+                                    }
+                                    maxLength={50}
+                                    placeholder="Ej: Aceite Motor 5W-30"
+                                    className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.name} />
+                            </div>
+
+                            {/* Descripción */}
+                            <div>
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Descripción
+                                    <span className="ml-1 text-xs text-gray-400">(máx. 255 caracteres)</span>
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, description: e.target.value }))
+                                    }
+                                    maxLength={255}
+                                    rows={3}
+                                    placeholder="Descripción detallada del insumo"
+                                    className={`w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+                                        formErrors.description
+                                            ? 'border-red-400 focus:ring-red-300'
+                                            : 'border-gray-200'
+                                    }`}
+                                />
+                                <div className="flex justify-between items-center mt-1">
+                                    <FieldError msg={formErrors.description} />
+                                    <span className={`text-xs ml-auto ${formData.description.length > 230 ? 'text-amber-500' : 'text-gray-400'}`}>
+                                        {formData.description.length}/255
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Precio + Unidad */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Precio unitario <span className="text-red-500">*</span>
+                                        <span className="ml-1 text-xs text-gray-400">(≥ 0)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={formData.price}
+                                        onChange={(e) =>
+                                            setFormData(prev => ({ ...prev, price: e.target.value }))
+                                        }
+                                        placeholder="45000"
+                                        className={formErrors.price ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    />
+                                    <FieldError msg={formErrors.price} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Unidad de medida <span className="text-red-500">*</span>
+                                    </label>
+                                    <Select
+                                        value={formData.unit}
+                                        onValueChange={(value) =>
+                                            setFormData(prev => ({ ...prev, unit: value }))
+                                        }
+                                    >
+                                        <SelectTrigger className={formErrors.unit ? 'border-red-400' : ''}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Unidades">Unidades</SelectItem>
+                                            <SelectItem value="Litros">Litros</SelectItem>
+                                            <SelectItem value="Kilogramos">Kilogramos</SelectItem>
+                                            <SelectItem value="Metros">Metros</SelectItem>
+                                            <SelectItem value="Juegos">Juegos</SelectItem>
+                                            <SelectItem value="Cajas">Cajas</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FieldError msg={formErrors.unit} />
+                                </div>
+                            </div>
+
+                            {/* Estado — solo al editar */}
+                            {editingSupply && (
+                                <div className="border-t border-gray-200 pt-4">
+                                    <div className="flex items-center space-x-3">
+                                        <Switch
+                                            checked={formData.status}
+                                            onCheckedChange={(checked) =>
+                                                setFormData(prev => ({ ...prev, status: checked }))
+                                            }
+                                        />
+                                        <label className="text-sm text-gray-600">
+                                            {formData.status ? 'Disponible' : 'Agotado'}
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 pt-4 border-t">
+                                <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    {editingSupply ? 'Actualizar Insumo' : 'Crear Insumo'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── MODAL VER DETALLE ───────────────────────────────────────── */}
+            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Detalles del Insumo</DialogTitle>
+                            <DialogDescription>Información completa del insumo seleccionado.</DialogDescription>
+                        </DialogHeader>
+                        {viewingSupply && (
+                            <div className="space-y-4 mt-4">
+                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                                    <div className="col-span-2 flex items-center gap-4">
+                                        <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <Package className="w-7 h-7 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-blue-900 text-lg">{viewingSupply.name}</p>
+                                            <p className="text-sm text-gray-500">{viewingSupply.description || '—'}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Precio unitario</p>
+                                        <p className="font-semibold text-sm">${viewingSupply.price.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Unidad de medida</p>
+                                        <Badge variant="secondary">{viewingSupply.unit}</Badge>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Estado</p>
+                                        <Badge className={viewingSupply.status
+                                            ? 'bg-blue-100 text-blue-900'
+                                            : 'bg-gray-100 text-gray-500'}>
+                                            {viewingSupply.status ? 'Disponible' : 'Agotado'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+                                    <Button
+                                        onClick={() => { handleEdit(viewingSupply); setShowDetailModal(false); }}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        Editar Insumo
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
+            <Dialog open={showDeleteModal} onOpenChange={(open) => {
+                if (!open) { setShowDeleteModal(false); setDeletingSupply(null); }
+            }}>
+                <DialogContent className="max-w-md p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-blue-900">
+                                <Trash2 className="w-5 h-5" />Eliminar Insumo
+                            </DialogTitle>
+                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
+                        </DialogHeader>
+                        {deletingSupply && (
+                            <div className="mt-4 space-y-3">
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="font-semibold text-blue-900">{deletingSupply.name}</p>
+                                    <p className="text-sm text-blue-700 mt-1">{deletingSupply.unit} · ${deletingSupply.price.toLocaleString()}</p>
+                                </div>
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">¿Estás seguro?</p>
+                                        <p className="text-amber-700 mt-0.5">El insumo será eliminado permanentemente del sistema.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                            <Button variant="outline"
+                                onClick={() => { setShowDeleteModal(false); setDeletingSupply(null); }}
+                                disabled={saving}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={confirmDelete} disabled={saving}
+                                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900">
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Sí, eliminar
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+        </div>
+    );
 }

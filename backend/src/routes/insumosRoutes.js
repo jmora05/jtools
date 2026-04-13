@@ -3,21 +3,21 @@ const router = express.Router();
 const {
     getInsumos,
     getInsumoById,
-    getInsumosAgotados,
-    getInsumosDisponibles,
+    getInsumosActivos,
+    getInsumosBajoStock,
     createInsumo,
     updateInsumo,
-    cambiarEstadoInsumo,
-    deleteInsumo
+    deleteInsumo,
+    forceDeleteInsumo,
 } = require('../controllers/insumosController.js');
 
 router.get('/', getInsumos);
-router.get('/agotados', getInsumosAgotados);
-router.get('/disponibles', getInsumosDisponibles);
+router.get('/activos', getInsumosActivos);
+router.get('/bajo-stock', getInsumosBajoStock);
 router.get('/:id', getInsumoById);
 router.post('/', createInsumo);
 router.put('/:id', updateInsumo);
-router.patch('/:id/estado', cambiarEstadoInsumo);
+router.delete('/:id/force', forceDeleteInsumo);
 router.delete('/:id', deleteInsumo);
 
 module.exports = router;
