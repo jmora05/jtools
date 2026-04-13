@@ -21,13 +21,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shar
 import { toast } from 'sonner';
 import { 
   PlusIcon, 
-  EyeIcon, 
+  EyeIcon,
+  EyeOffIcon,
   EditIcon, 
   TrashIcon,
   UserIcon,
   AlertTriangleIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  CheckIcon,
+  XIcon,
+  LockIcon
 } from 'lucide-react';
 import * as usuariosService from '@/features/users/services/usuariosService';
 import * as rolesService from '@/features/roles/services/rolesService';
@@ -68,6 +72,12 @@ export function UserManagement() {
     };
   }, []);
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false, uppercase: false, numbers: false, special: false,
+  });
+
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -86,14 +96,53 @@ export function UserManagement() {
     rolesId: null as number | null,
     password: '',
     isActive: true
-});
+  });
 
-const handleSubmit = (e) => {
+  useEffect(() => {
+    setPasswordValidation({
+      length: formData.password.length >= 6,
+      uppercase: /[A-Z]/.test(formData.password),
+      numbers: (formData.password.match(/\d/g) || []).length >= 1,
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
+    });
+  }, [formData.password]);
+
+const handleSubmit = (e: React.FormEvent) => {
   e.preventDefault();
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
   if (!formData.rolesId) {
-      toast.error('Debes seleccionar un tipo de usuario');
+    toast.error('Debes seleccionar un tipo de usuario');
+    return;
+  }
+
+  if (!formData.email.trim()) {
+    toast.error('El correo electrónico es obligatorio');
+    return;
+  }
+
+  if (!emailRegex.test(formData.email.trim())) {
+    toast.error('El correo electrónico no tiene un formato válido');
+    return;
+  }
+
+  if (!editingUser) {
+    // Crear: contraseña obligatoria
+    if (!formData.password) {
+      toast.error('La contraseña es obligatoria');
       return;
+    }
+    if (formData.password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+  } else {
+    // Editar: si ingresó contraseña, validar longitud
+    if (formData.password && formData.password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
   }
 
   if (editingUser) {
@@ -151,6 +200,8 @@ const handleSubmit = (e) => {
       password: '',
       isActive: true
     });
+    setShowPassword(false);
+    setShowEditPassword(false);
     setEditingUser(null);
     setShowModal(false);
   };
@@ -319,8 +370,14 @@ const handleSubmit = (e) => {
                           value={formData.email}
                           onChange={(e) => setFormData({...formData, email: e.target.value})}
                           placeholder="usuario@jrepuestos.com"
+                          className={formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email) ? 'border-red-400' : ''}
                           required
                         />
+                        {formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email) && (
+                          <p className="text-xs text-red-500 flex items-center gap-1">
+                            <XIcon className="w-3 h-3" /> Correo no válido
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="phone">Teléfono *</Label>
@@ -342,6 +399,36 @@ const handleSubmit = (e) => {
                         onCheckedChange={(checked) => setFormData({...formData, isActive: checked})}
                       />
                       <Label>Usuario activo</Label>
+                    </div>
+
+                    {/* Contraseña (edición — opcional) */}
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-password">
+                        Nueva contraseña <span className="text-gray-400 text-xs">(dejar vacío para no cambiar)</span>
+                      </Label>
+                      <div className="relative">
+                        <LockIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="edit-password"
+                          type={showEditPassword ? 'text' : 'password'}
+                          value={formData.password}
+                          onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          placeholder="••••••••"
+                          className="pl-10 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPassword(!showEditPassword)}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                        >
+                          {showEditPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {formData.password && formData.password.length < 6 && (
+                        <p className="text-xs text-red-500 flex items-center gap-1">
+                          <XIcon className="w-3 h-3" /> Mínimo 6 caracteres
+                        </p>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -376,21 +463,56 @@ const handleSubmit = (e) => {
                         value={formData.email}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
                         placeholder="usuario@jrepuestos.com"
+                        className={formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email) ? 'border-red-400' : ''}
                         required
                       />
+                      {formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email) && (
+                        <p className="text-xs text-red-500 flex items-center gap-1">
+                          <XIcon className="w-3 h-3" /> Correo no válido
+                        </p>
+                      )}
                     </div>
 
                     {/* Contraseña */}
                     <div className="space-y-2">
                       <Label htmlFor="password">Contraseña *</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        placeholder="••••••••"
-                        required
-                      />
+                      <div className="relative">
+                        <LockIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={formData.password}
+                          onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          placeholder="••••••••"
+                          className="pl-10 pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {formData.password && (
+                        <div className="space-y-1 p-3 bg-gray-50 rounded-lg border text-xs">
+                          <p className="text-gray-500 mb-1">Requisitos:</p>
+                          {[
+                            { ok: passwordValidation.length,    label: 'Mínimo 6 caracteres' },
+                            { ok: passwordValidation.uppercase, label: 'Al menos 1 mayúscula' },
+                            { ok: passwordValidation.numbers,   label: 'Al menos 1 número' },
+                            { ok: passwordValidation.special,   label: 'Al menos 1 carácter especial' },
+                          ].map(({ ok, label }) => (
+                            <div key={label} className="flex items-center gap-1.5">
+                              {ok
+                                ? <CheckIcon className="w-3 h-3 text-green-500" />
+                                : <XIcon className="w-3 h-3 text-red-400" />}
+                              <span className={ok ? 'text-green-700' : 'text-gray-500'}>{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

@@ -66,17 +66,17 @@ const createProducto = async (req, res) => {
             estado
         } = req.body;
 
-        // verificar que la categoría existe
+        // Verificar que la categoría existe
         const categoria = await CategoriaProductos.findByPk(categoriaProductoId);
         if (!categoria) {
             return res.status(404).json({ message: 'La categoría especificada no existe' });
         }
 
         const producto = await Productos.create({
-            nombreProducto,
-            referencia,
+            nombreProducto: nombreProducto.trim(),
+            referencia: referencia.trim(),
             categoriaProductoId,
-            descripcion,
+            descripcion: descripcion ? descripcion.trim() : null,
             precio,
             stock,
             estado
@@ -85,12 +85,13 @@ const createProducto = async (req, res) => {
         res.status(201).json({ message: 'Producto creado correctamente', producto });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-            const mensajes = error.errors.map(e => e.message);
-            return res.status(400).json({ message: 'Error de validación', errores: mensajes });
-        }
+    const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
+    return res.status(400).json({ message: 'Error de validación', errores: mensajes });
+}
         res.status(500).json({ message: 'Error al crear el producto', error: error.message });
     }
 };
+
 
 // PUT - actualizar producto
 const updateProducto = async (req, res) => {
@@ -112,7 +113,7 @@ const updateProducto = async (req, res) => {
             estado
         } = req.body;
 
-        // verificar que la categoría existe si se está actualizando
+        // Verificar que la categoría existe si se está actualizando
         if (categoriaProductoId) {
             const categoria = await CategoriaProductos.findByPk(categoriaProductoId);
             if (!categoria) {
@@ -121,19 +122,19 @@ const updateProducto = async (req, res) => {
         }
 
         await producto.update({
-            nombreProducto,
-            referencia,
-            categoriaProductoId,
-            descripcion,
-            precio,
-            stock,
-            estado
+            nombreProducto: nombreProducto ? nombreProducto.trim() : producto.nombreProducto,
+            referencia: referencia ? referencia.trim() : producto.referencia,
+            categoriaProductoId: categoriaProductoId ?? producto.categoriaProductoId,
+            descripcion: descripcion !== undefined ? (descripcion ? descripcion.trim() : null) : producto.descripcion,
+            precio: precio ?? producto.precio,
+            stock: stock ?? producto.stock,
+            estado: estado ?? producto.estado,
         });
 
         res.status(200).json({ message: 'Producto actualizado correctamente', producto });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-            const mensajes = error.errors.map(e => e.message);
+            const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
             return res.status(400).json({ message: 'Error de validación', errores: mensajes });
         }
         res.status(500).json({ message: 'Error al actualizar el producto', error: error.message });
@@ -156,6 +157,7 @@ const deleteProducto = async (req, res) => {
         res.status(500).json({ message: 'Error al desactivar el producto', error: error.message });
     }
 };
+
 
 module.exports = {
     getProductos,

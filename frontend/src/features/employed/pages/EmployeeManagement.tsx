@@ -1,1339 +1,911 @@
-import React, { useState } from 'react';
+// src/features/employees/EmployeeManagement.tsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
-import { Textarea } from '@/shared/components/ui/textarea';
-import { toast } from 'sonner@2.0.3';
-import { 
-  PlusIcon, 
-  EyeIcon, 
-  EditIcon, 
-  TrashIcon,
-  UsersIcon,
-  SearchIcon,
-  ArrowLeftIcon,
-  AlertTriangleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  UploadIcon,
-  XIcon,
-  FileTextIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  PhoneIcon,
-  MailIcon,
-  MapPinIcon,
-  UserCheckIcon,
-  UserXIcon
+import { Switch } from '@/shared/components/ui/switch';
+import {
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/shared/components/ui/dialog';
+import { toast } from 'sonner';
+import {
+    Plus, Eye, Edit, Trash2, Users, Search,
+    AlertTriangle, ChevronLeft, ChevronRight,
+    Briefcase, Calendar, Phone, Mail, MapPin,
+    Loader2, CheckCircle2, Info, Lock, X,
 } from 'lucide-react';
-import { Switch } from './ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import {
+    getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado,
+    type Empleado,
+} from '../services/empleadosService';
+import {
+    validarFormEmpleado, validarCampo, validarUnicidad, hayErrores,
+    sanitizarNombre, sanitizarDocumento, sanitizarTelefono, sanitizarCiudad,
+    type FormErrors,
+} from '../utils/empleadosValidations';
 
-interface Employee {
-  id: number;
-  firstName: string;
-  lastName: string;
-  documentType: string;
-  documentNumber: string;
-  email: string;
-  phone: string;
-  city: string;
-  address: string;
-  position: string;
-  area: string;
-  hireDate: string;
-  status: 'Activo' | 'Inactivo';
-  documents: string[];
-  notes?: string;
-  createdBy?: string;
-  createdAt?: string;
-  modifiedBy?: string;
-  modifiedAt?: string;
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const AREAS:  Empleado['area'][]  = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
+const CARGOS: Empleado['cargo'][] = ['Supervisor de Producción', 'Jefe de Área', 'Operario', 'Técnico de Calidad', 'Asistente'];
+
+type FormState = {
+    tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+    numeroDocumento: string;
+    nombres: string;
+    apellidos: string;
+    telefono: string;
+    email: string;
+    cargo: string;
+    area: string;
+    direccion: string;
+    ciudad: string;
+    fechaIngreso: string;
+    estado: 'activo' | 'inactivo';
+};
+
+const EMPTY_FORM: FormState = {
+    tipoDocumento: 'CC',
+    numeroDocumento: '',
+    nombres: '',
+    apellidos: '',
+    telefono: '',
+    email: '',
+    cargo: '',
+    area: '',
+    direccion: '',
+    ciudad: '',
+    fechaIngreso: new Date().toISOString().split('T')[0],
+    estado: 'activo',
+};
+
+// ─── FieldError ───────────────────────────────────────────────────────────────
+function FieldError({ mensaje }: { mensaje?: string }) {
+    if (!mensaje) return null;
+    return (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+            {mensaje}
+        </p>
+    );
 }
 
+// ─── InfoAlert ────────────────────────────────────────────────────────────────
+const InfoAlert = ({ message }: { message: string }) => (
+    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+        <Info className="w-4 h-4 shrink-0 text-blue-500" />
+        <span>{message}</span>
+    </div>
+);
+
+// ─── InactiveAlert ────────────────────────────────────────────────────────────
+function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => void }) {
+    return (
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg px-4 py-3">
+            <Lock className="w-4 h-4 shrink-0 text-gray-500" />
+            <span className="flex-1">{mensaje}</span>
+            <button onClick={onClose} className="ml-2 text-gray-400 hover:text-gray-600 shrink-0">
+                <X className="w-4 h-4" />
+            </button>
+        </div>
+    );
+}
+
+// ─── Estilos de select nativos alineados con los inputs ──────────────────────
+const selectCls = (hasError?: boolean) =>
+    `w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${
+        hasError ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'
+    }`;
+
+// ─── Formulario de empleado ───────────────────────────────────────────────────
+function FormFields({
+    form,
+    setForm,
+    errores = {},
+    setErrores,
+}: {
+    form: FormState;
+    setForm: (f: FormState) => void;
+    errores?: FormErrors;
+    setErrores: (e: FormErrors) => void;
+}) {
+    function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
+        const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
+        setForm(nuevoForm);
+        const msgAnterior = errores[campo as keyof FormErrors];
+        const msgNuevo = validarCampo(campo as keyof FormState, nuevoForm);
+        if (msgAnterior !== undefined || msgNuevo) {
+            setErrores({ ...errores, [campo]: msgNuevo || undefined });
+        }
+    }
+
+    function blur(campo: keyof FormState) {
+        const msg = validarCampo(campo, form);
+        setErrores({ ...errores, [campo]: msg || undefined });
+    }
+
+    return (
+        <div className="space-y-4">
+            {/* Personal */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">Información Personal</p>
+                </div>
+                <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Nombres <span className="text-red-500">*</span></label>
+                            <Input
+                                placeholder="Nombres"
+                                value={form.nombres}
+                                onChange={e => update('nombres', e.target.value, sanitizarNombre(e.target.value))}
+                                onBlur={() => blur('nombres')}
+                                className={errores.nombres ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={100}
+                            />
+                            <FieldError mensaje={errores.nombres} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Apellidos <span className="text-red-500">*</span></label>
+                            <Input
+                                placeholder="Apellidos"
+                                value={form.apellidos}
+                                onChange={e => update('apellidos', e.target.value, sanitizarNombre(e.target.value))}
+                                onBlur={() => blur('apellidos')}
+                                className={errores.apellidos ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={100}
+                            />
+                            <FieldError mensaje={errores.apellidos} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Tipo de Documento <span className="text-red-500">*</span></label>
+                            <select
+                                className={selectCls(!!errores.tipoDocumento)}
+                                value={form.tipoDocumento}
+                                onChange={e => {
+                                    const tipo = e.target.value as FormState['tipoDocumento'];
+                                    setForm({ ...form, tipoDocumento: tipo, numeroDocumento: '' });
+                                    setErrores({ ...errores, tipoDocumento: undefined, numeroDocumento: undefined });
+                                }}
+                            >
+                                <option value="CC">Cédula de Ciudadanía </option>
+                                <option value="CE">Cédula de Extranjería </option>
+                                <option value="Pasaporte">Pasaporte</option>
+                            </select>
+                            <FieldError mensaje={errores.tipoDocumento} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Número de Documento <span className="text-red-500">*</span></label>
+                            <Input
+                                placeholder={form.tipoDocumento === 'Pasaporte' ? 'AB123456' : 'Solo dígitos'}
+                                value={form.numeroDocumento}
+                                onChange={e => update('numeroDocumento', e.target.value, sanitizarDocumento(e.target.value, form.tipoDocumento))}
+                                onBlur={() => blur('numeroDocumento')}
+                                className={errores.numeroDocumento ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={20}
+                            />
+                            <FieldError mensaje={errores.numeroDocumento} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Contacto */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">Información de Contacto</p>
+                </div>
+                <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Correo Electrónico <span className="text-red-500">*</span></label>
+                            <Input
+                                type="email"
+                                placeholder="correo@ejemplo.com"
+                                value={form.email}
+                                onChange={e => update('email', e.target.value)}
+                                onBlur={() => blur('email')}
+                                className={errores.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={50}
+                            />
+                            <FieldError mensaje={errores.email} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Teléfono <span className="text-red-500">*</span></label>
+                            <Input
+                                placeholder="+57 300 123 4567"
+                                value={form.telefono}
+                                onChange={e => update('telefono', e.target.value, sanitizarTelefono(e.target.value))}
+                                onBlur={() => blur('telefono')}
+                                className={errores.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={20}
+                            />
+                            <FieldError mensaje={errores.telefono} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Ciudad</label>
+                            <Input
+                                placeholder="Ciudad"
+                                value={form.ciudad}
+                                onChange={e => update('ciudad', e.target.value, sanitizarCiudad(e.target.value))}
+                                onBlur={() => blur('ciudad')}
+                                className={errores.ciudad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={50}
+                            />
+                            <FieldError mensaje={errores.ciudad} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Dirección</label>
+                            <Input
+                                placeholder="Dirección de residencia"
+                                value={form.direccion}
+                                onChange={e => update('direccion', e.target.value)}
+                                onBlur={() => blur('direccion')}
+                                className={errores.direccion ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={200}
+                            />
+                            <FieldError mensaje={errores.direccion} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Laboral */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">Información Laboral</p>
+                </div>
+                <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Cargo <span className="text-red-500">*</span></label>
+                            <select
+                                className={selectCls(!!errores.cargo)}
+                                value={form.cargo}
+                                onChange={e => update('cargo', e.target.value)}
+                                onBlur={() => blur('cargo')}
+                            >
+                                <option value="">Seleccionar cargo</option>
+                                {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <FieldError mensaje={errores.cargo} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Área <span className="text-red-500">*</span></label>
+                            <select
+                                className={selectCls(!!errores.area)}
+                                value={form.area}
+                                onChange={e => update('area', e.target.value)}
+                                onBlur={() => blur('area')}
+                            >
+                                <option value="">Seleccionar área</option>
+                                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                            <FieldError mensaje={errores.area} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Fecha de Ingreso <span className="text-red-500">*</span></label>
+                            <Input
+                                type="date"
+                                value={form.fechaIngreso}
+                                max={new Date().toISOString().split('T')[0]}
+                                onChange={e => update('fechaIngreso', e.target.value)}
+                                onBlur={() => blur('fechaIngreso')}
+                                className={errores.fechaIngreso ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                            />
+                            <FieldError mensaje={errores.fechaIngreso} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Estado</label>
+                            <div className="flex items-center space-x-2 pt-2">
+                                <Switch
+                                    checked={form.estado === 'activo'}
+                                    onCheckedChange={(checked) => setForm({ ...form, estado: checked ? 'activo' : 'inactivo' })}
+                                />
+                                <span className="text-sm text-gray-600">{form.estado === 'activo' ? 'Activo' : 'Inactivo'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 export function EmployeeManagement() {
-  // HU_046: Listar empleados - Estado inicial
-  const [employees, setEmployees] = useState<Employee[]>([
-    {
-      id: 1,
-      firstName: 'Carlos',
-      lastName: 'Mendoza Silva',
-      documentType: 'CC',
-      documentNumber: '12345678',
-      email: 'carlos.mendoza@jrepuestos.com',
-      phone: '+57 300 123 4567',
-      city: 'Medellín',
-      address: 'Calle 45 #23-67',
-      position: 'Supervisor de Producción',
-      area: 'Producción',
-      hireDate: '2023-01-15',
-      status: 'Activo',
-      documents: ['Contrato.pdf', 'Hoja de vida.pdf'],
-      createdBy: 'Admin',
-      createdAt: '2023-01-10'
-    },
-    {
-      id: 2,
-      firstName: 'Ana',
-      lastName: 'Patricia López',
-      documentType: 'CC',
-      documentNumber: '87654321',
-      email: 'ana.lopez@jrepuestos.com',
-      phone: '+57 301 987 6543',
-      city: 'Medellín',
-      address: 'Carrera 70 #45-23',
-      position: 'Jefe de Área',
-      area: 'Producción',
-      hireDate: '2023-03-20',
-      status: 'Activo',
-      documents: ['Contrato.pdf'],
-      createdBy: 'Admin',
-      createdAt: '2023-03-15'
-    },
-    {
-      id: 3,
-      firstName: 'Roberto',
-      lastName: 'Sánchez García',
-      documentType: 'CE',
-      documentNumber: '98765432',
-      email: 'roberto.sanchez@jrepuestos.com',
-      phone: '+57 302 456 7890',
-      city: 'Medellín',
-      address: 'Calle 52 #34-12',
-      position: 'Operario',
-      area: 'Producción',
-      hireDate: '2023-05-10',
-      status: 'Activo',
-      documents: [],
-      createdBy: 'Admin',
-      createdAt: '2023-05-05'
-    },
-    {
-      id: 4,
-      firstName: 'Laura',
-      lastName: 'Fernández Cruz',
-      documentType: 'CC',
-      documentNumber: '45678912',
-      email: 'laura.fernandez@jrepuestos.com',
-      phone: '+57 303 567 8901',
-      city: 'Bello',
-      address: 'Avenida 34 #12-45',
-      position: 'Técnico de Calidad',
-      area: 'Calidad',
-      hireDate: '2023-07-15',
-      status: 'Inactivo',
-      documents: ['Contrato.pdf'],
-      createdBy: 'Admin',
-      createdAt: '2023-07-10',
-      modifiedBy: 'RH',
-      modifiedAt: '2024-10-20'
-    }
-  ]);
+    const [empleados, setEmpleados]       = useState<Empleado[]>([]);
+    const [loading, setLoading]           = useState(false);
+    const [saving, setSaving]             = useState(false);
+    const [togglingIds, setTogglingIds]   = useState<Set<number>>(new Set());
 
-  // Estados de UI
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+    const [showModal, setShowModal]             = useState(false);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // HU_044: Buscar empleados
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterArea, setFilterArea] = useState('all');
-  const [filterPosition, setFilterPosition] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+    const [editingEmployee, setEditingEmployee]   = useState<Empleado | null>(null);
+    const [viewingEmployee, setViewingEmployee]   = useState<Empleado | null>(null);
+    const [deletingEmployee, setDeletingEmployee] = useState<Empleado | null>(null);
 
-  // Paginación
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+    const [searchTerm, setSearchTerm]       = useState('');
+    const [filterEstado, setFilterEstado]   = useState('all');
+    const [currentPage, setCurrentPage]     = useState(1);
+    const itemsPerPage = 5;
 
-  // HU_040: Registrar empleado - Formulario
-  const [employeeForm, setEmployeeForm] = useState({
-    firstName: '',
-    lastName: '',
-    documentType: 'CC',
-    documentNumber: '',
-    email: '',
-    phone: '',
-    city: '',
-    address: '',
-    position: '',
-    area: '',
-    hireDate: new Date().toISOString().split('T')[0],
-    status: 'Activo' as 'Activo' | 'Inactivo',
-    documents: [] as string[],
-    notes: ''
-  });
+    const [form, setForm]             = useState<FormState>(EMPTY_FORM);
+    const [formErrors, setFormErrors] = useState<FormErrors>({});
 
-  // Estado para documentos opcionales
-  const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
-
-  // Datos para selects
-  const areas = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
-  const positions = ['Supervisor de Producción', 'Jefe de Área', 'Operario', 'Técnico de Calidad', 'Asistente'];
-
-  // HU_044: Buscar empleados - Filtrado
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = 
-      emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.documentNumber.includes(searchTerm) ||
-      emp.position.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesArea = filterArea === 'all' || emp.area === filterArea;
-    const matchesPosition = filterPosition === 'all' || emp.position === filterPosition;
-    const matchesStatus = filterStatus === 'all' || emp.status === filterStatus;
-
-    return matchesSearch && matchesArea && matchesPosition && matchesStatus;
-  });
-
-  // HU_046: Ordenar empleados
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
-    if (sortBy === 'name') {
-      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
-    } else if (sortBy === 'status') {
-      return a.status.localeCompare(b.status);
-    }
-    return 0;
-  });
-
-  // Paginación
-  const totalPages = Math.ceil(sortedEmployees.length / itemsPerPage);
-  const paginatedEmployees = sortedEmployees.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // HU_040: Registrar empleado
-  const handleCreateEmployee = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validar campos obligatorios
-    if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.documentNumber || 
-        !employeeForm.email || !employeeForm.phone || !employeeForm.position || 
-        !employeeForm.area || !employeeForm.hireDate) {
-      toast.error('Por favor completa todos los campos obligatorios');
-      return;
-    }
-
-    const newEmployee: Employee = {
-      id: Math.max(...employees.map(e => e.id), 0) + 1,
-      ...employeeForm,
-      documents: uploadedDocs,
-      createdBy: 'Admin',
-      createdAt: new Date().toISOString().split('T')[0]
+    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+    const showFeedback = (msg: string) => {
+        setFeedbackMsg(msg);
+        setTimeout(() => setFeedbackMsg(null), 4000);
     };
 
-    setEmployees([...employees, newEmployee]);
-    resetForm();
-    setShowCreateModal(false);
-    toast.success('Empleado registrado exitosamente');
-  };
+    // ── Alerta de inactivo ────────────────────────────────────────────────────
+    const [inactiveAlert, setInactiveAlert] = useState<string | null>(null);
+    const showInactiveAlert = (msg: string) => {
+        setInactiveAlert(msg);
+        setTimeout(() => setInactiveAlert(null), 5000);
+    };
 
-  // HU_042: Actualizar datos del empleado
-  const handleUpdateEmployee = (e: React.FormEvent) => {
-    e.preventDefault();
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    const fetchEmpleados = useCallback(async () => {
+        setLoading(true);
+        try {
+            setEmpleados(await getEmpleados());
+        } catch (err: any) {
+            toast.error('Error al cargar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-    if (!selectedEmployee) return;
+    useEffect(() => { fetchEmpleados(); }, [fetchEmpleados]);
 
-    // Validar campos obligatorios
-    if (!employeeForm.firstName || !employeeForm.lastName || !employeeForm.documentNumber || 
-        !employeeForm.email || !employeeForm.phone || !employeeForm.position || 
-        !employeeForm.area || !employeeForm.hireDate) {
-      toast.error('Por favor completa todos los campos obligatorios');
-      return;
-    }
-
-    const updatedEmployees = employees.map(emp =>
-      emp.id === selectedEmployee.id
-        ? {
-            ...emp,
-            ...employeeForm,
-            documents: uploadedDocs,
-            modifiedBy: 'Admin',
-            modifiedAt: new Date().toISOString().split('T')[0]
-          }
-        : emp
-    );
-
-    setEmployees(updatedEmployees);
-    setShowEditModal(false);
-    setSelectedEmployee(null);
-    resetForm();
-    toast.success('Empleado actualizado exitosamente');
-  };
-
-  // HU_045: Eliminar empleado
-  const handleDeleteEmployee = () => {
-    if (!employeeToDelete) return;
-
-    // Validar que no esté asociado a procesos activos (simulado)
-    if (employeeToDelete.status === 'Activo') {
-      toast.error('No se puede eliminar un empleado activo. Cambia su estado primero.');
-      setShowDeleteDialog(false);
-      setEmployeeToDelete(null);
-      return;
-    }
-
-    setEmployees(employees.filter(emp => emp.id !== employeeToDelete.id));
-    setShowDeleteDialog(false);
-    setEmployeeToDelete(null);
-    toast.success('Empleado eliminado exitosamente');
-    
-    // Registrar en historial de auditoría (simulado)
-    console.log(`Auditoría: Empleado ${employeeToDelete.firstName} ${employeeToDelete.lastName} eliminado por Admin el ${new Date().toISOString()}`);
-  };
-
-  // HU_041: Ver detalle del empleado
-  const handleViewDetail = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setShowDetailModal(true);
-  };
-
-  const openEditModal = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setEmployeeForm({
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      documentType: employee.documentType,
-      documentNumber: employee.documentNumber,
-      email: employee.email,
-      phone: employee.phone,
-      city: employee.city,
-      address: employee.address,
-      position: employee.position,
-      area: employee.area,
-      hireDate: employee.hireDate,
-      status: employee.status,
-      documents: employee.documents,
-      notes: employee.notes || ''
+    // ── Filtros ───────────────────────────────────────────────────────────────
+    const filtered = empleados.filter(emp => {
+        const name = `${emp.nombres} ${emp.apellidos}`.toLowerCase();
+        return (
+            (name.includes(searchTerm.toLowerCase()) ||
+                emp.numeroDocumento.includes(searchTerm) ||
+                emp.cargo.toLowerCase().includes(searchTerm.toLowerCase())) &&
+            (filterEstado === 'all' || emp.estado === filterEstado)
+        );
     });
-    setUploadedDocs(employee.documents);
-    setShowEditModal(true);
-  };
 
-  const openDeleteDialog = (employee: Employee) => {
-    setEmployeeToDelete(employee);
-    setShowDeleteDialog(true);
-  };
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginated  = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const resetForm = () => {
-    setEmployeeForm({
-      firstName: '',
-      lastName: '',
-      documentType: 'CC',
-      documentNumber: '',
-      email: '',
-      phone: '',
-      city: '',
-      address: '',
-      position: '',
-      area: '',
-      hireDate: new Date().toISOString().split('T')[0],
-      status: 'Activo',
-      documents: [],
-      notes: ''
-    });
-    setUploadedDocs([]);
-    setSelectedEmployee(null);
-  };
+    // ── Reset form ────────────────────────────────────────────────────────────
+    const resetForm = () => {
+        setForm(EMPTY_FORM);
+        setFormErrors({});
+        setEditingEmployee(null);
+        setShowModal(false);
+    };
 
-  const handleAddDocument = () => {
-    const docName = prompt('Nombre del documento:');
-    if (docName && docName.trim()) {
-      setUploadedDocs([...uploadedDocs, docName.trim()]);
-      toast.success('Documento agregado');
-    }
-  };
+    // ── Crear ─────────────────────────────────────────────────────────────────
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const erroresForm     = validarFormEmpleado(form);
+        const erroresUnicidad = validarUnicidad(form, empleados, null);
+        const errores = { ...erroresForm, ...erroresUnicidad };
+        setFormErrors(errores);
+        if (hayErrores(errores)) {
+            toast.error('Corrige los errores antes de continuar');
+            return;
+        }
+        setSaving(true);
+        try {
+            await createEmpleado({
+                tipoDocumento:   form.tipoDocumento,
+                numeroDocumento: form.numeroDocumento,
+                nombres:         form.nombres,
+                apellidos:       form.apellidos,
+                telefono:        form.telefono,
+                email:           form.email,
+                cargo:           form.cargo as Empleado['cargo'],
+                area:            form.area  as Empleado['area'],
+                direccion:       form.direccion || undefined,
+                ciudad:          form.ciudad   || undefined,
+                fechaIngreso:    form.fechaIngreso,
+                estado:          form.estado,
+            });
+            showFeedback('✓ Empleado registrado exitosamente');
+            toast.success('Empleado registrado exitosamente');
+            resetForm();
+            fetchEmpleados();
+        } catch (err: any) {
+            if (
+                err.message?.toLowerCase().includes('duplicate') ||
+                err.message?.toLowerCase().includes('duplicado') ||
+                err.message?.toLowerCase().includes('ya existe') ||
+                err.status === 409
+            ) {
+                toast.error('Ya existe un empleado con ese documento o correo. Verifica los datos e intenta de nuevo.');
+            } else {
+                toast.error('Error al registrar: ' + (err?.message ?? 'Error desconocido'));
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
 
-  const handleRemoveDocument = (index: number) => {
-    setUploadedDocs(uploadedDocs.filter((_, i) => i !== index));
-  };
+    // ── Actualizar ────────────────────────────────────────────────────────────
+    const handleUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingEmployee?.id) return;
+        const erroresForm     = validarFormEmpleado(form);
+        const erroresUnicidad = validarUnicidad(form, empleados, editingEmployee.id);
+        const errores = { ...erroresForm, ...erroresUnicidad };
+        setFormErrors(errores);
+        if (hayErrores(errores)) {
+            toast.error('Corrige los errores antes de continuar');
+            return;
+        }
+        setSaving(true);
+        try {
+            await updateEmpleado(editingEmployee.id, {
+                tipoDocumento:   form.tipoDocumento,
+                numeroDocumento: form.numeroDocumento,
+                nombres:         form.nombres,
+                apellidos:       form.apellidos,
+                telefono:        form.telefono,
+                email:           form.email,
+                cargo:           form.cargo as Empleado['cargo'],
+                area:            form.area  as Empleado['area'],
+                direccion:       form.direccion || undefined,
+                ciudad:          form.ciudad   || undefined,
+                fechaIngreso:    form.fechaIngreso,
+                estado:          form.estado,
+            });
+            showFeedback('✓ Empleado actualizado correctamente');
+            toast.success('Empleado actualizado correctamente');
+            resetForm();
+            fetchEmpleados();
+        } catch (err: any) {
+            if (
+                err.message?.toLowerCase().includes('duplicate') ||
+                err.message?.toLowerCase().includes('duplicado') ||
+                err.message?.toLowerCase().includes('ya existe') ||
+                err.status === 409
+            ) {
+                toast.error('Ya existe un empleado con ese documento o correo. Verifica los datos e intenta de nuevo.');
+            } else {
+                toast.error('Error al actualizar: ' + (err?.message ?? 'Error desconocido'));
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
 
-  const getStatusBadge = (status: string) => {
-    return status === 'Activo' ? (
-      <Badge className="bg-green-100 text-green-700 border-green-200">
-        <UserCheckIcon className="w-3 h-3 mr-1" />
-        Activo
-      </Badge>
-    ) : (
-      <Badge className="bg-red-100 text-red-700 border-red-200">
-        <UserXIcon className="w-3 h-3 mr-1" />
-        Inactivo
-      </Badge>
-    );
-  };
+    // ── Toggle estado ─────────────────────────────────────────────────────────
+    const handleToggleEstado = async (emp: Empleado) => {
+        const nuevoEstado: 'activo' | 'inactivo' = emp.estado === 'activo' ? 'inactivo' : 'activo';
+        setEmpleados(prev => prev.map(e => e.id === emp.id ? { ...e, estado: nuevoEstado } : e));
+        setTogglingIds(prev => new Set(prev).add(emp.id!));
+        // Limpiar alerta al cambiar estado
+        setInactiveAlert(null);
+        try {
+            await updateEmpleado(emp.id!, { ...emp, estado: nuevoEstado });
+            toast.success(`Empleado ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} correctamente`);
+        } catch {
+            setEmpleados(prev => prev.map(e => e.id === emp.id ? { ...e, estado: emp.estado } : e));
+            toast.error('Error al cambiar estado');
+        } finally {
+            setTogglingIds(prev => { const next = new Set(prev); next.delete(emp.id!); return next; });
+        }
+    };
 
-  return (
-    <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl text-gray-900 flex items-center gap-3">
-            <UsersIcon className="w-8 h-8 text-blue-900" />
-            Gestión de Empleados
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Módulo de Producción - Administra el personal de la empresa
-          </p>
-        </div>
+    // ── Abrir edición ─────────────────────────────────────────────────────────
+    const openEdit = (emp: Empleado) => {
+        setEditingEmployee(emp);
+        setFormErrors({});
+        setForm({
+            tipoDocumento:   emp.tipoDocumento,
+            numeroDocumento: emp.numeroDocumento,
+            nombres:         emp.nombres,
+            apellidos:       emp.apellidos,
+            telefono:        emp.telefono,
+            email:           emp.email,
+            cargo:           emp.cargo,
+            area:            emp.area,
+            direccion:       emp.direccion ?? '',
+            ciudad:          emp.ciudad    ?? '',
+            fechaIngreso:    emp.fechaIngreso,
+            estado:          emp.estado,
+        });
+        setShowModal(true);
+    };
 
-        {/* HU_040: Botón para registrar empleado */}
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Registrar Empleado
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registrar Nuevo Empleado</DialogTitle>
-              <DialogDescription>
-                Completa todos los campos obligatorios (*) para registrar un nuevo empleado.
-              </DialogDescription>
-            </DialogHeader>
+    // ── Desactivar ────────────────────────────────────────────────────────────
+    const handleDelete = async () => {
+        if (!deletingEmployee?.id) return;
+        setSaving(true);
+        try {
+            await deleteEmpleado(deletingEmployee.id);
+            showFeedback('✓ Empleado desactivado correctamente');
+            toast.success('Empleado desactivado correctamente');
+            setShowDeleteModal(false);
+            setDeletingEmployee(null);
+            fetchEmpleados();
+        } catch (err: any) {
+            toast.error('Error al desactivar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setSaving(false);
+        }
+    };
 
-            <form onSubmit={handleCreateEmployee} className="space-y-6">
-              {/* Información Personal */}
-              <Card className="border-2 border-purple-100">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                  <CardTitle className="text-lg">Información Personal</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nombre *</Label>
-                      <Input
-                        placeholder="Nombre del empleado"
-                        value={employeeForm.firstName}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Apellidos *</Label>
-                      <Input
-                        placeholder="Apellidos del empleado"
-                        value={employeeForm.lastName}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tipo de Documento *</Label>
-                      <Select
-                        value={employeeForm.documentType}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, documentType: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CC">Cédula de Ciudadanía</SelectItem>
-                          <SelectItem value="CE">Cédula de Extranjería</SelectItem>
-                          <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Número de Identificación *</Label>
-                      <Input
-                        placeholder="Número de documento"
-                        value={employeeForm.documentNumber}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, documentNumber: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+    // ─────────────────────────────────────────────────────────────────────────
+    return (
+        <div className="p-6 space-y-6">
 
-              {/* Información de Contacto */}
-              <Card className="border-2 border-purple-100">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                  <CardTitle className="text-lg">Información de Contacto</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Correo Electrónico *</Label>
-                      <Input
-                        type="email"
-                        placeholder="correo@ejemplo.com"
-                        value={employeeForm.email}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Teléfono *</Label>
-                      <Input
-                        placeholder="+57 300 123 4567"
-                        value={employeeForm.phone}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Ciudad</Label>
-                      <Input
-                        placeholder="Ciudad"
-                        value={employeeForm.city}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, city: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Dirección</Label>
-                      <Input
-                        placeholder="Dirección de residencia"
-                        value={employeeForm.address}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, address: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
 
-              {/* Información Laboral */}
-              <Card className="border-2 border-purple-100">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                  <CardTitle className="text-lg">Información Laboral</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Cargo *</Label>
-                      <Select
-                        value={employeeForm.position}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, position: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar cargo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {positions.map(pos => (
-                            <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Área *</Label>
-                      <Select
-                        value={employeeForm.area}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, area: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar área" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {areas.map(area => (
-                            <SelectItem key={area} value={area}>{area}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Fecha de Ingreso *</Label>
-                      <Input
-                        type="date"
-                        value={employeeForm.hireDate}
-                        onChange={(e) => setEmployeeForm({ ...employeeForm, hireDate: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Estado *</Label>
-                      <Select
-                        value={employeeForm.status}
-                        onValueChange={(value) => setEmployeeForm({ ...employeeForm, status: value as 'Activo' | 'Inactivo' })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Activo">Activo</SelectItem>
-                          <SelectItem value="Inactivo">Inactivo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Empleados</h1>
+                    <p className="text-blue-800">Administra el personal de la empresa</p>
+                </div>
+                <Button
+                    onClick={() => { setEditingEmployee(null); setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                    <Plus className="w-4 h-4 mr-2" />Registrar Empleado
+                </Button>
+            </div>
 
-              {/* Documentos Opcionales */}
-              <Card className="border-2 border-purple-100">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileTextIcon className="w-5 h-5" />
-                    Documentos Opcionales
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="space-y-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleAddDocument}
-                      className="w-full"
-                    >
-                      <UploadIcon className="w-4 h-4 mr-2" />
-                      Adjuntar Documento
-                    </Button>
-                    {uploadedDocs.length > 0 && (
-                      <div className="space-y-2">
-                        {uploadedDocs.map((doc, index) => (
-                          <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-2 border">
-                            <span className="text-sm text-gray-700">{doc}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveDocument(index)}
-                              className="text-red-600"
-                            >
-                              <XIcon className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Notas Adicionales</Label>
-                    <Textarea
-                      placeholder="Información adicional sobre el empleado..."
-                      value={employeeForm.notes}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, notes: e.target.value })}
-                      rows={3}
+            {/* Filtros */}
+            <Card>
+            <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                    placeholder="Buscar por nombre, documento o cargo..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="pl-10 w-full"
                     />
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
 
-              {/* Botones */}
-              <div className="flex gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    resetForm();
-                    setShowCreateModal(false);
-                  }}
-                  className="flex-1"
+                <select
+                    value={filterEstado}
+                    onChange={(e) => {
+                    setFilterEstado(e.target.value);
+                    setCurrentPage(1);
+                    }}
+                    className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-40"
                 >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700"
-                >
-                  Registrar Empleado
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+                    <option value="all">Todos</option>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                </select>
 
-      {/* HU_044: Buscar empleados - Filtros */}
-      <Card className="shadow-lg border-gray-100">
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2 relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Buscar por nombre, identificación o cargo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                </div>
+            </CardContent>
+            </Card>
+
+            {/* Alerta de empleado inactivo */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
                 />
-              </div>
+            )}
 
-              <Select value={filterArea} onValueChange={setFilterArea}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las áreas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las áreas</SelectItem>
-                  {areas.map(area => (
-                    <SelectItem key={area} value={area}>{area}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterPosition} onValueChange={setFilterPosition}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los cargos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los cargos</SelectItem>
-                  {positions.map(pos => (
-                    <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="Activo">Activo</SelectItem>
-                  <SelectItem value="Inactivo">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>{sortedEmployees.length} empleado(s) encontrado(s)</span>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Ordenar por:</Label>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Nombre</SelectItem>
-                    <SelectItem value="status">Estado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* HU_046: Listar empleados - Tabla ACTUALIZADA */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-purple-50 to-purple-100 border-b-2 border-purple-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs text-gray-600 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-4 text-left text-xs text-gray-600 uppercase tracking-wider">Correo</th>
-                <th className="px-6 py-4 text-left text-xs text-gray-600 uppercase tracking-wider">Cargo</th>
-                <th className="px-6 py-4 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedEmployees.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    <UsersIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>No se encontraron empleados</p>
-                  </td>
-                </tr>
-              ) : (
-                paginatedEmployees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{employee.firstName} {employee.lastName}</p>
-                        <p className="text-xs text-gray-500">{employee.documentType} {employee.documentNumber}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{employee.email}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{employee.position}</p>
-                        <Badge variant="outline" className="mt-1 bg-blue-900 text-blue-700 border-blue-200 text-xs">
-                          {employee.area}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetail(employee)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-900 hover:bg-blue-50"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditModal(employee)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-900 hover:bg-blue-50"
-                        >
-                          <EditIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openDeleteDialog(employee)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-900 hover:bg-blue-50"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="border-t border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Button>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                if (page === currentPage) {
-                  return (
-                    <Button
-                      key={page}
-                      variant="outline"
-                      size="sm"
-                      className="bg-purple-600 text-white hover:bg-purple-700"
-                    >
-                      {page}
-                    </Button>
-                  );
-                }
-                return (
-                  <Button
-                    key={page}
-                    variant="ghost"
-                    size="sm"
-                    className="w-8"
-                  >
-                    •
-                  </Button>
-                );
-              })}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="bg-purple-600 hover:bg-purple-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* HU_041: Ver detalle del empleado */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle del Empleado</DialogTitle>
-            <DialogDescription>
-              Información completa del empleado seleccionado
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedEmployee && (
-            <div className="space-y-6">
-              {/* Información Personal */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Información Personal</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-gray-600">Nombre Completo</Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.firstName} {selectedEmployee.lastName}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Identificación</Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.documentType} {selectedEmployee.documentNumber}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Información de Contacto */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <PhoneIcon className="w-5 h-5" />
-                    Información de Contacto
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-gray-600 flex items-center gap-1">
-                        <MailIcon className="w-4 h-4" />
-                        Correo Electrónico
-                      </Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.email}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600 flex items-center gap-1">
-                        <PhoneIcon className="w-4 h-4" />
-                        Teléfono
-                      </Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.phone}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600 flex items-center gap-1">
-                        <MapPinIcon className="w-4 h-4" />
-                        Ciudad
-                      </Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.city}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Dirección</Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.address}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Información Laboral */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <BriefcaseIcon className="w-5 h-5" />
-                    Información Laboral
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-gray-600">Cargo Actual</Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.position}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Área</Label>
-                      <Badge variant="outline" className="mt-1 bg-purple-50 text-purple-700 border-purple-200">
-                        {selectedEmployee.area}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600 flex items-center gap-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        Fecha de Ingreso
-                      </Label>
-                      <p className="text-gray-900 mt-1">{selectedEmployee.hireDate}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Estado</Label>
-                      <div className="mt-1">
-                        {getStatusBadge(selectedEmployee.status)}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Documentos */}
-              {selectedEmployee.documents.length > 0 && (
+            {/* Tabla */}
+            {loading ? (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500">Cargando empleados...</span>
+                </div>
+            ) : (
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <FileTextIcon className="w-5 h-5" />
-                      Documentos Adjuntos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {selectedEmployee.documents.map((doc, index) => (
-                        <div key={index} className="flex items-center gap-2 bg-gray-50 rounded p-2 border">
-                          <FileTextIcon className="w-4 h-4 text-gray-600" />
-                          <span className="text-sm text-gray-700">{doc}</span>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-blue-900">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Empleado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Teléfono</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Correo</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Cargo / Área</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginated.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-12 text-gray-500">
+                                                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                                <p>No se encontraron empleados</p>
+                                            </td>
+                                        </tr>
+                                    ) : paginated.map((emp) => {
+                                        const isToggling = togglingIds.has(emp.id!);
+                                        const isInactive = emp.estado === 'inactivo';
+                                        return (
+                                            <tr key={emp.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                                                <td className="py-4 px-6">
+                                                    <p className={`font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                        {emp.nombres} {emp.apellidos}
+                                                    </p>
+                                                    <p className={`text-xs ${isInactive ? 'text-gray-400' : 'text-blue-900'}`}>
+                                                        {emp.tipoDocumento} {emp.numeroDocumento}
+                                                    </p>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-1">
+                                                        <Phone className={`w-3 h-3 shrink-0 ${isInactive ? 'text-gray-300' : 'text-blue-500'}`} />
+                                                        <span className={`text-sm ${isInactive ? 'text-gray-400' : 'text-gray-700'}`}>{emp.telefono ?? '—'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <span className={`text-sm ${isInactive ? 'text-gray-400' : 'text-gray-700'}`}>{emp.email}</span>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <p className={`font-semibold text-sm ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>{emp.cargo}</p>
+                                                    <Badge variant="secondary" className={`mt-1 text-xs ${isInactive ? 'opacity-50' : ''}`}>{emp.area}</Badge>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <Switch
+                                                            checked={emp.estado === 'activo'}
+                                                            onCheckedChange={() => handleToggleEstado(emp)}
+                                                            disabled={isToggling}
+                                                        />
+                                                        {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center space-x-2">
+                                                        {/* Ver detalle: siempre activo */}
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => { setViewingEmployee(emp); setShowDetailModal(true); }}
+                                                            className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
+                                                        {/* Editar: deshabilitado si inactivo */}
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                if (isInactive) {
+                                                                    showInactiveAlert('Empleado inactivo: No puedes editar un empleado inactivo. Actívalo primero usando el interruptor de estado.');
+                                                                    return;
+                                                                }
+                                                                openEdit(emp);
+                                                            }}
+                                                            disabled={isToggling}
+                                                            className={`border transition-colors ${
+                                                                isInactive
+                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
+                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                            }`}
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+                                                        {/* Eliminar/Desactivar: deshabilitado si inactivo */}
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                if (isInactive) {
+                                                                    showInactiveAlert('Empleado inactivo: No puedes desactivar un empleado que ya está inactivo. Actívalo primero usando el interruptor de estado.');
+                                                                    return;
+                                                                }
+                                                                setDeletingEmployee(emp);
+                                                                setShowDeleteModal(true);
+                                                            }}
+                                                            disabled={isToggling}
+                                                            className={`border transition-colors ${
+                                                                isInactive
+                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
+                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                            }`}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
+
+                        {/* Paginación */}
+                        {totalPages > 1 && (
+                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}>
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
+                                        {page}
+                                    </Button>
+                                ))}
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
                 </Card>
-              )}
+            )}
 
-              {/* Información de Auditoría */}
-              <Card className="bg-gray-50">
-                <CardContent className="pt-4 text-xs text-gray-600 space-y-1">
-                  <p>Creado por: {selectedEmployee.createdBy} el {selectedEmployee.createdAt}</p>
-                  {selectedEmployee.modifiedBy && (
-                    <p>Última modificación: {selectedEmployee.modifiedBy} el {selectedEmployee.modifiedAt}</p>
-                  )}
-                </CardContent>
-              </Card>
+            {/* ═══ MODAL — CREAR / EDITAR ═══ */}
+            <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <DialogHeader>
+                        <DialogTitle>{editingEmployee ? 'Editar Empleado' : 'Registrar Nuevo Empleado'}</DialogTitle>
+                        <DialogDescription>
+                            {editingEmployee
+                                ? 'Modifica la información del empleado.'
+                                : 'Completa todos los campos obligatorios (*).'}
+                        </DialogDescription>
+                    </DialogHeader>
 
-              {/* Botón Volver */}
-              <div className="flex gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    setSelectedEmployee(null);
-                  }}
-                  className="flex-1"
-                >
-                  <ArrowLeftIcon className="w-4 h-4 mr-2" />
-                  Volver
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    openEditModal(selectedEmployee);
-                  }}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700"
-                >
-                  <EditIcon className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* HU_042: Actualizar datos del empleado */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Actualizar Datos del Empleado</DialogTitle>
-            <DialogDescription>
-              Modifica la información del empleado. Los campos con (*) son obligatorios.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleUpdateEmployee} className="space-y-6">
-            {/* Información Personal */}
-            <Card className="border-2 border-purple-100">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                <CardTitle className="text-lg">Información Personal</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nombre *</Label>
-                    <Input
-                      placeholder="Nombre del empleado"
-                      value={employeeForm.firstName}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, firstName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Apellidos *</Label>
-                    <Input
-                      placeholder="Apellidos del empleado"
-                      value={employeeForm.lastName}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, lastName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tipo de Documento *</Label>
-                    <Select
-                      value={employeeForm.documentType}
-                      onValueChange={(value) => setEmployeeForm({ ...employeeForm, documentType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CC">Cédula de Ciudadanía</SelectItem>
-                        <SelectItem value="CE">Cédula de Extranjería</SelectItem>
-                        <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Número de Identificación *</Label>
-                    <Input
-                      placeholder="Número de documento"
-                      value={employeeForm.documentNumber}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, documentNumber: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Información de Contacto */}
-            <Card className="border-2 border-purple-100">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                <CardTitle className="text-lg">Información de Contacto</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Correo Electrónico *</Label>
-                    <Input
-                      type="email"
-                      placeholder="correo@ejemplo.com"
-                      value={employeeForm.email}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Teléfono *</Label>
-                    <Input
-                      placeholder="+57 300 123 4567"
-                      value={employeeForm.phone}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Ciudad</Label>
-                    <Input
-                      placeholder="Ciudad"
-                      value={employeeForm.city}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Dirección</Label>
-                    <Input
-                      placeholder="Dirección de residencia"
-                      value={employeeForm.address}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, address: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Información Laboral */}
-            <Card className="border-2 border-purple-100">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                <CardTitle className="text-lg">Información Laboral</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Cargo *</Label>
-                    <Select
-                      value={employeeForm.position}
-                      onValueChange={(value) => setEmployeeForm({ ...employeeForm, position: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar cargo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {positions.map(pos => (
-                          <SelectItem key={pos} value={pos}>{pos}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Área *</Label>
-                    <Select
-                      value={employeeForm.area}
-                      onValueChange={(value) => setEmployeeForm({ ...employeeForm, area: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {areas.map(area => (
-                          <SelectItem key={area} value={area}>{area}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fecha de Ingreso *</Label>
-                    <Input
-                      type="date"
-                      value={employeeForm.hireDate}
-                      onChange={(e) => setEmployeeForm({ ...employeeForm, hireDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Estado *</Label>
-                    <Select
-                      value={employeeForm.status}
-                      onValueChange={(value) => setEmployeeForm({ ...employeeForm, status: value as 'Activo' | 'Inactivo' })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Activo">Activo</SelectItem>
-                        <SelectItem value="Inactivo">Inactivo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Documentos Opcionales */}
-            <Card className="border-2 border-purple-100">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-white">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileTextIcon className="w-5 h-5" />
-                  Documentos Opcionales
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddDocument}
-                    className="w-full"
-                  >
-                    <UploadIcon className="w-4 h-4 mr-2" />
-                    Adjuntar Documento
-                  </Button>
-                  {uploadedDocs.length > 0 && (
-                    <div className="space-y-2">
-                      {uploadedDocs.map((doc, index) => (
-                        <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-2 border">
-                          <span className="text-sm text-gray-700">{doc}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveDocument(index)}
-                            className="text-red-600"
-                          >
-                            <XIcon className="w-4 h-4" />
-                          </Button>
+                    {Object.keys(formErrors).some(k => formErrors[k as keyof FormErrors]) && (
+                        <div className="mt-4">
+                            <InfoAlert message="Algunos campos requieren atención antes de continuar." />
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    )}
 
-                <div className="space-y-2">
-                  <Label>Notas Adicionales</Label>
-                  <Textarea
-                    placeholder="Información adicional sobre el empleado..."
-                    value={employeeForm.notes}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, notes: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                    <form onSubmit={editingEmployee ? handleUpdate : handleCreate} className="mt-4 space-y-4">
+                        <FormFields
+                            form={form}
+                            setForm={setForm}
+                            errores={formErrors}
+                            setErrores={setFormErrors}
+                        />
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                            <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>
+                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                {editingEmployee ? 'Guardar Cambios' : 'Registrar Empleado'}
+                            </Button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
-            {/* Botones */}
-            <div className="flex gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  resetForm();
-                  setShowEditModal(false);
-                }}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1 bg-purple-600 hover:bg-purple-700"
-              >
-                Guardar Cambios
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            {/* ═══ MODAL — VER DETALLE ═══ */}
+            <Dialog open={showDetailModal} onOpenChange={(open) => { if (!open) setShowDetailModal(false); }}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                    <DialogHeader>
+                        <DialogTitle>Detalle del Empleado</DialogTitle>
+                        <DialogDescription>Información completa del empleado seleccionado.</DialogDescription>
+                    </DialogHeader>
+                    {viewingEmployee && (
+                        <div className="space-y-4 mt-4">
+                            <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                                <div className="col-span-2">
+                                    <p className="text-xs text-gray-500 uppercase">Nombre Completo</p>
+                                    <p className="font-semibold text-blue-900 text-lg">{viewingEmployee.nombres} {viewingEmployee.apellidos}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase">Identificación</p>
+                                    <p className="font-semibold text-sm">{viewingEmployee.tipoDocumento} {viewingEmployee.numeroDocumento}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase">Estado</p>
+                                    <Badge className={viewingEmployee.estado === 'activo' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-500'}>
+                                        {viewingEmployee.estado}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Mail className="w-3 h-3" /> Correo</p>
+                                    <p className="font-semibold text-sm">{viewingEmployee.email}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Phone className="w-3 h-3" /> Teléfono</p>
+                                    <p className="font-semibold text-sm">{viewingEmployee.telefono}</p>
+                                </div>
+                                {viewingEmployee.ciudad && (
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><MapPin className="w-3 h-3" /> Ciudad</p>
+                                        <p className="font-semibold text-sm">{viewingEmployee.ciudad}</p>
+                                    </div>
+                                )}
+                                {viewingEmployee.direccion && (
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Dirección</p>
+                                        <p className="font-semibold text-sm">{viewingEmployee.direccion}</p>
+                                    </div>
+                                )}
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Briefcase className="w-3 h-3" /> Cargo</p>
+                                    <p className="font-semibold text-sm">{viewingEmployee.cargo}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase">Área</p>
+                                    <Badge variant="secondary">{viewingEmployee.area}</Badge>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" /> Fecha de Ingreso</p>
+                                    <p className="font-semibold text-sm">{viewingEmployee.fechaIngreso}</p>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+                                {viewingEmployee.estado === 'activo' && (
+                                    <Button
+                                        onClick={() => { openEdit(viewingEmployee); setShowDetailModal(false); }}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        Editar Empleado
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
-      {/* HU_045: Eliminar empleado */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangleIcon className="w-5 h-5" />
-              Eliminar Empleado
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>¿Estás seguro de que deseas eliminar este empleado?</p>
-              {employeeToDelete && (
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-sm text-gray-600">Empleado: </span>
-                      <span className="text-sm text-gray-900">
-                        {employeeToDelete.firstName} {employeeToDelete.lastName}
-                      </span>
+            {/* ═══ MODAL — CONFIRMAR DESACTIVACIÓN ═══ */}
+            <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!open) { setShowDeleteModal(false); setDeletingEmployee(null); } }}>
+                <DialogContent className="max-w-md p-6">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-blue-900">
+                            <Trash2 className="w-5 h-5" />
+                            Desactivar Empleado
+                        </DialogTitle>
+                        <DialogDescription>Esta acción desactivará al empleado en el sistema.</DialogDescription>
+                    </DialogHeader>
+
+                    {deletingEmployee && (
+                        <div className="mt-4 space-y-3">
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="font-semibold text-blue-900">{deletingEmployee.nombres} {deletingEmployee.apellidos}</p>
+                                <p className="text-sm text-blue-700 mt-1">{deletingEmployee.tipoDocumento} {deletingEmployee.numeroDocumento}</p>
+                                <p className="text-sm text-blue-700">{deletingEmployee.cargo} — {deletingEmployee.area}</p>
+                            </div>
+                            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                <div className="text-sm">
+                                    <p className="font-semibold">¿Estás seguro?</p>
+                                    <p className="text-amber-700 mt-0.5">El empleado quedará como <strong>inactivo</strong> en el sistema.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                        <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingEmployee(null); }} disabled={saving}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleDelete}
+                            disabled={saving}
+                            className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900"
+                        >
+                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                            Sí, desactivar
+                        </Button>
                     </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Identificación: </span>
-                      <span className="text-sm text-gray-900">
-                        {employeeToDelete.documentType} {employeeToDelete.documentNumber}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Cargo: </span>
-                      <span className="text-sm text-gray-900">{employeeToDelete.position}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Estado: </span>
-                      {getStatusBadge(employeeToDelete.status)}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <p className="text-sm text-red-600">
-                Esta acción no se puede deshacer. El registro se eliminará permanentemente del sistema.
-              </p>
-              {employeeToDelete?.status === 'Activo' && (
-                <p className="text-sm text-red-600 font-medium">
-                  ⚠️ No se puede eliminar un empleado activo. Cambia su estado a Inactivo primero.
-                </p>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setEmployeeToDelete(null)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteEmployee}
-              className="bg-red-600 hover:bg-red-700"
-              disabled={employeeToDelete?.status === 'Activo'}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';                 // 👈 agregado useEffect
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
 import {
   AlertDialog,
@@ -35,6 +35,18 @@ import {
   UserIcon
 } from 'lucide-react';
 
+// 👇 CAMBIO 1: Importar el servicio
+import {
+  getVentas,
+  createVenta,
+  deleteVenta,
+  toMetodoPago,
+  toTipoVenta,
+  mapVentaToSale,
+} from '@/features/sales/services/ventasService';// ajusta la ruta si tu carpeta se llama diferente
+
+// ─── Tipos (sin cambios) ──────────────────────────────────────────────────────
+
 interface SaleItem {
   id: string;
   name: string;
@@ -62,291 +74,12 @@ interface SalesModuleProps {
 }
 
 export function SalesModule({ clientFilter, onClearClientFilter }: SalesModuleProps) {
-  const [sales, setSales] = useState<Sale[]>([
-    {
-      id: 1,
-      clientName: 'Carlos Medina',
-      clientId: 'CLI001',
-      clientDocument: '1234567890',
-      date: '2024-11-05',
-      total: 135000,
-      paymentMethod: 'Tarjeta',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P001', name: 'Filtro de Aceite Toyota', code: 'FO-TOY-001', quantity: 2, price: 25000 },
-        { id: 'P002', name: 'Pastillas de Freno Honda', code: 'PF-HON-002', quantity: 1, price: 85000 }
-      ]
-    },
-    {
-      id: 2,
-      clientName: 'Auto Servicio López',
-      clientId: 'CLI002',
-      clientDocument: '9876543210',
-      date: '2024-11-05',
-      total: 450000,
-      paymentMethod: 'Transferencia',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P003', name: 'Kit de Motor Chevrolet', code: 'KM-CHE-003', quantity: 1, price: 450000 }
-      ]
-    },
-    {
-      id: 3,
-      clientName: 'María González',
-      clientId: 'CLI003',
-      clientDocument: '1122334455',
-      date: '2024-11-06',
-      total: 120000,
-      paymentMethod: 'Efectivo',
-      status: 'Pendiente',
-      type: 'Directa',
-      items: [
-        { id: 'P004', name: 'Amortiguador Delantero', code: 'AD-GEN-004', quantity: 1, price: 120000 }
-      ]
-    },
-    {
-      id: 4,
-      clientName: 'Taller El Repuesto',
-      clientId: 'CLI004',
-      clientDocument: '5544332211',
-      date: '2024-11-06',
-      total: 340000,
-      paymentMethod: 'Crédito',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P002', name: 'Pastillas de Freno Honda', code: 'PF-HON-002', quantity: 4, price: 85000 }
-      ]
-    },
-    {
-      id: 5,
-      clientName: 'Jorge Ramírez',
-      clientId: 'CLI005',
-      clientDocument: '6677889900',
-      date: '2024-11-07',
-      total: 75000,
-      paymentMethod: 'Efectivo',
-      status: 'Pendiente',
-      type: 'Directa',
-      items: [
-        { id: 'P001', name: 'Filtro de Aceite Toyota', code: 'FO-TOY-001', quantity: 3, price: 25000 }
-      ]
-    },
-    {
-      id: 6,
-      clientName: 'Luisa Fernández',
-      clientId: 'CLI006',
-      clientDocument: '9988776655',
-      date: '2024-11-07',
-      total: 280000,
-      paymentMethod: 'Tarjeta',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P005', name: 'Batería 12V', code: 'BAT-12V-005', quantity: 1, price: 280000 }
-      ]
-    },
-    {
-      id: 7,
-      clientName: 'Taller Ruedas & Más',
-      clientId: 'CLI007',
-      clientDocument: '4455667788',
-      date: '2024-11-08',
-      total: 285000,
-      paymentMethod: 'Transferencia',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P006', name: 'Banda de Distribución', code: 'BD-GEN-006', quantity: 3, price: 95000 }
-      ]
-    },
-    {
-      id: 8,
-      clientName: 'Patricia Sánchez',
-      clientId: 'CLI008',
-      clientDocument: '7766554433',
-      date: '2024-11-08',
-      total: 195000,
-      paymentMethod: 'Efectivo',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P007', name: 'Aceite Motor 5W30', code: 'AC-5W30-007', quantity: 3, price: 65000 }
-      ]
-    },
-    {
-      id: 9,
-      clientName: 'Mecánica del Norte',
-      clientId: 'CLI009',
-      clientDocument: '3322114455',
-      date: '2024-11-09',
-      total: 144000,
-      paymentMethod: 'Crédito',
-      status: 'Pendiente',
-      type: 'Pedido',
-      items: [
-        { id: 'P008', name: 'Bujías NGK', code: 'BUJ-NGK-008', quantity: 8, price: 18000 }
-      ]
-    },
-    {
-      id: 10,
-      clientName: 'Ricardo Torres',
-      clientId: 'CLI010',
-      clientDocument: '5566778899',
-      date: '2024-11-09',
-      total: 170000,
-      paymentMethod: 'Tarjeta',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P002', name: 'Pastillas de Freno Honda', code: 'PF-HON-002', quantity: 2, price: 85000 }
-      ]
-    },
-    {
-      id: 11,
-      clientName: 'Auto Express S.A.',
-      clientId: 'CLI011',
-      clientDocument: '8899001122',
-      date: '2024-11-10',
-      total: 450000,
-      paymentMethod: 'Transferencia',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P003', name: 'Kit de Motor Chevrolet', code: 'KM-CHE-003', quantity: 1, price: 450000 }
-      ]
-    },
-    {
-      id: 12,
-      clientName: 'Andrés Moreno',
-      clientId: 'CLI012',
-      clientDocument: '2233445566',
-      date: '2024-11-10',
-      total: 240000,
-      paymentMethod: 'Efectivo',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P004', name: 'Amortiguador Delantero', code: 'AD-GEN-004', quantity: 2, price: 120000 }
-      ]
-    },
-    {
-      id: 13,
-      clientName: 'Servicio Integral López',
-      clientId: 'CLI013',
-      clientDocument: '6677889900',
-      date: '2024-11-11',
-      total: 560000,
-      paymentMethod: 'Crédito',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P005', name: 'Batería 12V', code: 'BAT-12V-005', quantity: 2, price: 280000 }
-      ]
-    },
-    {
-      id: 14,
-      clientName: 'Clara Jiménez',
-      clientId: 'CLI014',
-      clientDocument: '9988776655',
-      date: '2024-11-11',
-      total: 100000,
-      paymentMethod: 'Tarjeta',
-      status: 'Pendiente',
-      type: 'Directa',
-      items: [
-        { id: 'P001', name: 'Filtro de Aceite Toyota', code: 'FO-TOY-001', quantity: 4, price: 25000 }
-      ]
-    },
-    {
-      id: 15,
-      clientName: 'Taller Gómez',
-      clientId: 'CLI015',
-      clientDocument: '1122334455',
-      date: '2024-11-12',
-      total: 380000,
-      paymentMethod: 'Transferencia',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P006', name: 'Banda de Distribución', code: 'BD-GEN-006', quantity: 4, price: 95000 }
-      ]
-    },
-    {
-      id: 16,
-      clientName: 'Miguel Ángel Castro',
-      clientId: 'CLI016',
-      clientDocument: '4455667788',
-      date: '2024-11-12',
-      total: 325000,
-      paymentMethod: 'Efectivo',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P007', name: 'Aceite Motor 5W30', code: 'AC-5W30-007', quantity: 5, price: 65000 }
-      ]
-    },
-    {
-      id: 17,
-      clientName: 'Repuestos del Valle',
-      clientId: 'CLI017',
-      clientDocument: '7788990011',
-      date: '2024-11-13',
-      total: 216000,
-      paymentMethod: 'Crédito',
-      status: 'Pendiente',
-      type: 'Pedido',
-      items: [
-        { id: 'P008', name: 'Bujías NGK', code: 'BUJ-NGK-008', quantity: 12, price: 18000 }
-      ]
-    },
-    {
-      id: 18,
-      clientName: 'Sebastián Vargas',
-      clientId: 'CLI018',
-      clientDocument: '3344556677',
-      date: '2024-11-13',
-      total: 255000,
-      paymentMethod: 'Tarjeta',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P002', name: 'Pastillas de Freno Honda', code: 'PF-HON-002', quantity: 3, price: 85000 }
-      ]
-    },
-    {
-      id: 19,
-      clientName: 'AutoPartes Premium',
-      clientId: 'CLI019',
-      clientDocument: '5544332211',
-      date: '2024-11-14',
-      total: 900000,
-      paymentMethod: 'Transferencia',
-      status: 'Completada',
-      type: 'Pedido',
-      items: [
-        { id: 'P003', name: 'Kit de Motor Chevrolet', code: 'KM-CHE-003', quantity: 2, price: 450000 }
-      ]
-    },
-    {
-      id: 20,
-      clientName: 'Daniela Ruiz',
-      clientId: 'CLI020',
-      clientDocument: '9900112233',
-      date: '2024-11-14',
-      total: 360000,
-      paymentMethod: 'Efectivo',
-      status: 'Completada',
-      type: 'Directa',
-      items: [
-        { id: 'P004', name: 'Amortiguador Delantero', code: 'AD-GEN-004', quantity: 3, price: 120000 }
-      ]
-    }
-  ]);
 
-  // Mock de clientes
+  // 👇 CAMBIO 2: sales arranca vacío + estado de carga (se eliminan los datos mock)
+  const [sales, setSales]     = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Mock de clientes (sin cambios — hasta que conectes clientesService)
   const [clients] = useState([
     { id: 'CLI001', name: 'Carlos Medina', document: '1234567890', phone: '300 123 4567', email: 'carlos@email.com' },
     { id: 'CLI002', name: 'Auto Servicio López', document: '9876543210', phone: '301 234 5678', email: 'lopez@email.com' },
@@ -355,7 +88,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     { id: 'CLI005', name: 'Jorge Ramírez', document: '6677889900', phone: '304 567 8901', email: 'jorge@email.com' }
   ]);
 
-  // Mock de productos
+  // Mock de productos (sin cambios — hasta que conectes productosService)
   const [products] = useState([
     { id: 'P001', name: 'Filtro de Aceite Toyota', code: 'FO-TOY-001', price: 25000, stock: 50, category: 'Filtros' },
     { id: 'P002', name: 'Pastillas de Freno Honda', code: 'PF-HON-002', price: 85000, stock: 30, category: 'Frenos' },
@@ -378,7 +111,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Estado del formulario de nueva venta
   const [saleForm, setSaleForm] = useState({
     clientId: '',
     clientName: '',
@@ -390,7 +122,23 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
   const [productSearch, setProductSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
 
-  // Aplicar filtro de cliente si existe
+  // 👇 CAMBIO 3: cargar ventas desde el backend al montar el componente
+  useEffect(() => {
+    const fetchVentas = async () => {
+      setLoading(true);
+      try {
+        const data = await getVentas();
+        setSales(data.map(mapVentaToSale));
+      } catch (error: any) {
+        toast.error(error.message || 'Error al cargar las ventas');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVentas();
+  }, []);
+
+  // Aplicar filtro de cliente si viene desde otro módulo (sin cambios)
   React.useEffect(() => {
     if (clientFilter) {
       setSaleForm({
@@ -418,14 +166,18 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     setShowCancelDialog(true);
   };
 
-  const confirmCancel = () => {
-    if (saleToCancel) {
-      setSales(sales.map(sale => 
-        sale.id === saleToCancel.id 
-          ? { ...sale, status: 'Anulada' }
-          : sale
+  // 👇 CAMBIO 4a: confirmCancel llama al backend (DELETE)
+  const confirmCancel = async () => {
+    if (!saleToCancel) return;
+    try {
+      await deleteVenta(saleToCancel.id);
+      setSales(sales.map(sale =>
+        sale.id === saleToCancel.id ? { ...sale, status: 'Anulada' } : sale
       ));
       toast.success(`Venta #${saleToCancel.id} anulada exitosamente`);
+    } catch (error: any) {
+      toast.error(error.message || 'Error al anular la venta');
+    } finally {
       setShowCancelDialog(false);
       setSaleToCancel(null);
     }
@@ -473,7 +225,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
       handleRemoveProduct(productId);
       return;
     }
-
     setSaleForm({
       ...saleForm,
       items: saleForm.items.map(item =>
@@ -498,41 +249,53 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     return saleForm.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
   };
 
-  const handleCreateSale = (e: React.FormEvent) => {
+  // 👇 CAMBIO 4b: handleCreateSale llama al backend (POST)
+  const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!saleForm.clientId) {
       toast.error('Por favor selecciona un cliente');
       return;
     }
-
     if (saleForm.items.length === 0) {
       toast.error('Por favor agrega al menos un producto');
       return;
     }
 
-    const newSale: Sale = {
-      id: Math.max(...sales.map(s => s.id), 0) + 1,
-      clientName: saleForm.clientName,
-      clientId: saleForm.clientId,
-      clientDocument: saleForm.clientDocument,
-      date: new Date().toISOString().split('T')[0],
-      total: calculateTotal(),
-      paymentMethod: saleForm.paymentMethod,
-      status: 'Completada',
-      type: 'Directa',
-      items: saleForm.items
-    };
+    try {
+      const dto = {
+        clientesId: Number(saleForm.clientId),   // asegúrate que sea numérico en tu BD
+        fecha:      new Date().toISOString().split('T')[0],
+        metodoPago: toMetodoPago(saleForm.paymentMethod),
+        tipoVenta:  toTipoVenta('Directa'),
+        total:      calculateTotal(),
+      };
 
-    setSales([newSale, ...sales]);
-    resetSaleForm();
-    setShowNewSaleModal(false);
-    
-    if (onClearClientFilter) {
-      onClearClientFilter();
+      const { venta } = await createVenta(dto);
+
+      // Construye el objeto local con el id real devuelto por el backend
+      const newSale: Sale = {
+        id:             venta.id,
+        clientName:     saleForm.clientName,
+        clientId:       saleForm.clientId,
+        clientDocument: saleForm.clientDocument,
+        date:           venta.fecha.slice(0, 10),
+        total:          Number(venta.total),
+        paymentMethod:  saleForm.paymentMethod,
+        status:         'Completada',
+        type:           'Directa',
+        items:          saleForm.items,
+      };
+
+      setSales([newSale, ...sales]);
+      resetSaleForm();
+      setShowNewSaleModal(false);
+
+      if (onClearClientFilter) onClearClientFilter();
+      toast.success('Venta registrada exitosamente');
+    } catch (error: any) {
+      toast.error(error.message || 'Error al registrar la venta');
     }
-    
-    toast.success('Venta registrada exitosamente');
   };
 
   const resetSaleForm = () => {
@@ -546,6 +309,8 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     setProductSearch('');
     setClientSearch('');
   };
+
+  // ─── Badges (sin cambios) ─────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     const colors = {
@@ -570,26 +335,24 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     );
   };
 
-  // Filtrado de productos
+  // ─── Filtros (sin cambios) ────────────────────────────────────────────────
+
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     product.code.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  // Filtrado de clientes
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
     client.document.includes(clientSearch)
   );
 
-  // Filtrado de ventas
   const filteredSales = sales.filter(sale => {
     return sale.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           sale.id.toString().includes(searchTerm) ||
           (sale.clientDocument && sale.clientDocument.includes(searchTerm));
   });
 
-  // Paginación
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -601,9 +364,11 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
     }
   };
 
+  // ─── JSX (sin cambios excepto el tbody que muestra loading) ──────────────
+
   return (
     <TooltipProvider>
-      <div className="p-8 space-y-8 bg-gray-50 min-h-screen" >
+      <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -620,9 +385,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
             setShowNewSaleModal(open);
             if (!open) {
               resetSaleForm();
-              if (onClearClientFilter) {
-                onClearClientFilter();
-              }
+              if (onClearClientFilter) onClearClientFilter();
             }
           }}>
             <DialogTrigger asChild>
@@ -639,7 +402,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleCreateSale} className="space-y-6 ">
+              <form onSubmit={handleCreateSale} className="space-y-6">
                 {/* Información del Cliente */}
                 <Card className="border-2 border-gray-100">
                   <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
@@ -659,7 +422,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                             onChange={(e) => setClientSearch(e.target.value)}
                           />
                         </div>
-                        
                         {clientSearch && filteredClients.length > 0 && (
                           <div className="border rounded-lg max-h-48 overflow-y-auto">
                             {filteredClients.map(client => (
@@ -817,7 +579,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                                   <p className="text-xs text-gray-500">${item.price.toLocaleString()} c/u</p>
                                   <p className="text-sm text-gray-900">${(item.quantity * item.price).toLocaleString()}</p>
                                 </div>
-                              </div>
+              </div>
                             </div>
                           ))}
                         </div>
@@ -844,9 +606,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                     onClick={() => {
                       resetSaleForm();
                       setShowNewSaleModal(false);
-                      if (onClearClientFilter) {
-                        onClearClientFilter();
-                      }
+                      if (onClearClientFilter) onClearClientFilter();
                     }}
                     className="flex-1"
                   >
@@ -900,7 +660,16 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {currentSales.length === 0 ? (
+
+                {/* 👇 CAMBIO 5: fila de carga mientras se obtienen datos del backend */}
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                      <ShoppingCartIcon className="w-12 h-12 mx-auto mb-2 text-gray-300 animate-pulse" />
+                      <p>Cargando ventas...</p>
+                    </td>
+                  </tr>
+                ) : currentSales.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                       <ShoppingCartIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
@@ -982,7 +751,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
             </table>
           </div>
 
-          {/* Paginación */}
+          {/* Paginación (sin cambios) */}
           {totalPages > 1 && (
             <div className="border-t border-gray-200 px-6 py-4">
               <div className="flex items-center justify-center space-x-2">
@@ -995,7 +764,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                 >
                   <ChevronLeftIcon className="w-4 h-4" />
                 </Button>
-                
                 <div className="flex items-center space-x-2">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
                     if (page === currentPage) {
@@ -1011,16 +779,10 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                       );
                     }
                     return (
-                      <div
-                        key={page}
-                        className="text-gray-400 px-2"
-                      >
-                        •
-                      </div>
+                      <div key={page} className="text-gray-400 px-2">•</div>
                     );
                   })}
                 </div>
-                
                 <Button
                   variant="outline"
                   size="sm"
@@ -1035,7 +797,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
           )}
         </div>
 
-        {/* Modal de Detalle */}
+        {/* Modal de Detalle (sin cambios) */}
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1071,7 +833,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                     </p>
                   </div>
                 </div>
-
                 <div>
                   <Label className="text-gray-600 mb-3 block">Productos</Label>
                   <div className="border rounded-lg overflow-hidden">
@@ -1109,18 +870,15 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
           </DialogContent>
         </Dialog>
 
-        {/* Modal de PDF */}
+        {/* Modal de PDF (sin cambios) */}
         <Dialog open={showPDFModal} onOpenChange={setShowPDFModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
             <DialogHeader>
               <DialogTitle>Factura de Venta #{pdfSale?.id}</DialogTitle>
-              <DialogDescription>
-                Vista previa del documento de venta
-              </DialogDescription>
+              <DialogDescription>Vista previa del documento de venta</DialogDescription>
             </DialogHeader>
             {pdfSale && (
               <div className="overflow-y-auto max-h-[calc(90vh-120px)] bg-white">
-                {/* Documento PDF Simulado */}
                 <div className="bg-white p-8 space-y-6 border rounded-lg">
                   {/* Encabezado */}
                   <div className="flex justify-between items-start border-b-2 border-blue-600 pb-4">
@@ -1137,13 +895,10 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                         <p className="text-xl">#{pdfSale.id}</p>
                       </div>
                       <p className="text-sm text-gray-600">Fecha: {pdfSale.date}</p>
-                      <p className="text-sm">
-                        {getTypeBadge(pdfSale.type)}
-                      </p>
+                      <p className="text-sm">{getTypeBadge(pdfSale.type)}</p>
                     </div>
                   </div>
-
-                  {/* Información del Cliente */}
+                  {/* Info cliente */}
                   <div className="grid grid-cols-2 gap-6">
                     <div>
                       <h3 className="text-sm uppercase text-gray-600 mb-2">Datos del Cliente</h3>
@@ -1167,8 +922,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                       </div>
                     </div>
                   </div>
-
-                  {/* Tabla de Productos */}
+                  {/* Tabla productos */}
                   <div>
                     <h3 className="text-sm uppercase text-gray-600 mb-3">Detalle de Productos</h3>
                     <table className="w-full border border-gray-300">
@@ -1198,7 +952,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                       </tbody>
                     </table>
                   </div>
-
                   {/* Totales */}
                   <div className="flex justify-end">
                     <div className="w-80 space-y-2">
@@ -1222,7 +975,6 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                       </div>
                     </div>
                   </div>
-
                   {/* Footer */}
                   <div className="border-t-2 border-gray-300 pt-4 mt-6">
                     <p className="text-xs text-gray-600 text-center mb-2">
@@ -1236,8 +988,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                     </p>
                   </div>
                 </div>
-
-                {/* Botón de Imprimir/Descargar */}
+                {/* Botón Imprimir */}
                 <div className="flex gap-2 mt-4 pt-4 border-t">
                   <Button
                     onClick={() => window.print()}
@@ -1259,7 +1010,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
           </DialogContent>
         </Dialog>
 
-        {/* Modal de Confirmación de Anulación */}
+        {/* Modal de Confirmación de Anulación (sin cambios) */}
         <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>

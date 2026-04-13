@@ -2,6 +2,13 @@ const { Usuarios, Roles, Clientes } = require('../models');
 const { sequelize } = require('../config/jtools_db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const {
+  validateLoginBody,
+  validateRegisterBody,
+  validateResetPasswordBody,
+  validateVerifyCodeBody,
+  validateEmail,
+} = require('../validators/authValidator');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const JWT_SECRET = process.env.JWT_SECRET || '';
@@ -31,12 +38,11 @@ function safeUser(usuarioInstance) {
 // POST /api/auth/login
 const login = async (req, res) => {
   try {
+    const errors = validateLoginBody(req.body);
+    if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
+
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || '');
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
-    }
 
     if (!JWT_SECRET) {
       return res.status(500).json({ message: 'Falta configurar JWT_SECRET' });
@@ -72,6 +78,9 @@ const login = async (req, res) => {
 // POST /api/auth/register
 const register = async (req, res) => {
   try {
+    const errors = validateRegisterBody(req.body);
+    if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
+
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || '');
 
@@ -85,16 +94,15 @@ const register = async (req, res) => {
     const tipo_documento = req.body?.tipo_documento || null;
     const direccion = req.body?.direccion || null;
 
-    // Validación de campos requeridos
-    if (!email || !password || !nombres || !apellidos || !razon_social || !numero_documento || !ciudad || !telefono) {
-      return res.status(400).json({ 
-        message: 'Faltan campos requeridos: email, password, nombres, apellidos, razon_social, numero_documento, ciudad, telefono' 
-      });
-    }
-    
-    // aqui hice unos cambios de validacion ya que el boton de crear no queria dar toca organizar la posicion de las constantes para tener lo organizado
-    // Busca el rol Cliente automáticamente
-    const rolCliente = await Roles.findOne({ where: { name: 'Cliente' } });
+    // Validación de campos requeridos — ya cubierta por validateRegisterBody arriba
+    // Busca el rol Cliente automáticamente    
+    const rolCliente = await Roles.findOne({
+      where: sequelize.where(
+        sequelize.fn('LOWER', sequelize.col('name')),
+        'cliente'
+      )
+    });
+
     if (!rolCliente) {
       return res.status(500).json({ message: 'El rol Cliente no existe en la base de datos' });
     }
@@ -155,10 +163,10 @@ const register = async (req, res) => {
 // Body: { email }
 const forgotPassword = async (req, res) => {
   try {
+    const emailErrors = validateEmail(req.body?.email);
+    if (emailErrors.length) return res.status(400).json({ message: 'Error de validación', errores: emailErrors });
+
     const email = normalizeEmail(req.body?.email);
-    if (!email) {
-      return res.status(400).json({ message: 'Email es requerido' });
-    }
 
     const usuario = await Usuarios.findOne({ where: { email } });
     if (!usuario) {
@@ -185,6 +193,9 @@ const forgotPassword = async (req, res) => {
 // Body: { email, code }
 const verifyCode = async (req, res) => {
   try {
+    const errors = validateVerifyCodeBody(req.body);
+    if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
+
     const email = normalizeEmail(req.body?.email);
     const code = String(req.body?.code || '').trim();
 
@@ -216,10 +227,10 @@ const verifyCode = async (req, res) => {
 // Body: { email }
 const resendCode = async (req, res) => {
   try {
+    const emailErrors = validateEmail(req.body?.email);
+    if (emailErrors.length) return res.status(400).json({ message: 'Error de validación', errores: emailErrors });
+
     const email = normalizeEmail(req.body?.email);
-    if (!email) {
-      return res.status(400).json({ message: 'Email es requerido' });
-    }
 
     const usuario = await Usuarios.findOne({ where: { email } });
     if (!usuario) {
@@ -243,6 +254,9 @@ const resendCode = async (req, res) => {
 // Body: { email, code, newPassword }
 const resetPassword = async (req, res) => {
   try {
+    const errors = validateResetPasswordBody(req.body);
+    if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
+
     const email = normalizeEmail(req.body?.email);
     const code = String(req.body?.code || '').trim();
     const newPassword = String(req.body?.newPassword || '');

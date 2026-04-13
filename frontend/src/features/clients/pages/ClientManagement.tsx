@@ -1,912 +1,1120 @@
-import React, { useState, useEffect } from 'react';
+
+// src/features/clients/ClientManagement.tsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+import { Card, CardContent } from '@/shared/components/ui/card';
+import {
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/shared/components/ui/dialog';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/shared/components/ui/select';
 import { toast } from 'sonner';
 import {
-  PlusIcon,
-  EyeIcon,
-  EditIcon,
-  TrashIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  AlertTriangleIcon,
-  UploadIcon,
-  UserIcon,
-  XIcon
+    Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight,
+    AlertTriangle, Upload, User, X, Search, Loader2,
+    CheckCircle2, Info, Lock,
 } from 'lucide-react';
+import {
+    getClientes, createCliente, updateCliente,
+    deleteCliente, forceDeleteCliente,
+} from '../services/clientesService';
 
-export function ClientManagement({ onNavigateToSales }) {
-  const [clients, setClients] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editingClient, setEditingClient] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [showPurchaseSummary, setShowPurchaseSummary] = useState(false);
-  const [selectedClientForSummary, setSelectedClientForSummary] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-  const [clientToDelete, setClientToDelete] = useState(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    businessName: '',
-    identification: '',
-    documentType: 'Cédula',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    clientType: 'Particular',
-    isActive: true,
-    photo: null,
-    photoPreview: null
-  });
+// ── Tipos de documento ────────────────────────────────────────────────────────
+const DOCS_PERSONA_NATURAL = [
+    { value: 'cedula',                label: 'Cédula de Ciudadanía'  },
+    { value: 'cedula de extranjeria', label: 'Cédula de Extranjería' },
+    { value: 'pasaporte',             label: 'Pasaporte'             },
+    { value: 'rut',                   label: 'RUT'                   },
+];
+const DOCS_EMPRESA = [
+    { value: 'nit', label: 'NIT' },
+    { value: 'rut', label: 'RUT' },
+];
 
-  useEffect(() => {
-    // Load demo clients
-    setClients([
-      {
-        id: 1,
-        name: 'Carlos Medina',
-        identification: '12345678',
-        documentType: 'Cédula',
-        phone: '3001234567',
-        email: 'carlos@email.com',
-        address: 'Calle 50 #25-30, Medellín',
-        clientType: 'Particular',
-        totalPurchases: 850000,
-        lastPurchase: '2024-01-15',
-        isActive: true,
-        purchaseCount: 8,
-        averagePurchase: 106250,
-        photoPreview: null
-      },
-      {
-        id: 2,
-        name: 'Auto Servicio López',
-        identification: '900123456',
-        documentType: 'NIT',
-        phone: '3007654321',
-        email: 'gerencia@autoserviciolopez.com',
-        address: 'Carrera 70 #45-20, Medellín',
-        clientType: 'Empresa',
-        totalPurchases: 2500000,
-        lastPurchase: '2024-01-18',
-        isActive: true,
-        purchaseCount: 15,
-        averagePurchase: 166667,
-        photoPreview: null
-      },
-      {
-        id: 3,
-        name: 'María González',
-        identification: '87654321',
-        documentType: 'Cédula',
-        phone: '3009876543',
-        email: 'maria.gonzalez@email.com',
-        address: 'Avenida 80 #30-15, Medellín',
-        clientType: 'Particular',
-        totalPurchases: 320000,
-        lastPurchase: '2024-01-10',
-        isActive: false,
-        purchaseCount: 4,
-        averagePurchase: 80000,
-        photoPreview: null
-      },
-      {
-        id: 4,
-        name: 'Taller El Repuesto',
-        identification: '900987654',
-        documentType: 'NIT',
-        phone: '3005555555',
-        email: 'contacto@tallerelrepuesto.com',
-        address: 'Calle 10 Sur #25-40, Medellín',
-        clientType: 'Empresa',
-        totalPurchases: 1800000,
-        lastPurchase: '2024-01-17',
-        isActive: true,
-        purchaseCount: 12,
-        averagePurchase: 150000,
-        photoPreview: null
-      },
-      {
-        id: 5,
-        name: 'Roberto Sánchez',
-        identification: '45678912',
-        documentType: 'Cédula',
-        phone: '3012345678',
-        email: 'roberto.sanchez@email.com',
-        address: 'Carrera 65 #23-45, Medellín',
-        clientType: 'Particular',
-        totalPurchases: 450000,
-        lastPurchase: '2024-01-12',
-        isActive: true,
-        purchaseCount: 5,
-        averagePurchase: 90000,
-        photoPreview: null
-      },
-      {
-        id: 6,
-        name: 'Laura Fernández',
-        identification: '98765432',
-        documentType: 'Cédula',
-        phone: '3023456789',
-        email: 'laura.fernandez@email.com',
-        address: 'Calle 34 #56-78, Medellín',
-        clientType: 'Particular',
-        totalPurchases: 680000,
-        lastPurchase: '2024-01-09',
-        isActive: true,
-        purchaseCount: 7,
-        averagePurchase: 97143,
-        photoPreview: null
-      },
-      {
-        id: 7,
-        name: 'Repuestos Medellín S.A.S',
-        identification: '900555666',
-        documentType: 'NIT',
-        phone: '3034567890',
-        email: 'ventas@repuestosmed.com',
-        address: 'Avenida 33 #12-90, Medellín',
-        clientType: 'Empresa',
-        totalPurchases: 3200000,
-        lastPurchase: '2024-01-16',
-        isActive: true,
-        purchaseCount: 20,
-        averagePurchase: 160000,
-        photoPreview: null
-      }
-    ]);
-  }, []);
+// ── Interfaces ────────────────────────────────────────────────────────────────
+interface Cliente {
+    id: number;
+    tipo_documento: string;
+    numero_documento: string;
+    nombres: string;
+    apellidos: string;
+    razon_social: string;
+    telefono: string;
+    email: string;
+    direccion: string;
+    ciudad: string;
+    estado: 'activo' | 'inactivo';
+    foto?: string | null;
+    photoPreview?: string | null;
+    clientType?: 'Persona natural' | 'Empresa';
+    contacto?: string | null;
+}
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    // Construir el nombre completo basado en el tipo de cliente
-    const fullName = formData.clientType === 'Particular' 
-      ? `${formData.firstName} ${formData.lastName}`.trim()
-      : formData.businessName;
-    
-    const clientData = {
-      ...formData,
-      name: fullName,
-      totalPurchases: editingClient?.totalPurchases || 0,
-      lastPurchase: editingClient?.lastPurchase || null
+interface FormData {
+    tipo_documento: string;
+    numero_documento: string;
+    nombres: string;
+    apellidos: string;
+    razon_social: string;
+    telefono: string;
+    email: string;
+    direccion: string;
+    ciudad: string;
+    clientType: 'Persona natural' | 'Empresa';
+    estado: 'activo' | 'inactivo';
+    foto: File | null;
+    photoPreview: string | null;
+    contacto: string;
+}
+
+// ── Validación de formulario en el frontend ───────────────────────────────────
+interface FormErrors {
+    nombres?: string;
+    apellidos?: string;
+    razon_social?: string;
+    contacto?: string;
+    numero_documento?: string;
+    email?: string;
+    telefono?: string;
+    ciudad?: string;
+    direccion?: string;
+}
+
+function validarFormulario(data: FormData): FormErrors {
+    const errs: FormErrors = {};
+    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
+
+    if (data.clientType === 'Persona natural') {
+        if (!data.nombres.trim())
+            errs.nombres = 'El nombre es obligatorio';
+        else if (data.nombres.trim().length < 2)
+            errs.nombres = 'Mínimo 2 caracteres';
+        else if (!soloLetras.test(data.nombres.trim()))
+            errs.nombres = 'Solo letras y espacios';
+
+        if (!data.apellidos.trim())
+            errs.apellidos = 'Los apellidos son obligatorios';
+        else if (data.apellidos.trim().length < 2)
+            errs.apellidos = 'Mínimo 2 caracteres';
+        else if (!soloLetras.test(data.apellidos.trim()))
+            errs.apellidos = 'Solo letras y espacios';
+    } else {
+        if (!data.razon_social.trim())
+            errs.razon_social = 'La razón social es obligatoria';
+        else if (data.razon_social.trim().length > 100)
+            errs.razon_social = 'Máximo 100 caracteres';
+
+        if (!data.contacto.trim())
+            errs.contacto = 'El contacto es obligatorio';
+        else if (!soloLetras.test(data.contacto.trim()))
+            errs.contacto = 'Solo letras y espacios';
+    }
+
+    if (!data.numero_documento.trim())
+        errs.numero_documento = 'El número de documento es obligatorio';
+    else if (data.numero_documento.trim().length < 5)
+        errs.numero_documento = 'Mínimo 5 caracteres';
+    else if (data.tipo_documento === 'nit' && !/^\d{9,10}(-\d)?$/.test(data.numero_documento.trim()))
+        errs.numero_documento = 'Formato: 900123456-7';
+
+    if (!data.email.trim())
+        errs.email = 'El correo es obligatorio';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()))
+        errs.email = 'Correo inválido';
+
+    if (!data.telefono.trim())
+        errs.telefono = 'El teléfono es obligatorio';
+    else if (data.telefono.trim().length < 7)
+        errs.telefono = 'Mínimo 7 dígitos';
+
+    if (!data.ciudad.trim())
+        errs.ciudad = 'La ciudad es obligatoria';
+    else if (!soloLetras.test(data.ciudad.trim()))
+        errs.ciudad = 'Solo letras y espacios';
+
+    if (!data.direccion.trim())
+        errs.direccion = 'La dirección es obligatoria';
+
+    return errs;
+}
+
+// ── Banner de notificación inline ─────────────────────────────────────────────
+type BannerVariant = 'success' | 'error' | 'warning' | 'info';
+
+interface BannerMsg {
+    text: string;
+    variant: BannerVariant;
+}
+
+const bannerStyles: Record<BannerVariant, string> = {
+    success: 'bg-green-50 border-green-200 text-green-800',
+    error:   'bg-red-50   border-red-200   text-red-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    info:    'bg-blue-50  border-blue-200  text-blue-800',
+};
+
+const bannerIcons: Record<BannerVariant, React.ReactNode> = {
+    success: <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />,
+    error:   <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />,
+    warning: <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />,
+    info:    <Info className="w-5 h-5 text-blue-500 shrink-0" />,
+};
+
+// ── Componente de campo con error ─────────────────────────────────────────────
+function FieldError({ msg }: { msg?: string }) {
+    if (!msg) return null;
+    return <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{msg}</p>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: () => void }) {
+    const [clients, setClients]         = useState<Cliente[]>([]);
+    const [loading, setLoading]         = useState(true);
+    const [saving, setSaving]           = useState(false);
+    const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
+    const [showModal, setShowModal]             = useState(false);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const [editingClient, setEditingClient]   = useState<Cliente | null>(null);
+    const [viewingClient, setViewingClient]   = useState<Cliente | null>(null);
+    const [deletingClient, setDeletingClient] = useState<Cliente | null>(null);
+
+    const [searchTerm, setSearchTerm]     = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [currentPage, setCurrentPage]   = useState(1);
+    const itemsPerPage = 5;
+
+    // Banner global (encima de la tabla)
+    const [banner, setBanner] = useState<BannerMsg | null>(null);
+    const showBanner = useCallback((text: string, variant: BannerVariant = 'info') => {
+        setBanner({ text, variant });
+        setTimeout(() => setBanner(null), 5000);
+    }, []);
+
+    // Banner de fila (cliente inactivo al intentar editar/eliminar)
+    const [inactiveBannerId, setInactiveBannerId] = useState<number | null>(null);
+    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | 'delete' | null>(null);
+
+    const triggerInactiveBanner = (id: number, action: 'edit' | 'delete') => {
+        setInactiveBannerId(id);
+        setInactiveBannerAction(action);
+        setTimeout(() => { setInactiveBannerId(null); setInactiveBannerAction(null); }, 4000);
     };
 
-    if (editingClient) {
-      setClients(clients.map(client => 
-        client.id === editingClient.id 
-          ? { ...clientData, id: editingClient.id }
-          : client
-      ));
-      toast.success('Cliente actualizado exitosamente');
-    } else {
-      setClients([...clients, { ...clientData, id: Date.now() }]);
-      toast.success('Cliente creado exitosamente');
-    }
-    resetForm();
-  };
+    // Errores de formulario
+    const [formErrors, setFormErrors] = useState<FormErrors>({});
+    const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const resetForm = () => {
-    setFormData({
-      firstName: '',
-      lastName: '',
-      businessName: '',
-      identification: '',
-      documentType: 'Cédula',
-      phone: '',
-      email: '',
-      address: '',
-      city: '',
-      clientType: 'Particular',
-      isActive: true,
-      photo: null,
-      photoPreview: null
-    });
-    setEditingClient(null);
-    setShowModal(false);
-  };
+    const emptyForm: FormData = {
+        nombres: '', apellidos: '', razon_social: '',
+        tipo_documento: 'cedula', numero_documento: '',
+        telefono: '', email: '', direccion: '', ciudad: '',
+        clientType: 'Persona natural', estado: 'activo',
+        foto: null, photoPreview: null, contacto: '',
+    };
+    const [formData, setFormData] = useState<FormData>(emptyForm);
 
-  const handleEdit = (client) => {
-    // Separar el nombre si es Particular
-    let firstName = '';
-    let lastName = '';
-    let businessName = '';
-    
-    if (client.clientType === 'Particular' && client.name) {
-      const nameParts = client.name.split(' ');
-      firstName = nameParts[0] || '';
-      lastName = nameParts.slice(1).join(' ') || '';
-    } else if (client.clientType === 'Empresa') {
-      businessName = client.name || '';
-    }
-    
-    setFormData({
-      firstName,
-      lastName,
-      businessName,
-      identification: client.identification,
-      documentType: client.documentType || 'Cédula',
-      phone: client.phone,
-      email: client.email,
-      address: client.address,
-      city: client.city || '',
-      clientType: client.clientType,
-      isActive: client.isActive,
-      photo: client.photo || null,
-      photoPreview: client.photoPreview || null
-    });
-    setEditingClient(client);
-    setShowModal(true);
-  };
+    // Revalidar en tiempo real cuando el usuario ya intentó enviar
+    useEffect(() => {
+        if (submitAttempted) setFormErrors(validarFormulario(formData));
+    }, [formData, submitAttempted]);
 
-  const handleDelete = (client) => {
-    setClientToDelete(client);
-    setShowDeleteDialog(true);
-  };
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    const fetchClientes = async () => {
+        try {
+            setLoading(true);
+            const data = await getClientes();
+            const enriched = data.map((c: Cliente) => ({
+                ...c,
+                clientType:   c.nombres === 'N/A' ? 'Empresa' : 'Persona natural',
+                photoPreview: c.foto || null,
+            }));
+            setClients(enriched);
+        } catch (error: any) {
+            toast.error(`Error al cargar clientes: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const confirmDelete = () => {
-    if (clientToDelete) {
-      setClients(clients.filter(client => client.id !== clientToDelete.id));
-      toast.success('Cliente eliminado exitosamente');
-      setShowDeleteDialog(false);
-      setClientToDelete(null);
-    }
-  };
+    useEffect(() => { fetchClientes(); }, []);
 
-  const handleViewPurchaseSummary = (client) => {
-    setSelectedClientForSummary(client);
-    setShowPurchaseSummary(true);
-  };
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const getDisplayName = (client: Cliente) =>
+        client.clientType === 'Empresa' || client.nombres === 'N/A'
+            ? client.razon_social
+            : `${client.nombres} ${client.apellidos}`.trim();
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+    const getInitials = (name: string) => {
+        const parts = name.split(' ');
+        return parts.length >= 2
+            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+            : name.substring(0, 2).toUpperCase();
+    };
+
+    const resetForm = () => {
+        setFormData(emptyForm);
+        setFormErrors({});
+        setSubmitAttempted(false);
+        setEditingClient(null);
+        setShowModal(false);
+    };
+
+    const handleClientTypeChange = (value: 'Persona natural' | 'Empresa') => {
+        setFormData(prev => ({
+            ...prev,
+            clientType:       value,
+            tipo_documento:   value === 'Empresa' ? 'nit' : 'cedula',
+            numero_documento: '',
+            nombres: '', apellidos: '', razon_social: '', contacto: '',
+        }));
+        if (submitAttempted) setFormErrors({});
+    };
+
+    // ── Submit ────────────────────────────────────────────────────────────────
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitAttempted(true);
+
+        const errs = validarFormulario(formData);
+        setFormErrors(errs);
+        if (Object.keys(errs).length > 0) {
+            showBanner('Corrige los errores del formulario antes de continuar', 'warning');
+            return;
+        }
+
+        const isEmpresa = formData.clientType === 'Empresa';
+        const payload = {
+            nombres:          isEmpresa ? 'N/A' : formData.nombres,
+            apellidos:        isEmpresa ? 'N/A' : formData.apellidos,
+            razon_social:     isEmpresa ? formData.razon_social : '',
+            tipo_documento:   formData.tipo_documento,
+            numero_documento: formData.numero_documento,
+            telefono:         formData.telefono,
+            email:            formData.email,
+            direccion:        formData.direccion,
+            ciudad:           formData.ciudad,
+            estado:           formData.estado,
+            ...(isEmpresa ? { contacto: formData.contacto } : {}),
+        };
+
+        try {
+            setSaving(true);
+            if (editingClient) {
+                await updateCliente(editingClient.id, payload);
+                showBanner('Cliente actualizado correctamente', 'success');
+                toast.success('Cliente actualizado exitosamente');
+            } else {
+                await createCliente(payload);
+                showBanner('Cliente creado exitosamente', 'success');
+                toast.success('Cliente creado exitosamente');
+            }
+            await fetchClientes();
+            resetForm();
+        } catch (error: any) {
+            // ── Duplicados ────────────────────────────────────────────────
+            const msg: string = error.message?.toLowerCase() ?? '';
+            const errores: string[] = error.errores ?? [];
+
+            const emailDuplicado = errores.some((e: string) =>
+                e.toLowerCase().includes('correo') || e.toLowerCase().includes('email')
+            ) || msg.includes('email') || msg.includes('correo');
+
+            const docDuplicado = errores.some((e: string) =>
+                e.toLowerCase().includes('documento')
+            ) || msg.includes('documento') || msg.includes('duplicate') || error.status === 409;
+
+            if (emailDuplicado && docDuplicado) {
+                showBanner('El correo electrónico y el número de documento ya están registrados', 'error');
+                setFormErrors(prev => ({
+                    ...prev,
+                    email:            'Este correo ya está registrado',
+                    numero_documento: 'Este documento ya está registrado',
+                }));
+            } else if (emailDuplicado) {
+                showBanner('Ya existe un cliente registrado con ese correo electrónico', 'error');
+                setFormErrors(prev => ({ ...prev, email: 'Este correo ya está registrado' }));
+            } else if (docDuplicado) {
+                showBanner('Ya existe un cliente registrado con ese número de documento', 'error');
+                setFormErrors(prev => ({ ...prev, numero_documento: 'Este documento ya está registrado' }));
+            } else if (errores.length > 0) {
+                errores.forEach((err: string) => toast.error(err));
+                showBanner(errores[0], 'error');
+            } else {
+                showBanner(`Error: ${error.message}`, 'error');
+                toast.error(`Error: ${error.message}`);
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── Editar ────────────────────────────────────────────────────────────────
+    const handleEdit = (client: Cliente) => {
+        if (client.estado === 'inactivo') {
+            triggerInactiveBanner(client.id, 'edit');
+            return;
+        }
+        const isEmpresa = client.clientType === 'Empresa' || client.nombres === 'N/A';
         setFormData({
-          ...formData,
-          photo: file,
-          photoPreview: reader.result
+            nombres:          isEmpresa ? '' : client.nombres,
+            apellidos:        isEmpresa ? '' : client.apellidos,
+            razon_social:     isEmpresa ? client.razon_social : '',
+            tipo_documento:   client.tipo_documento || (isEmpresa ? 'nit' : 'cedula'),
+            numero_documento: client.numero_documento,
+            telefono:         client.telefono,
+            email:            client.email,
+            direccion:        client.direccion || '',
+            ciudad:           client.ciudad || '',
+            clientType:       isEmpresa ? 'Empresa' : 'Persona natural',
+            estado:           client.estado ?? 'activo',
+            foto:             null,
+            photoPreview:     client.foto || null,
+            contacto:         client.contacto || '',
         });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+        setFormErrors({});
+        setSubmitAttempted(false);
+        setEditingClient(client);
+        setShowModal(true);
+    };
 
-  const removePhoto = () => {
-    setFormData({
-      ...formData,
-      photo: null,
-      photoPreview: null
+    // ── Toggle estado ─────────────────────────────────────────────────────────
+    const handleToggleEstado = async (client: Cliente) => {
+        const nuevoEstado: 'activo' | 'inactivo' = client.estado === 'activo' ? 'inactivo' : 'activo';
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: nuevoEstado } : c));
+        setTogglingIds(prev => new Set(prev).add(client.id));
+        try {
+            await updateCliente(client.id, { ...client, estado: nuevoEstado });
+            toast.success(`Cliente ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} exitosamente`);
+        } catch (error: any) {
+            setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: client.estado } : c));
+            toast.error(`Error: ${error.message}`);
+        } finally {
+            setTogglingIds(prev => { const next = new Set(prev); next.delete(client.id); return next; });
+        }
+    };
+
+    // ── Foto ──────────────────────────────────────────────────────────────────
+    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('La foto no puede superar los 2MB');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () =>
+            setFormData(prev => ({ ...prev, foto: file, photoPreview: reader.result as string }));
+        reader.readAsDataURL(file);
+    };
+
+    const removePhoto = () => setFormData(prev => ({ ...prev, foto: null, photoPreview: null }));
+
+    // ── Eliminar ──────────────────────────────────────────────────────────────
+    const handleDelete = (client: Cliente) => {
+        if (client.estado === 'inactivo') {
+            triggerInactiveBanner(client.id, 'delete');
+            return;
+        }
+        setDeletingClient(client);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deletingClient) return;
+        try {
+            setSaving(true);
+            await forceDeleteCliente(deletingClient.id);
+            showBanner('Cliente eliminado exitosamente', 'success');
+            toast.success('Cliente eliminado exitosamente');
+            await fetchClientes();
+        } catch (error: any) {
+            toast.error(`No se puede eliminar: ${error.message}`);
+            showBanner(`No se puede eliminar: ${error.message}`, 'error');
+        } finally {
+            setSaving(false);
+            setShowDeleteModal(false);
+            setDeletingClient(null);
+        }
+    };
+
+    // ── Filtros y paginación ──────────────────────────────────────────────────
+    const filteredClients = clients.filter((client) => {
+        const name = getDisplayName(client);
+        const matchesSearch =
+            name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            client.numero_documento.includes(searchTerm) ||
+            client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            client.telefono.includes(searchTerm);
+        const matchesStatus =
+            statusFilter === 'all' ||
+            (statusFilter === 'active'   && client.estado === 'activo') ||
+            (statusFilter === 'inactive' && client.estado === 'inactivo');
+        return matchesSearch && matchesStatus;
     });
-  };
 
-  const handleStatusChange = (clientId, newStatus) => {
-    setClients(clients.map(client => 
-      client.id === clientId 
-        ? { ...client, isActive: newStatus }
-        : client
-    ));
-  };
+    const totalPages     = Math.ceil(filteredClients.length / itemsPerPage);
+    const currentClients = filteredClients.slice(
+        (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
+    );
 
-  const filteredClients = clients.filter(client => {
-    const matchesSearch = 
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.identification.includes(searchTerm) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.phone.includes(searchTerm);
-    
-    const matchesStatus = 
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && client.isActive) ||
-      (statusFilter === 'inactive' && !client.isActive);
-    
-    return matchesSearch && matchesStatus;
-  });
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
 
-  // Paginación
-  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentClients = filteredClients.slice(startIndex, endIndex);
+    const docsDisponibles = formData.clientType === 'Empresa' ? DOCS_EMPRESA : DOCS_PERSONA_NATURAL;
 
-  // Reset a página 1 cuando cambia el filtro
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+    // ── Helpers de input con restricciones ───────────────────────────────────
+    const onlyLetters   = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    const onlyPhone     = (v: string) => v.replace(/[^0-9+\s\-]/g, '');
+    const onlyDoc       = (v: string, tipo: string) => {
+        if (tipo === 'cedula' || tipo === 'rut') return v.replace(/[^0-9]/g, '');
+        if (tipo === 'nit')                       return v.replace(/[^0-9\-]/g, '');
+        return v.replace(/[^a-zA-Z0-9]/g, '');
+    };
+    const onlyAddress   = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-\.]/g, '');
+    const noSpaces      = (v: string) => v.replace(/\s/g, '');
 
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
+    // ─────────────────────────────────────────────────────────────────────────
+    return (
+        <div className="p-6 space-y-6">
 
-  const getPageNumbers = () => {
-    const pages = [];
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 3) {
-        pages.push(1, 2, 3, '...', totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
-      } else {
-        pages.push(1, '...', currentPage, '...', totalPages);
-      }
-    }
-    return pages;
-  };
-
-  const getInitials = (name) => {
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
-  };
-
-  return (
-    <TooltipProvider>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl text-gray-900 mb-2">Gestión de Clientes</h1>
-            <p className="text-gray-600">Administra la base de datos de clientes</p>
-          </div>
-          <Dialog open={showModal} onOpenChange={setShowModal}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Nuevo Cliente
-              </Button>
-            </DialogTrigger>
-            
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingClient ? 'Editar Cliente' : 'Crear Nuevo Cliente'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingClient ? 'Modifica los datos del cliente.' : 'Completa el formulario para registrar un nuevo cliente.'}
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form onSubmit={handleSubmit}>
-                <div className="space-y-6 py-4">
-                  {/* Tipo de Cliente */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="clientType">Tipo de cliente *</Label>
-                      <Select
-                        value={formData.clientType}
-                        onValueChange={(value) => setFormData({...formData, clientType: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Particular">Particular</SelectItem>
-                          <SelectItem value="Empresa">Empresa</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Nombre o Razón Social */}
-                  {formData.clientType === 'Particular' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="firstName">Nombres *</Label>
-                        <Input
-                          id="firstName"
-                          value={formData.firstName}
-                          onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                          placeholder="Ej: Carlos"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">Apellidos *</Label>
-                        <Input
-                          id="lastName"
-                          value={formData.lastName}
-                          onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                          placeholder="Ej: Medina López"
-                          required
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="businessName">Razón Social *</Label>
-                        <Input
-                          id="businessName"
-                          value={formData.businessName}
-                          onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                          placeholder="Ej: Auto Servicio López S.A.S"
-                          required
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Documento */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="documentType">Tipo de documento *</Label>
-                      <Select
-                        value={formData.documentType}
-                        onValueChange={(value) => setFormData({...formData, documentType: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Cédula">Cédula de Ciudadanía</SelectItem>
-                          <SelectItem value="Cédula de Extranjería">Cédula de Extranjería</SelectItem>
-                          <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                          <SelectItem value="RUT">RUT</SelectItem>
-                          <SelectItem value="NIT">NIT</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="identification">Número de documento *</Label>
-                      <Input
-                        id="identification"
-                        value={formData.identification}
-                        onChange={(e) => setFormData({...formData, identification: e.target.value})}
-                        placeholder="123456789"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Contacto */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Teléfono *</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        placeholder="+57 300 123 4567"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Correo electrónico *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        placeholder="cliente@email.com"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Ubicación */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">Ciudad *</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({...formData, city: e.target.value})}
-                        placeholder="Medellín"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="address">Dirección *</Label>
-                      <Input
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({...formData, address: e.target.value})}
-                        placeholder="Calle 50 #25-30"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Foto del Cliente */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <Label className="mb-3 block">Foto del Cliente</Label>
-                    <div className="flex items-start gap-6">
-                      {/* Vista previa de la foto */}
-                      <div className="flex-shrink-0">
-                        <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
-                          {formData.photoPreview ? (
-                            <div className="relative w-full h-full">
-                              <img
-                                src={formData.photoPreview}
-                                alt="Vista previa"
-                                className="w-full h-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={removePhoto}
-                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                              >
-                                <XIcon className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <UserIcon className="w-12 h-12 text-gray-400" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Botón de carga */}
-                      <div className="flex-1">
-                        <div className="space-y-2">
-                          <Input
-                            id="photo"
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoUpload}
-                            className="hidden"
-                          />
-                          <Label
-                            htmlFor="photo"
-                            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                          >
-                            <UploadIcon className="w-4 h-4 mr-2" />
-                            {formData.photoPreview ? 'Cambiar foto' : 'Subir foto'}
-                          </Label>
-                          <p className="text-sm text-gray-500">
-                            Formatos permitidos: JPG, PNG. Tamaño máximo: 2MB
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Estado */}
-                  {/* Estado - Solo visible al editar */}
-                  {editingClient && (
-                    <div className="border-t border-gray-200 pt-6">
-                      <div className="flex items-center space-x-3">
-                        <Switch
-                          checked={formData.isActive}
-                          onCheckedChange={(checked) =>
-                            setFormData({ ...formData, isActive: checked })
-                          }
-                        />
-                        <Label>Cliente activo</Label>
-                      </div>
-                    </div>
-                  )}
+            {/* ── Banner global ──────────────────────────────────────────── */}
+            {banner && (
+                <div className={`flex items-center gap-3 border rounded-xl px-5 py-3 shadow-sm ${bannerStyles[banner.variant]}`}>
+                    {bannerIcons[banner.variant]}
+                    <span className="text-sm font-medium flex-1">{banner.text}</span>
+                    <button onClick={() => setBanner(null)} className="opacity-60 hover:opacity-100">
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
-                
-                <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">
-                  <Button type="button" variant="outline" onClick={resetForm}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    {editingClient ? 'Actualizar' : 'Crear'} Cliente
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Search */}
-        <Card className="shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Buscar clientes por nombre, identificación, email o teléfono..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <span className="text-sm text-gray-600">
-              {filteredClients.length} cliente(s)
-            </span>
-          </div>
-        </Card>
-
-        {/* Clients Table */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-10 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Cliente</th>
-                  <th className="px-10 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Contacto</th>
-                  <th className="px-10 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {currentClients.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                      No se encontraron clientes
-                    </td>
-                  </tr>
-                ) : (
-                  currentClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-10 py-4">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="w-10 h-10">
-                            <AvatarImage src={client.photoPreview} alt={client.name} />
-                            <AvatarFallback className="bg-blue-100 text-blue-600">
-                              {getInitials(client.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm text-gray-900">{client.name}</p>
-                            <p className="text-sm text-gray-500">{client.documentType} {client.identification}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-10 py-4 text-sm text-gray-600">
-                        {client.email}<br/>{client.phone}
-                      </td>
-                      
-                      <td className="px-10 py-4">
-                        <div className="flex items-center justify-center space-x-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleViewPurchaseSummary(client)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
-                                <EyeIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Ver detalle</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(client)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
-                                <EditIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Editar cliente</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(client)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-50"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Eliminar cliente</p></TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-{/* PAGINACION */}
-          {/* Paginación */}
-          {filteredClients.length > 0 && (
-            <div className="border-t border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="flex items-center"
-                >
-                  <ChevronLeftIcon className="w-4 h-4" />
-                </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {getPageNumbers().map((page, index) => (
-                    page === '...' ? (
-                      <span key={`ellipsis-${index}`} className="px-2 text-gray-500">•</span>
-                    ) : (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => handlePageChange(page)}
-                        className={currentPage === page ? "bg-blue-600 hover:bg-blue-700 min-w-[32px]" : "min-w-[32px]"}
-                      >
-                        {currentPage === page ? page : '•'}
-                      </Button>
-                    )
-                  ))}
-                </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="flex items-center"
-                >
-                  <ChevronRightIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-{/* DETALLE DEL CLIENTE */}
-        {/* Modal de Detalle del Cliente */}
-        <Dialog open={showPurchaseSummary} onOpenChange={setShowPurchaseSummary}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Detalles del Cliente</DialogTitle>
-            </DialogHeader>
-            
-            {selectedClientForSummary && (
-              <div className="space-y-6 py-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Información Personal</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center space-x-4 mb-4">
-                        <Avatar className="w-16 h-16">
-                          <AvatarImage src={selectedClientForSummary.photoPreview} alt={selectedClientForSummary.name} />
-                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xl">
-                            {getInitials(selectedClientForSummary.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h3 className="text-gray-900">{selectedClientForSummary.name}</h3>
-                          <p className="text-sm text-gray-500">{selectedClientForSummary.email}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Documento</Label>
-                        <p className="text-gray-900 mt-1">
-                          {selectedClientForSummary.documentType} {selectedClientForSummary.identification}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Tipo de Cliente</Label>
-                        <div className="mt-1">
-                          <Badge variant="outline">{selectedClientForSummary.clientType}</Badge>
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Estado</Label>
-                        <div className="mt-1">
-                          <Badge 
-                            className={
-                              selectedClientForSummary.isActive
-                                ? "bg-blue-100 text-blue-700 border-blue-200"
-                                : "bg-gray-100 text-gray-700 border-gray-200"
-                              }
-                            >
-                              {selectedClientForSummary.isActive ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Información de Contacto</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label className="text-gray-600">Correo electrónico</Label>
-                        <p className="text-gray-900 mt-1">{selectedClientForSummary.email}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Teléfono</Label>
-                        <p className="text-gray-900 mt-1">{selectedClientForSummary.phone}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Dirección</Label>
-                        <p className="text-gray-900 mt-1">{selectedClientForSummary.address}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
             )}
-          </DialogContent>
-        </Dialog>
 
-        {/* Modal de Confirmación de Eliminación */}
+            {/* ── Header ─────────────────────────────────────────────────── */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Clientes</h1>
+                    <p className="text-blue-800">Administra la base de datos de clientes</p>
+                </div>
+                <Button
+                    onClick={() => { resetForm(); setShowModal(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                    <Plus className="w-4 h-4 mr-2" />Nuevo Cliente
+                </Button>
+            </div>
 
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
-                <AlertTriangleIcon className="w-5 h-5" />
-                Confirmar Eliminación
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>¿Estás seguro de que deseas eliminar este cliente?</p>
-                {clientToDelete && (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm text-gray-600">Cliente: </span>
-                        <span className="text-sm text-gray-900">{clientToDelete.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Documento: </span>
-                        <span className="text-sm text-gray-900">
-                          {clientToDelete.documentType} {clientToDelete.identification}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Email: </span>
-                        <span className="text-sm text-gray-900">{clientToDelete.email}</span>
-                      </div>
+            {/* ── Filtros ─────────────────────────────────────────────────── */}
+            <Card>
+                <CardContent className="p-4">
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+
+                        {/* 🔍 Búsqueda — ocupa mucho más espacio */}
+                        <div className="relative w-full sm:flex-[3]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                            <Input
+                                placeholder="Buscar por nombre, documento, email o teléfono..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="pl-10 w-full"
+                            />
+                        </div>
+
+                        {/* ⚙️ Filtro — más pequeño */}
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-1/4 sm:w-40 sm:flex-[1]"
+                        >
+                            <option value="all">Todos</option>
+                            <option value="active">Activos</option>
+                            <option value="inactive">Inactivos</option>
+                        </select>
+
                     </div>
-                  </div>
-                )}
-              
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Eliminar Cliente
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </TooltipProvider>
-  );
+                </CardContent>
+                </Card>
+
+            {/* ── Tabla ───────────────────────────────────────────────────── */}
+            {loading ? (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500">Cargando clientes...</span>
+                </div>
+            ) : (
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-blue-900">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Cliente</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Contacto</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Tipo</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentClients.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-12 text-gray-500">
+                                                No se encontraron clientes
+                                            </td>
+                                        </tr>
+                                    ) : currentClients.map((client) => {
+                                        const displayName  = getDisplayName(client);
+                                        const isToggling   = togglingIds.has(client.id);
+                                        const isInactive   = client.estado === 'inactivo';
+                                        const showRowBanner =
+                                            inactiveBannerId === client.id && inactiveBannerAction !== null;
+
+                                        return (
+                                            <React.Fragment key={client.id}>
+                                                <tr className={`border-b border-blue-100 transition-colors ${
+                                                    isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'
+                                                }`}>
+                                                    {/* Cliente */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center space-x-3">
+                                                            <Avatar className="w-9 h-9">
+                                                                <AvatarImage src={client.photoPreview || undefined} alt={displayName} />
+                                                                <AvatarFallback className={`text-sm ${isInactive ? 'bg-gray-200 text-gray-400' : 'bg-blue-100 text-blue-600'}`}>
+                                                                    {getInitials(displayName)}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <div>
+                                                                <p className={`font-semibold text-sm ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                                    {displayName}
+                                                                </p>
+                                                                <p className={`text-xs ${isInactive ? 'text-gray-400' : 'text-blue-900'}`}>
+                                                                    {client.tipo_documento} {client.numero_documento}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Contacto */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex flex-col">
+                                                            <span className={`text-sm ${isInactive ? 'text-gray-400' : 'text-gray-700'}`}>{client.email}</span>
+                                                            <span className="text-xs text-gray-400">{client.telefono}</span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Tipo */}
+                                                    <td className="py-4 px-6">
+                                                        <Badge variant="secondary">{client.clientType ?? 'Persona natural'}</Badge>
+                                                    </td>
+
+                                                    {/* Estado */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center gap-2">
+                                                            <Switch
+                                                                checked={client.estado === 'activo'}
+                                                                onCheckedChange={() => handleToggleEstado(client)}
+                                                                disabled={isToggling}
+                                                            />
+                                                            {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Acciones */}
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center space-x-2">
+
+                                                            {/* Ver */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => { setViewingClient(client); setShowDetailModal(true); }}
+                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </Button>
+
+                                                            {/* Editar */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleEdit(client)}
+                                                                disabled={isToggling}
+                                                                title={isInactive ? 'Cliente inactivo' : 'Editar'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    isInactive
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
+
+                                                            {/* Eliminar */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleDelete(client)}
+                                                                disabled={isToggling}
+                                                                title={isInactive ? 'Cliente inactivo' : 'Eliminar'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    isInactive
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                {/* ── Banner inline por fila (cliente inactivo) ── */}
+                                                {showRowBanner && (
+                                                    <tr className="border-b border-amber-100">
+                                                        <td colSpan={5} className="px-6 py-0">
+                                                            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                                                                <span>
+                                                                    <strong>Cliente inactivo:</strong>{' '}
+                                                                    {inactiveBannerAction === 'edit'
+                                                                        ? 'No puedes editar un cliente inactivo. Actívalo primero usando el interruptor de estado.'
+                                                                        : 'No puedes eliminar un cliente inactivo. Actívalo primero usando el interruptor de estado.'}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => { setInactiveBannerId(null); setInactiveBannerAction(null); }}
+                                                                    className="ml-auto opacity-60 hover:opacity-100"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Paginación */}
+                        {totalPages > 1 && (
+                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}>
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
+                                        {page}
+                                    </Button>
+                                ))}
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
+            <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                            <DialogDescription>
+                                {editingClient
+                                    ? 'Modifica los datos del cliente.'
+                                    : 'Completa el formulario para registrar un nuevo cliente.'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={handleSubmit} noValidate className="space-y-5 mt-4">
+
+                            {/* Tipo de cliente */}
+                            <div>
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Tipo de cliente <span className="text-red-500">*</span>
+                                </label>
+                                <Select value={formData.clientType} onValueChange={handleClientTypeChange}>
+                                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Persona natural">Persona natural</SelectItem>
+                                        <SelectItem value="Empresa">Empresa</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Tipo + Número de documento */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Tipo de documento <span className="text-red-500">*</span>
+                                    </label>
+                                    <Select
+                                        value={formData.tipo_documento}
+                                        onValueChange={(value) =>
+                                            setFormData(prev => ({ ...prev, tipo_documento: value, numero_documento: '' }))
+                                        }
+                                    >
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {docsDisponibles.map(doc => (
+                                                <SelectItem key={doc.value} value={doc.value}>{doc.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Número de documento <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        value={formData.numero_documento}
+                                        onChange={(e) =>
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                numero_documento: onlyDoc(e.target.value, prev.tipo_documento),
+                                            }))
+                                        }
+                                        maxLength={20}
+                                        placeholder={formData.tipo_documento === 'nit' ? '900123456-7' : '123456789'}
+                                        className={formErrors.numero_documento ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    />
+                                    <FieldError msg={formErrors.numero_documento} />
+                                </div>
+                            </div>
+
+                            {/* Nombre / Razón social + Contacto */}
+                            {formData.clientType === 'Persona natural' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">
+                                            Nombres <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            value={formData.nombres}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({ ...prev, nombres: onlyLetters(e.target.value) }))
+                                            }
+                                            maxLength={50}
+                                            placeholder="Ej: Carlos"
+                                            className={formErrors.nombres ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError msg={formErrors.nombres} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">
+                                            Apellidos <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            value={formData.apellidos}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({ ...prev, apellidos: onlyLetters(e.target.value) }))
+                                            }
+                                            maxLength={50}
+                                            placeholder="Ej: Medina López"
+                                            className={formErrors.apellidos ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError msg={formErrors.apellidos} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">
+                                            Razón Social <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            value={formData.razon_social}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({ ...prev, razon_social: e.target.value.slice(0, 100) }))
+                                            }
+                                            maxLength={100}
+                                            placeholder="Ej: Auto Servicio López S.A.S"
+                                            className={formErrors.razon_social ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError msg={formErrors.razon_social} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">
+                                            Persona de contacto <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            value={formData.contacto}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({ ...prev, contacto: onlyLetters(e.target.value) }))
+                                            }
+                                            maxLength={100}
+                                            placeholder="Ej: María García"
+                                            className={formErrors.contacto ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Nombre del representante o contacto principal de la empresa
+                                        </p>
+                                        <FieldError msg={formErrors.contacto} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Correo */}
+                            <div>
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Correo electrónico <span className="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, email: noSpaces(e.target.value) }))
+                                    }
+                                    maxLength={100}
+                                    placeholder="cliente@email.com"
+                                    className={formErrors.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.email} />
+                            </div>
+
+                            {/* Teléfono + Ciudad */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Teléfono <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        type="tel"
+                                        value={formData.telefono}
+                                        onChange={(e) =>
+                                            setFormData(prev => ({ ...prev, telefono: onlyPhone(e.target.value) }))
+                                        }
+                                        maxLength={20}
+                                        placeholder="+57 300 123 4567"
+                                        className={formErrors.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    />
+                                    <FieldError msg={formErrors.telefono} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Ciudad <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        value={formData.ciudad}
+                                        onChange={(e) =>
+                                            setFormData(prev => ({ ...prev, ciudad: onlyLetters(e.target.value) }))
+                                        }
+                                        maxLength={50}
+                                        placeholder="Medellín"
+                                        className={formErrors.ciudad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    />
+                                    <FieldError msg={formErrors.ciudad} />
+                                </div>
+                            </div>
+
+                            {/* Dirección */}
+                            <div>
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Dirección <span className="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    value={formData.direccion}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, direccion: onlyAddress(e.target.value) }))
+                                    }
+                                    maxLength={100}
+                                    placeholder="Calle 50 #25-30"
+                                    className={formErrors.direccion ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.direccion} />
+                            </div>
+
+                            {/* Foto */}
+                            <div className="border-t border-gray-200 pt-4">
+                                <label className="block text-sm text-gray-700 mb-3">Foto del Cliente</label>
+                                <div className="flex items-start gap-6">
+                                    <div className="w-28 h-28 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden shrink-0">
+                                        {formData.photoPreview ? (
+                                            <div className="relative w-full h-full">
+                                                <img src={formData.photoPreview} alt="Vista previa" className="w-full h-full object-cover" />
+                                                <button type="button" onClick={removePhoto}
+                                                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700">
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <User className="w-10 h-10 text-gray-400" />
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp"
+                                            onChange={handlePhotoUpload} className="hidden" />
+                                        <Label htmlFor="photo"
+                                            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            {formData.photoPreview ? 'Cambiar foto' : 'Subir foto'}
+                                        </Label>
+                                        <p className="text-xs text-gray-500">JPG, PNG, WEBP. Máx 2MB</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Estado — solo al editar */}
+                            {editingClient && (
+                                <div className="border-t border-gray-200 pt-4">
+                                    <div className="flex items-center space-x-3">
+                                        <Switch
+                                            checked={formData.estado === 'activo'}
+                                            onCheckedChange={(checked) =>
+                                                setFormData(prev => ({ ...prev, estado: checked ? 'activo' : 'inactivo' }))
+                                            }
+                                        />
+                                        <label className="text-sm text-gray-600">Cliente activo</label>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 pt-4 border-t">
+                                <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    {editingClient ? 'Actualizar Cliente' : 'Crear Cliente'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── MODAL VER DETALLE ───────────────────────────────────────── */}
+            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Detalles del Cliente</DialogTitle>
+                            <DialogDescription>Información completa del cliente seleccionado.</DialogDescription>
+                        </DialogHeader>
+                        {viewingClient && (
+                            <div className="space-y-4 mt-4">
+                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                                    <div className="col-span-2 flex items-center gap-4">
+                                        <Avatar className="w-16 h-16">
+                                            <AvatarImage src={viewingClient.photoPreview || undefined} />
+                                            <AvatarFallback className="bg-blue-100 text-blue-600 text-xl">
+                                                {getInitials(getDisplayName(viewingClient))}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-semibold text-blue-900 text-lg">{getDisplayName(viewingClient)}</p>
+                                            <p className="text-sm text-gray-500">{viewingClient.email}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 capitalize">Documento</p>
+                                        <p className="font-semibold text-sm">{viewingClient.tipo_documento} {viewingClient.numero_documento}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 capitalize">Tipo</p>
+                                        <Badge variant="outline">{viewingClient.clientType ?? 'Persona natural'}</Badge>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 capitalize">Teléfono</p>
+                                        <p className="font-semibold text-sm">{viewingClient.telefono}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 capitalize">Ciudad</p>
+                                        <p className="font-semibold text-sm">{viewingClient.ciudad}</p>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <p className="text-xs text-gray-500 capitalize">Dirección</p>
+                                        <p className="font-semibold text-sm">{viewingClient.direccion}</p>
+                                    </div>
+                                    {viewingClient.clientType === 'Empresa' && viewingClient.contacto && (
+                                        <div className="col-span-2">
+                                            <p className="text-xs text-gray-500 capitalize">Persona de contacto</p>
+                                            <p className="font-semibold text-sm">{viewingClient.contacto}</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-xs text-gray-500 capitalize">Estado</p>
+                                        <Badge className={viewingClient.estado === 'activo'
+                                            ? 'bg-blue-100 text-blue-900'
+                                            : 'bg-gray-100 text-gray-500'}>
+                                            {viewingClient.estado}
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+                                    {viewingClient.estado === 'activo' && (
+                                        <Button
+                                            onClick={() => { handleEdit(viewingClient); setShowDetailModal(false); }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                                        >
+                                            Editar Cliente
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
+            <Dialog open={showDeleteModal} onOpenChange={(open) => {
+                if (!open) { setShowDeleteModal(false); setDeletingClient(null); }
+            }}>
+                <DialogContent className="max-w-md p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-blue-900">
+                                <Trash2 className="w-5 h-5" />Eliminar Cliente
+                            </DialogTitle>
+                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
+                        </DialogHeader>
+                        {deletingClient && (
+                            <div className="mt-4 space-y-3">
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="font-semibold text-blue-900">{getDisplayName(deletingClient)}</p>
+                                    <p className="text-sm text-blue-700 mt-1">{deletingClient.tipo_documento} {deletingClient.numero_documento}</p>
+                                    <p className="text-sm text-blue-700">{deletingClient.email}</p>
+                                </div>
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">¿Estás seguro?</p>
+                                        <p className="text-amber-700 mt-0.5">El cliente será eliminado permanentemente del sistema.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                            <Button variant="outline"
+                                onClick={() => { setShowDeleteModal(false); setDeletingClient(null); }}
+                                disabled={saving}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={confirmDelete} disabled={saving}
+                                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900">
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Sí, eliminar
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+        </div>
+    );
 }

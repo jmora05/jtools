@@ -1,1249 +1,1175 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
-import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Badge } from '@/shared/components/ui/badge';
+import { Switch } from '@/shared/components/ui/switch';
+import {
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { toast } from 'sonner';
-import { 
-  PlusIcon, 
-  SearchIcon, 
-  EyeIcon, 
-  EditIcon,
-  TrashIcon,
-  AlertTriangleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  FileTextIcon,
-  ArrowLeftIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  PackageIcon,
-  ListIcon,
-  RulerIcon,
-  ClipboardListIcon,
-  CalendarIcon,
-  UserIcon
+import {
+    Plus, Search, Eye, Edit, Trash2, AlertTriangle,
+    ChevronLeft, ChevronRight, FileText, ArrowLeft,
+    CheckCircle, XCircle, Package, List, Ruler,
+    ClipboardList, Calendar, Loader2, CheckCircle2,
+    Lock, X,
 } from 'lucide-react';
+import {
+    getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica,
+    type FichaTecnica, type Material, type Proceso, type Medida, type InsumoFT,
+} from '../services/fichaTecnicaService';
+import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
+import {
+    validarMaterial, validarProceso, validarMedida, validarInsumo,
+    validarMaterialCampos, validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
+    validarFormCrear, validarFormEditar, validarNotasCampo,
+    filtrarNombre, filtrarUnidad, filtrarDescripcion, filtrarDuracion, filtrarParametro,
+    filtrarNotas, filtrarCantidad, contadorTexto,
+    type ItemErrors,
+} from '../utils/fichaTecnicaValidations';
 
-interface TechnicalSheet {
-  id: number;
-  code: string;
-  name: string;
-  productCode: string;
-  category: string;
-  status: 'Activa' | 'Inactiva';
-  materials: { name: string; quantity: number; unit: string }[];
-  processes: { step: number; description: string; duration: string }[];
-  measurements: { parameter: string; value: string; tolerance: string }[];
-  supplies: { name: string; quantity: number; unit: string }[];
-  createdDate: string;
-  createdBy: string;
-  modifiedBy?: string;
-  modifiedAt?: string;
-  notes?: string;
-  statusHistory: { date: string; status: string; user: string }[];
+type Producto = {
+    id: number;
+    nombreProducto: string;
+    referencia: string;
+    estado: string;
+    categoria?: { id: number; nombreCategoria: string };
+};
+
+type FormInfo = {
+    productoId: string;
+    notas: string;
+    estado: 'Activa' | 'Inactiva';
+};
+
+const EMPTY_FORM: FormInfo = { productoId: '', notas: '', estado: 'Activa' };
+
+const selectCls = (hasError?: boolean) =>
+    `w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${
+        hasError ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'
+    }`;
+
+// ─── Helpers visuales ─────────────────────────────────────────────────────────
+function StatusBadge({ estado }: { estado: string }) {
+    return estado === 'Activa'
+        ? <Badge className="bg-blue-100 text-blue-900 border-blue-200"><CheckCircle className="w-3 h-3 mr-1" />Activa</Badge>
+        : <Badge className="bg-gray-100 text-gray-500 border-gray-200"><XCircle className="w-3 h-3 mr-1" />Inactiva</Badge>;
 }
 
-export function TechnicalSheetModule() {
-  const [sheets, setSheets] = useState<TechnicalSheet[]>([
-    {
-      id: 1,
-      code: 'FT-2024-001',
-      name: 'Filtro de Aceite Premium',
-      productCode: 'FAP-001',
-      category: 'Filtros',
-      status: 'Activa',
-      materials: [
-        { name: 'Papel filtro especial', quantity: 1, unit: 'unidad' },
-        { name: 'Carcasa metálica', quantity: 1, unit: 'unidad' },
-        { name: 'Adhesivo industrial', quantity: 50, unit: 'ml' }
-      ],
-      processes: [
-        { step: 1, description: 'Preparación de materiales', duration: '15 min' },
-        { step: 2, description: 'Ensamblaje de filtro', duration: '30 min' },
-        { step: 3, description: 'Prueba de presión', duration: '10 min' },
-        { step: 4, description: 'Empaque', duration: '5 min' }
-      ],
-      measurements: [
-        { parameter: 'Diámetro exterior', value: '95 mm', tolerance: '±0.5 mm' },
-        { parameter: 'Altura', value: '120 mm', tolerance: '±1.0 mm' },
-        { parameter: 'Rosca', value: 'M22x1.5', tolerance: '±0.1 mm' }
-      ],
-      supplies: [
-        { name: 'Papel filtro especial', quantity: 1, unit: 'rollo' },
-        { name: 'Adhesivo industrial', quantity: 2, unit: 'litros' }
-      ],
-      createdDate: '2024-01-15',
-      createdBy: 'Admin',
-      notes: 'Ficha técnica actualizada según nuevas especificaciones ISO',
-      statusHistory: [
-        { date: '2024-01-15', status: 'Activa', user: 'Admin' }
-      ]
-    },
-    {
-      id: 2,
-      code: 'FT-2024-002',
-      name: 'Pastillas de Freno Cerámicas',
-      productCode: 'PFC-002',
-      category: 'Frenos',
-      status: 'Activa',
-      materials: [
-        { name: 'Material cerámico', quantity: 500, unit: 'g' },
-        { name: 'Base metálica', quantity: 1, unit: 'unidad' },
-        { name: 'Resina especial', quantity: 100, unit: 'ml' }
-      ],
-      processes: [
-        { step: 1, description: 'Preparación del material cerámico', duration: '20 min' },
-        { step: 2, description: 'Moldeado en prensa', duration: '45 min' },
-        { step: 3, description: 'Curado en horno', duration: '2 horas' },
-        { step: 4, description: 'Control de calidad', duration: '15 min' }
-      ],
-      measurements: [
-        { parameter: 'Largo', value: '150 mm', tolerance: '±0.5 mm' },
-        { parameter: 'Ancho', value: '60 mm', tolerance: '±0.5 mm' },
-        { parameter: 'Espesor', value: '12 mm', tolerance: '±0.2 mm' }
-      ],
-      supplies: [
-        { name: 'Material cerámico', quantity: 150, unit: 'kg' },
-        { name: 'Resina especial', quantity: 5, unit: 'litros' }
-      ],
-      createdDate: '2024-02-10',
-      createdBy: 'Admin',
-      statusHistory: [
-        { date: '2024-02-10', status: 'Activa', user: 'Admin' }
-      ]
-    },
-    {
-      id: 3,
-      code: 'FT-2024-003',
-      name: 'Kit de Empaques Motor',
-      productCode: 'KEM-003',
-      category: 'Motor',
-      status: 'Inactiva',
-      materials: [
-        { name: 'Caucho sintético', quantity: 250, unit: 'g' },
-        { name: 'Adhesivo para juntas', quantity: 50, unit: 'ml' }
-      ],
-      processes: [
-        { step: 1, description: 'Corte de caucho', duration: '30 min' },
-        { step: 2, description: 'Moldeado', duration: '1 hora' },
-        { step: 3, description: 'Verificación dimensional', duration: '20 min' }
-      ],
-      measurements: [
-        { parameter: 'Diámetro interno', value: '85 mm', tolerance: '±0.3 mm' },
-        { parameter: 'Espesor', value: '3 mm', tolerance: '±0.1 mm' }
-      ],
-      supplies: [
-        { name: 'Caucho sintético', quantity: 50, unit: 'kg' },
-        { name: 'Adhesivo para juntas', quantity: 3, unit: 'litros' }
-      ],
-      createdDate: '2024-03-05',
-      createdBy: 'Admin',
-      modifiedBy: 'Admin',
-      modifiedAt: '2024-10-20',
-      notes: 'Desactivada por actualización de especificaciones',
-      statusHistory: [
-        { date: '2024-03-05', status: 'Activa', user: 'Admin' },
-        { date: '2024-10-20', status: 'Inactiva', user: 'Admin' }
-      ]
-    }
-  ]);
+function FieldError({ mensaje }: { mensaje?: string }) {
+    if (!mensaje) return null;
+    return (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+            {mensaje}
+        </p>
+    );
+}
 
-  // Estados de UI
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+function CharCounter({ valor, limite }: { valor: string; limite: number }) {
+    const c = contadorTexto(valor, limite);
+    if (c.actual === 0) return null;
+    return (
+        <span className={`text-xs ${c.excedido ? 'text-red-500 font-medium' : c.enPeligro ? 'text-amber-500' : 'text-gray-400'}`}>
+            {c.texto}
+        </span>
+    );
+}
 
-  const [selectedSheet, setSelectedSheet] = useState<TechnicalSheet | null>(null);
-  const [sheetToDelete, setSheetToDelete] = useState<TechnicalSheet | null>(null);
+// ─── InactiveAlert ────────────────────────────────────────────────────────────
+function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => void }) {
+    return (
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg px-4 py-3">
+            <Lock className="w-4 h-4 shrink-0 text-gray-500" />
+            <span className="flex-1">{mensaje}</span>
+            <button onClick={onClose} className="ml-2 text-gray-400 hover:text-gray-600 shrink-0">
+                <X className="w-4 h-4" />
+            </button>
+        </div>
+    );
+}
 
-  // Búsqueda y filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('date');
+// ─── ItemsForm ────────────────────────────────────────────────────────────────
+function ItemsForm({
+    materiales, setMateriales,
+    procesos, setProcesos,
+    medidas, setMedidas,
+    insumos, setInsumos,
+}: {
+    materiales: Material[];    setMateriales: (v: Material[]) => void;
+    procesos: Proceso[];       setProcesos: (v: Proceso[]) => void;
+    medidas: Medida[];         setMedidas: (v: Medida[]) => void;
+    insumos: InsumoFT[];       setInsumos: (v: InsumoFT[]) => void;
+}) {
+    const [newMat, setNewMat]   = useState<Material>({ name: '', quantity: 0, unit: '' });
+    const [newProc, setNewProc] = useState<{ description: string; duration: string }>({ description: '', duration: '' });
+    const [newMed, setNewMed]   = useState<Medida>({ parameter: '', value: '' });
+    const [newIns, setNewIns]   = useState<InsumoFT>({ name: '', quantity: 0, unit: '' });
 
-  // Paginación
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+    const [matErrors, setMatErrors]   = useState<ItemErrors>({});
+    const [procErrors, setProcErrors] = useState<ItemErrors>({});
+    const [medErrors, setMedErrors]   = useState<ItemErrors>({});
+    const [insErrors, setInsErrors]   = useState<ItemErrors>({});
 
-  // Datos para selects
-  const categories = ['Filtros', 'Frenos', 'Motor', 'Suspensión', 'Sistema Eléctrico'];
+    const [matSubmitted, setMatSubmitted]   = useState(false);
+    const [procSubmitted, setProcSubmitted] = useState(false);
+    const [medSubmitted, setMedSubmitted]   = useState(false);
+    const [insSubmitted, setInsSubmitted]   = useState(false);
 
-  // Formulario
-  const [sheetForm, setSheetForm] = useState({
-    name: '',
-    productCode: '',
-    category: '',
-    notes: '',
-    status: 'Activa' as 'Activa' | 'Inactiva'
-  });
+    function updateMatField(campo: keyof typeof newMat, valor: string | number) {
+        let valorFiltrado: string | number = valor;
+        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
+        if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
+        if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
 
-  // Estados para listas
-  const [materials, setMaterials] = useState<{ name: string; quantity: number; unit: string }[]>([]);
-  const [processes, setProcesses] = useState<{ step: number; description: string; duration: string }[]>([]);
-  const [measurements, setMeasurements] = useState<{ parameter: string; value: string; tolerance: string }[]>([]);
-  const [supplies, setSupplies] = useState<{ name: string; quantity: number; unit: string }[]>([]);
-
-  // Estados para agregar items
-  const [newMaterial, setNewMaterial] = useState({ name: '', quantity: 0, unit: '' });
-  const [newProcess, setNewProcess] = useState({ description: '', duration: '' });
-  const [newMeasurement, setNewMeasurement] = useState({ parameter: '', value: '', tolerance: '' });
-  const [newSupply, setNewSupply] = useState({ name: '', quantity: 0, unit: '' });
-
-  // Filtrado
-  const filteredSheets = sheets.filter(sheet => {
-    const matchesSearch =
-      sheet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sheet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sheet.productCode.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || sheet.status === filterStatus;
-    const matchesCategory = filterCategory === 'all' || sheet.category === filterCategory;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
-
-  // Ordenado
-  const sortedSheets = [...filteredSheets].sort((a, b) => {
-    if (sortBy === 'date') return new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime();
-    if (sortBy === 'code') return a.code.localeCompare(b.code);
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    return 0;
-  });
-
-  // Paginación
-  const totalPages = Math.ceil(sortedSheets.length / itemsPerPage);
-  const paginatedSheets = sortedSheets.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Generar código único
-  const generateSheetCode = () => {
-    const year = new Date().getFullYear();
-    const lastSheet = sheets.length > 0
-      ? Math.max(...sheets.map(s => parseInt(s.code.split('-')[2])))
-      : 0;
-    const nextNumber = String(lastSheet + 1).padStart(3, '0');
-    return `FT-${year}-${nextNumber}`;
-  };
-
-  // Crear ficha
-  const handleCreateSheet = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sheetForm.name || !sheetForm.productCode || !sheetForm.category) {
-      toast.error('Por favor completa todos los campos obligatorios');
-      return;
-    }
-    if (materials.length === 0) {
-      toast.error('Debes agregar al menos un material');
-      return;
-    }
-    if (processes.length === 0) {
-      toast.error('Debes agregar al menos un proceso');
-      return;
+        const nuevoMat = { ...newMat, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
+        setNewMat(nuevoMat);
+        if (matSubmitted) setMatErrors(validarMaterialCampos(nuevoMat));
     }
 
-    const sheetCode = generateSheetCode();
-    const newSheet: TechnicalSheet = {
-      id: Math.max(...sheets.map(s => s.id), 0) + 1,
-      code: sheetCode,
-      name: sheetForm.name,
-      productCode: sheetForm.productCode,
-      category: sheetForm.category,
-      status: 'Activa',
-      materials,
-      processes: processes.map((p, i) => ({ ...p, step: i + 1 })),
-      measurements,
-      supplies,
-      createdDate: new Date().toISOString().split('T')[0],
-      createdBy: 'Admin',
-      notes: sheetForm.notes,
-      statusHistory: [{ date: new Date().toISOString().split('T')[0], status: 'Activa', user: 'Admin' }]
+    const addMat = () => {
+        setMatSubmitted(true);
+        const camposErr = validarMaterialCampos(newMat);
+        setMatErrors(camposErr);
+        const { valid, errors } = validarMaterial(newMat);
+        if (!valid) { toast.error(errors[0]); return; }
+        setMateriales([...materiales, { ...newMat, name: newMat.name.trim(), unit: newMat.unit.trim() }]);
+        setNewMat({ name: '', quantity: 0, unit: '' });
+        setMatErrors({});
+        setMatSubmitted(false);
     };
 
-    setSheets([...sheets, newSheet]);
-    resetForm();
-    setShowCreateModal(false);
-    toast.success(`Ficha técnica ${sheetCode} registrada exitosamente`);
-  };
+    function updateProcField(campo: keyof typeof newProc, valor: string) {
+        let valorFiltrado = valor;
+        if (campo === 'description') valorFiltrado = filtrarDescripcion(valor);
+        if (campo === 'duration')    valorFiltrado = filtrarDuracion(valor);
 
-  // Editar ficha
-  const handleUpdateSheet = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSheet) return;
-
-    if (!sheetForm.name || !sheetForm.productCode || !sheetForm.category) {
-      toast.error('Por favor completa todos los campos obligatorios');
-      return;
-    }
-    if (materials.length === 0) {
-      toast.error('Debes agregar al menos un material');
-      return;
-    }
-    if (processes.length === 0) {
-      toast.error('Debes agregar al menos un proceso');
-      return;
+        const nuevoProc = { ...newProc, [campo]: valorFiltrado };
+        setNewProc(nuevoProc);
+        if (procSubmitted) setProcErrors(validarProcesoCampos(nuevoProc));
     }
 
-    const updatedSheets = sheets.map(sheet =>
-      sheet.id === selectedSheet.id
-        ? {
-            ...sheet,
-            name: sheetForm.name,
-            productCode: sheetForm.productCode,
-            category: sheetForm.category,
-            status: sheetForm.status,
-            statusHistory: sheetForm.status !== sheet.status
-              ? [...sheet.statusHistory, {
-                  date: new Date().toISOString().split('T')[0],
-                  status: sheetForm.status,
-                  user: 'Admin'
-                }]
-              : sheet.statusHistory,
-            materials,
-            processes: processes.map((p, i) => ({ ...p, step: i + 1 })),
-            measurements,
-            supplies,
-            notes: sheetForm.notes,
-            modifiedBy: 'Admin',
-            modifiedAt: new Date().toISOString().split('T')[0]
-          }
-        : sheet
-    );
+    const addProc = () => {
+        setProcSubmitted(true);
+        const camposErr = validarProcesoCampos(newProc);
+        setProcErrors(camposErr);
+        const { valid, errors } = validarProceso({ ...newProc, step: procesos.length + 1 });
+        if (!valid) { toast.error(errors[0]); return; }
+        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim() }]);
+        setNewProc({ description: '', duration: '' });
+        setProcErrors({});
+        setProcSubmitted(false);
+    };
 
-    setSheets(updatedSheets);
-    setShowEditModal(false);
-    setSelectedSheet(null);
-    resetForm();
-    toast.success('Ficha técnica actualizada exitosamente');
-  };
-
-  // Eliminar ficha
-  const handleDeleteSheet = () => {
-    if (!sheetToDelete) return;
-    if (sheetToDelete.status === 'Activa') {
-      toast.error('No se puede eliminar una ficha técnica activa. Cámbiala a Inactiva primero.');
-      setShowDeleteDialog(false);
-      setSheetToDelete(null);
-      return;
+    function updateMedField(campo: keyof typeof newMed, valor: string) {
+        const valorFiltrado = filtrarParametro(valor);
+        const nuevaMed = { ...newMed, [campo]: valorFiltrado };
+        setNewMed(nuevaMed);
+        if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
     }
-    setSheets(sheets.filter(sheet => sheet.id !== sheetToDelete.id));
-    setShowDeleteDialog(false);
-    setSheetToDelete(null);
-    toast.success('Ficha técnica eliminada exitosamente');
-    console.log(`Auditoría: Ficha técnica ${sheetToDelete.code} eliminada por Admin el ${new Date().toISOString()}`);
-  };
 
-  // Ver detalle
-  const handleViewDetail = (sheet: TechnicalSheet) => {
-    setSelectedSheet(sheet);
-    setShowDetailModal(true);
-  };
+    const addMed = () => {
+        setMedSubmitted(true);
+        const camposErr = validarMedidaCampos(newMed);
+        setMedErrors(camposErr);
+        const { valid, errors } = validarMedida(newMed);
+        if (!valid) { toast.error(errors[0]); return; }
+        setMedidas([...medidas, { parameter: newMed.parameter.trim(), value: newMed.value.trim() }]);
+        setNewMed({ parameter: '', value: '' });
+        setMedErrors({});
+        setMedSubmitted(false);
+    };
 
-  // Abrir modal editar
-  const openEditModal = (sheet: TechnicalSheet) => {
-    setSelectedSheet(sheet);
-    setSheetForm({
-      name: sheet.name,
-      productCode: sheet.productCode,
-      category: sheet.category,
-      notes: sheet.notes || '',
-      status: sheet.status
-    });
-    setMaterials(sheet.materials);
-    setProcesses(sheet.processes);
-    setMeasurements(sheet.measurements);
-    setSupplies(sheet.supplies);
-    setShowEditModal(true);
-  };
+    function updateInsField(campo: keyof typeof newIns, valor: string | number) {
+        let valorFiltrado: string | number = valor;
+        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
+        if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
+        if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
 
-  const openDeleteDialog = (sheet: TechnicalSheet) => {
-    setSheetToDelete(sheet);
-    setShowDeleteDialog(true);
-  };
-
-  const resetForm = () => {
-    setSheetForm({ name: '', productCode: '', category: '', notes: '', status: 'Activa' });
-    setMaterials([]);
-    setProcesses([]);
-    setMeasurements([]);
-    setSupplies([]);
-    setSelectedSheet(null);
-  };
-
-  // Agregar items
-  const addMaterial = () => {
-    if (newMaterial.name && newMaterial.quantity > 0 && newMaterial.unit) {
-      setMaterials([...materials, newMaterial]);
-      setNewMaterial({ name: '', quantity: 0, unit: '' });
-      toast.success('Material agregado');
-    } else {
-      toast.error('Completa todos los campos del material');
+        const nuevoIns = { ...newIns, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
+        setNewIns(nuevoIns);
+        if (insSubmitted) setInsErrors(validarInsumoCampos(nuevoIns));
     }
-  };
 
-  const addProcess = () => {
-    if (newProcess.description && newProcess.duration) {
-      setProcesses([...processes, { step: processes.length + 1, ...newProcess }]);
-      setNewProcess({ description: '', duration: '' });
-      toast.success('Proceso agregado');
-    } else {
-      toast.error('Completa todos los campos del proceso');
-    }
-  };
+    const addIns = () => {
+        setInsSubmitted(true);
+        const camposErr = validarInsumoCampos(newIns);
+        setInsErrors(camposErr);
+        const { valid, errors } = validarInsumo(newIns);
+        if (!valid) { toast.error(errors[0]); return; }
+        setInsumos([...insumos, { ...newIns, name: newIns.name.trim(), unit: newIns.unit.trim() }]);
+        setNewIns({ name: '', quantity: 0, unit: '' });
+        setInsErrors({});
+        setInsSubmitted(false);
+    };
 
-  const addMeasurement = () => {
-    if (newMeasurement.parameter && newMeasurement.value) {
-      setMeasurements([...measurements, newMeasurement]);
-      setNewMeasurement({ parameter: '', value: '', tolerance: '' });
-      toast.success('Medida agregada');
-    } else {
-      toast.error('Completa los campos obligatorios de la medida');
-    }
-  };
+    const inputErr = (hasErr: boolean) =>
+        hasErr ? 'border-red-400 focus-visible:ring-red-300' : '';
 
-  const addSupply = () => {
-    if (newSupply.name && newSupply.quantity > 0 && newSupply.unit) {
-      setSupplies([...supplies, newSupply]);
-      setNewSupply({ name: '', quantity: 0, unit: '' });
-      toast.success('Insumo agregado');
-    } else {
-      toast.error('Completa todos los campos del insumo');
-    }
-  };
-
-  // Eliminar items
-  const removeMaterial = (index: number) => setMaterials(materials.filter((_, i) => i !== index));
-  const removeProcess = (index: number) => setProcesses(processes.filter((_, i) => i !== index));
-  const removeMeasurement = (index: number) => setMeasurements(measurements.filter((_, i) => i !== index));
-  const removeSupply = (index: number) => setSupplies(supplies.filter((_, i) => i !== index));
-
-  const getStatusBadge = (status: string) => {
-    return status === 'Activa' ? (
-      <Badge className="bg-green-100 text-green-700 border-green-200">
-        <CheckCircleIcon className="w-3 h-3 mr-1" />
-        Activa
-      </Badge>
-    ) : (
-      <Badge className="bg-red-100 text-red-700 border-red-200">
-        <XCircleIcon className="w-3 h-3 mr-1" />
-        Inactiva
-      </Badge>
-    );
-  };
-
-  // Formulario reutilizable para materiales, procesos, medidas e insumos
-  const renderItemForms = () => (
-    <>
-      {/* Materiales */}
-      <Card className="border-2 border-indigo-100">
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-          <CardTitle className="text-lg">Materiales * (mínimo 1)</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Nombre del Material</Label>
-              <Input
-                placeholder="Ej: Papel filtro especial"
-                value={newMaterial.name}
-                onChange={(e) => setNewMaterial({ ...newMaterial, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={newMaterial.quantity || ''}
-                onChange={(e) => setNewMaterial({ ...newMaterial, quantity: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Unidad</Label>
-              <Input
-                placeholder="Ej: kg, unidades"
-                value={newMaterial.unit}
-                onChange={(e) => setNewMaterial({ ...newMaterial, unit: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button type="button" variant="outline" onClick={addMaterial} className="w-full">
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Agregar Material
-          </Button>
-          {materials.length > 0 && (
-            <div className="space-y-2">
-              {materials.map((material, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                  <span className="text-sm text-gray-900">{material.name} - {material.quantity} {material.unit}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeMaterial(index)} className="text-red-600">
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Procesos */}
-      <Card className="border-2 border-indigo-100">
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-          <CardTitle className="text-lg">Procesos de Fabricación * (mínimo 1)</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Descripción del Proceso</Label>
-              <Input
-                placeholder="Ej: Preparación de materiales"
-                value={newProcess.description}
-                onChange={(e) => setNewProcess({ ...newProcess, description: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Duración</Label>
-              <Input
-                placeholder="Ej: 15 min, 2 horas"
-                value={newProcess.duration}
-                onChange={(e) => setNewProcess({ ...newProcess, duration: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button type="button" variant="outline" onClick={addProcess} className="w-full">
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Agregar Proceso
-          </Button>
-          {processes.length > 0 && (
-            <div className="space-y-2">
-              {processes.map((process, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                  <span className="text-sm text-gray-900">Paso {index + 1}: {process.description} ({process.duration})</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeProcess(index)} className="text-red-600">
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Medidas */}
-      <Card className="border-2 border-indigo-100">
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-          <CardTitle className="text-lg">Medidas y Especificaciones (Opcional)</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Parámetro</Label>
-              <Input
-                placeholder="Ej: Diámetro exterior"
-                value={newMeasurement.parameter}
-                onChange={(e) => setNewMeasurement({ ...newMeasurement, parameter: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Valor</Label>
-              <Input
-                placeholder="Ej: 95 mm"
-                value={newMeasurement.value}
-                onChange={(e) => setNewMeasurement({ ...newMeasurement, value: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tolerancia</Label>
-              <Input
-                placeholder="Ej: ±0.5 mm"
-                value={newMeasurement.tolerance}
-                onChange={(e) => setNewMeasurement({ ...newMeasurement, tolerance: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button type="button" variant="outline" onClick={addMeasurement} className="w-full">
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Agregar Medida
-          </Button>
-          {measurements.length > 0 && (
-            <div className="space-y-2">
-              {measurements.map((measurement, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                  <span className="text-sm text-gray-900">
-                    {measurement.parameter}: {measurement.value} {measurement.tolerance && `(${measurement.tolerance})`}
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeMeasurement(index)} className="text-red-600">
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Insumos */}
-      <Card className="border-2 border-indigo-100">
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-          <CardTitle className="text-lg">Insumos Requeridos (Opcional)</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2 md:col-span-2">
-              <Label>Nombre del Insumo</Label>
-              <Input
-                placeholder="Ej: Adhesivo industrial"
-                value={newSupply.name}
-                onChange={(e) => setNewSupply({ ...newSupply, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={newSupply.quantity || ''}
-                onChange={(e) => setNewSupply({ ...newSupply, quantity: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Unidad</Label>
-              <Input
-                placeholder="Ej: litros, kg"
-                value={newSupply.unit}
-                onChange={(e) => setNewSupply({ ...newSupply, unit: e.target.value })}
-              />
-            </div>
-          </div>
-          <Button type="button" variant="outline" onClick={addSupply} className="w-full">
-            <PlusIcon className="w-4 h-4 mr-2" />
-            Agregar Insumo
-          </Button>
-          {supplies.length > 0 && (
-            <div className="space-y-2">
-              {supplies.map((supply, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                  <span className="text-sm text-gray-900">{supply.name} - {supply.quantity} {supply.unit}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeSupply(index)} className="text-red-600">
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </>
-  );
-
-  return (
-    <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl text-gray-900 flex items-center gap-3">
-            <FileTextIcon className="w-8 h-8 text-indigo-600" />
-            Fichas Técnicas
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Módulo de Producción - Gestiona las especificaciones de productos
-          </p>
-        </div>
-
-        {/* Modal Crear */}
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogTrigger asChild>
-            <Button className="bg-indigo-600 hover:bg-indigo-700" size="lg">
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Registrar Ficha Técnica
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registrar Nueva Ficha Técnica</DialogTitle>
-              <DialogDescription>
-                Completa todos los campos obligatorios (*) para crear una nueva ficha técnica.
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleCreateSheet} className="space-y-6">
-              <Card className="border-2 border-indigo-100">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-                  <CardTitle className="text-lg">Información General</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nombre *</Label>
-                      <Input
-                        placeholder="Nombre del producto"
-                        value={sheetForm.name}
-                        onChange={(e) => setSheetForm({ ...sheetForm, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Código del Producto *</Label>
-                      <Input
-                        placeholder="Ej: FAP-001"
-                        value={sheetForm.productCode}
-                        onChange={(e) => setSheetForm({ ...sheetForm, productCode: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Categoría *</Label>
-                      <Select
-                        value={sheetForm.category}
-                        onValueChange={(value) => setSheetForm({ ...sheetForm, category: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar categoría" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(cat => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Notas</Label>
-                      <Textarea
-                        placeholder="Notas adicionales..."
-                        value={sheetForm.notes}
-                        onChange={(e) => setSheetForm({ ...sheetForm, notes: e.target.value })}
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {renderItemForms()}
-
-              <div className="flex gap-4">
-                <Button type="button" variant="outline" onClick={() => { resetForm(); setShowCreateModal(false); }} className="flex-1">
-                  Cancelar
-                </Button>
-                <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700">
-                  Registrar Ficha Técnica
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Filtros */}
-      <Card className="shadow-lg border-gray-100">
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2 relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Buscar por nombre, código..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="Activa">Activa</SelectItem>
-                  <SelectItem value="Inactiva">Inactiva</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categories.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>{sortedSheets.length} ficha(s) técnica(s) encontrada(s)</span>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Ordenar por:</Label>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Fecha</SelectItem>
-                    <SelectItem value="code">Código</SelectItem>
-                    <SelectItem value="name">Nombre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabla */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-indigo-50 to-indigo-100 border-b-2 border-indigo-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs text-gray-600 uppercase tracking-wider">Código</th>
-                <th className="px-6 py-4 text-left text-xs text-gray-600 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-4 text-center text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
-                <th className="px-6 py-4 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedSheets.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    <FileTextIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>No se encontraron fichas técnicas</p>
-                  </td>
-                </tr>
-              ) : (
-                paginatedSheets.map((sheet) => (
-                  <tr key={sheet.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <FileTextIcon className="w-5 h-5 text-indigo-600" />
-                        <span className="text-sm text-gray-900">{sheet.code}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{sheet.name}</p>
-                        <p className="text-xs text-gray-500">{sheet.productCode}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <p className="text-sm text-gray-900">{sheet.createdDate}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetail(sheet)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-200 hover:bg-blue-50"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditModal(sheet)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-200 hover:bg-blue-50"
-                        >
-                          <EditIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openDeleteDialog(sheet)}
-                          className="text-blue-900 hover:text-blue-900 border-blue-200 hover:bg-blue-50"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="border-t border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                page === currentPage ? (
-                  <Button key={page} variant="outline" size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
-                    {page}
-                  </Button>
-                ) : (
-                  <Button key={page} variant="ghost" size="sm" className="w-8" onClick={() => setCurrentPage(page)}>
-                    {page}
-                  </Button>
-                )
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-gray-300 disabled:text-gray-500"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Modal Ver Detalle */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de Ficha Técnica</DialogTitle>
-            <DialogDescription>
-              Información completa de la ficha técnica {selectedSheet?.code}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedSheet && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <PackageIcon className="w-5 h-5" />
-                    Información General
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-gray-600">Código de Ficha</Label>
-                      <p className="text-gray-900 mt-1">{selectedSheet.code}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Estado</Label>
-                      <div className="mt-1">{getStatusBadge(selectedSheet.status)}</div>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Nombre del Producto</Label>
-                      <p className="text-gray-900 mt-1">{selectedSheet.name}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Código del Producto</Label>
-                      <p className="text-gray-900 mt-1">{selectedSheet.productCode}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Categoría</Label>
-                      <Badge variant="outline" className="mt-1 bg-indigo-50 text-indigo-700 border-indigo-200">
-                        {selectedSheet.category}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label className="text-gray-600">Fecha de Creación</Label>
-                      <p className="text-gray-900 mt-1">{selectedSheet.createdDate}</p>
-                    </div>
-                  </div>
-                  {selectedSheet.notes && (
-                    <div className="pt-3 border-t">
-                      <Label className="text-gray-600">Notas</Label>
-                      <p className="text-gray-900 mt-1">{selectedSheet.notes}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <PackageIcon className="w-5 h-5" />
-                    Materiales
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {selectedSheet.materials.map((material, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                        <span className="text-sm text-gray-900">{material.name}</span>
-                        <Badge variant="outline">{material.quantity} {material.unit}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <ClipboardListIcon className="w-5 h-5" />
-                    Procesos de Fabricación
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {selectedSheet.processes.map((process, index) => (
-                      <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                        <span className="text-sm text-gray-900">Paso {process.step}: {process.description}</span>
-                        <Badge variant="outline" className="ml-4">{process.duration}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {selectedSheet.measurements.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <RulerIcon className="w-5 h-5" />
-                      Medidas y Especificaciones
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {selectedSheet.measurements.map((measurement, index) => (
-                        <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                          <span className="text-sm text-gray-900">{measurement.parameter}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-900">{measurement.value}</span>
-                            {measurement.tolerance && (
-                              <Badge variant="outline" className="text-xs">{measurement.tolerance}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {selectedSheet.supplies.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <ListIcon className="w-5 h-5" />
-                      Insumos Requeridos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {selectedSheet.supplies.map((supply, index) => (
-                        <div key={index} className="flex items-center justify-between bg-gray-50 rounded p-3 border">
-                          <span className="text-sm text-gray-900">{supply.name}</span>
-                          <Badge variant="outline">{supply.quantity} {supply.unit}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card className="bg-gray-50">
-                <CardContent className="pt-4 text-xs text-gray-600 space-y-1">
-                  <p className="flex items-center gap-2">
-                    <CalendarIcon className="w-3 h-3" />
-                    Creado por: {selectedSheet.createdBy} el {selectedSheet.createdDate}
-                  </p>
-                  {selectedSheet.modifiedBy && (
-                    <p className="flex items-center gap-2">
-                      <UserIcon className="w-3 h-3" />
-                      Última modificación: {selectedSheet.modifiedBy} el {selectedSheet.modifiedAt}
+    return (
+        <>
+            {/* ── Materiales ── */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                        Materiales <span className="text-red-500">*</span>
+                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
                     </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="flex gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => { setShowDetailModal(false); setSelectedSheet(null); }}
-                  className="flex-1"
-                >
-                  <ArrowLeftIcon className="w-4 h-4 mr-2" />
-                  Volver a la Lista
-                </Button>
-                <Button
-                  onClick={() => { setShowDetailModal(false); openEditModal(selectedSheet); }}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                >
-                  <EditIcon className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
-              </div>
+                </div>
+                <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="md:col-span-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Nombre *</Label>
+                                <CharCounter valor={newMat.name} limite={100} />
+                            </div>
+                            <Input placeholder="Ej: Papel filtro, Acero inoxidable" value={newMat.name}
+                                onChange={e => updateMatField('name', e.target.value)} className={inputErr(!!matErrors.name)} />
+                            <FieldError mensaje={matErrors.name} />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Cantidad *</Label>
+                            <Input type="text" inputMode="decimal" placeholder="Ej: 2.5"
+                                value={newMat.quantity || ''}
+                                onChange={e => updateMatField('quantity', e.target.value)} className={inputErr(!!matErrors.quantity)} />
+                            <FieldError mensaje={matErrors.quantity} />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Unidad *</Label>
+                                <CharCounter valor={newMat.unit} limite={30} />
+                            </div>
+                            <Input placeholder="kg, unidades, m²" value={newMat.unit}
+                                onChange={e => updateMatField('unit', e.target.value)} className={inputErr(!!matErrors.unit)} />
+                            <FieldError mensaje={matErrors.unit} />
+                        </div>
+                    </div>
+                    <Button type="button" variant="outline" onClick={addMat} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                        <Plus className="w-4 h-4 mr-2" />Agregar Material
+                    </Button>
+                    {materiales.length === 0 && (
+                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un material</p>
+                    )}
+                    {materiales.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                            <span className="font-medium text-gray-700">{m.name}</span>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-xs">{m.quantity} {m.unit}</Badge>
+                                <Button type="button" variant="ghost" size="sm"
+                                    onClick={() => setMateriales(materiales.filter((_, j) => j !== i))}
+                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* Modal Editar */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Ficha Técnica</DialogTitle>
-            <DialogDescription>
-              Modifica los datos de la ficha técnica {selectedSheet?.code}
-            </DialogDescription>
-          </DialogHeader>
+            {/* ── Procesos ── */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                        Procesos de Fabricación <span className="text-red-500">*</span>
+                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 30)</span>
+                    </p>
+                </div>
+                <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="md:col-span-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Descripción *</Label>
+                                <CharCounter valor={newProc.description} limite={300} />
+                            </div>
+                            <Input placeholder="Ej: Preparación de materiales, Corte de piezas"
+                                value={newProc.description}
+                                onChange={e => updateProcField('description', e.target.value)} className={inputErr(!!procErrors.description)} />
+                            <FieldError mensaje={procErrors.description} />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Duración *</Label>
+                                <CharCounter valor={newProc.duration} limite={50} />
+                            </div>
+                            <Input placeholder="15 min, 2 horas" value={newProc.duration}
+                                onChange={e => updateProcField('duration', e.target.value)} className={inputErr(!!procErrors.duration)} />
+                            <FieldError mensaje={procErrors.duration} />
+                        </div>
+                    </div>
+                    <Button type="button" variant="outline" onClick={addProc} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                        <Plus className="w-4 h-4 mr-2" />Agregar Proceso
+                    </Button>
+                    {procesos.length === 0 && (
+                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un proceso</p>
+                    )}
+                    {procesos.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                            <span>
+                                <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
+                                {p.description}
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
+                                <Button type="button" variant="ghost" size="sm"
+                                    onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
+                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-          <form onSubmit={handleUpdateSheet} className="space-y-6">
-            <Card className="border-2 border-indigo-100">
-              <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
-                <CardTitle className="text-lg">Información General</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nombre *</Label>
+            {/* ── Medidas ── */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                        Medidas y Especificaciones
+                        <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 30)</span>
+                    </p>
+                </div>
+                <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Parámetro *</Label>
+                                <CharCounter valor={newMed.parameter} limite={100} />
+                            </div>
+                            <Input placeholder="Ej: Diámetro exterior, Longitud"
+                                value={newMed.parameter}
+                                onChange={e => updateMedField('parameter', e.target.value)} className={inputErr(!!medErrors.parameter)} />
+                            <FieldError mensaje={medErrors.parameter} />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Valor *</Label>
+                                <CharCounter valor={newMed.value} limite={100} />
+                            </div>
+                            <Input placeholder="Ej: 95 mm, 1.2 kg"
+                                value={newMed.value}
+                                onChange={e => updateMedField('value', e.target.value)} className={inputErr(!!medErrors.value)} />
+                            <FieldError mensaje={medErrors.value} />
+                        </div>
+                    </div>
+                    <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                        <Plus className="w-4 h-4 mr-2" />Agregar Medida
+                    </Button>
+                    {medidas.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                            <span className="text-gray-700">{m.parameter}</span>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-xs">{m.value}</Badge>
+                                <Button type="button" variant="ghost" size="sm"
+                                    onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
+                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── Insumos ── */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                        Insumos Requeridos
+                        <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 50)</span>
+                    </p>
+                </div>
+                <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="md:col-span-2 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Nombre *</Label>
+                                <CharCounter valor={newIns.name} limite={100} />
+                            </div>
+                            <Input placeholder="Ej: Adhesivo industrial" value={newIns.name}
+                                onChange={e => updateInsField('name', e.target.value)} className={inputErr(!!insErrors.name)} />
+                            <FieldError mensaje={insErrors.name} />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Cantidad *</Label>
+                            <Input type="text" inputMode="decimal" placeholder="Ej: 0.5"
+                                value={newIns.quantity || ''}
+                                onChange={e => updateInsField('quantity', e.target.value)} className={inputErr(!!insErrors.quantity)} />
+                            <FieldError mensaje={insErrors.quantity} />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs">Unidad *</Label>
+                                <CharCounter valor={newIns.unit} limite={30} />
+                            </div>
+                            <Input placeholder="litros, kg, ml" value={newIns.unit}
+                                onChange={e => updateInsField('unit', e.target.value)} className={inputErr(!!insErrors.unit)} />
+                            <FieldError mensaje={insErrors.unit} />
+                        </div>
+                    </div>
+                    <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                        <Plus className="w-4 h-4 mr-2" />Agregar Insumo
+                    </Button>
+                    {insumos.map((ins, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                            <span className="font-medium text-gray-700">{ins.name}</span>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-xs">{ins.quantity} {ins.unit}</Badge>
+                                <Button type="button" variant="ghost" size="sm"
+                                    onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}
+                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════════
+export function TechnicalSheetModule() {
+    const [fichas, setFichas]       = useState<FichaTecnica[]>([]);
+    const [productos, setProductos] = useState<Producto[]>([]);
+    const [loading, setLoading]     = useState(false);
+    const [saving, setSaving]       = useState(false);
+
+    const [showCreateModal, setShowCreateModal]   = useState(false);
+    const [showEditModal, setShowEditModal]       = useState(false);
+    const [showDetailModal, setShowDetailModal]   = useState(false);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+    const [selectedFicha, setSelectedFicha] = useState<FichaTecnica | null>(null);
+    const [fichaToDelete, setFichaToDelete] = useState<FichaTecnica | null>(null);
+
+    const [createForm, setCreateForm] = useState<FormInfo>(EMPTY_FORM);
+    const [editForm, setEditForm]     = useState<FormInfo>(EMPTY_FORM);
+
+    const [createInfoErrors, setCreateInfoErrors] = useState<{ productoId?: string; notas?: string }>({});
+    const [editInfoErrors, setEditInfoErrors]     = useState<{ notas?: string }>({});
+
+    const [cMateriales, setCMateriales] = useState<Material[]>([]);
+    const [cProcesos, setCProcesos]     = useState<Proceso[]>([]);
+    const [cMedidas, setCMedidas]       = useState<Medida[]>([]);
+    const [cInsumos, setCInsumos]       = useState<InsumoFT[]>([]);
+
+    const [eMateriales, setEMateriales] = useState<Material[]>([]);
+    const [eProcesos, setEProcesos]     = useState<Proceso[]>([]);
+    const [eMedidas, setEMedidas]       = useState<Medida[]>([]);
+    const [eInsumos, setEInsumos]       = useState<InsumoFT[]>([]);
+
+    // IDs de productos que ya tienen ficha activa (para bloquear en el selector)
+    const productosConFichaActiva = new Set(
+        fichas.filter(f => f.estado === 'Activa').map(f => f.productoId)
+    );
+
+    const [searchTerm, setSearchTerm]   = useState('');
+    const [filterEstado, setFilterEstado] = useState('all');
+    const [currentPage, setCurrentPage]  = useState(1);
+    const itemsPerPage = 5;
+
+    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+    const showFeedback = (msg: string) => {
+        setFeedbackMsg(msg);
+        setTimeout(() => setFeedbackMsg(null), 4000);
+    };
+
+    const [inactiveAlert, setInactiveAlert] = useState<string | null>(null);
+    const showInactiveAlert = (msg: string) => {
+        setInactiveAlert(msg);
+        setTimeout(() => setInactiveAlert(null), 5000);
+    };
+
+    const fetchFichas = useCallback(async () => {
+        setLoading(true);
+        try { setFichas(await getFichasTecnicas()); }
+        catch (err: any) { toast.error('Error al cargar fichas: ' + (err?.message ?? 'Error desconocido')); }
+        finally { setLoading(false); }
+    }, []);
+
+    const fetchProductos = useCallback(async () => {
+        try {
+            const BASE = getApiBaseUrl();
+            const res = await fetch(`${BASE}/productos`, { headers: buildAuthHeaders() });
+            const data = await handleResponse<Producto[]>(res);
+            setProductos(data.filter(p => p.estado === 'activo'));
+        } catch { /* silencioso */ }
+    }, []);
+
+    useEffect(() => { fetchFichas(); fetchProductos(); }, [fetchFichas, fetchProductos]);
+
+    const filtered = fichas.filter(f => {
+        const codigo   = (f.codigoFicha ?? '').toLowerCase();
+        const producto = (f.producto?.nombreProducto ?? '').toLowerCase();
+        const ref      = (f.producto?.referencia ?? '').toLowerCase();
+        const search   = searchTerm.toLowerCase();
+        const matchSearch = codigo.includes(search) || producto.includes(search) || ref.includes(search);
+        const matchEstado = filterEstado === 'all' || f.estado === filterEstado;
+        return matchSearch && matchEstado;
+    });
+
+    const sorted = [...filtered].sort((a, b) =>
+        new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    );
+
+    const totalPages = Math.ceil(sorted.length / itemsPerPage);
+    const paginated  = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const handleQuickEstadoChange = async (ficha: FichaTecnica, nuevoEstado: string) => {
+        setInactiveAlert(null);
+        try {
+            await updateFichaTecnica(ficha.id!, { estado: nuevoEstado as 'Activa' | 'Inactiva' });
+            toast.success(`Estado cambiado a ${nuevoEstado}`);
+            fetchFichas();
+        } catch (err: any) {
+            toast.error('Error al cambiar estado: ' + (err?.message ?? 'Error desconocido'));
+        }
+    };
+
+    const resetCreate = () => {
+        setCreateForm(EMPTY_FORM);
+        setCMateriales([]); setCProcesos([]); setCMedidas([]); setCInsumos([]);
+        setCreateInfoErrors({});
+    };
+
+    function updateCreateNotas(valor: string) {
+        const filtrado = filtrarNotas(valor);
+        setCreateForm(prev => ({ ...prev, notas: filtrado }));
+        const err = validarNotasCampo(filtrado);
+        setCreateInfoErrors(prev => ({ ...prev, notas: err }));
+    }
+
+    function updateEditNotas(valor: string) {
+        const filtrado = filtrarNotas(valor);
+        setEditForm(prev => ({ ...prev, notas: filtrado }));
+        const err = validarNotasCampo(filtrado);
+        setEditInfoErrors(prev => ({ ...prev, notas: err }));
+    }
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!createForm.productoId) {
+            setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
+        }
+        // Validación previa: el producto ya tiene una ficha activa
+        if (createForm.productoId && productosConFichaActiva.has(parseInt(createForm.productoId))) {
+            const fichaExistente = fichas.find(
+                f => f.productoId === parseInt(createForm.productoId) && f.estado === 'Activa'
+            );
+            const codigo = fichaExistente?.codigoFicha ?? '';
+            setCreateInfoErrors(prev => ({
+                ...prev,
+                productoId: `Este producto ya tiene la ficha activa ${codigo}. Inactívala antes de crear una nueva.`,
+            }));
+            toast.error(`Este producto ya tiene la ficha activa ${codigo}. Inactívala primero.`);
+            return;
+        }
+        const { valid, errors } = validarFormCrear(createForm, cMateriales, cProcesos, cMedidas, cInsumos);
+        if (!valid) { toast.error(errors[0]); return; }
+
+        setSaving(true);
+        try {
+            const res = await createFichaTecnica({
+                productoId: parseInt(createForm.productoId),
+                materiales: cMateriales,
+                procesos:   cProcesos,
+                medidas:    cMedidas,
+                insumos:    cInsumos,
+                notas:      createForm.notas || undefined,
+            });
+            showFeedback(`✓ Ficha ${res.ficha.codigoFicha} creada exitosamente`);
+            toast.success(`Ficha ${res.ficha.codigoFicha} creada exitosamente`);
+            setShowCreateModal(false);
+            resetCreate();
+            fetchFichas();
+        } catch (err: any) {
+            toast.error('Error al crear: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openEdit = (f: FichaTecnica) => {
+        setSelectedFicha(f);
+        setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
+        setEMateriales(f.materiales ?? []);
+        setEProcesos(f.procesos ?? []);
+        setEMedidas(f.medidas ?? []);
+        setEInsumos(f.insumos ?? []);
+        setEditInfoErrors({});
+        setShowEditModal(true);
+    };
+
+    const handleUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedFicha?.id) return;
+        const { valid, errors } = validarFormEditar(eMateriales, eProcesos, eMedidas, eInsumos, editForm.notas);
+        if (!valid) { toast.error(errors[0]); return; }
+
+        setSaving(true);
+        try {
+            await updateFichaTecnica(selectedFicha.id, {
+                materiales: eMateriales,
+                procesos:   eProcesos,
+                medidas:    eMedidas,
+                insumos:    eInsumos,
+                notas:      editForm.notas || undefined,
+                estado:     editForm.estado,
+            });
+            showFeedback('✓ Ficha técnica actualizada correctamente');
+            toast.success('Ficha técnica actualizada correctamente');
+            setShowEditModal(false);
+            setSelectedFicha(null);
+            fetchFichas();
+        } catch (err: any) {
+            toast.error('Error al actualizar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!fichaToDelete?.id) return;
+        setSaving(true);
+        try {
+            await deleteFichaTecnica(fichaToDelete.id);
+            showFeedback('✓ Ficha técnica eliminada correctamente');
+            toast.success('Ficha técnica eliminada correctamente');
+            setShowDeleteDialog(false);
+            setFichaToDelete(null);
+            fetchFichas();
+        } catch (err: any) {
+            toast.error('Error al eliminar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="p-6 space-y-6">
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl text-blue-900 font-bold mb-2">Fichas Técnicas</h1>
+                    <p className="text-blue-800">Especificaciones técnicas de productos</p>
+                </div>
+                <Button
+                    onClick={() => { resetCreate(); setShowCreateModal(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                    <Plus className="w-4 h-4 mr-2" />Registrar Ficha Técnica
+                </Button>
+            </div>
+
+            {/* Filtros */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
-                      placeholder="Nombre del producto"
-                      value={sheetForm.name}
-                      onChange={(e) => setSheetForm({ ...sheetForm, name: e.target.value })}
-                      required
+                      placeholder="Buscar por código, producto, referencia..."
+                      value={searchTerm}
+                      onChange={e => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="pl-10 w-full"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Código del Producto *</Label>
-                    <Input
-                      placeholder="Ej: FAP-001"
-                      value={sheetForm.productCode}
-                      onChange={(e) => setSheetForm({ ...sheetForm, productCode: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Categoría *</Label>
-                    <Select
-                      value={sheetForm.category}
-                      onValueChange={(value) => setSheetForm({ ...sheetForm, category: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Estado</Label>
-                    <Select
-                      value={sheetForm.status}
-                      onValueChange={(value) => setSheetForm({ ...sheetForm, status: value as 'Activa' | 'Inactiva' })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Activa">Activa</SelectItem>
-                        <SelectItem value="Inactiva">Inactiva</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Notas</Label>
-                    <Textarea
-                      placeholder="Notas adicionales..."
-                      value={sheetForm.notes}
-                      onChange={(e) => setSheetForm({ ...sheetForm, notes: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
+                  <select
+                    value={filterEstado}
+                    onChange={e => {
+                      setFilterEstado(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-40"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="Activa">Activa</option>
+                    <option value="Inactiva">Inactiva</option>
+                  </select>
                 </div>
               </CardContent>
             </Card>
 
-            {renderItemForms()}
+            {/* Alerta de ficha inactiva */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
+                />
+            )}
 
-            <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => { resetForm(); setShowEditModal(false); }} className="flex-1">
-                Cancelar
-              </Button>
-              <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700">
-                Guardar Cambios
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Eliminar */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangleIcon className="w-5 h-5" />
-              Eliminar Ficha Técnica
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>¿Estás seguro de que deseas eliminar esta ficha técnica?</p>
-              {sheetToDelete && (
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-sm text-gray-600">Código: </span>
-                      <span className="text-sm text-gray-900">{sheetToDelete.code}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Nombre: </span>
-                      <span className="text-sm text-gray-900">{sheetToDelete.name}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">Estado: </span>
-                      {getStatusBadge(sheetToDelete.status)}
-                    </div>
-                  </div>
+            {/* Tabla */}
+            {loading ? (
+                <div className="flex justify-center items-center py-16">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-500">Cargando fichas técnicas...</span>
                 </div>
-              )}
-              <p className="text-sm text-red-600">
-                Esta acción no se puede deshacer. El registro se eliminará permanentemente del sistema.
-              </p>
-              {sheetToDelete?.status === 'Activa' && (
-                <p className="text-sm text-red-600 font-medium">
-                  ⚠️ No se puede eliminar una ficha técnica activa. Cambia su estado a Inactiva primero.
-                </p>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSheetToDelete(null)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteSheet}
-              className="bg-red-600 hover:bg-red-700"
-              disabled={sheetToDelete?.status === 'Activa'}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
+            ) : (
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-blue-900">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Código</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginated.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="text-center py-12 text-gray-500">
+                                                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                                <p>No se encontraron fichas técnicas</p>
+                                            </td>
+                                        </tr>
+                                    ) : paginated.map(ficha => {
+                                        const isInactiva = ficha.estado === 'Inactiva';
+                                        return (
+                                            <tr key={ficha.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText className={`w-4 h-4 shrink-0 ${isInactiva ? 'text-gray-300' : 'text-blue-600'}`} />
+                                                        <span className={`text-sm font-semibold ${isInactiva ? 'text-gray-400' : 'text-blue-900'}`}>{ficha.codigoFicha}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <p className={`font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.producto?.nombreProducto ?? '—'}</p>
+                                                </td>
+
+                                                {/* ── Columna Estado: Switch + texto ── */}
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <Switch
+                                                            checked={ficha.estado === 'Activa'}
+                                                            onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
+                                                        />
+                                                        <span className={`text-sm ${isInactiva ? 'text-gray-400' : 'text-gray-700'}`}>
+                                                            {ficha.estado === 'Activa' ? 'Activa' : 'Inactiva'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center space-x-2">
+                                                        {/* Ver detalle: siempre activo */}
+                                                        <Button size="sm"
+                                                            onClick={() => { setSelectedFicha(ficha); setShowDetailModal(true); }}
+                                                            className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
+                                                        {/* Editar: bloqueado si inactiva */}
+                                                        <Button size="sm"
+                                                            onClick={() => {
+                                                                if (isInactiva) {
+                                                                    showInactiveAlert('Ficha inactiva: No puedes editar una ficha inactiva. Actívala primero usando el interruptor de estado.');
+                                                                    return;
+                                                                }
+                                                                openEdit(ficha);
+                                                            }}
+                                                            className={`border transition-colors ${
+                                                                isInactiva
+                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
+                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                            }`}>
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+                                                        {/* Eliminar: solo si inactiva */}
+                                                        <Button size="sm"
+                                                            onClick={() => {
+                                                                if (ficha.estado === 'Activa') {
+                                                                    showInactiveAlert('Ficha activa: No puedes eliminar una ficha activa. Cámbiala a Inactiva primero usando el interruptor de estado.');
+                                                                    return;
+                                                                }
+                                                                setFichaToDelete(ficha);
+                                                                setShowDeleteDialog(true);
+                                                            }}
+                                                            className={`border transition-colors ${
+                                                                ficha.estado === 'Activa'
+                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
+                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                            }`}>
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}>
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
+                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
+                                        {page}
+                                    </Button>
+                                ))}
+                                <Button variant="outline" size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}>
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* MODAL — CREAR */}
+            <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) { resetCreate(); setShowCreateModal(false); } }}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Registrar Nueva Ficha Técnica</DialogTitle>
+                            <DialogDescription>Completa los campos obligatorios (*) para crear la ficha.</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleCreate} className="mt-4 space-y-4">
+                            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                <div className="bg-blue-50 py-3 px-4">
+                                    <p className="text-sm font-semibold text-blue-900">Información General</p>
+                                </div>
+                                <div className="p-4 space-y-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">Producto <span className="text-red-500">*</span></label>
+                                        <select
+                                            className={selectCls(!!createInfoErrors.productoId)}
+                                            value={createForm.productoId}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setCreateForm({ ...createForm, productoId: val });
+                                                if (!val) {
+                                                    setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
+                                                } else if (productosConFichaActiva.has(parseInt(val))) {
+                                                    const fichaExistente = fichas.find(
+                                                        f => f.productoId === parseInt(val) && f.estado === 'Activa'
+                                                    );
+                                                    setCreateInfoErrors(prev => ({
+                                                        ...prev,
+                                                        productoId: `Este producto ya tiene la ficha activa ${fichaExistente?.codigoFicha ?? ''}. Inactívala antes de crear una nueva.`,
+                                                    }));
+                                                } else {
+                                                    setCreateInfoErrors(prev => ({ ...prev, productoId: undefined }));
+                                                }
+                                            }}
+                                        >
+                                            <option value="">Seleccionar producto</option>
+                                            {productos.map(p => {
+                                                const tieneActiva = productosConFichaActiva.has(p.id);
+                                                return (
+                                                    <option key={p.id} value={p.id} disabled={tieneActiva}>
+                                                        {tieneActiva ? '⚠ ' : ''}{p.nombreProducto} — {p.referencia}{p.categoria ? ` (${p.categoria.nombreCategoria})` : ''}{tieneActiva ? ' [ya tiene ficha activa]' : ''}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        <FieldError mensaje={createInfoErrors.productoId} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm text-gray-700">Notas <span className="text-gray-400">(opcional)</span></label>
+                                            <CharCounter valor={createForm.notas} limite={1000} />
+                                        </div>
+                                        <Textarea
+                                            placeholder="Notas adicionales sobre la ficha técnica..."
+                                            value={createForm.notas}
+                                            rows={2}
+                                            onChange={e => updateCreateNotas(e.target.value)}
+                                            className={createInfoErrors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError mensaje={createInfoErrors.notas} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <ItemsForm
+                                materiales={cMateriales} setMateriales={setCMateriales}
+                                procesos={cProcesos}     setProcesos={setCProcesos}
+                                medidas={cMedidas}       setMedidas={setCMedidas}
+                                insumos={cInsumos}       setInsumos={setCInsumos}
+                            />
+
+                            <div className="flex justify-end gap-2 pt-4 border-t">
+                                <Button type="button" variant="outline"
+                                    onClick={() => { resetCreate(); setShowCreateModal(false); }}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL — VER DETALLE */}
+            <Dialog open={showDetailModal} onOpenChange={(open) => { if (!open) setShowDetailModal(false); }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Detalle de Ficha Técnica</DialogTitle>
+                            <DialogDescription>Información completa — {selectedFicha?.codigoFicha}</DialogDescription>
+                        </DialogHeader>
+                        {selectedFicha && (
+                            <div className="space-y-4 mt-4">
+                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Código</p>
+                                        <p className="font-semibold text-blue-900 mt-1">{selectedFicha.codigoFicha}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Estado</p>
+                                        <div className="mt-1"><StatusBadge estado={selectedFicha.estado ?? 'Activa'} /></div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Producto</p>
+                                        <p className="font-semibold text-sm mt-1">{selectedFicha.producto?.nombreProducto ?? '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase">Referencia</p>
+                                        <p className="font-semibold text-sm mt-1">{selectedFicha.producto?.referencia ?? '—'}</p>
+                                    </div>
+                                    {selectedFicha.producto?.categoria && (
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase">Categoría</p>
+                                            <Badge variant="secondary" className="mt-1">{selectedFicha.producto.categoria.nombreCategoria}</Badge>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" />Creado</p>
+                                        <p className="font-semibold text-sm mt-1">{(selectedFicha.createdAt ?? '').slice(0, 10)}</p>
+                                    </div>
+                                    {selectedFicha.notas && (
+                                        <div className="col-span-2">
+                                            <p className="text-xs text-gray-500 uppercase">Notas</p>
+                                            <p className="text-sm text-gray-700 mt-1">{selectedFicha.notas}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Materiales */}
+                                <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                    <div className="bg-blue-50 py-3 px-4">
+                                        <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                            <Package className="w-4 h-4" />Materiales ({(selectedFicha.materiales ?? []).length})
+                                        </p>
+                                    </div>
+                                    <div className="p-4 space-y-2">
+                                        {(selectedFicha.materiales ?? []).map((m, i) => (
+                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
+                                                <span>{m.name}</span><Badge variant="outline">{m.quantity} {m.unit}</Badge>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Procesos */}
+                                <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                    <div className="bg-blue-50 py-3 px-4">
+                                        <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                            <ClipboardList className="w-4 h-4" />Procesos de Fabricación ({(selectedFicha.procesos ?? []).length})
+                                        </p>
+                                    </div>
+                                    <div className="p-4 space-y-2">
+                                        {(selectedFicha.procesos ?? []).map((p, i) => (
+                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
+                                                <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
+                                                <Badge variant="outline">{p.duration}</Badge>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {(selectedFicha.medidas ?? []).length > 0 && (
+                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                        <div className="bg-blue-50 py-3 px-4">
+                                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                                <Ruler className="w-4 h-4" />Medidas y Especificaciones
+                                            </p>
+                                        </div>
+                                        <div className="p-4 space-y-2">
+                                            {(selectedFicha.medidas ?? []).map((m, i) => (
+                                                <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
+                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(selectedFicha.insumos ?? []).length > 0 && (
+                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                        <div className="bg-blue-50 py-3 px-4">
+                                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                                <List className="w-4 h-4" />Insumos Requeridos
+                                            </p>
+                                        </div>
+                                        <div className="p-4 space-y-2">
+                                            {(selectedFicha.insumos ?? []).map((ins, i) => (
+                                                <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
+                                                    <span>{ins.name}</span><Badge variant="outline">{ins.quantity} {ins.unit}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+                                    {selectedFicha.estado === 'Activa' && (
+                                        <Button
+                                            onClick={() => { setShowDetailModal(false); openEdit(selectedFicha); }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                                        >
+                                            <Edit className="w-4 h-4 mr-2" />Editar Ficha
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL — EDITAR */}
+            <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) { setShowEditModal(false); setSelectedFicha(null); } }}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible p-0">
+                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                        <DialogHeader>
+                            <DialogTitle>Editar Ficha Técnica</DialogTitle>
+                            <DialogDescription>Ficha: {selectedFicha?.codigoFicha}</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleUpdate} className="mt-4 space-y-4">
+                            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                <div className="bg-blue-50 py-3 px-4">
+                                    <p className="text-sm font-semibold text-blue-900">Información General</p>
+                                </div>
+                                <div className="p-4 space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-2">Producto (no editable)</label>
+                                            <Input value={selectedFicha?.producto?.nombreProducto ?? ''} disabled className="bg-gray-50" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-2">Estado <span className="text-red-500">*</span></label>
+                                            <select
+                                                className={selectCls()}
+                                                value={editForm.estado}
+                                                onChange={e => setEditForm({ ...editForm, estado: e.target.value as 'Activa' | 'Inactiva' })}
+                                            >
+                                                <option value="Activa">Activa</option>
+                                                <option value="Inactiva">Inactiva</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm text-gray-700">Notas <span className="text-gray-400">(opcional)</span></label>
+                                            <CharCounter valor={editForm.notas} limite={1000} />
+                                        </div>
+                                        <Textarea
+                                            value={editForm.notas}
+                                            rows={2}
+                                            onChange={e => updateEditNotas(e.target.value)}
+                                            placeholder="Notas adicionales..."
+                                            className={editInfoErrors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError mensaje={editInfoErrors.notas} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <ItemsForm
+                                materiales={eMateriales} setMateriales={setEMateriales}
+                                procesos={eProcesos}     setProcesos={setEProcesos}
+                                medidas={eMedidas}       setMedidas={setEMedidas}
+                                insumos={eInsumos}       setInsumos={setEInsumos}
+                            />
+
+                            <div className="flex justify-end gap-2 pt-4 border-t">
+                                <Button type="button" variant="outline"
+                                    onClick={() => { setShowEditModal(false); setSelectedFicha(null); }}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    {saving ? 'Guardando...' : 'Guardar Cambios'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL — ELIMINAR */}
+            <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); } }}>
+                <DialogContent className="max-w-md p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-blue-600">
+                                <AlertTriangle className="w-5 h-5" />
+                                Eliminar Ficha Técnica
+                            </DialogTitle>
+                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
+                        </DialogHeader>
+
+                        {fichaToDelete && (
+                            <div className="mt-4 space-y-3">
+                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1 text-sm">
+                                    <p><span className="text-gray-500">Código: </span><span className="font-semibold">{fichaToDelete.codigoFicha}</span></p>
+                                    <p><span className="text-gray-500">Producto: </span>{fichaToDelete.producto?.nombreProducto}</p>
+                                    <p className="flex items-center gap-1"><span className="text-gray-500">Estado: </span><StatusBadge estado={fichaToDelete.estado ?? 'Activa'} /></p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); }} disabled={saving}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleDelete}
+                                disabled={saving}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                {saving ? 'Eliminando...' : 'Eliminar'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
 }

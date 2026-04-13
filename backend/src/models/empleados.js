@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const {sequelize} = require('../config/jtools_db');
+const { sequelize } = require('../config/jtools_db');
 
 const Empleados = sequelize.define('Empleados', {
     id: {
@@ -10,7 +10,7 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     tipoDocumento: {
-        type: DataTypes.ENUM('CC', 'CE', 'RUN', 'PP'),
+        type: DataTypes.ENUM('CC', 'CE', 'Pasaporte'),
         allowNull: false,
     },
 
@@ -46,41 +46,52 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     telefono: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING(20),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'El teléfono no puede estar vacío' },
-            len: { args: [2, 10], msg: 'El teléfono debe tener entre 2 y 10 caracteres' }
+            len: { args: [7, 20], msg: 'El teléfono debe tener entre 7 y 20 caracteres' }
         }
     },
 
     email: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        defaultValue: null,
+        // ✅ Eliminado defaultValue: null (contradecía allowNull: false)
+        unique: {
+            name: 'unique_email_empleado',
+            msg: 'Este correo ya está registrado en otro empleado'
+        },
         validate: {
             notEmpty: { msg: 'El email no puede estar vacío' },
             isEmail: { msg: 'El email no tiene un formato válido' },
-            contieneArroba(value) {
-                if (!value.includes('@')) {
-                    throw new Error('El email debe contener el símbolo @');
-                }
-            },
-            len: { args: [0, 50], msg: 'El email debe tener máximo 50 caracteres' }
+            len: { args: [5, 50], msg: 'El email debe tener entre 5 y 50 caracteres' }
         }
     },
 
     cargo: {
-        type: DataTypes.ENUM('Administrador', 'secretaria', 'Operario'),
+        type: DataTypes.ENUM(
+            'Supervisor de Producción',
+            'Jefe de Área',
+            'Operario',
+            'Técnico de Calidad',
+            'Asistente'
+        ),
         allowNull: false
     },
 
     area: {
-        type: DataTypes.ENUM('Administrativa', 'Operativa', 'ventas'),
+        type: DataTypes.ENUM(
+            'Producción',
+            'Calidad',
+            'Logística',
+            'Mantenimiento',
+            'Administración'
+        ),
         allowNull: false,
         validate: {
             isIn: {
-                args: [['Administrativa', 'Operativa', 'ventas']],
+                args: [['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración']],
                 msg: 'El área seleccionada no es válida'
             }
         }
@@ -88,13 +99,13 @@ const Empleados = sequelize.define('Empleados', {
 
     direccion: {
         type: DataTypes.STRING(200),
-        allowNull: true,  // campo opcional
+        allowNull: true,
         defaultValue: null
     },
 
     ciudad: {
         type: DataTypes.STRING(50),
-        allowNull: true,  // campo opcional
+        allowNull: true,
         defaultValue: null
     },
 
@@ -105,9 +116,7 @@ const Empleados = sequelize.define('Empleados', {
             notEmpty: { msg: 'La fecha de ingreso no puede estar vacía' },
             isDate: { msg: 'La fecha de ingreso debe tener un formato válido (YYYY-MM-DD)' }
         }
-
     },
-
 
     estado: {
         type: DataTypes.ENUM('activo', 'inactivo'),

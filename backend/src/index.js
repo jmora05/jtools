@@ -27,17 +27,18 @@ const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes
 const comprasRoutes                = require('./routes/comprasRoutes.js');
 const clientesRoutes               = require('./routes/clientesRoutes.js');
 const categoriaProductosRoutes     = require('./routes/categoriaProductosRoutes.js');
-const usuarios                     = require('./routes/usuariosRoutes.js');
-const permisos                     = require('./routes/permisosRoutes.js');
-const roles                        = require('./routes/rolesRoutes.js');
+const usuariosRoutes               = require('./routes/usuariosRoutes.js');
+const permisosRoutes               = require('./routes/permisosRoutes.js');
+const rolesRoutes                  = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
-const {verifyToken}               = require('./middleware/authMiddleware.js');
+const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
+const { verifyToken }              = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
-// ── Rutas PÚBLICAS (no requieren token) ──
+// ── Rutas PÚBLICAS ──
 app.use('/api/auth', authRoutes);
 
-// ── Rutas PROTEGIDAS (requieren token) ──
+// ── Rutas PROTEGIDAS ──
 app.use('/api/empleados',               verifyToken, empleadosRoutes);
 app.use('/api/ordenes-produccion',      verifyToken, ordenesProduccionRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
@@ -54,18 +55,26 @@ app.use('/api/detalle-compra-insumo',   verifyToken, detalleCompraInsumoRoutes);
 app.use('/api/compras',                 verifyToken, comprasRoutes);
 app.use('/api/clientes',                verifyToken, clientesRoutes);
 app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
-app.use('/api/usuarios',                verifyToken, usuarios);
-app.use('/api/permisos',                verifyToken, permisos);
-app.use('/api/roles',                   verifyToken, roles);
+app.use('/api/usuarios',                verifyToken, usuariosRoutes);
+app.use('/api/permisos',                verifyToken, permisosRoutes);
+app.use('/api/roles',                   verifyToken, rolesRoutes);
+app.use('/api/fichas-tecnicas',         verifyToken, fichaTecnicaRoutes);
 
-// ================= SINCRONIZAR BASE DE DATOS =================
-sequelize.sync().then(() => {
-    console.log("Tablas sincronizadas correctamente");
-}).catch(err => {
-    console.error("Error al sincronizar tablas:", err.message);
-});
+// ================= CONEXIÓN + SINCRONIZACIÓN =================
+testConnection()
+.then(() => {
+    return sequelize.sync({ alter: true }); // 🔥 sincroniza estructura sin borrar datos
+})
 
-// ================= INICIAR SERVIDOR =================
-app.listen(5000, () => {
-    console.log("Servidor corriendo en http://localhost:5000");
+.then(() => {
+    console.log("✅ Tablas sincronizadas correctamente");
+
+    // ================= INICIAR SERVIDOR =================
+    app.listen(process.env.PORT, () => {
+        console.log(`🚀 Servidor corriendo en http://localhost:${process.env.PORT}`);
+    });
+})
+
+.catch(err => {
+    console.error("❌ Error al iniciar:", err.message);
 });

@@ -24,7 +24,7 @@ const RolPermiso = sequelize.define('RolPermiso', {
 },
 {
     tableName:'rolPermiso',
-    timestamps: false
+    timestamps: true
 });
 
 module.exports = RolPermiso;

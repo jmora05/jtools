@@ -17,7 +17,7 @@ const Usuarios = sequelize.define('Usuarios', {
     },
 
     email: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(255),
         allowNull: false,
         defaultValue: null,
         validate: {
@@ -28,7 +28,7 @@ const Usuarios = sequelize.define('Usuarios', {
                     throw new Error('El email debe contener el símbolo @');
                 }   
             },
-            len: { args: [0, 50], msg: 'El email debe tener máximo 50 caracteres' }
+            len: { args: [0, 255], msg: 'El email debe tener máximo 50 caracteres' }
         }
     },
 
