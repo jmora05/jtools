@@ -48,7 +48,10 @@ const login = async (req, res) => {
       return res.status(500).json({ message: 'Falta configurar JWT_SECRET' });
     }
 
-    const usuario = await Usuarios.findOne({ where: { email } });
+    const usuario = await Usuarios.findOne({ 
+      where: { email },
+      include: [{ model: Roles, as: 'rol', attributes: ['name'] }]
+    });
     if (!usuario) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
@@ -58,8 +61,12 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
+    const rolName = usuario.rol?.name || '';
+    // Es cliente solo si su rol se llama exactamente 'Cliente'
+    const userType = rolName === 'Cliente' ? 'client' : 'admin';
+
     const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId },
+      { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -67,7 +74,7 @@ const login = async (req, res) => {
     return res.status(200).json({
       message: 'Login exitoso',
       token,
-      usuario: safeUser(usuario)
+      usuario: { ...safeUser(usuario), rolName, userType }
     });
   } catch (error) {
     console.error('ERROR LOGIN:', error);

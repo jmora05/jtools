@@ -7,7 +7,8 @@ const {
     updatePermisos,
     deletePermisos,
     syncSystemModules,
-    getSystemModules
+    getSystemModules,
+    togglePermisoActivo
 } = require('../controllers/permisosController.js');
 
 router.get('/', getPermisos);
@@ -17,5 +18,6 @@ router.get('/:id', getPermisosById);
 router.post('/', createPermisos);
 router.put('/:id', updatePermisos);
 router.delete('/:id', deletePermisos);
+router.patch('/:id/toggle', togglePermisoActivo);
 
 module.exports = router;

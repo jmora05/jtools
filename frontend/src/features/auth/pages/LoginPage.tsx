@@ -188,13 +188,14 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     try {
       const resp = await authService.login(loginForm.email, loginForm.password);
       localStorage.setItem('jrepuestos_token', resp.token);
-      const userType = resp.usuario.rolesId === 1 ? 'admin' : 'client';
+      // El backend ya devuelve userType ('admin' | 'client') basado en el nombre del rol
+      const userType = (resp.usuario as any).userType ?? (resp.usuario.rolesId === 1 ? 'admin' : 'client');
       onLogin({
         id: resp.usuario.id,
         email: resp.usuario.email,
         rolesId: resp.usuario.rolesId,
         userType,
-        role: userType === 'admin' ? 'Administrador' : 'Cliente',
+        role: (resp.usuario as any).rolName || (userType === 'admin' ? 'Administrador' : 'Cliente'),
         name: resp.usuario.email,
       });
       toast.success(resp.message || 'Inicio de sesión exitoso');

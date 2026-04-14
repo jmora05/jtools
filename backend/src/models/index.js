@@ -86,6 +86,10 @@ Productos.belongsTo(CategoriaProductos, { foreignKey: 'categoriaProductoId', as:
 CategoriaProductos.hasMany(Productos,   { foreignKey: 'categoriaProductoId', as: 'productos' });
  
  
+// Usuarios → Roles
+Usuarios.belongsTo(Roles, { foreignKey: 'rolesId', as: 'rol' });
+Roles.hasMany(Usuarios,   { foreignKey: 'rolesId', as: 'usuarios' });
+
 // Roles y Permisos
 RolPermiso.belongsTo(Roles,  { foreignKey: 'rolesId' });
 RolPermiso.belongsTo(Permisos, { foreignKey: 'permisosId' });

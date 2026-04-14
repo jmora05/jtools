@@ -105,6 +105,15 @@ const deletePermisos = async (req, res) => {
         await permiso.destroy();
         res.status(200).json({ message: 'Permiso eliminado correctamente' });
     } catch (error) {
+        // Restricción de llave foránea: el permiso está asignado a uno o más roles
+        if (
+            error.name === 'SequelizeForeignKeyConstraintError' ||
+            (error.parent && error.parent.code === '23503')
+        ) {
+            return res.status(409).json({
+                message: 'No se puede eliminar el permiso porque está asignado a uno o más roles. Desasígnalo primero.'
+            });
+        }
         res.status(500).json({ message: 'Error al eliminar el permiso', error: error.message });
     }
 };
@@ -147,6 +156,20 @@ const getSystemModules = async (req, res) => {
     }
 };
 
+// PATCH - toggle estado activo/inactivo de un permiso
+const togglePermisoActivo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const permiso = await Permisos.findByPk(id);
+        if (!permiso) return res.status(404).json({ message: 'Permiso no encontrado' });
+        if (permiso.isSystem) return res.status(403).json({ message: 'No se puede cambiar el estado de un permiso del sistema' });
+        await permiso.update({ isActive: !permiso.isActive });
+        return res.status(200).json({ message: `Permiso ${permiso.isActive ? 'activado' : 'desactivado'}`, permiso });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al cambiar estado del permiso', error: error.message });
+    }
+};
+
 module.exports = {
     getPermisos,
     getPermisosById,
@@ -155,5 +178,6 @@ module.exports = {
     deletePermisos,
     syncSystemModules,
     getSystemModules,
+    togglePermisoActivo,
     SYSTEM_MODULES
 };

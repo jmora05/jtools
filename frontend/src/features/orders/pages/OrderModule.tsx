@@ -162,7 +162,7 @@ const emptyForm = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function OrderModule() {
+export function OrderModule({ clientMode = false }: { clientMode?: boolean }) {
   const [orders, setOrders]     = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -677,8 +677,8 @@ export function OrderModule() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Pedidos</h1>
-            <p className="text-blue-900">Administra pedidos y cotizaciones de clientes</p>
+            <h1 className="text-2xl text-blue-900 font-bold mb-2">{clientMode ? 'Mis Pedidos' : 'Gestión de Pedidos'}</h1>
+            <p className="text-blue-900">{clientMode ? 'Historial de tus pedidos' : 'Administra pedidos y cotizaciones de clientes'}</p>
           </div>
 
           {/* ── MODAL NUEVO PEDIDO ──────────────────────────────────────── */}
@@ -970,8 +970,8 @@ export function OrderModule() {
                               <TooltipContent><p>Ver PDF</p></TooltipContent>
                             </Tooltip>
 
-                            {/* Cancelar — solo si Pendiente */}
-                            {order.status !== 'Cancelado' && order.status !== 'Completo' && (
+                            {/* Cancelar — solo si Pendiente y no es modo cliente */}
+                            {order.status !== 'Cancelado' && order.status !== 'Completo' && !clientMode && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="outline" size="sm"

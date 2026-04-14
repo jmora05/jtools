@@ -1,662 +1,504 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as permisosService from '@/features/permisos/services/permisosService';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
-import { Checkbox } from '@/shared/components/ui/checkbox';
-import { Switch } from '@/shared/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
-import { Badge } from '@/shared/components/ui/badge';
-import { Card } from '@/shared/components/ui/card';
+import { Button }      from '@/shared/components/ui/button';
+import { Input }       from '@/shared/components/ui/input';
+import { Label }       from '@/shared/components/ui/label';
+import { Switch }      from '@/shared/components/ui/switch';
+import { Card, CardContent } from '@/shared/components/ui/card';
+import { Badge }       from '@/shared/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { toast } from 'sonner';
-import { 
-  PlusIcon, 
-  EditIcon, 
-  TrashIcon,
-  ShieldIcon,
-  UsersIcon,
-  EyeIcon,
-  AlertTriangleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  LayoutDashboard,
-  PackageIcon,
-  UserIcon,
-  Building2Icon,
-  TruckIcon,
-  FactoryIcon,
-  FolderIcon,
-  TagIcon,
-  ShoppingCartIcon
-} from 'lucide-react';
+import { toast }       from 'sonner';
+import { Plus, Edit, Trash2, Shield, Eye, AlertTriangle, Search } from 'lucide-react';
 import * as rolesService from '@/features/roles/services/rolesService';
 
-const availableModules = [
-  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-  { id: 'employees', name: 'Empleados', icon: UsersIcon },
-  { id: 'roles', name: 'Roles', icon: ShieldIcon },
-  { id: 'catalog', name: 'Catálogo de Productos', icon: PackageIcon },
-  { id: 'product-categories', name: 'Categorías de Productos', icon: TagIcon },
-  { id: 'clients', name: 'Clientes', icon: UserIcon },
-  { id: 'suppliers', name: 'Proveedores', icon: Building2Icon },
-  { id: 'supplies', name: 'Insumos', icon: TruckIcon },
-  { id: 'purchases', name: 'Compras', icon: ShoppingCartIcon },
-  { id: 'sales', name: 'Ventas', icon: ShoppingCartIcon }
-];
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+interface RoleRow {
+  id: number;
+  name: string;
+  description: string;
+  permissions: number[];
+  permissionCount: number;
+  isActive: boolean;
+}
+interface PermisoRow { id: number; name: string; }
+interface FormState  { name: string; description: string; permissions: number[]; }
 
+const EMPTY_FORM: FormState = { name: '', description: '', permissions: [] };
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 export function RoleManagement() {
-  const [roles, setRoles] = useState([
-    { 
-      id: 1, 
-      name: 'Administrador', 
-      permissions: availableModules.map(m => m.id),
-      isActive: true,
-      permissionCount: availableModules.length
-    },
-    { 
-      id: 2, 
-      name: 'Vendedor', 
-      permissions: ['dashboard', 'catalog', 'clients', 'sales'],
-      isActive: true,
-      permissionCount: 4
-    },
-    { 
-      id: 3, 
-      name: 'Inventario', 
-      permissions: ['dashboard', 'catalog', 'supplies', 'purchases'],
-      isActive: true,
-      permissionCount: 4
-    },
-    { 
-      id: 4, 
-      name: 'Supervisor', 
-      permissions: ['dashboard', 'employees', 'production'],
-      isActive: false,
-      permissionCount: 3
-    }
-  ]);
 
-  const [showModal, setShowModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [viewingRole, setViewingRole] = useState(null);
-  const [roleToDelete, setRoleToDelete] = useState(null);
+  // ── Estado principal ────────────────────────────────────────────────────────
+  const [roles,          setRoles]          = useState<RoleRow[]>([]);
+  const [permisos,       setPermisos]       = useState<PermisoRow[]>([]);
+  const [loadingData,    setLoadingData]    = useState(true);
+  const [loadingPerms,   setLoadingPerms]   = useState(false);
+  const [togglingIds,    setTogglingIds]    = useState<Set<number>>(new Set());
+
+  // ── Estado de modales ───────────────────────────────────────────────────────
+  const [showModal,        setShowModal]        = useState(false);
+  const [showDetailModal,  setShowDetailModal]  = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [permisos, setPermisos] = useState<Array<{ id: number; name: string }>>([]);const [loadingPermisos, setLoadingPermisos] = useState(false);
+  const [editingRole,      setEditingRole]      = useState<RoleRow | null>(null);
+  const [viewingRole,      setViewingRole]      = useState<(RoleRow & { permissionsData?: PermisoRow[] }) | null>(null);
+  const [roleToDelete,     setRoleToDelete]     = useState<RoleRow | null>(null);
+
+  // ── Estado de búsqueda y paginación ────────────────────────────────────────
+  const [searchTerm,   setSearchTerm]   = useState('');
+  const [currentPage,  setCurrentPage]  = useState(1);
   const itemsPerPage = 5;
 
-  const [formData, setFormData] = useState({
-    name: '',
-    permissions: [],
-    description: ''
-  });
+  // ── Estado del formulario ───────────────────────────────────────────────────
+  // Usamos useRef para las permissions para evitar el bucle de re-render
+  const [formData, setFormData] = useState<FormState>(EMPTY_FORM);
+  const permissionsRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    let mounted = true;
-    rolesService
-      .getRoles()
-      .then((data) => {
-        if (!mounted) return;
-        setRoles(
-          data.map((r) => ({
-            id: r.id,
-            name: r.name,
-            permissions: [],
-            isActive: true,
-            permissionCount: 0,
-            description: r.description || '',
-          }))
-        );
+  // ── Carga inicial de datos ──────────────────────────────────────────────────
+  const loadData = useCallback(() => {
+    setLoadingData(true);
+    Promise.all([rolesService.getRoles(), permisosService.getPermisos()])
+      .then(([rolesData, permisosData]) => {
+        setRoles(rolesData.map(r => ({
+          id: r.id,
+          name: r.name,
+          description: r.description ?? '',
+          isActive: r.isActive !== false,
+          // Los permisos ya vienen incluidos desde el backend
+          permissions: (r.permisos ?? []).map(p => p.id),
+          permissionCount: (r.permisos ?? []).length,
+        })));
+        setPermisos(permisosData.map(p => ({ id: p.id, name: p.name })));
       })
-      .catch((err) => {
-        toast.error(err instanceof Error ? err.message : 'Error al cargar roles');
-      });
-    return () => {
-      mounted = false;
-    };
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Error al cargar datos'))
+      .finally(() => setLoadingData(false));
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
+  useEffect(() => { loadData(); }, [loadData]);
 
-    // Cargar roles Y permisos disponibles en paralelo
-    Promise.all([
-        rolesService.getRoles(),
-        permisosService.getPermisos()   // ← agrega esto
-    ]).then(([rolesData, permisosData]) => {
-        if (!mounted) return;
-        setRoles(
-            rolesData.map((r) => ({
-                id: r.id,
-                name: r.name,
-                permissions: [],
-                isActive: true,
-                permissionCount: 0,
-                description: r.description || '',
-            }))
-        );
-        setPermisos(permisosData.map((p) => ({ id: p.id, name: p.name })));
-    }).catch((err) => {
-        toast.error(err instanceof Error ? err.message : 'Error al cargar datos');
-    });
+  // Resetear página al cambiar búsqueda
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
-    return () => { mounted = false; };
-}, []);
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!formData.name.trim()) {
-      toast.error('El nombre del rol es obligatorio');
-      return;
-  }
-
-  const payload = { name: formData.name, description: formData.description || null };
-
-  try {
-      let roleId;
-
-      if (editingRole) {
-          const resp = await rolesService.updateRole(editingRole.id, payload);
-          roleId = editingRole.id;
-          setRoles(roles.map((role) =>
-              role.id === editingRole.id
-                  ? { ...role, name: resp.role.name, description: resp.role.description || '' }
-                  : role
-          ));
-          toast.success(resp.message || 'Rol actualizado exitosamente');
-      } else {
-          const resp = await rolesService.createRole(payload);
-          roleId = resp.role.id;
-          setRoles([...roles, {
-              id: resp.role.id,
-              name: resp.role.name,
-              description: resp.role.description || '',
-              permissions: [],
-              permissionCount: 0,
-              isActive: true,
-          }]);
-          toast.success(resp.message || 'Rol creado exitosamente');
-      }
-
-      // Guardar permisos seleccionados
-      await rolesService.setRolPermisos(roleId, formData.permissions);
-
-      // Actualizar el conteo de permisos en la tabla
-      setRoles(prev => prev.map(r =>
-          r.id === roleId
-              ? { ...r, permissions: formData.permissions, permissionCount: formData.permissions.length }
-              : r
-      ));
-
-      resetForm();
-  } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar');
-  }
-};
-
-  const resetForm = () => {
-    setFormData({ name: '', permissions: [], description: '' });
+  // ── Helpers del formulario ──────────────────────────────────────────────────
+  const resetForm = useCallback(() => {
+    setFormData(EMPTY_FORM);
+    permissionsRef.current = [];
     setEditingRole(null);
     setShowModal(false);
-  };
+  }, []);
 
-  const handleEdit = async (role) => {
-    setFormData({
-        name: role.name,
-        permissions: [],
-        description: role.description || ''
-    });
-    setEditingRole(role);
-    setLoadingPermisos(true);
+  const openCreate = useCallback(() => {
+    setEditingRole(null);
+    setFormData(EMPTY_FORM);
+    permissionsRef.current = [];
     setShowModal(true);
+  }, []);
 
-    try {
-        const permsDelRol = await rolesService.getRolPermisos(role.id);
-        setFormData(prev => ({
-            ...prev,
-            permissions: permsDelRol.map((p) => p.id)
-        }));
-    } catch {
-        toast.error('No se pudieron cargar los permisos del rol');
-    } finally {
-        setLoadingPermisos(false);
-    }
-};
-
-  const handleViewDetail = async (role) => {
-    setViewingRole(role);
-    setShowDetailModal(true);
-    // Cargar permisos reales del rol para el detalle
+  const handleEdit = useCallback(async (role: RoleRow) => {
+    setEditingRole(role);
+    setFormData({ name: role.name, description: role.description, permissions: [] });
+    permissionsRef.current = [];
+    setLoadingPerms(true);
+    setShowModal(true);
     try {
       const permsDelRol = await rolesService.getRolPermisos(role.id);
-      setViewingRole({ ...role, permissionsData: permsDelRol });
+      const ids = permsDelRol.map(p => p.id);
+      permissionsRef.current = ids;
+      // Forzamos un re-render sin tocar el array directamente en formData
+      setFormData(prev => ({ ...prev, permissions: ids }));
     } catch {
-      // si falla, se muestra con los datos que ya tiene
+      toast.error('No se pudieron cargar los permisos del rol');
+    } finally {
+      setLoadingPerms(false);
     }
-  };
+  }, []);
 
-  const handleDelete = (role) => {
+  // Toggle de permiso — usa input nativo para evitar el bucle de Radix Checkbox
+  const togglePermission = useCallback((id: number) => {
+    const current = permissionsRef.current;
+    const next = current.includes(id)
+      ? current.filter(x => x !== id)
+      : [...current, id];
+    permissionsRef.current = next;
+    // Actualizamos formData con el nuevo array (snapshot, no referencia)
+    setFormData(prev => ({ ...prev, permissions: [...next] }));
+  }, []);
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!formData.name.trim()) { toast.error('El nombre del rol es obligatorio'); return; }
+
+    const payload = { name: formData.name.trim(), description: formData.description.trim() || null };
+    try {
+      let roleId: number;
+      if (editingRole) {
+        const resp = await rolesService.updateRole(editingRole.id, payload);
+        roleId = editingRole.id;
+        setRoles(prev => prev.map(r =>
+          r.id === editingRole.id
+            ? { ...r, name: resp.role.name, description: resp.role.description ?? '' }
+            : r
+        ));
+        toast.success(resp.message || 'Rol actualizado exitosamente');
+      } else {
+        const resp = await rolesService.createRole(payload);
+        roleId = resp.role.id;
+        setRoles(prev => [...prev, {
+          id: resp.role.id, name: resp.role.name,
+          description: resp.role.description ?? '',
+          isActive: resp.role.isActive !== false,
+          permissions: [], permissionCount: 0,
+        }]);
+        toast.success(resp.message || 'Rol creado exitosamente');
+      }
+      const selectedPerms = permissionsRef.current;
+      await rolesService.setRolPermisos(roleId, selectedPerms);
+      setRoles(prev => prev.map(r =>
+        r.id === roleId
+          ? { ...r, permissions: selectedPerms, permissionCount: selectedPerms.length }
+          : r
+      ));
+      resetForm();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar el rol');
+    }
+  }, [formData, editingRole, resetForm]);
+
+  // ── Toggle activo/inactivo ─────────────────────────────────────────────────
+  const toggleStatus = useCallback((role: RoleRow) => {
+    setTogglingIds(prev => new Set(prev).add(role.id));
+    rolesService.toggleRolActivo(role.id)
+      .then(resp => {
+        setRoles(prev => prev.map(r => r.id === role.id ? { ...r, isActive: resp.role.isActive !== false } : r));
+        toast.success(resp.message);
+      })
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Error al cambiar estado'))
+      .finally(() => setTogglingIds(prev => { const s = new Set(prev); s.delete(role.id); return s; }));
+  }, []);
+
+  // ── Ver detalle ─────────────────────────────────────────────────────────────
+  const handleViewDetail = useCallback(async (role: RoleRow) => {
+    setViewingRole(role);
+    setShowDetailModal(true);
+    try {
+      const permsDelRol = await rolesService.getRolPermisos(role.id);
+      setViewingRole({ ...role, permissionsData: permsDelRol.map(p => ({ id: p.id, name: p.name })) });
+    } catch { /* muestra con datos existentes */ }
+  }, []);
+
+  // ── Eliminar ────────────────────────────────────────────────────────────────
+  const handleDelete = useCallback((role: RoleRow) => {
     setRoleToDelete(role);
     setShowDeleteDialog(true);
-  };
+  }, []);
 
-  const confirmDelete = () => {
-    if (roleToDelete) {
-      rolesService
-        .deleteRole(roleToDelete.id)
-        .then((resp) => {
-          setRoles(roles.filter((role) => role.id !== roleToDelete.id));
-          toast.success(resp.message || 'Rol eliminado exitosamente');
-          setShowDeleteDialog(false);
-          setRoleToDelete(null);
-        })
-        .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al eliminar rol'));
-    }
-  };
+  const confirmDelete = useCallback(() => {
+    if (!roleToDelete) return;
+    rolesService.deleteRole(roleToDelete.id)
+      .then(resp => {
+        setRoles(prev => prev.filter(r => r.id !== roleToDelete.id));
+        toast.success(resp.message || 'Rol eliminado');
+        setShowDeleteDialog(false);
+        setRoleToDelete(null);
+      })
+      .catch((err: unknown) => {
+        toast.error(err instanceof Error ? err.message : 'Error al eliminar rol');
+        setShowDeleteDialog(false);
+        setRoleToDelete(null);
+      });
+  }, [roleToDelete]);
 
-  const cancelDelete = () => {
-    setShowDeleteDialog(false);
-    setRoleToDelete(null);
-  };
-
-  const toggleStatus = (roleId) => {
-    setRoles(roles.map(role => 
-      role.id === roleId ? { ...role, isActive: !role.isActive } : role
-    ));
-  };
-
-  const togglePermission = (moduleId) => {
-    setFormData({
-      ...formData,
-      permissions: formData.permissions.includes(moduleId)
-        ? formData.permissions.filter(id => id !== moduleId)
-        : [...formData.permissions, moduleId]
-    });
-  };
-
-  // Filtrado
-  const filteredRoles = roles.filter(role => 
-    role.name.toLowerCase().includes(searchTerm.toLowerCase())
+  // ── Filtrado y paginación ───────────────────────────────────────────────────
+  const filteredRoles = roles.filter(r =>
+    r.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const totalPages   = Math.ceil(filteredRoles.length / itemsPerPage);
+  const currentRoles = filteredRoles.slice(
+    (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage
   );
 
-  // Paginación
-  const totalPages = Math.ceil(filteredRoles.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentRoles = filteredRoles.slice(startIndex, endIndex);
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 3) {
-        pages.push(1, 2, 3, '...', totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
-      } else {
-        pages.push(1, '...', currentPage, '...', totalPages);
-      }
-    }
-    return pages;
-  };
-
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="p-6 space-y-6">
-        {/* Header */}
+
+        {/* ── Header: título + botón Nuevo Rol ─────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl text-gray-900 mb-2">Gestión de Roles</h1>
-            <p className="text-gray-600">Administra los roles y permisos del sistema</p>
+            <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Roles</h1>
+            <p className="text-blue-800">Administra los roles y permisos del sistema</p>
           </div>
-          <Dialog open={showModal} onOpenChange={setShowModal}>
-            <DialogTrigger asChild>
-              {/* roles button create rol */}
-              <Button className="bg-blue-600 hover:bg-blue-900" size="lg">
-                <PlusIcon className="w-4 h-4 mr-2" />
-                Nuevo Rol
-              </Button>
-            </DialogTrigger>
-            
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingRole ? 'Editar Rol' : 'Crear Nuevo Rol'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingRole ? 'Modifica la información del rol y sus permisos.' : 'Completa la información para crear un nuevo rol en el sistema.'}
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Nombre del Rol */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del rol *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Ej: Vendedor, Gerente, Supervisor"
-                    required
-                  />
-                </div>
-
-                {/* Descripción (persistida en backend) */}
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descripción</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Opcional"
-                  />
-                </div>
-
-                {/* Seleccionar Permisos */}
-                <div className="space-y-3">
-                  <Label>Seleccionar permisos (módulos) *</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {loadingPermisos ? (
-                          <p className="text-sm text-gray-500 col-span-2">Cargando permisos...</p>
-                      ) : permisos.length === 0 ? (
-                          <p className="text-sm text-gray-500 col-span-2">
-                              No hay permisos disponibles. Crea permisos primero en Gestión de Permisos.
-                          </p>
-                      ) : (
-                          permisos.map((permiso) => (
-                            <Card
-                                key={permiso.id}
-                                className={`cursor-pointer transition-all hover:shadow-md ${
-                                    formData.permissions.includes(permiso.id)
-                                        ? 'bg-blue-50 border-blue-300'
-                                        : 'border-gray-200'
-                                }`}
-                            >
-                                <div className="p-4 flex items-center space-x-3">
-                                    <Checkbox
-                                        checked={formData.permissions.includes(permiso.id)}
-                                        onCheckedChange={() => togglePermission(permiso.id)}
-                                    />
-                                    <div
-                                        className="flex-1 cursor-pointer"
-                                        onClick={() => togglePermission(permiso.id)}
-                                    >
-                                        <p className="text-sm text-gray-900">{permiso.name}</p>
-                                    </div>
-                                </div>
-                            </Card>
-                          ))
-                      )}
-                  </div>
-                  <p className="text-sm text-gray-500">
-                    {formData.permissions.length} módulo(s) seleccionado(s)
-                  </p>
-                </div>
-
-                <div className="flex justify-end space-x-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={resetForm}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    {editingRole ? 'Actualizar' : 'Crear'} Rol
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {/* Botón fuera del Dialog para evitar warning de refs */}
+          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="w-4 h-4 mr-2" />Nuevo Rol
+          </Button>
         </div>
 
-        {/* Search */}
-        <Card className="shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <Input
-                type="text"
-                placeholder="Buscar roles por nombre..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <span className="text-sm text-gray-600">
-              {filteredRoles.length} rol(es) encontrado(s)
-            </span>
-          </div>
-        </Card>
+        {/* ── Dialog de crear/editar (controlado, sin DialogTrigger) ───────── */}
+        <Dialog open={showModal} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingRole ? 'Editar Rol' : 'Crear Nuevo Rol'}</DialogTitle>
+              <DialogDescription>
+                {editingRole ? 'Modifica la información del rol y sus permisos.' : 'Completa la información para crear un nuevo rol.'}
+              </DialogDescription>
+            </DialogHeader>
 
-        {/* Tabla de Roles */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Nombre Rol</th>
-                  <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {currentRoles.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                      No se encontraron roles
-                    </td>
-                  </tr>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Nombre */}
+              <div className="space-y-2">
+                <Label htmlFor="role-name">Nombre del rol *</Label>
+                <Input id="role-name" value={formData.name}
+                  onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ej: Vendedor, Gerente, Supervisor" required />
+              </div>
+
+              {/* Descripción */}
+              <div className="space-y-2">
+                <Label htmlFor="role-desc">Descripción</Label>
+                <Input id="role-desc" value={formData.description}
+                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Opcional" />
+              </div>
+
+              {/* Selector de permisos — usa <input type="checkbox"> nativo para evitar bucle de Radix */}
+              <div className="space-y-3">
+                <Label>Seleccionar permisos</Label>
+                {loadingPerms ? (
+                  <p className="text-sm text-gray-500">Cargando permisos...</p>
+                ) : permisos.length === 0 ? (
+                  <p className="text-sm text-gray-500">No hay permisos disponibles. Crea permisos primero.</p>
                 ) : (
-                  currentRoles.map((role) => (
-                    <tr key={role.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        {/* nombre de rol y cantidad de permisos */}
-                        <div className="flex items-center space-x-2">
-                          <ShieldIcon className="w-5 h-5 text-blue-600 px-6 py-4 text-center" />
-                          <span className="text-sm text-gray-900">{role.name}<br/><Badge variant="secondary">{role.permissionCount}</Badge></span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center space-x-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleViewDetail(role)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-900"
-                              >
-                                <EyeIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Ver detalle</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(role)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-900"
-                              >
-                                <EditIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Editar rol</p></TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(role)}
-                                className="text-blue-900 hover:text-blue-900 border-blue-900 hover:border-blue-900 hover:bg-blue-900"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Eliminar rol</p></TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {permisos.map(permiso => {
+                      const checked = formData.permissions.includes(permiso.id);
+                      return (
+                        <label
+                          key={permiso.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm select-none ${
+                            checked ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/40'
+                          }`}
+                        >
+                          {/* input nativo — no dispara bucle de re-render */}
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePermission(permiso.id)}
+                            className="w-4 h-4 accent-blue-600"
+                          />
+                          <span className="text-sm text-gray-900">{permiso.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+                <p className="text-sm text-gray-500">{formData.permissions.length} módulo(s) seleccionado(s)</p>
+              </div>
 
-          {/* Paginación */}
-          {filteredRoles.length > 0 && (
-            <div className="border-t border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="flex items-center"
-                >
-                  <ChevronLeftIcon className="w-4 h-4" />
-                </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {getPageNumbers().map((page, index) => (
-                    page === '...' ? (
-                      <span key={`ellipsis-${index}`} className="px-2 text-gray-500">•</span>
-                    ) : (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => handlePageChange(page)}
-                        className={currentPage === page ? "bg-blue-600 hover:bg-blue-700 min-w-[32px]" : "min-w-[32px]"}
-                      >
-                        {currentPage === page ? page : '•'}
-                      </Button>
-                    )
-                  ))}
-                </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="flex items-center"
-                >
-                  <ChevronRightIcon className="w-4 h-4" />
+              {/* Acciones del formulario */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {editingRole ? 'Actualizar' : 'Crear'} Rol
                 </Button>
               </div>
-            </div>
-          )}
-        </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
-        {/* Modal de Detalle */}
+        {/* ── Barra de búsqueda ────────────────────────────────────────────── */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+              <div className="relative w-full sm:flex-[3]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <Input placeholder="Buscar roles por nombre..." value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+              </div>
+              <span className="text-sm text-gray-500 whitespace-nowrap self-center">{filteredRoles.length} rol(es)</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Tabla de roles ───────────────────────────────────────────────── */}
+        <Card>
+          <CardContent className="p-0">
+            {loadingData ? (
+              <div className="flex justify-center items-center py-16 text-gray-500">Cargando roles...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-blue-900">
+                    <tr>
+                      <th className="text-left py-4 px-6 text-black font-semibold">Rol</th>
+                      <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
+                      <th className="text-left py-4 px-6 text-black font-semibold">Permisos</th>
+                      <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                      <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentRoles.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-12 text-gray-500">No se encontraron roles</td></tr>
+                    ) : currentRoles.map(role => {
+                      const isInactive = !role.isActive;
+                      return (
+                      <tr key={role.id} className={`border-b border-blue-100 transition-colors ${isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'}`}>
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2">
+                            <Shield className={`w-4 h-4 shrink-0 ${isInactive ? 'text-gray-400' : 'text-blue-600'}`} />
+                            <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>{role.name}</span>
+                          </div>
+                        </td>
+                        <td className={`py-4 px-6 text-sm ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {role.description || <span className="italic">Sin descripción</span>}
+                        </td>
+                        <td className="py-4 px-6">
+                          <Badge variant="secondary" className={isInactive ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}>
+                            {role.permissionCount} permiso(s)
+                          </Badge>
+                        </td>
+                        {/* Columna Estado con Switch */}
+                        <td className="py-4 px-6">
+                          <Switch
+                            checked={role.isActive}
+                            onCheckedChange={() => toggleStatus(role)}
+                            disabled={togglingIds.has(role.id)}
+                          />
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="sm" onClick={() => handleViewDetail(role)}
+                                  className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-400">
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Ver detalle</p></TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="sm"
+                                  onClick={() => !isInactive && handleEdit(role)}
+                                  className={isInactive ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-400'}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>{isInactive ? 'Rol inactivo' : 'Editar rol'}</p></TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="sm"
+                                  onClick={() => !isInactive && handleDelete(role)}
+                                  className={isInactive ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-400'}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>{isInactive ? 'Rol inactivo' : 'Eliminar rol'}</p></TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Paginación */}
+            {filteredRoles.length > itemsPerPage && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-blue-100">
+                <span className="text-sm text-gray-500">Página {currentPage} de {totalPages}</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                    ‹ Anterior
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                    Siguiente ›
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Modal de detalle del rol ─────────────────────────────────────── */}
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Detalles del Rol</DialogTitle>
-              <DialogDescription>
-                Información completa del rol y sus permisos asignados.
-              </DialogDescription>
+              <DialogDescription>Información completa del rol y sus permisos asignados.</DialogDescription>
             </DialogHeader>
             {viewingRole && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-gray-600">Nombre del rol</Label>
-                    <p className="text-gray-900 mt-1">{viewingRole.name}</p>
+                    <Label className="text-gray-500 text-xs uppercase tracking-wide">Nombre</Label>
+                    <p className="text-gray-900 font-semibold mt-1">{viewingRole.name}</p>
                   </div>
                   <div>
-                    <Label className="text-gray-600">Estado</Label>
-                    <p className="mt-1">
-                      <Badge variant={viewingRole.isActive ? "default" : "secondary"}>
-                        {viewingRole.isActive ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </p>
+                    <Label className="text-gray-500 text-xs uppercase tracking-wide">Descripción</Label>
+                    <p className="text-gray-700 mt-1">{viewingRole.description || '—'}</p>
                   </div>
                 </div>
-
                 <div>
-                  <Label className="text-gray-600 mb-3 block">
+                  <Label className="text-gray-500 text-xs uppercase tracking-wide mb-3 block">
                     Permisos asignados ({viewingRole.permissionsData?.length ?? viewingRole.permissionCount})
                   </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(viewingRole.permissionsData ?? []).map((perm) => (
-                      <div key={perm.id} className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                        <ShieldIcon className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm text-gray-900">{perm.name}</span>
-                      </div>
-                    ))}
-                    {!viewingRole.permissionsData && (
-                      <p className="text-sm text-gray-500 col-span-2">Cargando permisos...</p>
-                    )}
-                    {viewingRole.permissionsData?.length === 0 && (
-                      <p className="text-sm text-gray-500 col-span-2">Sin permisos asignados</p>
-                    )}
-                  </div>
+                  {!viewingRole.permissionsData ? (
+                    <p className="text-sm text-gray-500">Cargando permisos...</p>
+                  ) : viewingRole.permissionsData.length === 0 ? (
+                    <p className="text-sm text-gray-500">Sin permisos asignados</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {viewingRole.permissionsData.map(perm => (
+                        <div key={perm.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                          <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span className="text-sm text-gray-900">{perm.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* Modal de Confirmación de Eliminación */}
+        {/* ── AlertDialog de confirmación de eliminación ───────────────────── */}
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
-                <AlertTriangleIcon className="w-5 h-5" />
+              <AlertDialogTitle className="flex items-center gap-2 text-blue-900">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
                 Confirmar Eliminación
               </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>¿Estás seguro de que deseas eliminar este rol?</p>
-                {roleToDelete && (
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm text-gray-600">Rol: </span>
-                        <span className="text-sm text-gray-900">{roleToDelete.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Permisos: </span>
-                        <span className="text-sm text-gray-900">{roleToDelete.permissionCount}</span>
-                      </div>
+              {/* asChild en Description para evitar <p> anidado */}
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <span className="block">¿Estás seguro de que deseas eliminar este rol?</span>
+                  {roleToDelete && (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
+                      <p className="text-sm"><span className="text-gray-500">Rol: </span><span className="font-medium text-gray-900">{roleToDelete.name}</span></p>
+                      <p className="text-sm"><span className="text-gray-500">Permisos: </span><span className="text-gray-900">{roleToDelete.permissionCount}</span></p>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={cancelDelete}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Eliminar Rol
-              </AlertDialogAction>
+              <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setRoleToDelete(null); }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar Rol</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </div>
     </TooltipProvider>
   );

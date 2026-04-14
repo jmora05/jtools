@@ -37,6 +37,12 @@ const Permisos = sequelize.define('Permisos', {
         allowNull: true,
         defaultValue: null,
         comment: 'Clave única del módulo del sistema (ej: dashboard, clients, sales)'
+    },
+    isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        comment: 'Indica si el permiso está activo'
     }
 }, 
 

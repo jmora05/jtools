@@ -118,6 +118,15 @@ const deleteUsuarios = async (req, res) => {
         res.status(200).json({ message: 'Usuario eliminado correctamente' });
         
     } catch (error) {
+        // Restricción de llave foránea (ej: el usuario tiene registros asociados)
+        if (
+            error.name === 'SequelizeForeignKeyConstraintError' ||
+            (error.parent && error.parent.code === '23503')
+        ) {
+            return res.status(409).json({
+                message: 'No se puede eliminar el usuario porque tiene registros asociados en el sistema.'
+            });
+        }
         res.status(500).json({ message: 'Error al eliminar el usuario', error: error.message });
     }
 };

@@ -1,9 +1,11 @@
 const { Roles } = require('../models/index.js');
 
-// GET - listar roles
+// GET - listar roles (incluye permisos de cada rol)
 const getRoles = async (_req, res) => {
     try {
-        const roles = await Roles.findAll();
+        const roles = await Roles.findAll({
+            include: [{ association: 'permisos', attributes: ['id', 'name'] }]
+        });
         res.status(200).json(roles);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los roles', error: error.message });
@@ -66,13 +68,22 @@ const deleteRoles = async (req, res) => {
         const role = await Roles.findByPk(id);
 
         if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado'});
+            return res.status(404).json({ message: 'Rol no encontrado' });
         }
 
         await role.destroy();
         res.status(200).json({ message: 'Rol eliminado correctamente' });
 
     } catch (error) {
+        // Restricción de llave foránea: el rol tiene usuarios asignados
+        if (
+            error.name === 'SequelizeForeignKeyConstraintError' ||
+            (error.parent && error.parent.code === '23503') // PostgreSQL FK violation
+        ) {
+            return res.status(409).json({
+                message: 'No se puede eliminar el rol porque tiene usuarios asignados. Reasigna o elimina esos usuarios primero.'
+            });
+        }
         res.status(500).json({ message: 'Error al eliminar el rol', error: error.message });
     }
 };
@@ -135,6 +146,19 @@ const setRolPermisos = async (req, res) => {
     }
 };
 
+// PATCH - toggle estado activo/inactivo de un rol
+const toggleRolActivo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const role = await Roles.findByPk(id);
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+        await role.update({ isActive: !role.isActive });
+        return res.status(200).json({ message: `Rol ${role.isActive ? 'activado' : 'desactivado'}`, role });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al cambiar estado del rol', error: error.message });
+    }
+};
+
 module.exports = {
     getRoles,
     getRolesById,
@@ -142,5 +166,6 @@ module.exports = {
     updateRoles,
     deleteRoles,
     getRolPermisos,
-    setRolPermisos
+    setRolPermisos,
+    toggleRolActivo
 };

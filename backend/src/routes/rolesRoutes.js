@@ -7,9 +7,9 @@ const {
     updateRoles,
     deleteRoles,
     getRolPermisos,
-    setRolPermisos
+    setRolPermisos,
+    toggleRolActivo
 } = require('../controllers/rolesController.js');
-const { route } = require('./empleadosRoutes.js');
 
 router.get('/', getRoles);
 router.get('/:id', getRolesById);
@@ -18,5 +18,6 @@ router.put('/:id', updateRoles);
 router.delete('/:id', deleteRoles);
 router.get('/:id/permisos', getRolPermisos);
 router.put('/:id/permisos', setRolPermisos);
+router.patch('/:id/toggle', toggleRolActivo);
 
 module.exports = router;

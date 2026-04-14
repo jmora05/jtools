@@ -23,9 +23,15 @@
         },
 
         description: {
-            type: DataTypes.STRING(200), // ✅ STRING en vez de VARCHAR
+            type: DataTypes.STRING(200),
             allowNull: true,
             defaultValue: null
+        },
+        isActive: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            comment: 'Indica si el rol está activo'
         }
 
     }, {
