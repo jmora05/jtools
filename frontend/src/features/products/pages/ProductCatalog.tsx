@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
     Search, Plus, Edit, Eye, Package, FileText,
-    ChevronLeft, ChevronRight, Loader2, CheckCircle2, Info, ChevronDown, Check, AlertTriangle, Trash2, Lock, X
+    ChevronLeft, ChevronRight, Loader2, CheckCircle2, Info, ChevronDown, Check, AlertTriangle, Trash2, Lock, X, ImageOff
 } from 'lucide-react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
@@ -22,18 +22,22 @@ interface Producto {
     categoriaProductoId: number; descripcion: string | null;
     precio: number; stock: number; estado: 'activo' | 'inactivo';
     categoria?: Categoria;
+    imagenUrl?: string | null; // ✅ NUEVO
 }
 interface ProductoForm {
     nombreProducto: string; referencia: string; categoriaProductoId: string;
     descripcion: string; precio: string; stock: string; estado: 'activo' | 'inactivo';
+    imagenUrl: string; // ✅ NUEVO
 }
 const emptyForm: ProductoForm = {
     nombreProducto: '', referencia: '', categoriaProductoId: '',
     descripcion: '', precio: '', stock: '', estado: 'activo',
+    imagenUrl: '', // ✅ NUEVO
 };
 interface FormErrors {
     nombreProducto?: string; referencia?: string; categoriaProductoId?: string;
     descripcion?: string; precio?: string; stock?: string;
+    imagenUrl?: string; // ✅ NUEVO
 }
 
 interface DuplicateErrors {
@@ -48,6 +52,9 @@ const SOLO_DESCRIPCION_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();
 const CHARS_BLOQUEADOS_TEXTO = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';:]/;
 const CHARS_BLOQUEADOS_REF   = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';: áéíóúÁÉÍÓÚñÑüÜ]/;
 const CHARS_BLOQUEADOS_DESC  = /[$%@#&*|\\^`~<>=+{}[\]¡¿]/;
+
+// ─── Constante de precio máximo ───────────────────────────────────────────────
+const PRECIO_MAXIMO = 99999999.99;
 
 // ─── Validación de formulario ─────────────────────────────────────────────────
 function validateProductoForm(form: ProductoForm): FormErrors {
@@ -82,13 +89,13 @@ function validateProductoForm(form: ProductoForm): FormErrors {
     if (form.precio === '') {
         errors.precio = 'El precio es obligatorio.';
     } else if (/^0/.test(form.precio)) {
-        errors.precio = 'El precio no puede empezar con 0 (ej: use 1.5 en lugar de 01.5).';
+        errors.precio = 'El precio no puede empezar con 0.';
     } else if (isNaN(parseFloat(form.precio)) || parseFloat(form.precio) <= 0) {
         errors.precio = 'El precio debe ser mayor a 0.';
     } else if (!/^\d+(\.\d{1,2})?$/.test(form.precio)) {
         errors.precio = 'Máximo 2 decimales permitidos.';
-    } else if (parseFloat(form.precio) > 999999999.99) {
-        errors.precio = 'El precio supera el máximo permitido.';
+    } else if (parseFloat(form.precio) > PRECIO_MAXIMO) {
+        errors.precio = 'El precio no puede superar $99,999,999.99.';
     }
 
     if (form.stock === '') {
@@ -99,6 +106,12 @@ function validateProductoForm(form: ProductoForm): FormErrors {
         errors.stock = 'El stock no puede ser negativo.';
     } else if (Number(form.stock) > 999999) {
         errors.stock = 'El stock no puede superar 999,999 unidades.';
+    }
+
+    // ✅ NUEVO — validación de URL de imagen (opcional)
+    if (form.imagenUrl && form.imagenUrl.trim().length > 0) {
+        try { new URL(form.imagenUrl.trim()); }
+        catch { errors.imagenUrl = 'Ingresa una URL válida (ej: https://...).'; }
     }
 
     return errors;
@@ -120,7 +133,6 @@ const bloquearCaracteresDescripcion = (e: React.KeyboardEvent<HTMLTextAreaElemen
     if (ctrl.includes(e.key) || e.ctrlKey || e.metaKey) return;
     if (CHARS_BLOQUEADOS_DESC.test(e.key)) { e.preventDefault(); toast.warning(`El carácter "${e.key}" no está permitido.`); }
 };
-
 const bloquearNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
     if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
@@ -133,7 +145,6 @@ const bloquearNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
         toast.warning('El precio no puede empezar con 0.');
     }
 };
-
 const bloquearNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
     if (!allowed.includes(e.key) && !/\d/.test(e.key)) e.preventDefault();
@@ -153,7 +164,6 @@ const InfoAlert = ({ message }: { message: string }) => (
     </div>
 );
 
-// ── Alerta de bloqueo ─────────────────────────────────────────────────────────
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
     <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
         <div className="flex items-center gap-2">
@@ -165,6 +175,19 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
         </button>
     </div>
 );
+
+// ✅ NUEVO — Componente de imagen con fallback
+const ProductImage = ({ src, alt, className }: { src?: string | null; alt: string; className?: string }) => {
+    const [error, setError] = useState(false);
+    if (!src || error) {
+        return (
+            <div className={`flex items-center justify-center bg-gray-100 rounded ${className}`}>
+                <ImageOff className="w-5 h-5 text-gray-400" />
+            </div>
+        );
+    }
+    return <img src={src} alt={alt} className={className} onError={() => setError(true)} />;
+};
 
 // ── CustomSelect ──────────────────────────────────────────────────────────────
 interface CustomSelectProps {
@@ -221,6 +244,8 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
 
     const handlePrecioChange = (raw: string) => {
         const sanitized = raw.replace(/^0+(\d)/, '$1');
+        const [intPart] = sanitized.split('.');
+        if (intPart && intPart.length > 8) return;
         onChange('precio', sanitized);
     };
 
@@ -304,15 +329,17 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                         onKeyDown={bloquearNonNumeric}
                         onPaste={(e) => {
                             const pasted = e.clipboardData.getData('text');
-                            if (/^0\d/.test(pasted) || !/^\d*\.?\d{0,2}$/.test(pasted)) {
+                            const parsed = parseFloat(pasted);
+                            if (/^0\d/.test(pasted) || !/^\d*\.?\d{0,2}$/.test(pasted) || parsed > PRECIO_MAXIMO) {
                                 e.preventDefault();
-                                toast.warning('Valor de precio no válido. No puede empezar con 0 ni tener más de 2 decimales.');
+                                toast.warning('Precio no válido. Máximo $99,999,999.99, sin ceros al inicio ni más de 2 decimales.');
                             }
                         }}
                         placeholder="Ej: 15000" min="0.01" step="0.01"
                         className={touched.precio && errors.precio ? 'border-red-400 focus-visible:ring-red-300' : ''}
                     />
                     <FieldError message={touched.precio ? errors.precio : undefined} />
+                    <p className="text-xs text-red-500 mt-1">Máximo: $99,999,999.99</p>
                 </div>
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">Stock <span className="text-red-500">*</span></label>
@@ -335,6 +362,38 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                     <FieldError message={touched.stock ? errors.stock : undefined} />
                 </div>
             </div>
+
+            {/* ✅ NUEVO — Campo de imagen */}
+            {/* ✅ WIDGET CLOUDINARY */}
+<div>
+    <label className="block text-sm text-gray-700 mb-2">Imagen del producto</label>
+    <div className="space-y-2">
+    <Input
+        type="url"
+        value={form.imagenUrl}
+        onChange={(e) => { onChange('imagenUrl', e.target.value); onBlur('imagenUrl'); }}
+        placeholder="https://res.cloudinary.com/..."
+        className={touched.imagenUrl && errors.imagenUrl ? 'border-red-400 focus-visible:ring-red-300' : ''}
+    />
+    {form.imagenUrl && (
+        <div className="flex items-center gap-2">
+            <ProductImage
+                src={form.imagenUrl}
+                alt="Preview"
+                className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+            />
+            <button
+                type="button"
+                onClick={() => onChange('imagenUrl', '')}
+                className="text-xs text-red-400 hover:text-red-600"
+            >
+                Quitar
+            </button>
+        </div>
+    )}
+</div>
+    <p className="text-xs text-gray-400 mt-1">Sube una imagen desde tu dispositivo. Campo opcional.</p>
+</div>
         </div>
     );
 };
@@ -359,7 +418,6 @@ export function ProductCatalog() {
     const [deleting, setDeleting]               = useState(false);
     const [deleteConfirmed, setDeleteConfirmed] = useState(false);
 
-    // ── Estado para alerta de bloqueo ─────────────────────────────────────────
     const [blockedAlertId, setBlockedAlertId] = useState<number | null>(null);
 
     const [searchTerm, setSearchTerm]         = useState('');
@@ -391,7 +449,6 @@ export function ProductCatalog() {
         const nombre = productForm.nombreProducto.trim().toLowerCase();
         const ref    = productForm.referencia.trim().toLowerCase();
         const newDups: DuplicateErrors = {};
-
         if (nombre) {
             const dup = products.find((p) => {
                 if (editingProduct && p.id === editingProduct.id) return false;
@@ -399,7 +456,6 @@ export function ProductCatalog() {
             });
             if (dup) newDups.nombreProducto = dup.nombreProducto;
         }
-
         if (ref) {
             const dup = products.find((p) => {
                 if (editingProduct && p.id === editingProduct.id) return false;
@@ -407,7 +463,6 @@ export function ProductCatalog() {
             });
             if (dup) newDups.referencia = dup.referencia;
         }
-
         setDuplicates(newDups);
     }, [productForm.nombreProducto, productForm.referencia, products, editingProduct]);
 
@@ -415,12 +470,15 @@ export function ProductCatalog() {
 
     const handleToggleEstado = async (product: Producto) => {
         const nuevoEstado: 'activo' | 'inactivo' = product.estado === 'activo' ? 'inactivo' : 'activo';
-        // Si se activa, cerrar alerta de ese producto
         if (nuevoEstado === 'activo' && blockedAlertId === product.id) setBlockedAlertId(null);
         setProducts(prev => prev.map(p => p.id === product.id ? { ...p, estado: nuevoEstado } : p));
         setTogglingIds(prev => new Set(prev).add(product.id));
         try {
-            await updateProducto(product.id, { nombreProducto: product.nombreProducto, referencia: product.referencia, categoriaProductoId: product.categoriaProductoId, descripcion: product.descripcion ?? '', precio: product.precio, stock: product.stock, estado: nuevoEstado });
+            await updateProducto(product.id, {
+                nombreProducto: product.nombreProducto, referencia: product.referencia,
+                categoriaProductoId: product.categoriaProductoId, descripcion: product.descripcion ?? '',
+                precio: product.precio, stock: product.stock, estado: nuevoEstado,
+            });
             toast.success(`Producto ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} correctamente`);
         } catch (error: any) {
             setProducts(prev => prev.map(p => p.id === product.id ? { ...p, estado: product.estado } : p));
@@ -444,7 +502,7 @@ export function ProductCatalog() {
 
     const handleBlur = (field: keyof ProductoForm) => setTouched((prev) => ({ ...prev, [field]: true }));
 
-    const touchAll = () => setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, stock: true, descripcion: true });
+    const touchAll = () => setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, stock: true, descripcion: true, imagenUrl: true });
 
     const resetForm = () => {
         setProductForm(emptyForm); setEditingProduct(null);
@@ -458,13 +516,17 @@ export function ProductCatalog() {
         if (Object.keys(errors).length > 0) { toast.error('Completa los campos obligatorios correctamente'); return; }
         if (duplicates.nombreProducto) { toast.error(`Ya existe el producto "${duplicates.nombreProducto}". El nombre debe ser único.`); return; }
         if (duplicates.referencia)     { toast.error(`Ya existe un producto con la referencia "${duplicates.referencia}". La referencia debe ser única.`); return; }
-
         try {
             setSaving(true);
             await createProducto({
-                nombreProducto: productForm.nombreProducto.trim(), referencia: productForm.referencia.trim(),
-                categoriaProductoId: parseInt(productForm.categoriaProductoId), descripcion: productForm.descripcion.trim(),
-                precio: parseFloat(productForm.precio), stock: parseInt(productForm.stock), estado: productForm.estado,
+                nombreProducto: productForm.nombreProducto.trim(),
+                referencia: productForm.referencia.trim(),
+                categoriaProductoId: parseInt(productForm.categoriaProductoId),
+                descripcion: productForm.descripcion.trim(),
+                precio: parseFloat(productForm.precio),
+                stock: parseInt(productForm.stock),
+                estado: productForm.estado,
+                imagenUrl: productForm.imagenUrl.trim() || undefined, // ✅ NUEVO
             });
             showFeedback('✓ Producto creado exitosamente');
             toast.success('Producto creado exitosamente');
@@ -482,13 +544,17 @@ export function ProductCatalog() {
         if (!editingProduct || Object.keys(errors).length > 0) { toast.error('Completa los campos obligatorios correctamente'); return; }
         if (duplicates.nombreProducto) { toast.error(`Ya existe el producto "${duplicates.nombreProducto}". El nombre debe ser único.`); return; }
         if (duplicates.referencia)     { toast.error(`Ya existe un producto con la referencia "${duplicates.referencia}". La referencia debe ser única.`); return; }
-
         try {
             setSaving(true);
             await updateProducto(editingProduct.id, {
-                nombreProducto: productForm.nombreProducto.trim(), referencia: productForm.referencia.trim(),
-                categoriaProductoId: parseInt(productForm.categoriaProductoId), descripcion: productForm.descripcion.trim(),
-                precio: parseFloat(productForm.precio), stock: parseInt(productForm.stock), estado: productForm.estado,
+                nombreProducto: productForm.nombreProducto.trim(),
+                referencia: productForm.referencia.trim(),
+                categoriaProductoId: parseInt(productForm.categoriaProductoId),
+                descripcion: productForm.descripcion.trim(),
+                precio: parseFloat(productForm.precio),
+                stock: parseInt(productForm.stock),
+                estado: productForm.estado,
+                imagenUrl: productForm.imagenUrl.trim() || undefined, // ✅ NUEVO
             });
             showFeedback('✓ Producto actualizado correctamente');
             toast.success('Producto actualizado exitosamente');
@@ -524,19 +590,26 @@ export function ProductCatalog() {
             setDeletingProduct(null);
         } catch (error: any) {
             toast.error(error.message);
-        } finally {
-            setDeleting(false);
-        }
+        } finally { setDeleting(false); }
     };
 
+    // ✅ ACTUALIZADO — incluye imagenUrl al abrir edición
     const openEditDialog = (product: Producto) => {
         setEditingProduct(product);
-        setProductForm({ nombreProducto: product.nombreProducto, referencia: product.referencia, categoriaProductoId: product.categoriaProductoId.toString(), descripcion: product.descripcion ?? '', precio: product.precio.toString(), stock: product.stock.toString(), estado: product.estado });
+        setProductForm({
+            nombreProducto: product.nombreProducto,
+            referencia: product.referencia,
+            categoriaProductoId: product.categoriaProductoId.toString(),
+            descripcion: product.descripcion ?? '',
+            precio: product.precio.toString(),
+            stock: product.stock.toString(),
+            estado: product.estado,
+            imagenUrl: product.imagenUrl ?? '', // ✅ NUEVO
+        });
         setFormErrors({}); setTouched({}); setDuplicates({});
         setShowModal(true);
     };
 
-    // ── Helper para manejar clic en botones bloqueados ─────────────────────────
     const handleBlockedClick = (productId: number) => {
         setBlockedAlertId(prev => prev === productId ? null : productId);
     };
@@ -602,6 +675,7 @@ export function ProductCatalog() {
                                 <thead className="bg-blue-900">
                                     <tr>
                                         <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Imagen</th>{/* ✅ NUEVO */}
                                         <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Categoría</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Precio / Stock</th>
@@ -617,6 +691,14 @@ export function ProductCatalog() {
                                                 <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                                                     <td className="py-4 px-6">
                                                         <span className="font-mono text-sm text-gray-500">#{product.id}</span>
+                                                    </td>
+                                                    {/* ✅ NUEVO — miniatura en tabla */}
+                                                    <td className="py-4 px-6">
+                                                        <ProductImage
+                                                            src={product.imagenUrl}
+                                                            alt={product.nombreProducto}
+                                                            className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                                                        />
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
@@ -641,48 +723,25 @@ export function ProductCatalog() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
-                                                            {/* VER — siempre activo */}
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => viewDetails(product)}
-                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
-                                                            >
+                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
                                                                 <Eye className="w-4 h-4" />
                                                             </Button>
-
-                                                            {/* EDITAR */}
-                                                            <Button
-                                                                size="sm"
+                                                            <Button size="sm"
                                                                 onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                                                className={`border ${
-                                                                    disabled
-                                                                        ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                }`}
-                                                            >
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
-
-                                                            {/* ELIMINAR */}
-                                                            <Button
-                                                                size="sm"
+                                                            <Button size="sm"
                                                                 onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                                                className={`border ${
-                                                                    disabled
-                                                                        ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                }`}
-                                                            >
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     </td>
                                                 </tr>
-
-                                                {/* Fila de alerta de bloqueo */}
                                                 {blockedAlertId === product.id && (
                                                     <tr>
-                                                        <td colSpan={6} className="px-6 pb-3 pt-0">
+                                                        <td colSpan={7} className="px-6 pb-3 pt-0">
                                                             <BlockedAlert
                                                                 message="Producto inactivo: No puedes editar ni eliminar un producto inactivo. Actívalo primero usando el interruptor de estado."
                                                                 onClose={() => setBlockedAlertId(null)}
@@ -709,12 +768,18 @@ export function ProductCatalog() {
                     </CardContent>
                 </Card>
             ) : (
-                // ── Vista Grid ────────────────────────────────────────────────
+                // ✅ VISTA GRID — imagen en la parte superior de cada card
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {currentProducts.map((product) => {
                         const disabled = product.estado === 'inactivo';
                         return (
                             <Card key={product.id} className="overflow-hidden">
+                                {/* ✅ NUEVO — imagen en card */}
+                                <ProductImage
+                                    src={product.imagenUrl}
+                                    alt={product.nombreProducto}
+                                    className="w-full h-40 object-cover"
+                                />
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{product.referencia}</code>
@@ -733,42 +798,21 @@ export function ProductCatalog() {
                                         <Badge variant="secondary">{product.categoria?.nombreCategoria ?? `Cat #${product.categoriaProductoId}`}</Badge>
                                     </div>
                                     <p className="text-sm text-gray-500 mb-3">Stock: {product.stock} und</p>
-
                                     <div className="flex space-x-2">
-                                        {/* VER */}
                                         <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1">
                                             <Eye className="w-4 h-4 mr-1" /> Ver
                                         </Button>
-
-                                        {/* EDITAR */}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
+                                        <Button variant="outline" size="sm"
                                             onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                            className={`flex-1 ${
-                                                disabled
-                                                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                    : 'text-blue-600'
-                                            }`}
-                                        >
+                                            className={`flex-1 ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}>
                                             <Edit className="w-4 h-4 mr-1" /> Editar
                                         </Button>
-
-                                        {/* ELIMINAR */}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
+                                        <Button variant="outline" size="sm"
                                             onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                            className={disabled
-                                                ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                : 'text-blue-900 border-blue-900 hover:bg-blue-50'
-                                            }
-                                        >
+                                            className={disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}>
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
                                     </div>
-
-                                    {/* Alerta de bloqueo en grid */}
                                     {blockedAlertId === product.id && (
                                         <div className="mt-2">
                                             <BlockedAlert
@@ -785,31 +829,27 @@ export function ProductCatalog() {
             )}
 
             {/* MODAL — CREAR / EDITAR */}
-            <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
+            <Dialog open={showModal} onOpenChange={(open) => { 
+    if (!open && !(window as any)._cloudinaryOpen) resetForm(); 
+}}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
                     <div className="overflow-y-auto max-h-[90vh] p-6">
                         <DialogHeader>
                             <DialogTitle>{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
                             <DialogDescription>{editingProduct ? 'Modifica la información del producto.' : 'Completa el formulario para agregar un nuevo producto.'}</DialogDescription>
                         </DialogHeader>
-
                         {Object.keys(touched).length > 0 && Object.keys(formErrors).length > 0 && (
                             <div className="mt-4"><InfoAlert message="Algunos campos requieren atención antes de continuar." /></div>
                         )}
-
                         <div className="mt-4">
                             <ProductForm form={productForm} categorias={categorias} onChange={handleFormChange}
                                 errors={formErrors} touched={touched} onBlur={handleBlur} duplicates={duplicates} />
                         </div>
-
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                             <Button variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>
-                            <Button
-                                type="button"
-                                disabled={saving || hasDuplicates}
+                            <Button type="button" disabled={saving || hasDuplicates}
                                 onClick={() => { editingProduct ? handleEdit() : handleCreate(); }}
-                                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                            >
+                                className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 {editingProduct ? 'Actualizar Producto' : 'Crear Producto'}
                             </Button>
@@ -830,6 +870,16 @@ export function ProductCatalog() {
                             <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
                         ) : viewingProduct ? (
                             <div className="space-y-4 mt-4">
+                                {/* ✅ NUEVO — imagen en modal de detalle */}
+                                {viewingProduct.imagenUrl && (
+                                    <div className="flex justify-center">
+                                        <ProductImage
+                                            src={viewingProduct.imagenUrl}
+                                            alt={viewingProduct.nombreProducto}
+                                            className="w-48 h-48 object-cover rounded-xl border border-gray-200 shadow"
+                                        />
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
                                     <div><p className="text-xs text-gray-500 uppercase">Referencia</p><p className="font-semibold">{viewingProduct.referencia}</p></div>
                                     <div className="col-span-2"><p className="text-xs text-gray-500 uppercase">Producto</p><p className="font-semibold text-blue-900 text-lg">{viewingProduct.nombreProducto}</p></div>
@@ -860,7 +910,6 @@ export function ProductCatalog() {
                             </DialogTitle>
                             <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
                         </DialogHeader>
-
                         {deletingProduct && (
                             <div className="mt-4 space-y-3">
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -877,7 +926,6 @@ export function ProductCatalog() {
                                 )}
                             </div>
                         )}
-
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                             <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }} disabled={deleting}>
                                 Cancelar

@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import {
     Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight,
-    AlertTriangle, X, Search, Loader2,
+    AlertTriangle, User, X, Search, Loader2,
     CheckCircle2, Info, Lock,
 } from 'lucide-react';
 import {
