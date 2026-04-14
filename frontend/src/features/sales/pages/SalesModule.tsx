@@ -71,9 +71,10 @@ interface Sale {
 interface SalesModuleProps {
   clientFilter?: any;
   onClearClientFilter?: () => void;
+  clientMode?: boolean; // true = cliente: sin botón eliminar/anular
 }
 
-export function SalesModule({ clientFilter, onClearClientFilter }: SalesModuleProps) {
+export function SalesModule({ clientFilter, onClearClientFilter, clientMode = false }: SalesModuleProps) {
 
   // 👇 CAMBIO 2: sales arranca vacío + estado de carga (se eliminan los datos mock)
   const [sales, setSales]     = useState<Sale[]>([]);
@@ -374,10 +375,10 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
           <div>
             <h1 className="text-3xl text-gray-900 flex items-center gap-3">
               <ShoppingCartIcon className="w-8 h-8 text-blue-600" />
-              Gestión de Ventas
+              {clientMode ? 'Mis Compras' : 'Gestión de Ventas'}
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Administra las ventas directas y pedidos
+              {clientMode ? 'Historial de tus compras' : 'Administra las ventas directas y pedidos'}
             </p>
           </div>
 
@@ -727,7 +728,7 @@ export function SalesModule({ clientFilter, onClearClientFilter }: SalesModulePr
                             <TooltipContent><p>Ver PDF</p></TooltipContent>
                           </Tooltip>
 
-                          {sale.status !== 'Anulada' && (
+                          {sale.status !== 'Anulada' && !clientMode && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button

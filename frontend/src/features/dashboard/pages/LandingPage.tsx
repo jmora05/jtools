@@ -160,12 +160,12 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
               >
                 Contacto
               </button>
-              {userType && onGoToSystem ? (
+              {onGoToSystem ? (
                 <Button 
                   onClick={onGoToSystem}
                   className="bg-orange-500 hover:bg-orange-600 text-white"
                 >
-                  Ir al Sistema
+                  Ver Sistema
                 </Button>
               ) : (
                 <Button 
@@ -208,12 +208,12 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 >
                   Contacto
                 </button>
-                {userType && onGoToSystem ? (
+                {onGoToSystem ? (
                   <Button 
                     onClick={onGoToSystem}
                     className="mx-4 bg-orange-500 hover:bg-orange-600 text-white"
                   >
-                    Ir al Sistema
+                    Ver Sistema
                   </Button>
                 ) : (
                   <Button 

@@ -44,6 +44,23 @@ async function seed() {
         console.log('Usuario admin@example.com ya existe.');
     }
 
+    // 5. Crear SUPERADMIN con acceso total
+    const [rolSuper] = await Roles.findOrCreate({
+        where: { name: 'admin' },
+        defaults: { name: 'admin', description: 'Superusuario con acceso total sin restricciones' }
+    });
+    await rolSuper.setPermisos(todosLosPermisos.map(p => p.id));
+    console.log(`Rol "admin" (id: ${rolSuper.id}) con ${todosLosPermisos.length} permisos.`);
+
+    const existingSuper = await Usuarios.findOne({ where: { email: 'admin@jrepuestos.com' } });
+    if (!existingSuper) {
+        const hash = await bcrypt.hash('123456', 10);
+        await Usuarios.create({ rolesId: rolSuper.id, email: 'admin@jrepuestos.com', password: hash });
+        console.log('Superadmin creado: admin@jrepuestos.com / 123456');
+    } else {
+        console.log('Superadmin ya existe.');
+    }
+
     console.log('Seed completado.');
     process.exit(0);
 }

@@ -62,7 +62,8 @@ export default function App() {
   const handleLogin = (userData: AppUser) => {
     setUser(userData);
     setIsLoggedIn(true);
-    setCurrentModule('dashboard');
+    // El cliente entra directo a Mis Compras; el admin al dashboard
+    setCurrentModule(userData.userType === 'client' ? 'client-purchases' : 'dashboard');
     localStorage.setItem('jrepuestos_user', JSON.stringify(userData));
   };
 
@@ -121,7 +122,7 @@ export default function App() {
   // user está garantizado no-null a partir de aquí
   const u = user!;
 
-  if (showLandingPage || u.userType === 'client') {
+  if (showLandingPage) {
     return (
       <>
         <Toaster richColors position="top-right" />
@@ -129,19 +130,18 @@ export default function App() {
           {u.userType === 'admin' && (
             <div className="fixed top-4 right-4 z-50">
               <Button onClick={toggleLandingPage} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg">
-                {showLandingPage ? 'Ver Sistema Admin' : 'Ver Landing Page'}
+                Ver Sistema Admin
               </Button>
             </div>
           )}
           <LandingPage
-            onGoToSystem={u.userType === 'client' ? undefined : toggleLandingPage}
+            onGoToSystem={toggleLandingPage}
             userType={u.userType}
           />
         </div>
       </>
     );
   }
-
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
       { id: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -180,11 +180,12 @@ export default function App() {
       ];
     }
 
-    // Cliente registrado: dashboard + mis compras + perfil
+    // Cliente registrado: Compras (ventas filtradas) + Pedidos + Productos
     return [
-      ...baseModules,
-      { id: 'my-purchases', label: 'Mis Compras',  icon: '🛒' },
-      { id: 'my-profile',   label: 'Mi Perfil',    icon: '👤' },
+      { id: 'dashboard',        label: 'Dashboard',    icon: '📊' },
+      { id: 'catalog',          label: 'Productos',    icon: '📦' },
+      { id: 'client-purchases', label: 'Mis Compras',  icon: '🛒' },
+      { id: 'client-orders',    label: 'Mis Pedidos',  icon: '📋' },
     ];
   };
 
@@ -194,7 +195,10 @@ export default function App() {
     switch (currentModule) {
       case 'dashboard':           return <Dashboard {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
       case 'catalog':             return <ProductCatalog {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
-      case 'my-purchases':        return <SalesModule clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
+      // Módulos exclusivos del cliente — sin botón eliminar (clientMode=true)
+      case 'client-purchases':    return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
+      case 'client-orders':       return <OrderModule {...({} as any)} clientMode />;
+      case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-profile':          return D();
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
       case 'users':               return !isClient ? <UserManagement /> : D();
@@ -236,6 +240,8 @@ export default function App() {
       'production-technical-sheets':  'Fichas Técnicas',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
+      'client-purchases':             'Mis Compras',
+      'client-orders':                'Mis Pedidos',
     };
     return titles[currentModule] ?? 'Panel Principal';
   };
