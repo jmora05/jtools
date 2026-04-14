@@ -8,12 +8,18 @@ export type Empleado = {
   apellidos: string;
   telefono: string;
   email: string;
-  cargo: 'Supervisor de Producción' | 'Jefe de Área' | 'Operario' | 'Técnico de Calidad' | 'Asistente';
+  cargo: string;
   area: 'Producción' | 'Calidad' | 'Logística' | 'Mantenimiento' | 'Administración';
   direccion?: string;
   ciudad?: string;
   fechaIngreso: string;
   estado: 'activo' | 'inactivo';
+};
+
+export type Rol = {
+  id: number;
+  name: string;
+  description?: string;
 };
 
 const BASE = getApiBaseUrl();
@@ -23,6 +29,13 @@ export async function getEmpleados(): Promise<Empleado[]> {
     headers: buildAuthHeaders(),
   });
   return handleResponse<Empleado[]>(res);
+}
+
+export async function getRoles(): Promise<Rol[]> {
+  const res = await fetch(`${BASE}/roles`, {
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<Rol[]>(res);
 }
 
 export async function getEmpleadoById(id: number): Promise<Empleado> {

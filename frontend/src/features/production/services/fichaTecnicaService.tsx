@@ -12,7 +12,6 @@ export type FichaTecnica = {
   codigoFicha?: string;
   productoId: number;
   estado?: 'Activa' | 'Inactiva';
-  materiales: Material[];
   procesos: Proceso[];
   medidas?: Medida[];
   insumos?: InsumoFT[];
@@ -31,7 +30,6 @@ export type FichaTecnica = {
 
 export type CreateFichaPayload = {
   productoId: number;
-  materiales: Material[];
   procesos: Omit<Proceso, 'step'>[];
   medidas?: Medida[];
   insumos?: InsumoFT[];
@@ -39,7 +37,6 @@ export type CreateFichaPayload = {
 };
 
 export type UpdateFichaPayload = Partial<{
-  materiales: Material[];
   procesos: Omit<Proceso, 'step'>[];
   medidas: Medida[];
   insumos: InsumoFT[];

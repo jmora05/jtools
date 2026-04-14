@@ -17,8 +17,8 @@ import {
     Loader2, CheckCircle2, Info, Lock, X,
 } from 'lucide-react';
 import {
-    getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado,
-    type Empleado,
+    getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado, getRoles,
+    type Empleado, type Rol,
 } from '../services/empleadosService';
 import {
     validarFormEmpleado, validarCampo, validarUnicidad, hayErrores,
@@ -28,7 +28,6 @@ import {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const AREAS:  Empleado['area'][]  = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
-const CARGOS: Empleado['cargo'][] = ['Supervisor de Producción', 'Jefe de Área', 'Operario', 'Técnico de Calidad', 'Asistente'];
 
 type FormState = {
     tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
@@ -104,11 +103,13 @@ function FormFields({
     setForm,
     errores = {},
     setErrores,
+    roles = [],
 }: {
     form: FormState;
     setForm: (f: FormState) => void;
     errores?: FormErrors;
     setErrores: (e: FormErrors) => void;
+    roles?: Rol[];
 }) {
     function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
         const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
@@ -267,7 +268,7 @@ function FormFields({
                                 onBlur={() => blur('cargo')}
                             >
                                 <option value="">Seleccionar cargo</option>
-                                {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                                {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                             </select>
                             <FieldError mensaje={errores.cargo} />
                         </div>
@@ -316,6 +317,7 @@ function FormFields({
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function EmployeeManagement() {
     const [empleados, setEmpleados]       = useState<Empleado[]>([]);
+    const [roles, setRoles]               = useState<Rol[]>([]);
     const [loading, setLoading]           = useState(false);
     const [saving, setSaving]             = useState(false);
     const [togglingIds, setTogglingIds]   = useState<Set<number>>(new Set());
@@ -362,6 +364,9 @@ export function EmployeeManagement() {
     }, []);
 
     useEffect(() => { fetchEmpleados(); }, [fetchEmpleados]);
+    useEffect(() => {
+        getRoles().then(setRoles).catch(() => {});
+    }, []);
 
     // ── Filtros ───────────────────────────────────────────────────────────────
     const filtered = empleados.filter(emp => {
@@ -541,14 +546,6 @@ export function EmployeeManagement() {
     return (
         <div className="p-6 space-y-6">
 
-            {/* Feedback Banner */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
-                </div>
-            )}
-
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -597,14 +594,6 @@ export function EmployeeManagement() {
                 </div>
             </CardContent>
             </Card>
-
-            {/* Alerta de empleado inactivo */}
-            {inactiveAlert && (
-                <InactiveAlert
-                    mensaje={inactiveAlert}
-                    onClose={() => setInactiveAlert(null)}
-                />
-            )}
 
             {/* Tabla */}
             {loading ? (
@@ -754,6 +743,22 @@ export function EmployeeManagement() {
                 </Card>
             )}
 
+            {/* Alerta de empleado inactivo */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
+                />
+            )}
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
+
             {/* ═══ MODAL — CREAR / EDITAR ═══ */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
@@ -778,6 +783,7 @@ export function EmployeeManagement() {
                             setForm={setForm}
                             errores={formErrors}
                             setErrores={setFormErrors}
+                            roles={roles}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>

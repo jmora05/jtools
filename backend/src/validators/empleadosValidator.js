@@ -4,13 +4,6 @@
 // ============================================================
 
 const TIPOS_DOCUMENTO = ['CC', 'CE', 'Pasaporte'];
-const CARGOS = [
-  'Supervisor de Producción',
-  'Jefe de Área',
-  'Operario',
-  'Técnico de Calidad',
-  'Asistente',
-];
 const AREAS = [
   'Producción',
   'Calidad',
@@ -142,8 +135,13 @@ function validarEmpleado(data, esActualizacion = false) {
   }
 
   // ── 8. Cargo ───────────────────────────────────────────────────────────────
-  if (cargo && !CARGOS.includes(cargo)) {
-    errores.push(`Cargo inválido. Valores permitidos: ${CARGOS.join(', ')}`);
+  if (cargo !== undefined && cargo !== null) {
+    const c = String(cargo).trim();
+    if (c.length === 0) {
+      errores.push('El cargo no puede estar vacío');
+    } else if (c.length > 100) {
+      errores.push('El cargo no puede superar los 100 caracteres');
+    }
   }
 
   // ── 9. Área ────────────────────────────────────────────────────────────────
