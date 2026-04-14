@@ -63,7 +63,8 @@ const createProducto = async (req, res) => {
             descripcion,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl
         } = req.body;
 
         // Verificar que la categoría existe
@@ -79,7 +80,8 @@ const createProducto = async (req, res) => {
             descripcion: descripcion ? descripcion.trim() : null,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl: imagenUrl ? imagenUrl.trim() : null,
         });
 
         res.status(201).json({ message: 'Producto creado correctamente', producto });
@@ -88,7 +90,8 @@ const createProducto = async (req, res) => {
     const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
     return res.status(400).json({ message: 'Error de validación', errores: mensajes });
 }
-        res.status(500).json({ message: 'Error al crear el producto', error: error.message });
+        console.error('ERROR CREAR PRODUCTO:', error); // 👈 agregar
+res.status(500).json({ message: 'Error al crear el producto', error: error.message });
     }
 };
 
@@ -110,7 +113,8 @@ const updateProducto = async (req, res) => {
             descripcion,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl
         } = req.body;
 
         // Verificar que la categoría existe si se está actualizando
@@ -129,6 +133,9 @@ const updateProducto = async (req, res) => {
             precio: precio ?? producto.precio,
             stock: stock ?? producto.stock,
             estado: estado ?? producto.estado,
+            imagenUrl: imagenUrl !== undefined ? (imagenUrl ? imagenUrl.trim() : null) : producto.imagenUrl, // 👈 agregar
+
+
         });
 
         res.status(200).json({ message: 'Producto actualizado correctamente', producto });

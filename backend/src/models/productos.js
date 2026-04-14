@@ -127,7 +127,18 @@ const Productos = sequelize.define('Productos', {
             },
         },
     },
+
+    imagenUrl: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    defaultValue: null,
+    validate: {
+        isUrl: { msg: 'La imagen debe ser una URL válida.' }
+    }
 },
+},
+
+
 {
     tableName: 'productos',
     timestamps: false,
