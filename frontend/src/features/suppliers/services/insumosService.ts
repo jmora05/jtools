@@ -77,10 +77,11 @@ export async function cambiarEstadoInsumo(
 }
 
 export async function deleteInsumo(id: number): Promise<{ message: string }> {
-  const res = await fetch(insumosUrl(`/${id}`), {
-    method:  'DELETE',
-    headers: buildAuthHeaders(),
-  });
+  const res = await fetch(insumosUrl(`/${id}/force`),  // ← /force para eliminar físicamente
+    {
+      method:  'DELETE',
+      headers: buildAuthHeaders(),
+    });
   return handleResponse<{ message: string }>(res);
 }
 

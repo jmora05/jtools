@@ -259,6 +259,7 @@ export function OrderModule() {
     };
     cargarPedidos();
 
+    
     setProducts([
       { id: 3, name: 'Filtro de Aceite Toyota',  code: 'FO-TOY-001', price: 25000,  stock: 15, category: 'Filtros' },
       { id: 4, name: 'Pastillas de Freno Honda',  code: 'PF-HON-002', price: 85000,  stock: 8,  category: 'Frenos' },

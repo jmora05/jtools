@@ -244,16 +244,16 @@ export function SupplierManagement() {
         setShowModal(false);
     };
 
-    const handleTypeChange = (value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            type:           value,
-            documentType:   value === 'empresa' ? 'NIT' : 'CC',
-            documentNumber: '',
-            name: '', firstName: '', lastName: '', legalRepresentative: '',
-        }));
-        if (submitAttempted) setFormErrors({});
-    };
+const handleTypeChange = (value: string) => {
+    setFormData(prev => ({
+        ...prev,
+        type:           value,
+        documentType:   value === 'empresa' ? 'NIT' : 'CC',  // CC por defecto persona
+        documentNumber: '',
+        name: '', firstName: '', lastName: '', legalRepresentative: '',
+    }));
+    if (submitAttempted) setFormErrors({});
+};
 
     // ── Submit ────────────────────────────────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
@@ -705,18 +705,19 @@ export function SupplierManagement() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {formData.type === 'empresa' ? (
-                                                <>
-                                                    <SelectItem value="NIT">NIT</SelectItem>
-                                                    <SelectItem value="RUN">RUN</SelectItem>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <SelectItem value="CC">Cédula (CC)</SelectItem>
-                                                    <SelectItem value="NIT">NIT</SelectItem>
-                                                    <SelectItem value="RUN">RUN</SelectItem>
-                                                </>
-                                            )}
+                                        {formData.type === 'empresa' ? (
+                                            <>
+                                            <SelectItem value="NIT">NIT</SelectItem>
+                                            <SelectItem value="RUN">RUN</SelectItem>
+                                            </>
+                                        ) : (
+                                            <>
+                                            <SelectItem value="CC">Cédula de Ciudadanía </SelectItem>
+                                            <SelectItem value="CE">Cédula de Extranjería </SelectItem>
+                                            <SelectItem value="PA">Pasaporte </SelectItem>
+                                            <SelectItem value="RUNT">RUNT</SelectItem>
+                                            </>
+                                        )}
                                         </SelectContent>
                                     </Select>
                                     <FieldError msg={formErrors.documentType} />

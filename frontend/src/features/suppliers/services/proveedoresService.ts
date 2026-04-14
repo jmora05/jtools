@@ -1,9 +1,7 @@
 import { buildAuthHeaders, handleResponse, getApiBaseUrl } from '../../../services/http';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-export type TipoDocumento = 'CC' | 'NIT' | 'RUN';
-export type EstadoProveedor = 'activo' | 'inactivo';
+export type TipoDocumento    = 'CC' | 'CE' | 'PA' | 'RUNT' | 'NIT' | 'RUN';
+export type EstadoProveedor  = 'activo' | 'inactivo';
 
 export interface ProveedorBackend {
   id:               number;
@@ -34,33 +32,20 @@ export interface CreateProveedorDTO {
 
 export type UpdateProveedorDTO = Partial<CreateProveedorDTO>;
 
-// ─── URL helper ───────────────────────────────────────────────────────────────
-
 function proveedoresUrl(path = '') {
   return `${getApiBaseUrl()}/proveedores${path}`;
 }
 
-// ─── CRUD ─────────────────────────────────────────────────────────────────────
-
-/** GET /proveedores */
 export async function getProveedores(): Promise<ProveedorBackend[]> {
-  const res = await fetch(proveedoresUrl(), {
-    method:  'GET',
-    headers: buildAuthHeaders(),
-  });
+  const res = await fetch(proveedoresUrl(), { method: 'GET', headers: buildAuthHeaders() });
   return handleResponse<ProveedorBackend[]>(res);
 }
 
-/** GET /proveedores/:id */
 export async function getProveedorById(id: number): Promise<ProveedorBackend> {
-  const res = await fetch(proveedoresUrl(`/${id}`), {
-    method:  'GET',
-    headers: buildAuthHeaders(),
-  });
+  const res = await fetch(proveedoresUrl(`/${id}`), { method: 'GET', headers: buildAuthHeaders() });
   return handleResponse<ProveedorBackend>(res);
 }
 
-/** POST /proveedores */
 export async function createProveedor(
   data: CreateProveedorDTO
 ): Promise<{ message: string; proveedor: ProveedorBackend }> {
@@ -72,7 +57,6 @@ export async function createProveedor(
   return handleResponse<{ message: string; proveedor: ProveedorBackend }>(res);
 }
 
-/** PUT /proveedores/:id */
 export async function updateProveedor(
   id:   number,
   data: UpdateProveedorDTO
@@ -85,45 +69,38 @@ export async function updateProveedor(
   return handleResponse<{ message: string; proveedor: ProveedorBackend }>(res);
 }
 
-/** DELETE /proveedores/:id — desactiva el proveedor */
 export async function deleteProveedor(id: number): Promise<{ message: string }> {
-  const res = await fetch(proveedoresUrl(`/${id}`), {
-    method:  'DELETE',
-    headers: buildAuthHeaders(),
-  });
+  const res = await fetch(proveedoresUrl(`/${id}`), { method: 'DELETE', headers: buildAuthHeaders() });
   return handleResponse<{ message: string }>(res);
 }
 
-// ─── Helpers de conversión frontend ↔ backend ────────────────────────────────
+// ─── Conversiones frontend ↔ backend ─────────────────────────────────────────
 
-/**
- * Mapea un ProveedorBackend al shape que usa SupplierManagement
- */
 export function mapProveedorToSupplier(p: ProveedorBackend) {
+  const esEmpresa = p.tipoDocumento === 'NIT' || p.tipoDocumento === 'RUN';
   return {
-    id:             p.id,
-    type:           'empresa' as const,   // el backend solo maneja empresas
-    name:           p.nombreEmpresa,
-    documentType:   p.tipoDocumento,
-    documentNumber: p.numeroDocumento,
-    contact:        p.personaContacto,
-    phone:          p.telefono,
-    email:          p.email,
-    address:        p.direccion  ?? '',
-    city:           p.ciudad     ?? '',
-    isActive:       p.estado === 'activo',
-    // campos extra que usa el componente pero el backend no devuelve
-    legalRepresentative: p.personaContacto,
-    firstName:      '',
-    lastName:       '',
+    id:                  p.id,
+    type:                esEmpresa ? 'empresa' : 'persona',
+    name:                p.nombreEmpresa,
+    documentType:        p.tipoDocumento,
+    documentNumber:      p.numeroDocumento,
+    contact:             p.personaContacto,
+    phone:               p.telefono,
+    email:               p.email,
+    address:             p.direccion  ?? '',
+    city:                p.ciudad     ?? '',
+    isActive:            p.estado === 'activo',
+    legalRepresentative: '',
+    firstName:           '',
+    lastName:            '',
   };
 }
 
-/**
- * Convierte el formData del componente al DTO que espera el backend
- */
 export function mapSupplierToDTO(form: {
+  type:           string;
   name:           string;
+  firstName:      string;
+  lastName:       string;
   documentType:   string;
   documentNumber: string;
   contact:        string;
@@ -133,9 +110,14 @@ export function mapSupplierToDTO(form: {
   city:           string;
   isActive:       boolean;
 }): CreateProveedorDTO {
+  // Para persona natural el "nombre" se construye de firstName + lastName
+  const nombreFinal = form.type === 'persona'
+    ? `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
+    : form.name.trim();
+
   return {
-    nombreEmpresa:   form.name,
-    tipoDocumento:   form.documentType as TipoDocumento,
+    nombreEmpresa:   nombreFinal,
+    tipoDocumento:   form.documentType  as TipoDocumento,
     numeroDocumento: form.documentNumber,
     personaContacto: form.contact,
     telefono:        form.phone,
