@@ -19,14 +19,15 @@ import {
 } from 'lucide-react';
 import {
     getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica,
-    type FichaTecnica, type Material, type Proceso, type Medida, type InsumoFT,
+    type FichaTecnica, type Proceso, type Medida, type InsumoFT,
 } from '../services/fichaTecnicaService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
+import { getInsumosDisponibles, type InsumoDisponible } from '../services/insumosService';
 import {
-    validarMaterial, validarProceso, validarMedida, validarInsumo,
-    validarMaterialCampos, validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
+    validarProceso, validarMedida,
+    validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
     validarFormCrear, validarFormEditar, validarNotasCampo,
-    filtrarNombre, filtrarUnidad, filtrarDescripcion, filtrarDuracion, filtrarParametro,
+    filtrarDescripcion, filtrarDuracion, filtrarParametro,
     filtrarNotas, filtrarCantidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
@@ -94,53 +95,31 @@ function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => v
 
 // ─── ItemsForm ────────────────────────────────────────────────────────────────
 function ItemsForm({
-    materiales, setMateriales,
     procesos, setProcesos,
     medidas, setMedidas,
     insumos, setInsumos,
+    catalogoInsumos, loadingInsumos, insumosListError,
 }: {
-    materiales: Material[];    setMateriales: (v: Material[]) => void;
     procesos: Proceso[];       setProcesos: (v: Proceso[]) => void;
     medidas: Medida[];         setMedidas: (v: Medida[]) => void;
     insumos: InsumoFT[];       setInsumos: (v: InsumoFT[]) => void;
+    catalogoInsumos: InsumoDisponible[];
+    loadingInsumos: boolean;
+    insumosListError: string | null;
 }) {
-    const [newMat, setNewMat]   = useState<Material>({ name: '', quantity: 0, unit: '' });
     const [newProc, setNewProc] = useState<{ description: string; duration: string }>({ description: '', duration: '' });
     const [newMed, setNewMed]   = useState<Medida>({ parameter: '', value: '' });
-    const [newIns, setNewIns]   = useState<InsumoFT>({ name: '', quantity: 0, unit: '' });
+    const [selectedInsumoId, setSelectedInsumoId] = useState<string>('');
+    const [newInsQuantity, setNewInsQuantity]      = useState<number>(0);
+    const [newInsUnit, setNewInsUnit]              = useState<string>('');
 
-    const [matErrors, setMatErrors]   = useState<ItemErrors>({});
     const [procErrors, setProcErrors] = useState<ItemErrors>({});
     const [medErrors, setMedErrors]   = useState<ItemErrors>({});
     const [insErrors, setInsErrors]   = useState<ItemErrors>({});
 
-    const [matSubmitted, setMatSubmitted]   = useState(false);
     const [procSubmitted, setProcSubmitted] = useState(false);
     const [medSubmitted, setMedSubmitted]   = useState(false);
     const [insSubmitted, setInsSubmitted]   = useState(false);
-
-    function updateMatField(campo: keyof typeof newMat, valor: string | number) {
-        let valorFiltrado: string | number = valor;
-        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
-        if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
-        if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
-
-        const nuevoMat = { ...newMat, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
-        setNewMat(nuevoMat);
-        if (matSubmitted) setMatErrors(validarMaterialCampos(nuevoMat));
-    }
-
-    const addMat = () => {
-        setMatSubmitted(true);
-        const camposErr = validarMaterialCampos(newMat);
-        setMatErrors(camposErr);
-        const { valid, errors } = validarMaterial(newMat);
-        if (!valid) { toast.error(errors[0]); return; }
-        setMateriales([...materiales, { ...newMat, name: newMat.name.trim(), unit: newMat.unit.trim() }]);
-        setNewMat({ name: '', quantity: 0, unit: '' });
-        setMatErrors({});
-        setMatSubmitted(false);
-    };
 
     function updateProcField(campo: keyof typeof newProc, valor: string) {
         let valorFiltrado = valor;
@@ -183,25 +162,34 @@ function ItemsForm({
         setMedSubmitted(false);
     };
 
-    function updateInsField(campo: keyof typeof newIns, valor: string | number) {
+    function updateInsField(campo: 'quantity' | 'unit', valor: string | number) {
         let valorFiltrado: string | number = valor;
-        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
         if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
         if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
 
-        const nuevoIns = { ...newIns, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
-        setNewIns(nuevoIns);
-        if (insSubmitted) setInsErrors(validarInsumoCampos(nuevoIns));
+        const nuevoIns = {
+            quantity: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : newInsQuantity,
+            unit: campo === 'unit' ? String(valorFiltrado) : newInsUnit,
+        };
+        if (campo === 'quantity') setNewInsQuantity(nuevoIns.quantity);
+        if (campo === 'unit') setNewInsUnit(nuevoIns.unit);
+        if (insSubmitted) setInsErrors(validarInsumoCampos(nuevoIns, selectedInsumoId));
     }
 
     const addIns = () => {
         setInsSubmitted(true);
-        const camposErr = validarInsumoCampos(newIns);
+        const camposErr = validarInsumoCampos({ quantity: newInsQuantity, unit: newInsUnit }, selectedInsumoId);
         setInsErrors(camposErr);
-        const { valid, errors } = validarInsumo(newIns);
-        if (!valid) { toast.error(errors[0]); return; }
-        setInsumos([...insumos, { ...newIns, name: newIns.name.trim(), unit: newIns.unit.trim() }]);
-        setNewIns({ name: '', quantity: 0, unit: '' });
+        if (Object.keys(camposErr).length > 0) {
+            const firstError = camposErr.insumoId ?? camposErr.quantity ?? camposErr.unit ?? '';
+            toast.error(firstError);
+            return;
+        }
+        const name = catalogoInsumos.find(i => String(i.id) === selectedInsumoId)?.nombreInsumo ?? '';
+        setInsumos([...insumos, { name, quantity: newInsQuantity, unit: newInsUnit.trim() }]);
+        setSelectedInsumoId('');
+        setNewInsQuantity(0);
+        setNewInsUnit('');
         setInsErrors({});
         setInsSubmitted(false);
     };
@@ -211,64 +199,6 @@ function ItemsForm({
 
     return (
         <>
-            {/* ── Materiales ── */}
-            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                <div className="bg-blue-50 py-3 px-4">
-                    <p className="text-sm font-semibold text-blue-900">
-                        Materiales <span className="text-red-500">*</span>
-                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
-                    </p>
-                </div>
-                <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="md:col-span-2 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Nombre *</Label>
-                                <CharCounter valor={newMat.name} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: Papel filtro, Acero inoxidable" value={newMat.name}
-                                onChange={e => updateMatField('name', e.target.value)} className={inputErr(!!matErrors.name)} />
-                            <FieldError mensaje={matErrors.name} />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">Cantidad *</Label>
-                            <Input type="text" inputMode="decimal" placeholder="Ej: 2.5"
-                                value={newMat.quantity || ''}
-                                onChange={e => updateMatField('quantity', e.target.value)} className={inputErr(!!matErrors.quantity)} />
-                            <FieldError mensaje={matErrors.quantity} />
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Unidad *</Label>
-                                <CharCounter valor={newMat.unit} limite={30} />
-                            </div>
-                            <Input placeholder="kg, unidades, m²" value={newMat.unit}
-                                onChange={e => updateMatField('unit', e.target.value)} className={inputErr(!!matErrors.unit)} />
-                            <FieldError mensaje={matErrors.unit} />
-                        </div>
-                    </div>
-                    <Button type="button" variant="outline" onClick={addMat} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                        <Plus className="w-4 h-4 mr-2" />Agregar Material
-                    </Button>
-                    {materiales.length === 0 && (
-                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un material</p>
-                    )}
-                    {materiales.map((m, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span className="font-medium text-gray-700">{m.name}</span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{m.quantity} {m.unit}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setMateriales(materiales.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* ── Procesos ── */}
             <div className="border border-blue-100 rounded-lg overflow-hidden">
                 <div className="bg-blue-50 py-3 px-4">
@@ -303,7 +233,7 @@ function ItemsForm({
                         <Plus className="w-4 h-4 mr-2" />Agregar Proceso
                     </Button>
                     {procesos.length === 0 && (
-                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un proceso</p>
+                        <p className="text-xs text-red-500 text-center">Debes agregar al menos un proceso</p>
                     )}
                     {procesos.map((p, i) => (
                         <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
@@ -315,7 +245,7 @@ function ItemsForm({
                                 <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -365,7 +295,7 @@ function ItemsForm({
                                 <Badge variant="outline" className="text-xs">{m.value}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -378,34 +308,46 @@ function ItemsForm({
             <div className="border border-blue-100 rounded-lg overflow-hidden">
                 <div className="bg-blue-50 py-3 px-4">
                     <p className="text-sm font-semibold text-blue-900">
-                        Insumos Requeridos
-                        <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 50)</span>
+                        Insumos Requeridos <span className="text-red-500">*</span>
+                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
                     </p>
                 </div>
                 <div className="p-4 space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="md:col-span-2 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Nombre *</Label>
-                                <CharCounter valor={newIns.name} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: Adhesivo industrial" value={newIns.name}
-                                onChange={e => updateInsField('name', e.target.value)} className={inputErr(!!insErrors.name)} />
-                            <FieldError mensaje={insErrors.name} />
+                            <Label className="text-xs">Insumo *</Label>
+                            <select
+                                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${insErrors.insumoId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
+                                value={selectedInsumoId}
+                                disabled={loadingInsumos}
+                                onChange={e => {
+                                    const id = e.target.value;
+                                    setSelectedInsumoId(id);
+                                    const insumo = catalogoInsumos.find(i => String(i.id) === id);
+                                    setNewInsUnit(insumo ? insumo.unidadMedida : '');
+                                    if (insSubmitted) setInsErrors(validarInsumoCampos({ quantity: newInsQuantity, unit: insumo ? insumo.unidadMedida : newInsUnit }, id));
+                                }}
+                            >
+                                <option value="">{loadingInsumos ? 'Cargando insumos...' : 'Seleccionar insumo'}</option>
+                                {catalogoInsumos.map(insumo => (
+                                    <option key={insumo.id} value={String(insumo.id)}>{insumo.nombreInsumo}</option>
+                                ))}
+                            </select>
+                            <FieldError mensaje={insErrors.insumoId} />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Cantidad *</Label>
                             <Input type="text" inputMode="decimal" placeholder="Ej: 0.5"
-                                value={newIns.quantity || ''}
+                                value={newInsQuantity || ''}
                                 onChange={e => updateInsField('quantity', e.target.value)} className={inputErr(!!insErrors.quantity)} />
                             <FieldError mensaje={insErrors.quantity} />
                         </div>
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
                                 <Label className="text-xs">Unidad *</Label>
-                                <CharCounter valor={newIns.unit} limite={30} />
+                                <CharCounter valor={newInsUnit} limite={30} />
                             </div>
-                            <Input placeholder="litros, kg, ml" value={newIns.unit}
+                            <Input placeholder="litros, kg, ml" value={newInsUnit}
                                 onChange={e => updateInsField('unit', e.target.value)} className={inputErr(!!insErrors.unit)} />
                             <FieldError mensaje={insErrors.unit} />
                         </div>
@@ -413,6 +355,9 @@ function ItemsForm({
                     <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
                         <Plus className="w-4 h-4 mr-2" />Agregar Insumo
                     </Button>
+                    {insumosListError && (
+                        <p className="text-xs text-red-500 text-center">{insumosListError}</p>
+                    )}
                     {insumos.map((ins, i) => (
                         <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
                             <span className="font-medium text-gray-700">{ins.name}</span>
@@ -420,7 +365,7 @@ function ItemsForm({
                                 <Badge variant="outline" className="text-xs">{ins.quantity} {ins.unit}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -455,17 +400,18 @@ export function TechnicalSheetModule() {
     const [createInfoErrors, setCreateInfoErrors] = useState<{ productoId?: string; notas?: string }>({});
     const [editInfoErrors, setEditInfoErrors]     = useState<{ notas?: string }>({});
 
-    const [cMateriales, setCMateriales] = useState<Material[]>([]);
     const [cProcesos, setCProcesos]     = useState<Proceso[]>([]);
     const [cMedidas, setCMedidas]       = useState<Medida[]>([]);
     const [cInsumos, setCInsumos]       = useState<InsumoFT[]>([]);
 
-    const [eMateriales, setEMateriales] = useState<Material[]>([]);
     const [eProcesos, setEProcesos]     = useState<Proceso[]>([]);
     const [eMedidas, setEMedidas]       = useState<Medida[]>([]);
     const [eInsumos, setEInsumos]       = useState<InsumoFT[]>([]);
 
-    // IDs de productos que ya tienen ficha activa (para bloquear en el selector)
+    const [catalogoInsumos, setCatalogoInsumos] = useState<InsumoDisponible[]>([]);
+    const [loadingInsumos, setLoadingInsumos]   = useState(false);
+    const [errorInsumos, setErrorInsumos]       = useState<string | null>(null);
+
     const productosConFichaActiva = new Set(
         fichas.filter(f => f.estado === 'Activa').map(f => f.productoId)
     );
@@ -503,6 +449,20 @@ export function TechnicalSheetModule() {
         } catch { /* silencioso */ }
     }, []);
 
+    const fetchInsumosDisponibles = useCallback(async () => {
+        setLoadingInsumos(true);
+        setErrorInsumos(null);
+        try {
+            const data = await getInsumosDisponibles();
+            setCatalogoInsumos(data);
+        } catch (err: any) {
+            setErrorInsumos('No se pudo cargar el catálogo de insumos. Intenta de nuevo.');
+            setCatalogoInsumos([]);
+        } finally {
+            setLoadingInsumos(false);
+        }
+    }, []);
+
     useEffect(() => { fetchFichas(); fetchProductos(); }, [fetchFichas, fetchProductos]);
 
     const filtered = fichas.filter(f => {
@@ -535,8 +495,9 @@ export function TechnicalSheetModule() {
 
     const resetCreate = () => {
         setCreateForm(EMPTY_FORM);
-        setCMateriales([]); setCProcesos([]); setCMedidas([]); setCInsumos([]);
+        setCProcesos([]); setCMedidas([]); setCInsumos([]);
         setCreateInfoErrors({});
+        fetchInsumosDisponibles();
     };
 
     function updateCreateNotas(valor: string) {
@@ -571,14 +532,13 @@ export function TechnicalSheetModule() {
             toast.error(`Este producto ya tiene la ficha activa ${codigo}. Inactívala primero.`);
             return;
         }
-        const { valid, errors } = validarFormCrear(createForm, cMateriales, cProcesos, cMedidas, cInsumos);
+        const { valid, errors } = validarFormCrear(createForm, cProcesos, cMedidas, cInsumos);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             const res = await createFichaTecnica({
                 productoId: parseInt(createForm.productoId),
-                materiales: cMateriales,
                 procesos:   cProcesos,
                 medidas:    cMedidas,
                 insumos:    cInsumos,
@@ -599,24 +559,23 @@ export function TechnicalSheetModule() {
     const openEdit = (f: FichaTecnica) => {
         setSelectedFicha(f);
         setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
-        setEMateriales(f.materiales ?? []);
         setEProcesos(f.procesos ?? []);
         setEMedidas(f.medidas ?? []);
         setEInsumos(f.insumos ?? []);
         setEditInfoErrors({});
+        fetchInsumosDisponibles();
         setShowEditModal(true);
     };
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedFicha?.id) return;
-        const { valid, errors } = validarFormEditar(eMateriales, eProcesos, eMedidas, eInsumos, editForm.notas);
+        const { valid, errors } = validarFormEditar(eProcesos, eMedidas, eInsumos, editForm.notas);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             await updateFichaTecnica(selectedFicha.id, {
-                materiales: eMateriales,
                 procesos:   eProcesos,
                 medidas:    eMedidas,
                 insumos:    eInsumos,
@@ -654,14 +613,6 @@ export function TechnicalSheetModule() {
 
     return (
         <div className="p-6 space-y-6">
-
-            {/* Feedback Banner */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
-                </div>
-            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -708,14 +659,6 @@ export function TechnicalSheetModule() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Alerta de ficha inactiva */}
-            {inactiveAlert && (
-                <InactiveAlert
-                    mensaje={inactiveAlert}
-                    onClose={() => setInactiveAlert(null)}
-                />
-            )}
 
             {/* Tabla */}
             {loading ? (
@@ -845,6 +788,22 @@ export function TechnicalSheetModule() {
                 </Card>
             )}
 
+            {/* Alerta de ficha inactiva */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
+                />
+            )}
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
+
             {/* MODAL — CREAR */}
             <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) { resetCreate(); setShowCreateModal(false); } }}>
                 <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible p-0">
@@ -912,18 +871,27 @@ export function TechnicalSheetModule() {
                             </div>
 
                             <ItemsForm
-                                materiales={cMateriales} setMateriales={setCMateriales}
                                 procesos={cProcesos}     setProcesos={setCProcesos}
                                 medidas={cMedidas}       setMedidas={setCMedidas}
                                 insumos={cInsumos}       setInsumos={setCInsumos}
+                                catalogoInsumos={catalogoInsumos}
+                                loadingInsumos={loadingInsumos}
+                                insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
                             />
+
+                            {errorInsumos && (
+                                <p className="text-red-500 text-sm flex items-center gap-1">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    {errorInsumos}
+                                </p>
+                            )}
 
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <Button type="button" variant="outline"
                                     onClick={() => { resetCreate(); setShowCreateModal(false); }}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || !!errorInsumos}>
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                     {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
                                 </Button>
@@ -976,22 +944,6 @@ export function TechnicalSheetModule() {
                                             <p className="text-sm text-gray-700 mt-1">{selectedFicha.notas}</p>
                                         </div>
                                     )}
-                                </div>
-
-                                {/* Materiales */}
-                                <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                    <div className="bg-blue-50 py-3 px-4">
-                                        <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                            <Package className="w-4 h-4" />Materiales ({(selectedFicha.materiales ?? []).length})
-                                        </p>
-                                    </div>
-                                    <div className="p-4 space-y-2">
-                                        {(selectedFicha.materiales ?? []).map((m, i) => (
-                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                <span>{m.name}</span><Badge variant="outline">{m.quantity} {m.unit}</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
 
                                 {/* Procesos */}
@@ -1111,18 +1063,27 @@ export function TechnicalSheetModule() {
                             </div>
 
                             <ItemsForm
-                                materiales={eMateriales} setMateriales={setEMateriales}
                                 procesos={eProcesos}     setProcesos={setEProcesos}
                                 medidas={eMedidas}       setMedidas={setEMedidas}
                                 insumos={eInsumos}       setInsumos={setEInsumos}
+                                catalogoInsumos={catalogoInsumos}
+                                loadingInsumos={loadingInsumos}
+                                insumosListError={eInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
                             />
+
+                            {errorInsumos && (
+                                <p className="text-red-500 text-sm flex items-center gap-1">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    {errorInsumos}
+                                </p>
+                            )}
 
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <Button type="button" variant="outline"
                                     onClick={() => { setShowEditModal(false); setSelectedFicha(null); }}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || !!errorInsumos}>
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                     {saving ? 'Guardando...' : 'Guardar Cambios'}
                                 </Button>

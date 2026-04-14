@@ -70,14 +70,12 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     cargo: {
-        type: DataTypes.ENUM(
-            'Supervisor de Producción',
-            'Jefe de Área',
-            'Operario',
-            'Técnico de Calidad',
-            'Asistente'
-        ),
-        allowNull: false
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'El cargo no puede estar vacío' },
+            len: { args: [1, 100], msg: 'El cargo debe tener entre 1 y 100 caracteres' }
+        }
     },
 
     area: {

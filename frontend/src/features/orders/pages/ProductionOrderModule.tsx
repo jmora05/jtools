@@ -439,14 +439,6 @@ export function ProductionOrderModule() {
     return (
         <div className="p-6 space-y-6">
 
-            {/* Feedback Banner */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
-                </div>
-            )}
-
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -487,11 +479,6 @@ export function ProductionOrderModule() {
                     </div>
                 </CardContent>
             </Card>
-
-            {/* Alerta de orden bloqueada */}
-            {lockedAlert && (
-                <InactiveAlert mensaje={lockedAlert} onClose={() => setLockedAlert(null)} />
-            )}
 
             {/* Tabla */}
             {loading ? (
@@ -624,6 +611,19 @@ export function ProductionOrderModule() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Alerta de orden bloqueada */}
+            {lockedAlert && (
+                <InactiveAlert mensaje={lockedAlert} onClose={() => setLockedAlert(null)} />
+            )}
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
             )}
 
             {/* ═══ MODAL — CREAR ═══ */}

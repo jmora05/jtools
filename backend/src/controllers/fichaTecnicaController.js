@@ -102,7 +102,7 @@ const getFichasByProducto = async (req, res) => {
 // ────────────────────────────────────────────────────────────
 const createFichaTecnica = async (req, res) => {
     try {
-        const { productoId, materiales, procesos, medidas, insumos, notas } = req.body;
+        const { productoId, procesos, medidas, insumos, notas } = req.body;
 
         // 1. Verificar que el producto existe y está activo
         const producto = await Productos.findByPk(productoId);
@@ -130,7 +130,6 @@ const createFichaTecnica = async (req, res) => {
             codigoFicha,
             productoId,
             estado: 'Activa',
-            materiales,
             procesos: procesos.map((p, i) => ({ ...p, step: i + 1 })),
             medidas:  medidas  || [],
             insumos:  insumos  || [],
@@ -169,7 +168,7 @@ const updateFichaTecnica = async (req, res) => {
 
         // 1. ✅ Bloquear edición de contenido en fichas Inactivas
         //    (solo se permite cambiar el estado para reactivarla)
-        const intentaCambiarContenido = [materiales, procesos, medidas, insumos, notas]
+        const intentaCambiarContenido = [procesos, medidas, insumos, notas]
             .some(v => v !== undefined);
 
         if (ficha.estado === 'Inactiva' && intentaCambiarContenido) {
@@ -196,7 +195,6 @@ const updateFichaTecnica = async (req, res) => {
 
         // 3. Construir objeto de actualización (solo campos enviados)
         const updates = {};
-        if (materiales !== undefined) updates.materiales = materiales;
         if (procesos  !== undefined) updates.procesos  = procesos.map((p, i) => ({ ...p, step: i + 1 }));
         if (medidas   !== undefined) updates.medidas   = medidas;
         if (insumos   !== undefined) updates.insumos   = insumos;
