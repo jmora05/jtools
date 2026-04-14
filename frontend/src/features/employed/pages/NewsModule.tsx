@@ -88,6 +88,8 @@ interface EmpleadoSeleccionado {
 interface FormValues {
   titulo: string;
   descripcion_detallada: string;
+  fecha_inicio: string;          
+  fecha_finalizacion: string;
   empleado_responsable: EmpleadoSeleccionado | null; // ahora es objeto o null
   empleado_afectado: EmpleadoSeleccionado | null;    // ahora es objeto o null
   estado: 'registrada' | 'aprobada' | 'rechazada';
@@ -102,6 +104,8 @@ interface FormErrors {
 const emptyForm: FormValues = {
   titulo: '',
   descripcion_detallada: '',
+  fecha_inicio: '',
+  fecha_finalizacion: '',
   empleado_responsable: null,
   empleado_afectado: null,
   estado: 'registrada',
@@ -432,6 +436,8 @@ export function NewsModule() {
       const dto: CreateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
+        fecha_inicio:         form.fecha_inicio,
+        fecha_finalizacion:   form.fecha_finalizacion,
         registrado_por:        empleadoActual?.id ?? 1,
         empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
@@ -461,6 +467,8 @@ export function NewsModule() {
       const dto: UpdateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
+        fecha_inicio:         form.fecha_inicio,
+        fecha_finalizacion:   form.fecha_finalizacion,
         empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
@@ -517,6 +525,8 @@ export function NewsModule() {
     setForm({
       titulo:                n.titulo,
       descripcion_detallada: n.descripcion_detallada,
+      fecha_inicio:         n.fecha_inicio,
+      fecha_finalizacion:   n.fecha_finalizacion,
       empleado_responsable:  responsable,
       empleado_afectado:     afectado,
       estado:                n.estado,
@@ -585,6 +595,27 @@ export function NewsModule() {
           className={touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}
         />
       </Field>
+
+      {/* ── Fechas: inicio y finalización ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        <Field label="Fecha de inicio" required>
+          <Input
+            type="date"
+            value={form.fecha_inicio}
+            onChange={handleChange('fecha_inicio')}
+          />
+        </Field>
+
+        <Field label="Fecha de finalización" required>
+          <Input
+            type="date"
+            value={form.fecha_finalizacion}
+            onChange={handleChange('fecha_finalizacion')}
+          />
+        </Field>
+
+      </div>
 
       {/* ── Empleado Responsable: bloqueado con el usuario en sesión ── */}
       <div className="space-y-1">
@@ -906,6 +937,19 @@ export function NewsModule() {
                       <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
                         <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
                         {formatFecha(selectedNovedad.fecha_registro)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de inicio</p>
+                      <p className="font-semibold text-sm mt-0.5">
+                        {formatFecha(selectedNovedad.fecha_inicio)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de finalización</p>
+                      <p className="font-semibold text-sm mt-0.5">
+                        {formatFecha(selectedNovedad.fecha_finalizacion)}
                       </p>
                     </div>
                     <div>
