@@ -154,12 +154,7 @@ const Clientes = sequelize.define('Clientes', {
         }
     },
  
-    foto: {
-        type: DataTypes.STRING(255),
-        allowNull: true,
-        defaultValue: null
-    }
- 
+    
 }, {
     tableName: 'clientes',
     timestamps: true

@@ -37,11 +37,23 @@ const Novedades = sequelize.define('Novedades', {
         defaultValue: DataTypes.NOW
     },
 
+    fecha_inicio: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
+    },
+    
+    fecha_finalizacion: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW
+    },
+
     registrado_por: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        comment: 'ID del empleado que registró la novedad'
     },
+
 
     empleado_responsable: {
         type: DataTypes.INTEGER,
@@ -61,10 +73,5 @@ const Novedades = sequelize.define('Novedades', {
     timestamps: false
 });
 
-// RELACIONES
-// En index.js donde se definen las asociaciones agregar:
-// Novedades.belongsTo(Empleados, { foreignKey: 'registrado_por',      as: 'registradoPor' });
-// Novedades.belongsTo(Empleados, { foreignKey: 'empleado_responsable', as: 'empleadoResponsable' });
-// Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado',    as: 'empleadoAfectado' }); // ← NUEVO
 
 module.exports = Novedades;

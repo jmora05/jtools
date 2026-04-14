@@ -63,13 +63,13 @@ const createCliente = async (req, res) => {
         const {
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            foto, nombres, apellidos, contacto,
+            nombres, apellidos, contacto,
         } = req.body;
 
         const cliente = await Clientes.create({
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            foto, nombres, apellidos, contacto,
+            nombres, apellidos, contacto,
         });
 
         res.status(201).json({ message: 'Cliente creado correctamente', cliente });
@@ -101,13 +101,13 @@ const updateCliente = async (req, res) => {
         const {
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            foto, nombres, apellidos, contacto,
+            nombres, apellidos, contacto,
         } = req.body;
 
         await cliente.update({
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            foto, nombres, apellidos, contacto,
+            nombres, apellidos, contacto,
         });
 
         res.status(200).json({ message: 'Cliente actualizado correctamente', cliente });
