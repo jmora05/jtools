@@ -187,10 +187,10 @@ export function SupplierManagement() {
         setTimeout(() => setBanner(null), 5000);
     }, []);
 
-    // Banner de fila (inactivo al intentar editar)
+    // Banner de fila (inactivo al intentar editar o eliminar)
     const [inactiveBannerId, setInactiveBannerId]         = useState<number | null>(null);
-    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | null>(null);
-    const triggerInactiveBanner = (id: number, action: 'edit') => {
+    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | 'delete' | null>(null);
+    const triggerInactiveBanner = (id: number, action: 'edit' | 'delete') => {
         setInactiveBannerId(id);
         setInactiveBannerAction(action);
         setTimeout(() => { setInactiveBannerId(null); setInactiveBannerAction(null); }, 4000);
@@ -363,6 +363,10 @@ export function SupplierManagement() {
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
     const handleDelete = (supplier: Supplier) => {
+        if (!supplier.isActive) {
+            triggerInactiveBanner(supplier.id, 'delete');
+            return;
+        }
         setDeletingSupplier(supplier);
         setDeleteError(null);
         setShowDeleteModal(true);
@@ -610,7 +614,10 @@ export function SupplierManagement() {
                                                                 <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                                                                 <span>
                                                                     <strong>Proveedor inactivo:</strong>{' '}
-                                                                    No puedes editar un proveedor inactivo. Actívalo primero usando el interruptor de estado.
+                                                                    {inactiveBannerAction === 'delete'
+                                                                        ? 'No puedes eliminar un proveedor inactivo. Actívalo primero usando el interruptor de estado.'
+                                                                        : 'No puedes editar un proveedor inactivo. Actívalo primero usando el interruptor de estado.'
+                                                                    }
                                                                 </span>
                                                                 <button
                                                                     onClick={() => { setInactiveBannerId(null); setInactiveBannerAction(null); }}
