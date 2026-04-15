@@ -31,16 +31,14 @@ import {
   type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO,
 } from '../services/novedadesService';
 
-import { getEmpleados, type Empleado } from '../services/empleadosService'; // ajusta la ruta si es necesario
+import { getEmpleados, type Empleado } from '../services/empleadosService';
 
 // ─── Obtener el empleado autenticado desde el contexto/localStorage ───────────
-// Ajusta esta función a cómo tu app expone el usuario en sesión
 function getEmpleadoActual(): { id: number; nombres: string; apellidos: string } | null {
   try {
     const raw = localStorage.getItem('user') ?? localStorage.getItem('empleado') ?? localStorage.getItem('session');
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Soporta distintas estructuras: { id, nombres, apellidos } o { empleado: {...} }
       const emp = parsed.empleado ?? parsed;
       if (emp?.id && emp?.nombres) return emp;
     }
@@ -68,6 +66,17 @@ const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
 const formatFecha = (fecha?: string) =>
   fecha ? fecha.split('T')[0] : '—';
 
+// ─── Helpers de fecha ─────────────────────────────────────────────────────────
+
+const getTodayString = () => new Date().toISOString().split('T')[0];
+
+const getMinFechaFin = (fechaInicio: string) => {
+  if (!fechaInicio) return getTodayString();
+  const d = new Date(fechaInicio + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+};
+
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
 const canEdit   = (n: Novedad) => n.estado === 'registrada';
@@ -88,10 +97,10 @@ interface EmpleadoSeleccionado {
 interface FormValues {
   titulo: string;
   descripcion_detallada: string;
-  fecha_inicio: string;          
+  fecha_inicio: string;
   fecha_finalizacion: string;
-  empleado_responsable: EmpleadoSeleccionado | null; // ahora es objeto o null
-  empleado_afectado: EmpleadoSeleccionado | null;    // ahora es objeto o null
+  empleado_responsable: EmpleadoSeleccionado | null;
+  empleado_afectado: EmpleadoSeleccionado | null;
   estado: 'registrada' | 'aprobada' | 'rechazada';
 }
 
@@ -99,6 +108,8 @@ interface FormErrors {
   titulo?: string;
   descripcion_detallada?: string;
   empleado_afectado?: string;
+  fecha_inicio?: string;        // ← nuevo
+  fecha_finalizacion?: string;  // ← nuevo
 }
 
 const emptyForm: FormValues = {
@@ -115,6 +126,8 @@ const emptyForm: FormValues = {
 
 function validateForm(values: FormValues): FormErrors {
   const errors: FormErrors = {};
+
+  // ── Título ──────────────────────────────────────────────────────────────────
   const titulo = values.titulo.trim();
   if (!titulo) {
     errors.titulo = 'El título es obligatorio';
@@ -123,12 +136,34 @@ function validateForm(values: FormValues): FormErrors {
   } else if (titulo.length > 50) {
     errors.titulo = `El título no puede superar 50 caracteres (${titulo.length}/50)`;
   }
+
+  // ── Descripción ─────────────────────────────────────────────────────────────
   const desc = values.descripcion_detallada.trim();
   if (!desc) {
     errors.descripcion_detallada = 'La descripción es obligatoria';
   } else if (desc.length < 10) {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
+
+  // ── Fecha inicio ────────────────────────────────────────────────────────────
+  if (values.fecha_inicio) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const inicio = new Date(values.fecha_inicio + 'T00:00:00');
+    if (inicio < today) {
+      errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al día de hoy';
+    }
+  }
+
+  // ── Fecha finalización ──────────────────────────────────────────────────────
+  if (values.fecha_finalizacion && values.fecha_inicio) {
+    const inicio = new Date(values.fecha_inicio + 'T00:00:00');
+    const fin    = new Date(values.fecha_finalizacion + 'T00:00:00');
+    if (fin <= inicio) {
+      errors.fecha_finalizacion = 'La fecha de finalización debe ser posterior a la fecha de inicio';
+    }
+  }
+
   return errors;
 }
 
@@ -177,10 +212,11 @@ function EmpleadoAutocomplete({
   label, value, onChange, allEmpleados, loadingEmpleados,
   error, hint, disabled, placeholder = 'Buscar empleado por nombre...',
 }: EmpleadoAutocompleteProps) {
-  const [query, setQuery]       = useState('');
-  const [open, setOpen]         = useState(false);
-  const [focused, setFocused]   = useState(false);
-  const wrapperRef              = useRef<HTMLDivElement>(null);
+  const [query, setQuery]     = useState('');
+  const [open, setOpen]       = useState(false);
+  const [focused, setFocused] = useState(false);
+  const wrapperRef            = useRef<HTMLDivElement>(null);
+  const prevValueIdRef        = useRef<number | null | undefined>(undefined); // ← nuevo
 
   // Cerrar al hacer click fuera
   useEffect(() => {
@@ -194,10 +230,16 @@ function EmpleadoAutocomplete({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Sincronizar query cuando cambia el value externo
+  // ← CORREGIDO: solo sincroniza cuando el ID cambia externamente,
+  //   no cuando el usuario escribe (evita borrar el query mientras tipea)
   useEffect(() => {
-    if (value) setQuery(nombreCompleto(value));
-    else setQuery('');
+    const prevId = prevValueIdRef.current;
+    const currId = value?.id ?? null;
+    if (prevId !== currId) {
+      prevValueIdRef.current = currId;
+      if (value) setQuery(nombreCompleto(value));
+      else setQuery('');
+    }
   }, [value]);
 
   const filtered = query.trim().length === 0
@@ -238,17 +280,13 @@ function EmpleadoAutocomplete({
             className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
             onChange={e => {
               setQuery(e.target.value);
-              onChange(null); // limpiar selección si escribe de nuevo
+              onChange(null);
               setOpen(true);
             }}
             onFocus={() => { setFocused(true); setOpen(true); }}
           />
           {value && !disabled && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="p-2 text-gray-400 hover:text-gray-600"
-            >
+            <button type="button" onClick={handleClear} className="p-2 text-gray-400 hover:text-gray-600">
               <XIcon className="w-3.5 h-3.5" />
             </button>
           )}
@@ -257,7 +295,6 @@ function EmpleadoAutocomplete({
           )}
         </div>
 
-        {/* Dropdown */}
         {open && !disabled && (
           <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
             {loadingEmpleados ? (
@@ -287,12 +324,8 @@ function EmpleadoAutocomplete({
                         </span>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {emp.nombres} {emp.apellidos}
-                        </p>
-                        {emp.cargo && (
-                          <p className="text-xs text-gray-500">{emp.cargo}</p>
-                        )}
+                        <p className="text-sm font-medium text-gray-900">{emp.nombres} {emp.apellidos}</p>
+                        {emp.cargo && <p className="text-xs text-gray-500">{emp.cargo}</p>}
                       </div>
                       {value?.id === emp.id && (
                         <CheckIcon className="w-4 h-4 text-blue-600 ml-auto" />
@@ -313,13 +346,12 @@ function EmpleadoAutocomplete({
 
 export function NewsModule() {
 
-  const empleadoActual = getEmpleadoActual(); // usuario en sesión
+  const empleadoActual = getEmpleadoActual();
 
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Lista global de empleados para el autocomplete
   const [allEmpleados, setAllEmpleados]         = useState<EmpleadoSeleccionado[]>([]);
   const [loadingEmpleados, setLoadingEmpleados] = useState(false);
 
@@ -360,15 +392,15 @@ export function NewsModule() {
   const fetchEmpleados = useCallback(async () => {
     setLoadingEmpleados(true);
     try {
-      const data = await getEmpleados(); // ajusta si tu service devuelve otro formato
+      const data = await getEmpleados();
       setAllEmpleados(
         data
           .filter((e: any) => e.estado !== 'inactivo')
           .map((e: any) => ({
-            id:       e.id,
-            nombres:  e.nombres,
+            id:        e.id,
+            nombres:   e.nombres,
             apellidos: e.apellidos,
-            cargo:    e.cargo ?? '',
+            cargo:     e.cargo ?? '',
           }))
       );
     } catch (err: any) {
@@ -426,7 +458,8 @@ export function NewsModule() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true });
+    // ← marcar fechas como tocadas también
+    setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
@@ -436,8 +469,8 @@ export function NewsModule() {
       const dto: CreateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
-        fecha_inicio:         form.fecha_inicio,
-        fecha_finalizacion:   form.fecha_finalizacion,
+        fecha_inicio:          form.fecha_inicio,
+        fecha_finalizacion:    form.fecha_finalizacion,
         registrado_por:        empleadoActual?.id ?? 1,
         empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
@@ -457,7 +490,8 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true });
+    // ← marcar fechas como tocadas también
+    setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
@@ -467,8 +501,8 @@ export function NewsModule() {
       const dto: UpdateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
-        fecha_inicio:         form.fecha_inicio,
-        fecha_finalizacion:   form.fecha_finalizacion,
+        fecha_inicio:          form.fecha_inicio,
+        fecha_finalizacion:    form.fecha_finalizacion,
         empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
@@ -514,7 +548,6 @@ export function NewsModule() {
     setSelectedNovedad(n);
     resetForm();
 
-    // Reconstruir los objetos EmpleadoSeleccionado desde los datos de la novedad
     const responsable = n.empleadoResponsable
       ? { id: n.empleado_responsable!, nombres: n.empleadoResponsable.nombres, apellidos: n.empleadoResponsable.apellidos, cargo: n.empleadoResponsable.cargo }
       : null;
@@ -525,8 +558,8 @@ export function NewsModule() {
     setForm({
       titulo:                n.titulo,
       descripcion_detallada: n.descripcion_detallada,
-      fecha_inicio:         n.fecha_inicio,
-      fecha_finalizacion:   n.fecha_finalizacion,
+      fecha_inicio:          n.fecha_inicio,
+      fecha_finalizacion:    n.fecha_finalizacion,
       empleado_responsable:  responsable,
       empleado_afectado:     afectado,
       estado:                n.estado,
@@ -536,21 +569,19 @@ export function NewsModule() {
 
   const openDelete = (n: Novedad) => { setSelectedNovedad(n); setIsDeleteDialogOpen(true); };
 
-  // ── Empleado responsable: pre-rellenar con usuario en sesión al abrir "Nueva" ──
   const handleOpenNew = (open: boolean) => {
     setIsNewDialogOpen(open);
     if (open) {
       resetForm();
       if (empleadoActual) {
-        // Buscar el empleado en la lista para tener cargo también
         const match = allEmpleados.find(e => e.id === empleadoActual.id);
         setForm(prev => ({
           ...prev,
           empleado_responsable: match ?? {
-            id:       empleadoActual.id,
-            nombres:  empleadoActual.nombres,
+            id:        empleadoActual.id,
+            nombres:   empleadoActual.nombres,
             apellidos: empleadoActual.apellidos,
-            cargo:    '',
+            cargo:     '',
           },
         }));
       }
@@ -596,22 +627,39 @@ export function NewsModule() {
         />
       </Field>
 
-      {/* ── Fechas: inicio y finalización ── */}
+      {/* ── Fechas ── */}
       <div className="grid grid-cols-2 gap-4">
 
-        <Field label="Fecha de inicio" required>
+        <Field
+          label="Fecha de inicio"
+          required
+          error={touched.fecha_inicio ? errors.fecha_inicio : undefined}
+        >
           <Input
             type="date"
             value={form.fecha_inicio}
+            min={getTodayString()}
             onChange={handleChange('fecha_inicio')}
+            onBlur={handleBlur('fecha_inicio')}
+            className={touched.fecha_inicio && errors.fecha_inicio ? 'border-red-400 focus-visible:ring-red-400' : ''}
           />
         </Field>
 
-        <Field label="Fecha de finalización" required>
+        <Field
+          label="Fecha de finalización"
+          required
+          error={touched.fecha_finalizacion ? errors.fecha_finalizacion : undefined}
+        >
           <Input
             type="date"
             value={form.fecha_finalizacion}
-            onChange={handleChange('fecha_finalizacion')}
+            min={getMinFechaFin(form.fecha_inicio)}
+            onChange={e => {
+              handleChange('fecha_finalizacion')(e);
+              setTouched(prev => ({ ...prev, fecha_finalizacion: true }));
+            }}
+            onBlur={handleBlur('fecha_finalizacion')}
+            className={touched.fecha_finalizacion && errors.fecha_finalizacion ? 'border-red-400 focus-visible:ring-red-400' : ''}
           />
         </Field>
 
@@ -641,7 +689,7 @@ export function NewsModule() {
         <p className="text-xs text-gray-400">Asignado automáticamente al usuario en sesión</p>
       </div>
 
-      {/* ── Empleado Afectado: autocomplete libre ── */}
+      {/* ── Empleado Afectado ── */}
       <EmpleadoAutocomplete
         label="Empleado Afectado"
         value={form.empleado_afectado}
@@ -682,11 +730,7 @@ export function NewsModule() {
           }}>
           Cancelar
         </Button>
-        <Button
-          type="submit"
-          disabled={submitting}
-          className="flex-1 bg-blue-600 hover:bg-blue-700"
-        >
+        <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
           {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
           {submitLabel}
         </Button>
@@ -941,16 +985,11 @@ export function NewsModule() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Fecha de inicio</p>
-                      <p className="font-semibold text-sm mt-0.5">
-                        {formatFecha(selectedNovedad.fecha_inicio)}
-                      </p>
+                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_inicio)}</p>
                     </div>
-
                     <div>
                       <p className="text-xs text-gray-500">Fecha de finalización</p>
-                      <p className="font-semibold text-sm mt-0.5">
-                        {formatFecha(selectedNovedad.fecha_finalizacion)}
-                      </p>
+                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Empleado responsable</p>
@@ -988,11 +1027,17 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* Diálogo Editar */}
-        <Dialog open={isEditDialogOpen} onOpenChange={open => {
-          setIsEditDialogOpen(open);
-          if (!open) { resetForm(); setSelectedNovedad(null); }
-        }}>
+        {/* Diálogo Editar ← onOpenChange corregido: solo limpia al CERRAR */}
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={open => {
+            if (!open) {
+              setIsEditDialogOpen(false);
+              resetForm();
+              setSelectedNovedad(null);
+            }
+          }}
+        >
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Novedad</DialogTitle>
