@@ -58,6 +58,8 @@ const createNovedad = async (req, res) => {
             descripcion_detallada,
             estado,
             fecha_registro,
+            fecha_inicio,
+            fecha_finalizacion,
             registrado_por,
             empleado_responsable,
             empleado_afectado       // ← NUEVO
@@ -99,6 +101,8 @@ const createNovedad = async (req, res) => {
             descripcion_detallada,
             estado,
             fecha_registro,
+            fecha_inicio,
+            fecha_finalizacion,
             registrado_por,
             empleado_responsable,
             empleado_afectado       // ← NUEVO
@@ -134,6 +138,8 @@ const updateNovedad = async (req, res) => {
         const {
             titulo,
             descripcion_detallada,
+            fecha_inicio,
+            fecha_finalizacion,
             empleado_responsable,
             empleado_afectado       // ← NUEVO
         } = req.body;
@@ -154,7 +160,8 @@ const updateNovedad = async (req, res) => {
             }
         }
 
-        await novedad.update({ titulo, descripcion_detallada, empleado_responsable, empleado_afectado });
+        await novedad.update({ titulo, descripcion_detallada, fecha_inicio,
+            fecha_finalizacion, empleado_responsable, empleado_afectado });
 
         // Recargar con asociaciones para devolver el objeto completo
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
