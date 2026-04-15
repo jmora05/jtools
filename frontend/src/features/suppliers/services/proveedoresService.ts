@@ -8,7 +8,6 @@ export interface ProveedorBackend {
     nombreEmpresa:    string;
     tipoDocumento:    TipoDocumento;
     numeroDocumento:  string;
-    personaContacto:  string;
     telefono:         string;
     email:            string;
     direccion?:       string | null;
@@ -22,7 +21,6 @@ export interface CreateProveedorDTO {
     nombreEmpresa:   string;
     tipoDocumento:   TipoDocumento;
     numeroDocumento: string;
-    personaContacto: string;
     telefono:        string;
     email:           string;
     direccion?:      string;
@@ -98,7 +96,6 @@ export function mapProveedorToSupplier(p: ProveedorBackend) {
         lastName,
         documentType:        p.tipoDocumento,
         documentNumber:      p.numeroDocumento,
-        contact:             p.personaContacto,
         phone:               p.telefono,
         email:               p.email,
         address:             p.direccion  ?? '',
@@ -116,7 +113,6 @@ export function mapSupplierToDTO(form: {
     legalRepresentative: string;
     documentType:        string;
     documentNumber:      string;
-    contact:             string;
     phone:               string;
     email:               string;
     address:             string;
@@ -131,7 +127,6 @@ export function mapSupplierToDTO(form: {
         nombreEmpresa:   nombreFinal,
         tipoDocumento:   form.documentType  as TipoDocumento,
         numeroDocumento: form.documentNumber,
-        personaContacto: form.contact,
         telefono:        form.phone,
         email:           form.email,
         direccion:       form.address || undefined,

@@ -10,6 +10,9 @@ export interface InsumoBackend {
   descripcion:    string | null;
   precioUnitario: number | string;
   unidadMedida:   string;
+  cantidad:       number | null;
+  proveedoresId:  number | null;
+  proveedor?:     { id: number; nombreEmpresa: string } | null;
   estado:         EstadoInsumo;
   createdAt?:     string;
   updatedAt?:     string;
@@ -20,6 +23,8 @@ export interface CreateInsumoDTO {
   descripcion?:   string;
   precioUnitario: number;
   unidadMedida:   string;
+  cantidad?:      number | null;
+  proveedoresId?: number | null;
   estado?:        EstadoInsumo;
 }
 
@@ -89,28 +94,34 @@ export async function deleteInsumo(id: number): Promise<{ message: string }> {
 
 export function mapInsumoToSupply(i: InsumoBackend) {
   return {
-    id:           i.id,
-    name:         i.nombreInsumo,
-    description:  i.descripcion  ?? '',
-    price:        Number(i.precioUnitario),
-    unit:         i.unidadMedida,
-    status:       i.estado === 'disponible',
-    stockCurrent: 0,   // el backend no expone stock directo
+    id:            i.id,
+    name:          i.nombreInsumo,
+    description:   i.descripcion  ?? '',
+    price:         Number(i.precioUnitario),
+    unit:          i.unidadMedida,
+    cantidad:      i.cantidad     ?? null,
+    proveedoresId: i.proveedoresId ?? null,
+    proveedorNombre: i.proveedor?.nombreEmpresa ?? null,
+    status:        i.estado === 'disponible',
   };
 }
 
 export function mapSupplyToDTO(form: {
-  name:        string;
-  description: string;
-  price:       string;
-  unit:        string;
-  status:      boolean;
+  name:          string;
+  description:   string;
+  price:         string;
+  unit:          string;
+  cantidad:      string;
+  proveedoresId: number | null;
+  status:        boolean;
 }): CreateInsumoDTO {
   return {
     nombreInsumo:   form.name,
     descripcion:    form.description || undefined,
     precioUnitario: parseFloat(form.price),
     unidadMedida:   form.unit,
+    cantidad:       form.cantidad !== '' ? parseInt(form.cantidad, 10) : null,
+    proveedoresId:  form.proveedoresId ?? null,
     estado:         form.status ? 'disponible' : 'agotado',
   };
 }

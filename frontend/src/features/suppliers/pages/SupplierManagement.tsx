@@ -36,7 +36,6 @@ interface Supplier {
     legalRepresentative?: string;
     documentType:        string;
     documentNumber:      string;
-    contact:             string;
     email:               string;
     phone:               string;
     city:                string;
@@ -52,7 +51,6 @@ interface FormData {
     legalRepresentative: string;
     documentType:        string;
     documentNumber:      string;
-    contact:             string;
     email:               string;
     phone:               string;
     city:                string;
@@ -67,7 +65,6 @@ interface FormErrors {
     legalRepresentative?: string;
     documentType?:        string;
     documentNumber?:      string;
-    contact?:             string;
     email?:               string;
     phone?:               string;
     city?:                string;
@@ -104,11 +101,6 @@ function validarFormulario(data: FormData): FormErrors {
         errs.documentNumber = 'El número de documento es obligatorio';
     else if (data.documentNumber.trim().length < 2 || data.documentNumber.trim().length > 20)
         errs.documentNumber = 'Entre 2 y 20 caracteres';
-
-    if (!data.contact.trim())
-        errs.contact = 'La persona de contacto es obligatoria';
-    else if (data.contact.trim().length < 2 || data.contact.trim().length > 100)
-        errs.contact = 'Entre 2 y 100 caracteres';
 
     if (!data.email.trim())
         errs.email = 'El correo es obligatorio';
@@ -177,6 +169,7 @@ export function SupplierManagement() {
     const [showModal, setShowModal]             = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteError, setDeleteError]         = useState<string | null>(null);
 
     const [editingSupplier, setEditingSupplier]   = useState<Supplier | null>(null);
     const [viewingSupplier, setViewingSupplier]   = useState<Supplier | null>(null);
@@ -210,7 +203,7 @@ export function SupplierManagement() {
     const emptyForm: FormData = {
         type: 'empresa', firstName: '', lastName: '', name: '',
         legalRepresentative: '', documentType: 'NIT', documentNumber: '',
-        contact: '', email: '', phone: '', city: '', address: '', isActive: true,
+        email: '', phone: '', city: '', address: '', isActive: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -296,8 +289,6 @@ export function SupplierManagement() {
                         lower.includes('documento ya esta')
                     )
                         backendFieldErrors.documentNumber = msg;
-                    else if (lower.includes('contacto'))
-                        backendFieldErrors.contact = msg;
                     else if (lower.includes('teléfono') || lower.includes('telefono'))
                         backendFieldErrors.phone = msg;
                     else if (lower.includes('email') || lower.includes('correo'))
@@ -338,7 +329,6 @@ export function SupplierManagement() {
             legalRepresentative: supplier.legalRepresentative || '',
             documentType:        supplier.documentType,
             documentNumber:      supplier.documentNumber,
-            contact:             supplier.contact,
             email:               supplier.email,
             phone:               supplier.phone,
             city:                supplier.city,
@@ -372,30 +362,29 @@ export function SupplierManagement() {
     };
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
-    // Cualquier proveedor (activo o inactivo) puede eliminarse si no tiene insumos
     const handleDelete = (supplier: Supplier) => {
         setDeletingSupplier(supplier);
+        setDeleteError(null);
         setShowDeleteModal(true);
     };
 
     const confirmDelete = async () => {
         if (!deletingSupplier) return;
+        setDeleteError(null);
         try {
             setSaving(true);
             await deleteProveedor(deletingSupplier.id);
-            // Elimina el registro del estado local (eliminación física)
             setSuppliers(prev => prev.filter(s => s.id !== deletingSupplier.id));
+            setShowDeleteModal(false);
+            setDeletingSupplier(null);
             showBanner('Proveedor eliminado correctamente', 'success');
             toast.success('Proveedor eliminado correctamente');
         } catch (error: any) {
             const errores: string[] = error.errores ?? [];
             const msg = errores[0] ?? error.message;
-            toast.error(`No se puede eliminar: ${msg}`);
-            showBanner(`No se puede eliminar: ${msg}`, 'error');
+            setDeleteError(msg);
         } finally {
             setSaving(false);
-            setShowDeleteModal(false);
-            setDeletingSupplier(null);
         }
     };
 
@@ -403,7 +392,6 @@ export function SupplierManagement() {
     const filteredSuppliers = suppliers.filter(s => {
         const matchesSearch =
             s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.contact.toLowerCase().includes(searchTerm.toLowerCase()) ||
             s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
             s.documentNumber.includes(searchTerm);
         const matchesStatus =
@@ -814,24 +802,6 @@ export function SupplierManagement() {
                                 </>
                             )}
 
-                            {/* Persona de contacto */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
-                                    Persona de contacto <span className="text-red-500">*</span>
-                                    <span className="ml-1 text-xs text-gray-400">(2–100 caracteres)</span>
-                                </label>
-                                <Input
-                                    value={formData.contact}
-                                    onChange={(e) =>
-                                        setFormData(prev => ({ ...prev, contact: onlyLetters(e.target.value) }))
-                                    }
-                                    maxLength={100}
-                                    placeholder="María García"
-                                    className={formErrors.contact ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                />
-                                <FieldError msg={formErrors.contact} />
-                            </div>
-
                             {/* Correo */}
                             <div>
                                 <label className="block text-sm text-gray-700 mb-2">
@@ -968,10 +938,6 @@ export function SupplierManagement() {
                                         </Badge>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-500">Contacto</p>
-                                        <p className="font-semibold text-sm">{viewingSupplier.contact}</p>
-                                    </div>
-                                    <div>
                                         <p className="text-xs text-gray-500">Teléfono</p>
                                         <p className="font-semibold text-sm">{viewingSupplier.phone}</p>
                                     </div>
@@ -1010,8 +976,8 @@ export function SupplierManagement() {
             </Dialog>
 
             {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
-            <Dialog open={showDeleteModal} onOpenChange={(open) => {
-                if (!open) { setShowDeleteModal(false); setDeletingSupplier(null); }
+            <Dialog open={showDeleteModal} onOpenChange={(open: boolean) => {
+                if (!open) { setShowDeleteModal(false); setDeletingSupplier(null); setDeleteError(null); }
             }}>
                 <DialogContent className="max-w-md p-0">
                     <div className="p-6">
@@ -1032,34 +998,46 @@ export function SupplierManagement() {
                                     </p>
                                     <p className="text-sm text-blue-700">{deletingSupplier.email}</p>
                                 </div>
-                                <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3">
-                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
-                                    <div className="text-sm">
-                                        <p className="font-semibold">¿Estás seguro?</p>
-                                        <p className="text-red-700 mt-0.5">
-                                            Esta acción es <strong>irreversible</strong>. El proveedor será eliminado
-                                            permanentemente. Si tiene insumos asociados, no podrá eliminarse.
-                                        </p>
+
+                                {deleteError ? (
+                                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3">
+                                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                        <div className="text-sm">
+                                            <p className="font-semibold">No se puede eliminar</p>
+                                            <p className="mt-0.5">{deleteError}</p>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3">
+                                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
+                                        <div className="text-sm">
+                                            <p className="font-semibold">¿Estás seguro?</p>
+                                            <p className="text-blue-700 mt-0.5">
+                                                Esta acción es <strong>irreversible</strong>. El proveedor será eliminado permanentemente.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                             <Button
                                 variant="outline"
-                                onClick={() => { setShowDeleteModal(false); setDeletingSupplier(null); }}
+                                onClick={() => { setShowDeleteModal(false); setDeletingSupplier(null); setDeleteError(null); }}
                                 disabled={saving}
                             >
                                 Cancelar
                             </Button>
-                            <Button
-                                onClick={confirmDelete}
-                                disabled={saving}
-                                className="bg-red-600 hover:bg-red-700 text-white border-0"
-                            >
-                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                Sí, eliminar
-                            </Button>
+                            {!deleteError && (
+                                <Button
+                                    onClick={confirmDelete}
+                                    disabled={saving}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white border-0"
+                                >
+                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    Sí, eliminar
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </DialogContent>

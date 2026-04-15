@@ -26,24 +26,29 @@ import {
     mapInsumoToSupply,
     mapSupplyToDTO,
 } from '../services/insumosService';
+import { getProveedores } from '../services/proveedoresService';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supply {
-    id:           number;
-    name:         string;
-    description:  string;
-    price:        number;
-    unit:         string;
-    status:       boolean;
-    stockCurrent: number;
+    id:              number;
+    name:            string;
+    description:     string;
+    price:           number;
+    unit:            string;
+    cantidad:        number | null;
+    proveedoresId:   number | null;
+    proveedorNombre: string | null;
+    status:          boolean;
 }
 
 interface FormData {
-    name:        string;
-    description: string;
-    price:       string;
-    unit:        string;
-    status:      boolean;
+    name:          string;
+    description:   string;
+    price:         string;
+    unit:          string;
+    cantidad:      string;
+    proveedoresId: number | null;
+    status:        boolean;
 }
 
 interface FormErrors {
@@ -51,6 +56,7 @@ interface FormErrors {
     description?: string;
     price?:       string;
     unit?:        string;
+    cantidad?:    string;
 }
 
 // ── Validación frontend ───────────────────────────────────────────────────────
@@ -74,6 +80,12 @@ function validarFormulario(data: FormData): FormErrors {
 
     if (!data.unit.trim())
         errs.unit = 'La unidad es obligatoria';
+
+    if (data.cantidad.trim() !== '') {
+        const c = parseInt(data.cantidad, 10);
+        if (isNaN(c) || c < 0)
+            errs.cantidad = 'Ingresa una cantidad válida (≥ 0)';
+    }
 
     return errs;
 }
@@ -112,6 +124,10 @@ export function SupplyManagement() {
     const [saving, setSaving]           = useState(false);
     const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
 
+    const [proveedores, setProveedores]         = useState<{ id: number; nombre: string }[]>([]);
+    const [proveedorQuery, setProveedorQuery]   = useState('');
+    const [proveedorOpen, setProveedorOpen]     = useState(false);
+
     const [showModal, setShowModal]             = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -143,7 +159,8 @@ export function SupplyManagement() {
     const [submitAttempted, setSubmitAttempted] = useState(false);
 
     const emptyForm: FormData = {
-        name: '', description: '', price: '', unit: 'Unidades', status: true,
+        name: '', description: '', price: '', unit: 'Unidades',
+        cantidad: '', proveedoresId: null, status: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -165,7 +182,14 @@ export function SupplyManagement() {
         }
     };
 
-    useEffect(() => { fetchInsumos(); }, []);
+    const fetchProveedores = async () => {
+        try {
+            const data = await getProveedores();
+            setProveedores(data.map(p => ({ id: p.id, nombre: p.nombreEmpresa })));
+        } catch { /* silencioso */ }
+    };
+
+    useEffect(() => { fetchInsumos(); fetchProveedores(); }, []);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     const resetForm = () => {
@@ -173,6 +197,8 @@ export function SupplyManagement() {
         setFormErrors({});
         setSubmitAttempted(false);
         setEditingSupply(null);
+        setProveedorQuery('');
+        setProveedorOpen(false);
         setShowModal(false);
     };
 
@@ -233,14 +259,18 @@ export function SupplyManagement() {
     // ── Editar ────────────────────────────────────────────────────────────────
     const handleEdit = (supply: Supply) => {
         setFormData({
-            name:        supply.name,
-            description: supply.description,
-            price:       supply.price.toString(),
-            unit:        supply.unit,
-            status:      supply.status,
+            name:          supply.name,
+            description:   supply.description,
+            price:         supply.price.toString(),
+            unit:          supply.unit,
+            cantidad:      supply.cantidad != null ? supply.cantidad.toString() : '',
+            proveedoresId: supply.proveedoresId,
+            status:        supply.status,
         });
         setFormErrors({});
         setSubmitAttempted(false);
+        setProveedorQuery(supply.proveedorNombre ?? '');
+        setProveedorOpen(false);
         setEditingSupply(supply);
         setShowModal(true);
     };
@@ -369,8 +399,10 @@ export function SupplyManagement() {
                                 <thead className="bg-blue-900">
                                     <tr>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Insumo</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Precio</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Cantidad</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Total</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Unidad</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
@@ -379,7 +411,7 @@ export function SupplyManagement() {
                                 <tbody>
                                     {currentSupplies.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="text-center py-12 text-gray-500">
+                                            <td colSpan={8} className="text-center py-12 text-gray-500">
                                                 No se encontraron insumos
                                             </td>
                                         </tr>
@@ -408,10 +440,10 @@ export function SupplyManagement() {
                                                         </div>
                                                     </td>
 
-                                                    {/* Descripción */}
+                                                    {/* Proveedor */}
                                                     <td className="py-4 px-6">
-                                                        <p className={`text-sm truncate max-w-xs ${isAgotado ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                            {supply.description || '—'}
+                                                        <p className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>
+                                                            {supply.proveedorNombre || '—'}
                                                         </p>
                                                     </td>
 
@@ -419,6 +451,22 @@ export function SupplyManagement() {
                                                     <td className="py-4 px-6">
                                                         <p className={`text-sm font-medium ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
                                                             ${supply.price.toLocaleString()}
+                                                        </p>
+                                                    </td>
+
+                                                    {/* Cantidad */}
+                                                    <td className="py-4 px-6">
+                                                        <p className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>
+                                                            {supply.cantidad ?? '—'}
+                                                        </p>
+                                                    </td>
+
+                                                    {/* Total */}
+                                                    <td className="py-4 px-6">
+                                                        <p className={`text-sm font-medium ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
+                                                            {supply.cantidad != null
+                                                                ? `$${(supply.price * supply.cantidad).toLocaleString()}`
+                                                                : '—'}
                                                         </p>
                                                     </td>
 
@@ -484,7 +532,7 @@ export function SupplyManagement() {
                                                 {/* ── Banner inline fila (insumo disponible → no se puede eliminar) ── */}
                                                 {showRowBanner && (
                                                     <tr className="border-b border-amber-100">
-                                                        <td colSpan={6} className="px-6 py-0">
+                                                        <td colSpan={8} className="px-6 py-0">
                                                             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
                                                                 <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                                                                 <span>
@@ -640,6 +688,101 @@ export function SupplyManagement() {
                                 </div>
                             </div>
 
+                            {/* Proveedor (autocomplete) */}
+                            <div className="relative">
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Proveedor
+                                    <span className="ml-1 text-xs text-gray-400">(opcional)</span>
+                                </label>
+                                <div className="relative flex items-center border rounded-md border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
+                                    <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
+                                    <input
+                                        type="text"
+                                        value={proveedorQuery}
+                                        placeholder="Buscar proveedor por nombre..."
+                                        className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
+                                        onChange={e => {
+                                            setProveedorQuery(e.target.value);
+                                            setFormData(prev => ({ ...prev, proveedoresId: null }));
+                                            setProveedorOpen(true);
+                                        }}
+                                        onFocus={() => setProveedorOpen(true)}
+                                    />
+                                    {formData.proveedoresId && (
+                                        <button
+                                            type="button"
+                                            className="p-2 text-gray-400 hover:text-gray-600"
+                                            onClick={() => {
+                                                setProveedorQuery('');
+                                                setFormData(prev => ({ ...prev, proveedoresId: null }));
+                                            }}
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                                {proveedorOpen && (
+                                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                                        {(() => {
+                                            const filtrados = proveedores.filter(p =>
+                                                p.nombre.toLowerCase().includes(proveedorQuery.toLowerCase())
+                                            ).slice(0, 8);
+                                            return filtrados.length === 0 ? (
+                                                <p className="px-4 py-3 text-sm text-gray-500">No se encontraron proveedores</p>
+                                            ) : (
+                                                <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
+                                                    {filtrados.map(p => (
+                                                        <li key={p.id}>
+                                                            <button
+                                                                type="button"
+                                                                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${formData.proveedoresId === p.id ? 'bg-blue-50 font-medium' : ''}`}
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({ ...prev, proveedoresId: p.id }));
+                                                                    setProveedorQuery(p.nombre);
+                                                                    setProveedorOpen(false);
+                                                                }}
+                                                            >
+                                                                {p.nombre}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Cantidad + Total */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">
+                                        Cantidad
+                                        <span className="ml-1 text-xs text-gray-400">(opcional, ≥ 0)</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={formData.cantidad}
+                                        onChange={e => setFormData(prev => ({ ...prev, cantidad: e.target.value }))}
+                                        placeholder="0"
+                                        className={formErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    />
+                                    <FieldError msg={formErrors.cantidad} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-700 mb-2">Total</label>
+                                    <div className="flex items-center h-10 px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700 font-medium">
+                                        {formData.cantidad !== '' && formData.price !== '' &&
+                                        !isNaN(parseInt(formData.cantidad)) && !isNaN(parseFloat(formData.price))
+                                            ? `$${(parseInt(formData.cantidad) * parseFloat(formData.price)).toLocaleString()}`
+                                            : '—'}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">Calculado: cantidad × precio unitario</p>
+                                </div>
+                            </div>
+
                             {/* Estado — solo al editar */}
                             {editingSupply && (
                                 <div className="border-t border-gray-200 pt-4">
@@ -692,8 +835,24 @@ export function SupplyManagement() {
                                         </div>
                                     </div>
                                     <div>
+                                        <p className="text-xs text-gray-500">Proveedor</p>
+                                        <p className="font-semibold text-sm">{viewingSupply.proveedorNombre || '—'}</p>
+                                    </div>
+                                    <div>
                                         <p className="text-xs text-gray-500">Precio unitario</p>
                                         <p className="font-semibold text-sm">${viewingSupply.price.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Cantidad</p>
+                                        <p className="font-semibold text-sm">{viewingSupply.cantidad ?? '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Total</p>
+                                        <p className="font-semibold text-sm">
+                                            {viewingSupply.cantidad != null
+                                                ? `$${(viewingSupply.price * viewingSupply.cantidad).toLocaleString()}`
+                                                : '—'}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500">Unidad de medida</p>

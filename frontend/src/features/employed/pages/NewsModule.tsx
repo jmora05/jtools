@@ -31,20 +31,7 @@ import {
   type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO,
 } from '../services/novedadesService';
 
-import { getEmpleados, type Empleado } from '../services/empleadosService';
-
-// ─── Obtener el empleado autenticado desde el contexto/localStorage ───────────
-function getEmpleadoActual(): { id: number; nombres: string; apellidos: string } | null {
-  try {
-    const raw = localStorage.getItem('user') ?? localStorage.getItem('empleado') ?? localStorage.getItem('session');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const emp = parsed.empleado ?? parsed;
-      if (emp?.id && emp?.nombres) return emp;
-    }
-  } catch (_) {}
-  return null;
-}
+import { getEmpleados, desactivarEmpleado } from '../services/empleadosService';
 
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
@@ -108,8 +95,8 @@ interface FormErrors {
   titulo?: string;
   descripcion_detallada?: string;
   empleado_afectado?: string;
-  fecha_inicio?: string;        // ← nuevo
-  fecha_finalizacion?: string;  // ← nuevo
+  fecha_inicio?: string;
+  fecha_finalizacion?: string;
 }
 
 const emptyForm: FormValues = {
@@ -124,10 +111,9 @@ const emptyForm: FormValues = {
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 
-function validateForm(values: FormValues): FormErrors {
+function validateForm(values: FormValues, isEdit = false): FormErrors {
   const errors: FormErrors = {};
 
-  // ── Título ──────────────────────────────────────────────────────────────────
   const titulo = values.titulo.trim();
   if (!titulo) {
     errors.titulo = 'El título es obligatorio';
@@ -137,7 +123,6 @@ function validateForm(values: FormValues): FormErrors {
     errors.titulo = `El título no puede superar 50 caracteres (${titulo.length}/50)`;
   }
 
-  // ── Descripción ─────────────────────────────────────────────────────────────
   const desc = values.descripcion_detallada.trim();
   if (!desc) {
     errors.descripcion_detallada = 'La descripción es obligatoria';
@@ -145,8 +130,7 @@ function validateForm(values: FormValues): FormErrors {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
 
-  // ── Fecha inicio ────────────────────────────────────────────────────────────
-  if (values.fecha_inicio) {
+  if (!isEdit && values.fecha_inicio) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const inicio = new Date(values.fecha_inicio + 'T00:00:00');
@@ -155,7 +139,6 @@ function validateForm(values: FormValues): FormErrors {
     }
   }
 
-  // ── Fecha finalización ──────────────────────────────────────────────────────
   if (values.fecha_finalizacion && values.fecha_inicio) {
     const inicio = new Date(values.fecha_inicio + 'T00:00:00');
     const fin    = new Date(values.fecha_finalizacion + 'T00:00:00');
@@ -216,9 +199,8 @@ function EmpleadoAutocomplete({
   const [open, setOpen]       = useState(false);
   const [focused, setFocused] = useState(false);
   const wrapperRef            = useRef<HTMLDivElement>(null);
-  const prevValueIdRef        = useRef<number | null | undefined>(undefined); // ← nuevo
+  const prevValueIdRef        = useRef<number | null | undefined>(undefined);
 
-  // Cerrar al hacer click fuera
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -230,8 +212,6 @@ function EmpleadoAutocomplete({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // ← CORREGIDO: solo sincroniza cuando el ID cambia externamente,
-  //   no cuando el usuario escribe (evita borrar el query mientras tipea)
   useEffect(() => {
     const prevId = prevValueIdRef.current;
     const currId = value?.id ?? null;
@@ -346,8 +326,6 @@ function EmpleadoAutocomplete({
 
 export function NewsModule() {
 
-  const empleadoActual = getEmpleadoActual();
-
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -369,6 +347,7 @@ export function NewsModule() {
   const [form, setForm]       = useState<FormValues>(emptyForm);
   const [errors, setErrors]   = useState<FormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const [bannerNovedadId, setBannerNovedadId] = useState<number | null>(null);
   const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | null>(null);
@@ -393,15 +372,14 @@ export function NewsModule() {
     setLoadingEmpleados(true);
     try {
       const data = await getEmpleados();
+      const activos = data.filter((e: any) => e.estado !== 'inactivo');
       setAllEmpleados(
-        data
-          .filter((e: any) => e.estado !== 'inactivo')
-          .map((e: any) => ({
-            id:        e.id,
-            nombres:   e.nombres,
-            apellidos: e.apellidos,
-            cargo:     e.cargo ?? '',
-          }))
+        activos.map((e: any) => ({
+          id:        e.id,
+          nombres:   e.nombres,
+          apellidos: e.apellidos,
+          cargo:     e.cargo ?? '',
+        }))
       );
     } catch (err: any) {
       toast.error('No se pudo cargar la lista de empleados');
@@ -413,8 +391,8 @@ export function NewsModule() {
   useEffect(() => { fetchNovedades(); fetchEmpleados(); }, [fetchNovedades, fetchEmpleados]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
   useEffect(() => {
-    if (Object.keys(touched).length > 0) setErrors(validateForm(form));
-  }, [form, touched]);
+    if (Object.keys(touched).length > 0) setErrors(validateForm(form, isEditMode));
+  }, [form, touched, isEditMode]);
 
   // ── Helpers de form ────────────────────────────────────────────────────────
   const handleChange = (field: keyof FormValues) =>
@@ -424,7 +402,7 @@ export function NewsModule() {
 
   const handleBlur = (field: keyof FormValues) => () => {
     setTouched(prev => ({ ...prev, [field]: true }));
-    setErrors(validateForm(form));
+    setErrors(validateForm(form, isEditMode));
   };
 
   const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -436,6 +414,7 @@ export function NewsModule() {
     setForm(emptyForm);
     setErrors({});
     setTouched({});
+    setIsEditMode(false);
   };
 
   // ── Filtrado ───────────────────────────────────────────────────────────────
@@ -444,7 +423,6 @@ export function NewsModule() {
     const matchSearch =
       n.titulo.toLowerCase().includes(q) ||
       n.descripcion_detallada.toLowerCase().includes(q) ||
-      nombreCompleto(n.registradoPor).toLowerCase().includes(q) ||
       nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q) ||
       nombreCompleto(n.empleadoAfectado).toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || n.estado === statusFilter;
@@ -458,9 +436,8 @@ export function NewsModule() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ← marcar fechas como tocadas también
     setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
-    const validationErrors = validateForm(form);
+    const validationErrors = validateForm(form, false);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
@@ -471,12 +448,17 @@ export function NewsModule() {
         descripcion_detallada: form.descripcion_detallada.trim(),
         fecha_inicio:          form.fecha_inicio,
         fecha_finalizacion:    form.fecha_finalizacion,
-        registrado_por:        empleadoActual?.id ?? 1,
         empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
+
+      if (dto.empleado_afectado) {
+        await desactivarEmpleado(dto.empleado_afectado);
+        setAllEmpleados(prev => prev.filter(e => e.id !== dto.empleado_afectado));
+      }
+
       resetForm();
       setIsNewDialogOpen(false);
       toast.success('Novedad registrada exitosamente');
@@ -490,9 +472,8 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ← marcar fechas como tocadas también
     setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
-    const validationErrors = validateForm(form);
+    const validationErrors = validateForm(form, true);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
 
@@ -513,8 +494,9 @@ export function NewsModule() {
       }
 
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      setSelectedNovedad(updated);
+
       setIsEditDialogOpen(false);
-      setSelectedNovedad(null);
       resetForm();
       toast.success('Novedad actualizada exitosamente');
     } catch (err: any) {
@@ -545,25 +527,33 @@ export function NewsModule() {
   const openView = (n: Novedad) => { setSelectedNovedad(n); setIsViewDialogOpen(true); };
 
   const openEdit = (n: Novedad) => {
+    setIsEditMode(true);
+
+    const resolveEmpleado = (
+      idFK: number | null | undefined,
+      nested: { id: number; nombres: string; apellidos: string; cargo: string } | null | undefined
+    ): EmpleadoSeleccionado | null => {
+      if (!idFK && !nested) return null;
+      const fromList = allEmpleados.find(e => e.id === (idFK ?? nested?.id));
+      if (fromList) return fromList;
+      if (nested) return { id: nested.id, nombres: nested.nombres, apellidos: nested.apellidos, cargo: nested.cargo ?? '' };
+      return null;
+    };
+
     setSelectedNovedad(n);
     resetForm();
-
-    const responsable = n.empleadoResponsable
-      ? { id: n.empleado_responsable!, nombres: n.empleadoResponsable.nombres, apellidos: n.empleadoResponsable.apellidos, cargo: n.empleadoResponsable.cargo }
-      : null;
-    const afectado = n.empleadoAfectado
-      ? { id: n.empleado_afectado!, nombres: n.empleadoAfectado.nombres, apellidos: n.empleadoAfectado.apellidos, cargo: n.empleadoAfectado.cargo }
-      : null;
 
     setForm({
       titulo:                n.titulo,
       descripcion_detallada: n.descripcion_detallada,
-      fecha_inicio:          n.fecha_inicio,
-      fecha_finalizacion:    n.fecha_finalizacion,
-      empleado_responsable:  responsable,
-      empleado_afectado:     afectado,
+      fecha_inicio:          n.fecha_inicio      ? n.fecha_inicio.split('T')[0]      : '',
+      fecha_finalizacion:    n.fecha_finalizacion ? n.fecha_finalizacion.split('T')[0] : '',
+      empleado_responsable:  resolveEmpleado(n.empleado_responsable, n.empleadoResponsable),
+      empleado_afectado:     resolveEmpleado(n.empleado_afectado,    n.empleadoAfectado),
       estado:                n.estado,
     });
+
+    setIsEditMode(true);
     setIsEditDialogOpen(true);
   };
 
@@ -573,25 +563,17 @@ export function NewsModule() {
     setIsNewDialogOpen(open);
     if (open) {
       resetForm();
-      if (empleadoActual) {
-        const match = allEmpleados.find(e => e.id === empleadoActual.id);
-        setForm(prev => ({
-          ...prev,
-          empleado_responsable: match ?? {
-            id:        empleadoActual.id,
-            nombres:   empleadoActual.nombres,
-            apellidos: empleadoActual.apellidos,
-            cargo:     '',
-          },
-        }));
-      }
     } else {
       resetForm();
     }
   };
 
   // ── Render del formulario ──────────────────────────────────────────────────
-  const renderForm = (onSubmit: (e: React.FormEvent) => void, submitLabel: string, isEdit = false) => (
+  const renderForm = (
+    onSubmit: (e: React.FormEvent) => void,
+    submitLabel: string,
+    isEdit = false
+  ) => (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
 
       <Field
@@ -627,7 +609,7 @@ export function NewsModule() {
         />
       </Field>
 
-      {/* ── Fechas ── */}
+      {/* ── Fechas ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4">
 
         <Field
@@ -638,7 +620,7 @@ export function NewsModule() {
           <Input
             type="date"
             value={form.fecha_inicio}
-            min={getTodayString()}
+            min={isEdit ? undefined : getTodayString()}
             onChange={handleChange('fecha_inicio')}
             onBlur={handleBlur('fecha_inicio')}
             className={touched.fecha_inicio && errors.fecha_inicio ? 'border-red-400 focus-visible:ring-red-400' : ''}
@@ -665,31 +647,18 @@ export function NewsModule() {
 
       </div>
 
-      {/* ── Empleado Responsable: bloqueado con el usuario en sesión ── */}
-      <div className="space-y-1">
-        <Label>Empleado Responsable</Label>
-        <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="w-7 h-7 rounded-full bg-blue-200 flex items-center justify-center shrink-0">
-            <span className="text-xs font-semibold text-blue-800">
-              {form.empleado_responsable
-                ? `${form.empleado_responsable.nombres[0]}${form.empleado_responsable.apellidos[0]}`
-                : '?'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-blue-900 truncate">
-              {form.empleado_responsable ? nombreCompleto(form.empleado_responsable) : 'Sin asignar'}
-            </p>
-            {form.empleado_responsable?.cargo && (
-              <p className="text-xs text-blue-600">{form.empleado_responsable.cargo}</p>
-            )}
-          </div>
-          <Lock className="w-4 h-4 text-blue-400 shrink-0" />
-        </div>
-        <p className="text-xs text-gray-400">Asignado automáticamente al usuario en sesión</p>
-      </div>
+      {/* ── Empleado Responsable ──────────────────────────────────────────── */}
+      <EmpleadoAutocomplete
+        label="Empleado Responsable"
+        value={form.empleado_responsable}
+        onChange={emp => setForm(prev => ({ ...prev, empleado_responsable: emp }))}
+        allEmpleados={allEmpleados}
+        loadingEmpleados={loadingEmpleados}
+        hint="Opcional — busca por nombre o cargo"
+        placeholder="Buscar empleado responsable..."
+      />
 
-      {/* ── Empleado Afectado ── */}
+      {/* ── Empleado Afectado ─────────────────────────────────────────────── */}
       <EmpleadoAutocomplete
         label="Empleado Afectado"
         value={form.empleado_afectado}
@@ -769,7 +738,7 @@ export function NewsModule() {
                   Completa el formulario para registrar una nueva novedad o incidencia.
                 </DialogDescription>
               </DialogHeader>
-              {renderForm(handleCreate, 'Registrar Novedad')}
+              {renderForm(handleCreate, 'Registrar Novedad', false)}
             </DialogContent>
           </Dialog>
         </div>
@@ -844,7 +813,6 @@ export function NewsModule() {
 
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900 max-w-xs truncate">{novedad.titulo}</div>
-                          <div className="text-xs text-gray-500">Por: {nombreCompleto(novedad.registradoPor)}</div>
                         </td>
 
                         <td className="px-6 py-4">
@@ -950,7 +918,7 @@ export function NewsModule() {
           )}
         </div>
 
-        {/* Diálogo Ver */}
+        {/* ── Diálogo Ver detalle ─────────────────────────────────────────── */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
             <div className="overflow-y-auto max-h-[90vh] p-6">
@@ -961,6 +929,8 @@ export function NewsModule() {
               {selectedNovedad && (
                 <div className="space-y-4 mt-4">
                   <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+
+                    {/* Cabecera */}
                     <div className="col-span-2 flex items-center gap-4">
                       <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
                         <AlertCircleIcon className="w-8 h-8 text-blue-600" />
@@ -972,10 +942,8 @@ export function NewsModule() {
                         </Badge>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Registrado por</p>
-                      <p className="font-semibold text-sm mt-0.5">{nombreCompleto(selectedNovedad.registradoPor)}</p>
-                    </div>
+
+                    {/* Fecha de registro */}
                     <div>
                       <p className="text-xs text-gray-500">Fecha de registro</p>
                       <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
@@ -983,14 +951,20 @@ export function NewsModule() {
                         {formatFecha(selectedNovedad.fecha_registro)}
                       </p>
                     </div>
+
+                    {/* Fecha inicio */}
                     <div>
                       <p className="text-xs text-gray-500">Fecha de inicio</p>
                       <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_inicio)}</p>
                     </div>
+
+                    {/* Fecha fin */}
                     <div>
                       <p className="text-xs text-gray-500">Fecha de finalización</p>
                       <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
                     </div>
+
+                    {/* Responsable */}
                     <div>
                       <p className="text-xs text-gray-500">Empleado responsable</p>
                       <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
@@ -998,6 +972,8 @@ export function NewsModule() {
                         {nombreCompleto(selectedNovedad.empleadoResponsable)}
                       </p>
                     </div>
+
+                    {/* Afectado */}
                     <div>
                       <p className="text-xs text-gray-500">Empleado afectado</p>
                       <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
@@ -1005,18 +981,28 @@ export function NewsModule() {
                         {nombreCompleto(selectedNovedad.empleadoAfectado)}
                       </p>
                     </div>
+
+                    {/* Descripción */}
                     <div className="col-span-2">
                       <p className="text-xs text-gray-500">Descripción detallada</p>
                       <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
                         {selectedNovedad.descripcion_detallada}
                       </p>
                     </div>
+
                   </div>
+
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Cerrar</Button>
                     {selectedNovedad.estado === 'registrada' && (
-                      <Button onClick={() => { openEdit(selectedNovedad); setIsViewDialogOpen(false); }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <Button
+                        onClick={() => {
+                          const fresco = novedades.find(n => n.id === selectedNovedad.id) ?? selectedNovedad;
+                          setIsViewDialogOpen(false);
+                          openEdit(fresco);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
                         Editar Novedad
                       </Button>
                     )}
@@ -1027,7 +1013,7 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* Diálogo Editar ← onOpenChange corregido: solo limpia al CERRAR */}
+        {/* ── Diálogo Editar ──────────────────────────────────────────────── */}
         <Dialog
           open={isEditDialogOpen}
           onOpenChange={open => {
@@ -1047,7 +1033,7 @@ export function NewsModule() {
           </DialogContent>
         </Dialog>
 
-        {/* Diálogo Eliminar */}
+        {/* ── Diálogo Eliminar ────────────────────────────────────────────── */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
