@@ -5,13 +5,18 @@ const {
     getEmpleadoById,
     createEmpleado,
     updateEmpleado,
-    deleteEmpleado
+    deleteEmpleado,
+    desactivarEmpleado,
+    puedeEliminarse,
+    deleteEmpleadoPermanente
 } = require('../controllers/empleadosController.js');
 
 router.get('/', getEmpleados);
 router.get('/:id', getEmpleadoById);
+router.get('/:id/puede-eliminarse', puedeEliminarse);
 router.post('/', createEmpleado);
 router.put('/:id', updateEmpleado);
-router.delete('/:id', deleteEmpleado);
+router.put('/:id/desactivar', desactivarEmpleado);
+router.delete('/:id', deleteEmpleadoPermanente);
 
 module.exports = router;

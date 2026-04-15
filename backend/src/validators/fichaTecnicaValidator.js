@@ -7,7 +7,7 @@ const ESTADOS_VALIDOS = ['Activa', 'Inactiva'];
 
 // ── Expresiones regulares ──────────────────────────────────────────────────────
 
-// Nombres de materiales e insumos: letras, números, tildes, ñ, espacios, guion, coma y punto
+// Nombres de insumos: letras, números, tildes, ñ, espacios, guion, coma y punto
 const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 \-.,()]+$/;
 
 // Unidades: letras, números, /, ., espacio y símbolos métricos (ej: kg, m², cm/s)
@@ -70,25 +70,6 @@ function validarCantidadItem(val, etiqueta, errores) {
 // ── Validadores de secciones ──────────────────────────────────────────────────
 
 /**
- * Valida un array de materiales.
- */
-function validarMateriales(materiales, errores, obligatorio = true) {
-    if (!Array.isArray(materiales) || materiales.length === 0) {
-        if (obligatorio) errores.push('Debe incluir al menos un material');
-        return;
-    }
-    if (materiales.length > 50) {
-        errores.push('No puede agregar más de 50 materiales por ficha');
-    }
-    materiales.forEach((m, i) => {
-        const idx = `Material [${i + 1}]`;
-        validarNombreItem(m.name, idx, errores);
-        validarCantidadItem(m.quantity, idx, errores);
-        validarUnidad(m.unit, idx, errores);
-    });
-}
-
-/**
  * Valida un array de procesos.
  */
 function validarProcesos(procesos, errores, obligatorio = true) {
@@ -122,6 +103,11 @@ function validarProcesos(procesos, errores, obligatorio = true) {
             } else if (!REGEX_DURACION.test(dur)) {
                 errores.push(`${idx}: la duración solo permite letras, números, espacios, :, ., , y -`);
             }
+        }
+
+        // Validar responsableId (obligatorio)
+        if (!p.responsableId || !Number.isInteger(p.responsableId) || p.responsableId <= 0) {
+            errores.push(`${idx}: el responsable es obligatorio`);
         }
     });
 }
@@ -163,10 +149,13 @@ function validarMedidas(medidas, errores) {
 }
 
 /**
- * Valida un array de insumos (opcional).
+ * Valida un array de insumos (obligatorio en creación, opcional en actualización).
  */
-function validarInsumos(insumos, errores) {
-    if (!Array.isArray(insumos) || insumos.length === 0) return;
+function validarInsumos(insumos, errores, obligatorio = false) {
+    if (!Array.isArray(insumos) || insumos.length === 0) {
+        if (obligatorio) errores.push('Debe incluir al menos un insumo');
+        return;
+    }
     if (insumos.length > 50) {
         errores.push('No puede agregar más de 50 insumos por ficha');
     }
@@ -198,7 +187,7 @@ function validarNotas(notas, errores) {
  */
 function validarCrearFichaTecnica(data) {
     const errores = [];
-    const { productoId, materiales, procesos, medidas, insumos, notas } = data;
+    const { productoId, procesos, medidas, insumos, notas } = data;
 
     // ── 1. productoId ──────────────────────────────────────────────────────────
     if (productoId === undefined || productoId === null || productoId === '') {
@@ -207,23 +196,18 @@ function validarCrearFichaTecnica(data) {
         errores.push('El productoId debe ser un número entero positivo');
     }
 
-    // ── 2. Materiales (obligatorio) ────────────────────────────────────────────
-    validarMateriales(materiales, errores, true);
-
-    // ── 3. Procesos (obligatorio) ──────────────────────────────────────────────
+    // ── 2. Procesos (obligatorio) ──────────────────────────────────────────────
     validarProcesos(procesos, errores, true);
 
-    // ── 4. Medidas (opcional) ──────────────────────────────────────────────────
+    // ── 3. Medidas (opcional) ──────────────────────────────────────────────────
     if (medidas !== undefined && medidas !== null) {
         validarMedidas(medidas, errores);
     }
 
-    // ── 5. Insumos (opcional) ──────────────────────────────────────────────────
-    if (insumos !== undefined && insumos !== null) {
-        validarInsumos(insumos, errores);
-    }
+    // ── 4. Insumos (obligatorio) ───────────────────────────────────────────────
+    validarInsumos(insumos, errores, true);
 
-    // ── 6. Notas (opcional) ────────────────────────────────────────────────────
+    // ── 5. Notas (opcional) ────────────────────────────────────────────────────
     validarNotas(notas, errores);
 
     return errores;
@@ -234,7 +218,7 @@ function validarCrearFichaTecnica(data) {
  */
 function validarActualizarFichaTecnica(data) {
     const errores = [];
-    const { materiales, procesos, medidas, insumos, notas, estado } = data;
+    const { procesos, medidas, insumos, notas, estado } = data;
 
     // ── 1. Debe enviar al menos un campo ──────────────────────────────────────
     if (Object.keys(data).length === 0) {
@@ -242,30 +226,25 @@ function validarActualizarFichaTecnica(data) {
         return errores;
     }
 
-    // ── 2. Materiales (si se envían) ───────────────────────────────────────────
-    if (materiales !== undefined) {
-        validarMateriales(materiales, errores, true);
-    }
-
-    // ── 3. Procesos (si se envían) ─────────────────────────────────────────────
+    // ── 2. Procesos (si se envían) ─────────────────────────────────────────────
     if (procesos !== undefined) {
         validarProcesos(procesos, errores, true);
     }
 
-    // ── 4. Medidas (si se envían) ──────────────────────────────────────────────
+    // ── 3. Medidas (si se envían) ──────────────────────────────────────────────
     if (medidas !== undefined && medidas !== null) {
         validarMedidas(medidas, errores);
     }
 
-    // ── 5. Insumos (si se envían) ──────────────────────────────────────────────
+    // ── 4. Insumos (si se envían) ──────────────────────────────────────────────
     if (insumos !== undefined && insumos !== null) {
-        validarInsumos(insumos, errores);
+        validarInsumos(insumos, errores, true);
     }
 
-    // ── 6. Notas (si se envían) ────────────────────────────────────────────────
+    // ── 5. Notas (si se envían) ────────────────────────────────────────────────
     validarNotas(notas, errores);
 
-    // ── 7. Estado (si se envía) ────────────────────────────────────────────────
+    // ── 6. Estado (si se envía) ────────────────────────────────────────────────
     if (estado !== undefined) {
         if (!ESTADOS_VALIDOS.includes(estado)) {
             errores.push(`El estado debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`);

@@ -16,8 +16,8 @@ const AREAS = [
 // Solo letras (incluye tildes, ñ), espacios, guiones y apóstrofes
 const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
 
-// Teléfono: dígitos, espacios, +, guiones, puntos y paréntesis — entre 7 y 20 chars
-const REGEX_TELEFONO = /^[+]?[\d\s\-(). ]{7,20}$/;
+// Teléfono: debe ser +57 seguido de exactamente 10 dígitos
+const REGEX_TELEFONO = /^\+57\d{10}$/;
 
 // Solo letras, números, espacios y guiones (para ciudad)
 const REGEX_CIUDAD = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-]+$/;
@@ -77,18 +77,11 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 3. Número de documento ─────────────────────────────────────────────────
   if (numeroDocumento) {
     const doc = String(numeroDocumento).trim();
-    if (doc.length < 2 || doc.length > 20) {
-      errores.push('El número de documento debe tener entre 2 y 20 caracteres');
-    } else if (
-      (tipoDocumento === 'CC' || tipoDocumento === 'CE') &&
-      !/^\d+$/.test(doc)
-    ) {
-      errores.push('Para CC y CE el número de documento solo puede contener dígitos');
-    } else if (
-      tipoDocumento === 'Pasaporte' &&
-      !/^[a-zA-Z0-9]+$/.test(doc)
-    ) {
-      errores.push('El número de pasaporte solo puede contener letras y números');
+    
+    if (doc.length < 8 || doc.length > 10) {
+      errores.push('El número de documento debe tener entre 8 y 10 dígitos');
+    } else if (!/^\d+$/.test(doc)) {
+      errores.push('El número de documento solo puede contener dígitos');
     }
   }
 
@@ -115,12 +108,14 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 6. Teléfono ────────────────────────────────────────────────────────────
   if (telefono) {
     const tel = String(telefono).trim();
-    if (tel.length < 7 || tel.length > 20) {
-      errores.push('El teléfono debe tener entre 7 y 20 caracteres');
-    } else if (!REGEX_TELEFONO.test(tel)) {
-      errores.push(
-        'El teléfono tiene un formato inválido (ej: 3001234567 o +57 300 123 4567)'
-      );
+    // Validar que sea +57 seguido de exactamente 10 dígitos
+    if (!tel.startsWith('+57')) {
+      errores.push('El teléfono debe comenzar con +57');
+    } else {
+      const digitos = tel.replace('+57', '');
+      if (!/^\d{10}$/.test(digitos)) {
+        errores.push('Después de +57 debe haber exactamente 10 dígitos');
+      }
     }
   }
 

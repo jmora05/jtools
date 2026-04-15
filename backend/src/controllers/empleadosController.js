@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Empleados } = require('../models/index.js');
+const { Empleados, Novedades, OrdenesProduccion, FichaTecnica } = require('../models/index.js');
 const { validarEmpleado } = require('../validators/empleadosValidator');
 
 // ────────────────────────────────────────────────────────────
@@ -219,7 +219,178 @@ const updateEmpleado = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────────────────
-//  DELETE /empleados/:id  —  desactivar (soft delete)
+//  GET /empleados/:id/puede-eliminarse  —  verificar si puede ser eliminado
+// ────────────────────────────────────────────────────────────
+const puedeEliminarse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: 'El ID proporcionado no es válido' });
+    }
+
+    const empleado = await Empleados.findByPk(id);
+    if (!empleado) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+
+    // Verificar referencias en Novedades
+    const novedadesRegistradas = await Novedades.count({
+      where: { registrado_por: id }
+    });
+
+    const novedadesResponsable = await Novedades.count({
+      where: { empleado_responsable: id }
+    });
+
+    const novedadesAfectado = await Novedades.count({
+      where: { empleado_afectado: id }
+    });
+
+    // Verificar referencias en OrdenesProduccion
+    const ordenesProduccion = await OrdenesProduccion.count({
+      where: { responsableId: id }
+    });
+
+    // Verificar referencias en FichaTecnica (TODAS, activas e inactivas)
+    const fichasTecnicas = await FichaTecnica.findAll();
+
+    let fichaTecnicaCount = 0;
+    for (const ficha of fichasTecnicas) {
+      if (ficha.procesos && Array.isArray(ficha.procesos)) {
+        const procesosConEmpleado = ficha.procesos.filter(p => p.responsableId === parseInt(id));
+        if (procesosConEmpleado.length > 0) {
+          fichaTecnicaCount++;
+        }
+      }
+    }
+
+    const totalReferencias = novedadesRegistradas + novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
+
+    const referencias = {
+      novedadesRegistradas,
+      novedadesResponsable,
+      novedadesAfectado,
+      ordenesProduccion,
+      fichaTecnicaCount,
+      total: totalReferencias
+    };
+
+    res.status(200).json({
+      puedeEliminarse: totalReferencias === 0,
+      referencias,
+      mensaje: totalReferencias === 0 
+        ? 'El empleado puede ser eliminado'
+        : `El empleado tiene ${totalReferencias} referencia(s) en el sistema y no puede ser eliminado`
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Error al verificar si puede eliminarse', error: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────
+//  DELETE /empleados/:id  —  eliminar permanentemente
+// ────────────────────────────────────────────────────────────
+const deleteEmpleadoPermanente = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: 'El ID proporcionado no es válido' });
+    }
+
+    const empleado = await Empleados.findByPk(id);
+    if (!empleado) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+
+    // Verificar que no tenga referencias
+    const novedadesRegistradas = await Novedades.count({
+      where: { registrado_por: id }
+    });
+
+    const novedadesResponsable = await Novedades.count({
+      where: { empleado_responsable: id }
+    });
+
+    const novedadesAfectado = await Novedades.count({
+      where: { empleado_afectado: id }
+    });
+
+    const ordenesProduccion = await OrdenesProduccion.count({
+      where: { responsableId: id }
+    });
+
+    // Verificar referencias en FichaTecnica (TODAS, activas e inactivas)
+    const fichasTecnicas = await FichaTecnica.findAll();
+
+    let fichaTecnicaCount = 0;
+    for (const ficha of fichasTecnicas) {
+      if (ficha.procesos && Array.isArray(ficha.procesos)) {
+        const procesosConEmpleado = ficha.procesos.filter(p => p.responsableId === parseInt(id));
+        if (procesosConEmpleado.length > 0) {
+          fichaTecnicaCount++;
+        }
+      }
+    }
+
+    const totalReferencias = novedadesRegistradas + novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
+
+    if (totalReferencias > 0) {
+      return res.status(409).json({
+        message: 'No se puede eliminar el empleado',
+        razon: 'El empleado está vinculado a otros registros en el sistema (incluyendo fichas técnicas inactivas)',
+        referencias: {
+          novedadesRegistradas,
+          novedadesResponsable,
+          novedadesAfectado,
+          ordenesProduccion,
+          fichaTecnicaCount,
+          total: totalReferencias
+        }
+      });
+    }
+
+    // Eliminar permanentemente
+    await empleado.destroy();
+    res.status(200).json({ message: 'Empleado eliminado permanentemente' });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar el empleado', error: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────
+//  PUT /empleados/:id/desactivar  —  desactivar (soft delete)
+// ────────────────────────────────────────────────────────────
+const desactivarEmpleado = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: 'El ID proporcionado no es válido' });
+    }
+
+    const empleado = await Empleados.findByPk(id);
+    if (!empleado) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+
+    if (empleado.estado === 'inactivo') {
+      return res.status(400).json({ message: 'El empleado ya se encuentra inactivo' });
+    }
+
+    await empleado.update({ estado: 'inactivo' });
+    res.status(200).json({ message: 'Empleado desactivado correctamente' });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Error al desactivar el empleado', error: error.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────
+//  DELETE /empleados/:id  —  desactivar (soft delete) - DEPRECATED
 // ────────────────────────────────────────────────────────────
 const deleteEmpleado = async (req, res) => {
   try {
@@ -252,4 +423,7 @@ module.exports = {
   createEmpleado,
   updateEmpleado,
   deleteEmpleado,
+  desactivarEmpleado,
+  puedeEliminarse,
+  deleteEmpleadoPermanente,
 };

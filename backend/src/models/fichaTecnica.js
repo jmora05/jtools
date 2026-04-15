@@ -43,7 +43,7 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         type: DataTypes.JSON,
         allowNull: false,
         defaultValue: [],
-        comment: 'Pasos del proceso de fabricación [{step, description, duration}]'
+        comment: 'Pasos del proceso de fabricación [{step, description, duration, responsableId}]'
     },
 
     medidas: {

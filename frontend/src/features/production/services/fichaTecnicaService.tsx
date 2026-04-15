@@ -2,8 +2,7 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-export type Material   = { name: string; quantity: number; unit: string };
-export type Proceso    = { step: number; description: string; duration: string };
+export type Proceso    = { step: number; description: string; duration: string; responsableId?: number };
 export type Medida     = { parameter: string; value: string };
 export type InsumoFT   = { name: string; quantity: number; unit: string };
 
@@ -91,5 +90,10 @@ export async function deleteFichaTecnica(id: number): Promise<{ message: string 
     method: 'DELETE',
     headers: buildAuthHeaders(),
   });
+  return handleResponse(res);
+}
+
+export async function puedeEliminarFichaTecnica(id: number): Promise<{ puedeEliminar: boolean; razon: string; estado?: string }> {
+  const res = await fetch(`${BASE}/fichas-tecnicas/${id}/puede-eliminarse`, { headers: buildAuthHeaders() });
   return handleResponse(res);
 }

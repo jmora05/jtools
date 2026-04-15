@@ -22,6 +22,19 @@ export type Rol = {
   description?: string;
 };
 
+export type VerificacionEliminacion = {
+  puedeEliminarse: boolean;
+  referencias: {
+    novedadesRegistradas: number;
+    novedadesResponsable: number;
+    novedadesAfectado: number;
+    ordenesProduccion: number;
+    fichaTecnicaCount: number;
+    total: number;
+  };
+  mensaje: string;
+};
+
 const BASE = getApiBaseUrl();
 
 export async function getEmpleados(): Promise<Empleado[]> {
@@ -59,6 +72,21 @@ export async function updateEmpleado(id: number, data: Partial<Empleado>): Promi
     method: 'PUT',
     headers: buildAuthHeaders(),
     body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function verificarPuedeEliminarse(id: number): Promise<VerificacionEliminacion> {
+  const res = await fetch(`${BASE}/empleados/${id}/puede-eliminarse`, {
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<VerificacionEliminacion>(res);
+}
+
+export async function desactivarEmpleado(id: number): Promise<{ message: string }> {
+  const res = await fetch(`${BASE}/empleados/${id}/desactivar`, {
+    method: 'PUT',
+    headers: buildAuthHeaders(),
   });
   return handleResponse(res);
 }

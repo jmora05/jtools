@@ -15,10 +15,10 @@ import {
     ChevronLeft, ChevronRight, FileText, ArrowLeft,
     CheckCircle, XCircle, Package, List, Ruler,
     ClipboardList, Calendar, Loader2, CheckCircle2,
-    Lock, X,
+    Lock, X, User,
 } from 'lucide-react';
 import {
-    getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica,
+    getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica, puedeEliminarFichaTecnica,
     type FichaTecnica, type Proceso, type Medida, type InsumoFT,
 } from '../services/fichaTecnicaService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
@@ -28,7 +28,7 @@ import {
     validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
     validarFormCrear, validarFormEditar, validarNotasCampo,
     filtrarDescripcion, filtrarDuracion, filtrarParametro,
-    filtrarNotas, filtrarCantidad, contadorTexto,
+    filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
 
@@ -99,6 +99,7 @@ function ItemsForm({
     medidas, setMedidas,
     insumos, setInsumos,
     catalogoInsumos, loadingInsumos, insumosListError,
+    empleados = [],
 }: {
     procesos: Proceso[];       setProcesos: (v: Proceso[]) => void;
     medidas: Medida[];         setMedidas: (v: Medida[]) => void;
@@ -106,8 +107,9 @@ function ItemsForm({
     catalogoInsumos: InsumoDisponible[];
     loadingInsumos: boolean;
     insumosListError: string | null;
+    empleados?: any[];
 }) {
-    const [newProc, setNewProc] = useState<{ description: string; duration: string }>({ description: '', duration: '' });
+    const [newProc, setNewProc] = useState<{ description: string; duration: string; responsableId?: number }>({ description: '', duration: '' });
     const [newMed, setNewMed]   = useState<Medida>({ parameter: '', value: '' });
     const [selectedInsumoId, setSelectedInsumoId] = useState<string>('');
     const [newInsQuantity, setNewInsQuantity]      = useState<number>(0);
@@ -134,10 +136,18 @@ function ItemsForm({
     const addProc = () => {
         setProcSubmitted(true);
         const camposErr = validarProcesoCampos(newProc);
+        
+        // Validar que responsableId esté presente
+        if (!newProc.responsableId) {
+            setProcErrors({ ...camposErr, responsableId: 'El responsable es obligatorio' });
+            toast.error('Debes seleccionar un responsable para el proceso');
+            return;
+        }
+        
         setProcErrors(camposErr);
         const { valid, errors } = validarProceso({ ...newProc, step: procesos.length + 1 });
         if (!valid) { toast.error(errors[0]); return; }
-        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim() }]);
+        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim(), responsableId: newProc.responsableId }]);
         setNewProc({ description: '', duration: '' });
         setProcErrors({});
         setProcSubmitted(false);
@@ -229,28 +239,60 @@ function ItemsForm({
                             <FieldError mensaje={procErrors.duration} />
                         </div>
                     </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Responsable <span className="text-red-500">*</span></Label>
+                        <select
+                            className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${!newProc.responsableId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
+                            value={newProc.responsableId || ''}
+                            onChange={e => {
+                                const id = e.target.value ? parseInt(e.target.value) : undefined;
+                                setNewProc({ ...newProc, responsableId: id });
+                            }}
+                        >
+                            <option value="">Seleccionar responsable</option>
+                            {empleados.map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos}</option>
+                            ))}
+                        </select>
+                        {!newProc.responsableId && procSubmitted && (
+                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                El responsable es obligatorio
+                            </p>
+                        )}
+                    </div>
                     <Button type="button" variant="outline" onClick={addProc} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
                         <Plus className="w-4 h-4 mr-2" />Agregar Proceso
                     </Button>
                     {procesos.length === 0 && (
                         <p className="text-xs text-red-500 text-center">Debes agregar al menos un proceso</p>
                     )}
-                    {procesos.map((p, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span>
-                                <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
-                                {p.description}
-                            </span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
-                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
+                    {procesos.map((p, i) => {
+                        const responsable = empleados.find(e => e.id === p.responsableId);
+                        return (
+                            <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                                <div className="flex-1">
+                                    <span>
+                                        <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
+                                        {p.description}
+                                    </span>
+                                    {responsable && (
+                                        <p className="text-xs text-gray-600 mt-1">
+                                            👤 {responsable.nombres} {responsable.apellidos}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
+                                    <Button type="button" variant="ghost" size="sm"
+                                        onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
+                                        className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -383,6 +425,7 @@ function ItemsForm({
 export function TechnicalSheetModule() {
     const [fichas, setFichas]       = useState<FichaTecnica[]>([]);
     const [productos, setProductos] = useState<Producto[]>([]);
+    const [empleados, setEmpleados] = useState<any[]>([]);
     const [loading, setLoading]     = useState(false);
     const [saving, setSaving]       = useState(false);
 
@@ -392,6 +435,7 @@ export function TechnicalSheetModule() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const [selectedFicha, setSelectedFicha] = useState<FichaTecnica | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [fichaToDelete, setFichaToDelete] = useState<FichaTecnica | null>(null);
 
     const [createForm, setCreateForm] = useState<FormInfo>(EMPTY_FORM);
@@ -463,7 +507,17 @@ export function TechnicalSheetModule() {
         }
     }, []);
 
-    useEffect(() => { fetchFichas(); fetchProductos(); }, [fetchFichas, fetchProductos]);
+    const fetchEmpleados = useCallback(async () => {
+        try {
+            const BASE = getApiBaseUrl();
+            const res = await fetch(`${BASE}/empleados`, { headers: buildAuthHeaders() });
+            const data = await handleResponse<any[]>(res);
+            // Filtrar solo empleados activos
+            setEmpleados(data.filter(e => e.estado === 'activo'));
+        } catch { /* silencioso */ }
+    }, []);
+
+    useEffect(() => { fetchFichas(); fetchProductos(); fetchEmpleados(); }, [fetchFichas, fetchProductos, fetchEmpleados]);
 
     const filtered = fichas.filter(f => {
         const codigo   = (f.codigoFicha ?? '').toLowerCase();
@@ -701,17 +755,12 @@ export function TechnicalSheetModule() {
                                                     <p className={`font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.producto?.nombreProducto ?? '—'}</p>
                                                 </td>
 
-                                                {/* ── Columna Estado: Switch + texto ── */}
+                                                {/* ── Columna Estado: Switch solo ── */}
                                                 <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <Switch
-                                                            checked={ficha.estado === 'Activa'}
-                                                            onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
-                                                        />
-                                                        <span className={`text-sm ${isInactiva ? 'text-gray-400' : 'text-gray-700'}`}>
-                                                            {ficha.estado === 'Activa' ? 'Activa' : 'Inactiva'}
-                                                        </span>
-                                                    </div>
+                                                    <Switch
+                                                        checked={ficha.estado === 'Activa'}
+                                                        onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
+                                                    />
                                                 </td>
 
                                                 <td className="py-4 px-6">
@@ -738,20 +787,31 @@ export function TechnicalSheetModule() {
                                                             }`}>
                                                             <Edit className="w-4 h-4" />
                                                         </Button>
-                                                        {/* Eliminar: solo si inactiva */}
+                                                        {/* Eliminar: solo si activa */}
                                                         <Button size="sm"
-                                                            onClick={() => {
-                                                                if (ficha.estado === 'Activa') {
-                                                                    showInactiveAlert('Ficha activa: No puedes eliminar una ficha activa. Cámbiala a Inactiva primero usando el interruptor de estado.');
+                                                            onClick={async () => {
+                                                                if (ficha.estado === 'Inactiva') {
+                                                                    showInactiveAlert('Ficha inactiva: No puedes eliminar una ficha inactiva. Actívala primero usando el interruptor de estado.');
                                                                     return;
                                                                 }
-                                                                setFichaToDelete(ficha);
-                                                                setShowDeleteDialog(true);
+                                                                // Verificar si puede eliminarse
+                                                                try {
+                                                                    const resultado = await puedeEliminarFichaTecnica(ficha.id!);
+                                                                    setFichaToDelete(ficha);
+                                                                    if (!resultado.puedeEliminar) {
+                                                                        setDeleteError(resultado.razon);
+                                                                    } else {
+                                                                        setDeleteError(null);
+                                                                    }
+                                                                    setShowDeleteDialog(true);
+                                                                } catch (err: any) {
+                                                                    toast.error('Error al verificar: ' + (err?.message ?? 'Error desconocido'));
+                                                                }
                                                             }}
                                                             className={`border transition-colors ${
-                                                                ficha.estado === 'Activa'
+                                                                ficha.estado === 'Inactiva'
                                                                     ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
-                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                    : 'bg-white text-blue-600 border-0 hover:bg-blue-50'
                                                             }`}>
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
@@ -877,6 +937,7 @@ export function TechnicalSheetModule() {
                                 catalogoInsumos={catalogoInsumos}
                                 loadingInsumos={loadingInsumos}
                                 insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
+                                empleados={empleados}
                             />
 
                             {errorInsumos && (
@@ -954,12 +1015,23 @@ export function TechnicalSheetModule() {
                                         </p>
                                     </div>
                                     <div className="p-4 space-y-2">
-                                        {(selectedFicha.procesos ?? []).map((p, i) => (
-                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
-                                                <Badge variant="outline">{p.duration}</Badge>
-                                            </div>
-                                        ))}
+                                        {(selectedFicha.procesos ?? []).map((p, i) => {
+                                            const responsable = empleados.find(e => e.id === p.responsableId);
+                                            return (
+                                                <div key={i} className="bg-gray-50 rounded p-3 border text-sm space-y-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
+                                                        <Badge variant="outline">{p.duration}</Badge>
+                                                    </div>
+                                                    {responsable && (
+                                                        <p className="text-xs text-gray-600 flex items-center gap-1">
+                                                            <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                                            <span className="font-medium">{responsable.nombres} {responsable.apellidos}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -1069,6 +1141,7 @@ export function TechnicalSheetModule() {
                                 catalogoInsumos={catalogoInsumos}
                                 loadingInsumos={loadingInsumos}
                                 insumosListError={eInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
+                                empleados={empleados}
                             />
 
                             {errorInsumos && (
@@ -1094,40 +1167,58 @@ export function TechnicalSheetModule() {
             </Dialog>
 
             {/* MODAL — ELIMINAR */}
-            <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); } }}>
-                <DialogContent className="max-w-md p-0">
-                    <div className="p-6">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-blue-600">
-                                <AlertTriangle className="w-5 h-5" />
-                                Eliminar Ficha Técnica
-                            </DialogTitle>
-                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
-                        </DialogHeader>
+            <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); } }}>
+                <DialogContent className="max-w-md p-6">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-blue-900">
+                            <Trash2 className="w-5 h-5" />
+                            Eliminar Ficha Técnica
+                        </DialogTitle>
+                        <DialogDescription>
+                            Esta acción no se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                        {fichaToDelete && (
-                            <div className="mt-4 space-y-3">
-                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1 text-sm">
-                                    <p><span className="text-gray-500">Código: </span><span className="font-semibold">{fichaToDelete.codigoFicha}</span></p>
-                                    <p><span className="text-gray-500">Producto: </span>{fichaToDelete.producto?.nombreProducto}</p>
-                                    <p className="flex items-center gap-1"><span className="text-gray-500">Estado: </span><StatusBadge estado={fichaToDelete.estado ?? 'Activa'} /></p>
-                                </div>
+                    {fichaToDelete && (
+                        <div className="mt-4 space-y-3">
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="font-semibold text-blue-900">{fichaToDelete.codigoFicha}</p>
+                                <p className="text-sm text-blue-700 mt-1">{fichaToDelete.producto?.nombreProducto}</p>
+                                <p className="text-sm text-blue-700">{fichaToDelete.producto?.referencia}</p>
                             </div>
-                        )}
 
-                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); }} disabled={saving}>
-                                Cancelar
-                            </Button>
-                            <Button
-                                onClick={handleDelete}
-                                disabled={saving}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                {saving ? 'Eliminando...' : 'Eliminar'}
-                            </Button>
+                            {deleteError ? (
+                                <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">No se puede eliminar</p>
+                                        <p className="text-red-700 mt-0.5">{deleteError}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3">
+                                    <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">Ficha técnica sin referencias</p>
+                                        <p className="text-blue-700 mt-0.5">Esta ficha técnica puede ser <strong>eliminada permanentemente</strong> del sistema.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                        <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); }} disabled={saving}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleDelete}
+                            disabled={saving || !!deleteError}
+                            className="bg-white hover:bg-blue-50 text-blue-600"
+                        >
+                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                            {saving ? 'Eliminando...' : 'Eliminar'}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>
