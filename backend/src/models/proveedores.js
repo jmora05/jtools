@@ -43,11 +43,8 @@ const Proveedores = sequelize.define('Proveedores', {
 
     personaContacto: {
         type: DataTypes.STRING(100),
-        allowNull: false,
-        validate: {
-            notEmpty: { msg: 'El nombre de la persona de contacto no puede estar vacío' },
-            len: { args: [2, 100], msg: 'El nombre de la persona de contacto debe tener entre 2 y 100 caracteres' }
-        }
+        allowNull: true,
+        defaultValue: null,
     },
 
     telefono: {

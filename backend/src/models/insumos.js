@@ -49,6 +49,22 @@ const Insumos = sequelize.define('Insumos', {
             len: { args: [1, 20], msg: 'La unidad de medida debe tener entre 1 y 20 caracteres' }
         }
     },
+
+    cantidad: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+        validate: {
+            min: { args: [0], msg: 'La cantidad no puede ser negativa' }
+        }
+    },
+
+    proveedoresId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+    },
+
     estado: {
         type: DataTypes.ENUM('disponible', 'agotado'),
         allowNull: false,

@@ -1,10 +1,16 @@
-const { Insumos } = require('../models/index.js');
+const { Insumos, Proveedores } = require('../models/index.js');
 const { validarInsumo } = require('../validators/insumosValidator.js');
+
+const includeProveedor = {
+    model: Proveedores,
+    as: 'proveedor',
+    attributes: ['id', 'nombreEmpresa'],
+};
 
 // GET - listar todos los insumos
 const getInsumos = async (req, res) => {
     try {
-        const insumos = await Insumos.findAll();
+        const insumos = await Insumos.findAll({ include: [includeProveedor] });
         res.status(200).json(insumos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los insumos', error: error.message });
@@ -52,6 +58,8 @@ const createInsumo = async (req, res) => {
             descripcion,
             precioUnitario,
             unidadMedida,
+            cantidad,
+            proveedoresId,
             estado,
         } = req.body;
 
@@ -60,6 +68,8 @@ const createInsumo = async (req, res) => {
             descripcion:    descripcion    ?? null,
             precioUnitario: precioUnitario ?? 0.00,
             unidadMedida,
+            cantidad:       cantidad       ?? null,
+            proveedoresId:  proveedoresId  ?? null,
             estado:         estado         ?? 'disponible',
         });
 
@@ -93,6 +103,8 @@ const updateInsumo = async (req, res) => {
             descripcion,
             precioUnitario,
             unidadMedida,
+            cantidad,
+            proveedoresId,
             estado,
         } = req.body;
 
@@ -101,6 +113,8 @@ const updateInsumo = async (req, res) => {
             ...(descripcion    !== undefined && { descripcion }),
             ...(precioUnitario !== undefined && { precioUnitario }),
             ...(unidadMedida   !== undefined && { unidadMedida }),
+            ...(cantidad       !== undefined && { cantidad }),
+            ...(proveedoresId  !== undefined && { proveedoresId }),
             ...(estado         !== undefined && { estado }),
         });
 

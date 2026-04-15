@@ -19,7 +19,6 @@ function validarProveedor(data, esActualizacion = false) {
         nombreEmpresa,
         tipoDocumento,
         numeroDocumento,
-        personaContacto,
         telefono,
         email,
         direccion,
@@ -33,7 +32,6 @@ function validarProveedor(data, esActualizacion = false) {
             nombreEmpresa,
             tipoDocumento,
             numeroDocumento,
-            personaContacto,
             telefono,
             email,
         };
@@ -53,17 +51,7 @@ function validarProveedor(data, esActualizacion = false) {
         }
     }
 
-    // ── 3. Persona de contacto ─────────────────────────────────────────────────
-    if (personaContacto) {
-        const pc = personaContacto.trim();
-        if (pc.length < 2 || pc.length > 100) {
-            errores.push('El nombre del contacto debe tener entre 2 y 100 caracteres');
-        } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(pc)) {
-            errores.push('El nombre del contacto solo puede contener letras, espacios, guiones y apóstrofes');
-        }
-    }
-
-    // ── 4. Tipo de documento ───────────────────────────────────────────────────
+    // ── 3. Tipo de documento ───────────────────────────────────────────────────
     if (tipoDocumento) {
         const tipo = tipoDocumento.trim().toUpperCase();
         if (!TIPOS_DOCUMENTO.includes(tipo)) {

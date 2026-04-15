@@ -16,6 +16,7 @@ function validarInsumo(data, esActualizacion = false) {
         descripcion,
         precioUnitario,
         unidadMedida,
+        cantidad,
         estado,
     } = data;
 
@@ -64,7 +65,15 @@ function validarInsumo(data, esActualizacion = false) {
         }
     }
 
-    // ── 6. Estado ──────────────────────────────────────────────────────
+    // ── 6. Cantidad (opcional) ─────────────────────────────────────────
+    if (cantidad !== undefined && cantidad !== null && cantidad !== '') {
+        const cant = parseInt(cantidad, 10);
+        if (isNaN(cant) || cant < 0) {
+            errores.push('La cantidad debe ser un número entero mayor o igual a 0');
+        }
+    }
+
+    // ── 7. Estado ──────────────────────────────────────────────────────
     if (estado && !['disponible', 'agotado'].includes(estado)) {
         errores.push('El estado solo puede ser "disponible" o "agotado"');
     }

@@ -67,8 +67,8 @@ InsumoProducto.belongsTo(Productos, { foreignKey: 'productosId' });
 // Sin esta relación, getInsumosProveedor() y los findOne({ where: { proveedoresId } })
 // del controlador fallan en runtime.
 // Nota: verifica que la columna FK en la tabla "insumos" se llame efectivamente "proveedoresId"
-Proveedores.hasMany(Insumos, { foreignKey: 'proveedoresId', as: 'insumos' });
-Insumos.belongsTo(Proveedores, { foreignKey: 'proveedoresId', as: 'proveedor' });
+Proveedores.hasMany(Insumos, { foreignKey: 'proveedoresId', as: 'insumos', constraints: false });
+Insumos.belongsTo(Proveedores, { foreignKey: 'proveedoresId', as: 'proveedor', constraints: false });
 
 
 // Novedades
@@ -112,6 +112,11 @@ Clientes.hasMany(Pedidos,          { foreignKey: 'clienteId',   as: 'pedidos' })
 Ventas.hasMany(DetalleVentas,      { foreignKey: 'ventasId',    as: 'detalles' });
 DetalleVentas.belongsTo(Ventas,    { foreignKey: 'ventasId' });
 DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
+
+
+
+
+
 
 
 // ================= EXPORTACIÓN =================
