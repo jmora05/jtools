@@ -1,23 +1,34 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const {
     getInsumos,
     getInsumoById,
-    getInsumosActivos,
-    getInsumosBajoStock,
+    getInsumosDisponibles,
     createInsumo,
     updateInsumo,
+    cambiarEstadoInsumo,
     deleteInsumo,
     forceDeleteInsumo,
-} = require('../controllers/insumosController.js');
+} = require('../controllers/insumosController');
 
-router.get('/', getInsumos);
-router.get('/activos', getInsumosActivos);
-router.get('/bajo-stock', getInsumosBajoStock);
-router.get('/:id', getInsumoById);
+// GET
+router.get('/',            getInsumos);
+router.get('/disponibles', getInsumosDisponibles);
+router.get('/:id',         getInsumoById);
+
+// POST
 router.post('/', createInsumo);
+
+// PUT
 router.put('/:id', updateInsumo);
-router.delete('/:id/force', forceDeleteInsumo);
+
+// PATCH - cambiar estado (disponible / agotado)  ← ruta que usa el frontend
+router.patch('/:id/estado', cambiarEstadoInsumo);
+
+// DELETE - soft (marca agotado)
 router.delete('/:id', deleteInsumo);
+
+// DELETE - físico (solo si ya está agotado)
+router.delete('/:id/force', forceDeleteInsumo);
 
 module.exports = router;

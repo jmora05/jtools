@@ -2,39 +2,40 @@
 // JRepuestos Medellín
 // ============================================================
 
-const TIPOS_DOCUMENTO = ['nit', 'cedula', 'rut', 'pasaporte'];
+// FIX #2 + #5: tipos alineados al ENUM real del modelo (CC, CE, PA, RUNT, NIT, RUN)
+const TIPOS_DOCUMENTO = ['CC', 'CE', 'PA', 'RUNT', 'NIT', 'RUN'];
 
 /**
  * Valida los datos de un proveedor.
- * @param {object} data           - Cuerpo de la petición (req.body)
+ * @param {object}  data            - Cuerpo de la petición (req.body)
  * @param {boolean} esActualizacion - Si es PUT, los campos obligatorios son opcionales
- * @returns {string[]} Array de mensajes de error. Si está vacío, no hay errores.
+ * @returns {string[]} Array de mensajes de error. Vacío = sin errores.
  */
 function validarProveedor(data, esActualizacion = false) {
     const errores = [];
+
+    // FIX #1: nombres de campo corregidos para coincidir con el modelo Sequelize
     const {
-        razon_social,
-        tipo_documento,
-        numero_documento,
-        nombre_contacto,
+        nombreEmpresa,
+        tipoDocumento,
+        numeroDocumento,
+        personaContacto,
         telefono,
         email,
         direccion,
         ciudad,
         estado,
-        foto,
     } = data;
 
-    // ── 1. Campos obligatorios (solo en creación) ──────────────────────
+    // ── 1. Campos obligatorios (solo en creación) ──────────────────────────────
     if (!esActualizacion) {
         const requeridos = {
-            razon_social,
-            tipo_documento,
-            numero_documento,
-            nombre_contacto,
+            nombreEmpresa,
+            tipoDocumento,
+            numeroDocumento,
+            personaContacto,
             telefono,
             email,
-            ciudad,
         };
         for (const [campo, valor] of Object.entries(requeridos)) {
             if (!valor || String(valor).trim() === '') {
@@ -44,27 +45,27 @@ function validarProveedor(data, esActualizacion = false) {
         if (errores.length > 0) return errores;
     }
 
-    // ── 2. Razón social ────────────────────────────────────────────────
-    if (razon_social) {
-        const rs = razon_social.trim();
-        if (rs.length < 2 || rs.length > 100) {
-            errores.push('La razón social debe tener entre 2 y 100 caracteres');
+    // ── 2. Nombre de la empresa / persona ──────────────────────────────────────
+    if (nombreEmpresa) {
+        const ne = nombreEmpresa.trim();
+        if (ne.length < 2 || ne.length > 100) {
+            errores.push('El nombre debe tener entre 2 y 100 caracteres');
         }
     }
 
-    // ── 3. Nombre del contacto ─────────────────────────────────────────
-    if (nombre_contacto) {
-        const nc = nombre_contacto.trim();
-        if (nc.length < 2 || nc.length > 100) {
+    // ── 3. Persona de contacto ─────────────────────────────────────────────────
+    if (personaContacto) {
+        const pc = personaContacto.trim();
+        if (pc.length < 2 || pc.length > 100) {
             errores.push('El nombre del contacto debe tener entre 2 y 100 caracteres');
-        } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(nc)) {
+        } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(pc)) {
             errores.push('El nombre del contacto solo puede contener letras, espacios, guiones y apóstrofes');
         }
     }
 
-    // ── 4. Tipo de documento ───────────────────────────────────────────
-    if (tipo_documento) {
-        const tipo = tipo_documento.trim().toLowerCase();
+    // ── 4. Tipo de documento ───────────────────────────────────────────────────
+    if (tipoDocumento) {
+        const tipo = tipoDocumento.trim().toUpperCase();
         if (!TIPOS_DOCUMENTO.includes(tipo)) {
             errores.push(
                 `Tipo de documento inválido. Valores permitidos: ${TIPOS_DOCUMENTO.join(', ')}`
@@ -72,55 +73,60 @@ function validarProveedor(data, esActualizacion = false) {
         }
     }
 
-    // ── 5. Número de documento ─────────────────────────────────────────
-    if (numero_documento) {
-        const doc = String(numero_documento).trim();
-        if (doc.length < 5 || doc.length > 20) {
-            errores.push('El número de documento debe tener entre 5 y 20 caracteres');
+    // ── 5. Número de documento ─────────────────────────────────────────────────
+    if (numeroDocumento) {
+        const doc = String(numeroDocumento).trim();
+        if (doc.length < 2 || doc.length > 20) {
+            errores.push('El número de documento debe tener entre 2 y 20 caracteres');
         } else if (
-            tipo_documento === 'cedula' &&
+            tipoDocumento === 'CC' &&
             !/^\d+$/.test(doc)
         ) {
-            errores.push('Para cédula el número solo puede contener dígitos');
+            errores.push('Para cédula (CC) el número solo puede contener dígitos');
         } else if (
-            tipo_documento === 'nit' &&
+            tipoDocumento === 'NIT' &&
             !/^\d{9,10}(-\d)?$/.test(doc)
         ) {
             errores.push('El NIT debe tener entre 9 y 10 dígitos, opcionalmente con dígito de verificación (ej: 900123456-7)');
         } else if (
-            tipo_documento === 'pasaporte' &&
+            tipoDocumento === 'PA' &&
             !/^[a-zA-Z0-9]+$/.test(doc)
         ) {
             errores.push('El número de pasaporte solo puede contener letras y números');
         } else if (
-            tipo_documento === 'rut' &&
+            tipoDocumento === 'RUN' &&
             !/^\d+$/.test(doc)
         ) {
-            errores.push('El RUT solo puede contener dígitos');
+            errores.push('El RUN solo puede contener dígitos');
+        } else if (
+            tipoDocumento === 'RUNT' &&
+            !/^\d+$/.test(doc)
+        ) {
+            errores.push('El RUNT solo puede contener dígitos');
         }
     }
 
-    // ── 6. Teléfono ────────────────────────────────────────────────────
+    // ── 6. Teléfono ────────────────────────────────────────────────────────────
     if (telefono) {
         const tel = String(telefono).trim();
-        if (!/^[+]?[\d\s\-(). ]{7,20}$/.test(tel)) {
-            errores.push(
-                'El teléfono tiene un formato inválido (ej: 3001234567 o +57 300 123 4567)'
-            );
+        if (tel.length < 2 || tel.length > 10) {
+            errores.push('El teléfono debe tener entre 2 y 10 caracteres');
+        } else if (!/^[+]?[\d\s\-(). ]{2,10}$/.test(tel)) {
+            errores.push('El teléfono tiene un formato inválido (ej: 3001234567)');
         }
     }
 
-    // ── 7. Email ───────────────────────────────────────────────────────
+    // ── 7. Email ───────────────────────────────────────────────────────────────
     if (email) {
         const mail = email.trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
             errores.push('El correo electrónico no tiene un formato válido');
-        } else if (mail.length > 100) {
-            errores.push('El correo electrónico no puede superar los 100 caracteres');
+        } else if (mail.length > 50) {
+            errores.push('El correo electrónico no puede superar los 50 caracteres');
         }
     }
 
-    // ── 8. Ciudad ──────────────────────────────────────────────────────
+    // ── 8. Ciudad (opcional) ───────────────────────────────────────────────────
     if (ciudad) {
         const c = ciudad.trim();
         if (c.length < 2 || c.length > 50) {
@@ -130,29 +136,18 @@ function validarProveedor(data, esActualizacion = false) {
         }
     }
 
-    // ── 9. Dirección (opcional) ────────────────────────────────────────
-    if (direccion && String(direccion).trim().length > 100) {
-        errores.push('La dirección no puede superar los 100 caracteres');
+    // ── 9. Dirección (opcional) ────────────────────────────────────────────────
+    // FIX #8: límite corregido a 200 para coincidir con STRING(200) del modelo
+    if (direccion && String(direccion).trim().length > 200) {
+        errores.push('La dirección no puede superar los 200 caracteres');
     }
 
-    // ── 10. Estado ─────────────────────────────────────────────────────
+    // ── 10. Estado ─────────────────────────────────────────────────────────────
     if (estado && !['activo', 'inactivo'].includes(estado)) {
         errores.push('El estado solo puede ser "activo" o "inactivo"');
     }
 
-    // ── 11. Foto (opcional, solo valida extensión si viene) ────────────
-    if (foto) {
-        const extensionesValidas = ['.jpg', '.jpeg', '.png', '.webp'];
-        const tieneExtensionValida = extensionesValidas.some(ext =>
-            foto.toLowerCase().endsWith(ext)
-        );
-        if (!tieneExtensionValida) {
-            errores.push('La foto debe tener una extensión válida: .jpg, .jpeg, .png o .webp');
-        }
-        if (foto.length > 255) {
-            errores.push('La ruta de la foto no puede superar los 255 caracteres');
-        }
-    }
+    // FIX #6: validación de "foto" eliminada — el modelo no tiene ese campo
 
     return errores;
 }

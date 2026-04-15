@@ -77,7 +77,6 @@ interface FormErrors {
 // ── Validación frontend ───────────────────────────────────────────────────────
 function validarFormulario(data: FormData): FormErrors {
     const errs: FormErrors = {};
-    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
 
     if (data.type === 'empresa') {
         if (!data.name.trim())
@@ -183,9 +182,9 @@ export function SupplierManagement() {
     const [viewingSupplier, setViewingSupplier]   = useState<Supplier | null>(null);
     const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
 
-    const [searchTerm, setSearchTerm]   = useState('');
+    const [searchTerm, setSearchTerm]     = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage]   = useState(1);
     const itemsPerPage = 5;
 
     // Banner global
@@ -195,10 +194,10 @@ export function SupplierManagement() {
         setTimeout(() => setBanner(null), 5000);
     }, []);
 
-    // Banner de fila (inactivo al intentar editar/eliminar)
-    const [inactiveBannerId, setInactiveBannerId]     = useState<number | null>(null);
-    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | 'delete' | null>(null);
-    const triggerInactiveBanner = (id: number, action: 'edit' | 'delete') => {
+    // Banner de fila (inactivo al intentar editar)
+    const [inactiveBannerId, setInactiveBannerId]         = useState<number | null>(null);
+    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | null>(null);
+    const triggerInactiveBanner = (id: number, action: 'edit') => {
         setInactiveBannerId(id);
         setInactiveBannerAction(action);
         setTimeout(() => { setInactiveBannerId(null); setInactiveBannerAction(null); }, 4000);
@@ -244,16 +243,16 @@ export function SupplierManagement() {
         setShowModal(false);
     };
 
-const handleTypeChange = (value: string) => {
-    setFormData(prev => ({
-        ...prev,
-        type:           value,
-        documentType:   value === 'empresa' ? 'NIT' : 'CC',  // CC por defecto persona
-        documentNumber: '',
-        name: '', firstName: '', lastName: '', legalRepresentative: '',
-    }));
-    if (submitAttempted) setFormErrors({});
-};
+    const handleTypeChange = (value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            type:           value,
+            documentType:   value === 'empresa' ? 'NIT' : 'CC',
+            documentNumber: '',
+            name: '', firstName: '', lastName: '', legalRepresentative: '',
+        }));
+        if (submitAttempted) setFormErrors({});
+    };
 
     // ── Submit ────────────────────────────────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
@@ -288,16 +287,27 @@ const handleTypeChange = (value: string) => {
                 const backendFieldErrors: FormErrors = {};
                 errores.forEach((msg: string) => {
                     const lower = msg.toLowerCase();
-                    if (lower.includes('empresa'))               backendFieldErrors.name           = msg;
-                    else if (lower.includes('número de doc') || lower.includes('numero de doc'))
-                                                                 backendFieldErrors.documentNumber = msg;
-                    else if (lower.includes('contacto'))         backendFieldErrors.contact        = msg;
+                    if (lower.includes('empresa'))
+                        backendFieldErrors.name = msg;
+                    else if (
+                        lower.includes('número de doc') ||
+                        lower.includes('numero de doc') ||
+                        lower.includes('documento ya está') ||
+                        lower.includes('documento ya esta')
+                    )
+                        backendFieldErrors.documentNumber = msg;
+                    else if (lower.includes('contacto'))
+                        backendFieldErrors.contact = msg;
                     else if (lower.includes('teléfono') || lower.includes('telefono'))
-                                                                 backendFieldErrors.phone          = msg;
-                    else if (lower.includes('email'))            backendFieldErrors.email          = msg;
-                    else if (lower.includes('direcci'))          backendFieldErrors.address        = msg;
-                    else if (lower.includes('ciudad'))           backendFieldErrors.city           = msg;
-                    else toast.error(msg);
+                        backendFieldErrors.phone = msg;
+                    else if (lower.includes('email') || lower.includes('correo'))
+                        backendFieldErrors.email = msg;
+                    else if (lower.includes('direcci'))
+                        backendFieldErrors.address = msg;
+                    else if (lower.includes('ciudad'))
+                        backendFieldErrors.city = msg;
+                    else
+                        toast.error(msg);
                 });
                 if (Object.keys(backendFieldErrors).length > 0) {
                     setFormErrors(backendFieldErrors);
@@ -362,11 +372,8 @@ const handleTypeChange = (value: string) => {
     };
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
+    // Cualquier proveedor (activo o inactivo) puede eliminarse si no tiene insumos
     const handleDelete = (supplier: Supplier) => {
-        if (!supplier.isActive) {
-            triggerInactiveBanner(supplier.id, 'delete');
-            return;
-        }
         setDeletingSupplier(supplier);
         setShowDeleteModal(true);
     };
@@ -376,14 +383,15 @@ const handleTypeChange = (value: string) => {
         try {
             setSaving(true);
             await deleteProveedor(deletingSupplier.id);
-            setSuppliers(prev =>
-                prev.map(s => s.id === deletingSupplier.id ? { ...s, isActive: false } : s)
-            );
-            showBanner('Proveedor desactivado exitosamente', 'success');
-            toast.success('Proveedor desactivado exitosamente');
+            // Elimina el registro del estado local (eliminación física)
+            setSuppliers(prev => prev.filter(s => s.id !== deletingSupplier.id));
+            showBanner('Proveedor eliminado correctamente', 'success');
+            toast.success('Proveedor eliminado correctamente');
         } catch (error: any) {
-            toast.error(`No se puede desactivar: ${error.message}`);
-            showBanner(`No se puede desactivar: ${error.message}`, 'error');
+            const errores: string[] = error.errores ?? [];
+            const msg = errores[0] ?? error.message;
+            toast.error(`No se puede eliminar: ${msg}`);
+            showBanner(`No se puede eliminar: ${msg}`, 'error');
         } finally {
             setSaving(false);
             setShowDeleteModal(false);
@@ -572,7 +580,7 @@ const handleTypeChange = (value: string) => {
                                                                 <Eye className="w-4 h-4" />
                                                             </Button>
 
-                                                            {/* Editar */}
+                                                            {/* Editar — solo activos */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => handleEdit(supplier)}
@@ -587,17 +595,13 @@ const handleTypeChange = (value: string) => {
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
 
-                                                            {/* Desactivar */}
+                                                            {/* Eliminar — disponible para activos e inactivos */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => handleDelete(supplier)}
                                                                 disabled={isToggling}
-                                                                title={isInactive ? 'Ya desactivado' : 'Desactivar proveedor'}
-                                                                className={`border transition-all duration-200 ${
-                                                                    isInactive
-                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
-                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                }`}
+                                                                title="Eliminar proveedor"
+                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50 transition-all duration-200"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
@@ -606,7 +610,7 @@ const handleTypeChange = (value: string) => {
                                                     </td>
                                                 </tr>
 
-                                                {/* ── Banner inline por fila ── */}
+                                                {/* ── Banner inline por fila (solo editar inactivo) ── */}
                                                 {showRowBanner && (
                                                     <tr className="border-b border-amber-100">
                                                         <td colSpan={5} className="px-6 py-0">
@@ -614,9 +618,7 @@ const handleTypeChange = (value: string) => {
                                                                 <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                                                                 <span>
                                                                     <strong>Proveedor inactivo:</strong>{' '}
-                                                                    {inactiveBannerAction === 'edit'
-                                                                        ? 'No puedes editar un proveedor inactivo. Actívalo primero usando el interruptor de estado.'
-                                                                        : 'Este proveedor ya está desactivado.'}
+                                                                    No puedes editar un proveedor inactivo. Actívalo primero usando el interruptor de estado.
                                                                 </span>
                                                                 <button
                                                                     onClick={() => { setInactiveBannerId(null); setInactiveBannerAction(null); }}
@@ -705,19 +707,19 @@ const handleTypeChange = (value: string) => {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                        {formData.type === 'empresa' ? (
-                                            <>
-                                            <SelectItem value="NIT">NIT</SelectItem>
-                                            <SelectItem value="RUN">RUN</SelectItem>
-                                            </>
-                                        ) : (
-                                            <>
-                                            <SelectItem value="CC">Cédula de Ciudadanía </SelectItem>
-                                            <SelectItem value="CE">Cédula de Extranjería </SelectItem>
-                                            <SelectItem value="PA">Pasaporte </SelectItem>
-                                            <SelectItem value="RUNT">RUNT</SelectItem>
-                                            </>
-                                        )}
+                                            {formData.type === 'empresa' ? (
+                                                <>
+                                                    <SelectItem value="NIT">NIT</SelectItem>
+                                                    <SelectItem value="RUN">RUN</SelectItem>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <SelectItem value="CC">Cédula de Ciudadanía</SelectItem>
+                                                    <SelectItem value="CE">Cédula de Extranjería</SelectItem>
+                                                    <SelectItem value="PA">Pasaporte</SelectItem>
+                                                    <SelectItem value="RUNT">RUNT</SelectItem>
+                                                </>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                     <FieldError msg={formErrors.documentType} />
@@ -1007,7 +1009,7 @@ const handleTypeChange = (value: string) => {
                 </DialogContent>
             </Dialog>
 
-            {/* ── MODAL CONFIRMAR DESACTIVACIÓN ───────────────────────────── */}
+            {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
             <Dialog open={showDeleteModal} onOpenChange={(open) => {
                 if (!open) { setShowDeleteModal(false); setDeletingSupplier(null); }
             }}>
@@ -1015,36 +1017,48 @@ const handleTypeChange = (value: string) => {
                     <div className="p-6">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2 text-blue-900">
-                                <Trash2 className="w-5 h-5" />Desactivar Proveedor
+                                <Trash2 className="w-5 h-5" />Eliminar Proveedor
                             </DialogTitle>
-                            <DialogDescription>Esta acción desactivará al proveedor en el sistema.</DialogDescription>
+                            <DialogDescription>
+                                Esta acción eliminará permanentemente al proveedor del sistema.
+                            </DialogDescription>
                         </DialogHeader>
                         {deletingSupplier && (
                             <div className="mt-4 space-y-3">
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                     <p className="font-semibold text-blue-900">{deletingSupplier.name}</p>
-                                    <p className="text-sm text-blue-700 mt-1">{deletingSupplier.documentType} {deletingSupplier.documentNumber}</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        {deletingSupplier.documentType} {deletingSupplier.documentNumber}
+                                    </p>
                                     <p className="text-sm text-blue-700">{deletingSupplier.email}</p>
                                 </div>
-                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
-                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
                                     <div className="text-sm">
                                         <p className="font-semibold">¿Estás seguro?</p>
-                                        <p className="text-amber-700 mt-0.5">El proveedor quedará inactivo y no podrá usarse en nuevas compras.</p>
+                                        <p className="text-red-700 mt-0.5">
+                                            Esta acción es <strong>irreversible</strong>. El proveedor será eliminado
+                                            permanentemente. Si tiene insumos asociados, no podrá eliminarse.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                         )}
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button variant="outline"
+                            <Button
+                                variant="outline"
                                 onClick={() => { setShowDeleteModal(false); setDeletingSupplier(null); }}
-                                disabled={saving}>
+                                disabled={saving}
+                            >
                                 Cancelar
                             </Button>
-                            <Button onClick={confirmDelete} disabled={saving}
-                                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900">
+                            <Button
+                                onClick={confirmDelete}
+                                disabled={saving}
+                                className="bg-red-600 hover:bg-red-700 text-white border-0"
+                            >
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                Sí, desactivar
+                                Sí, eliminar
                             </Button>
                         </div>
                     </div>

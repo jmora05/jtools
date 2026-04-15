@@ -1,13 +1,10 @@
-const { Insumos, Proveedores } = require('../models/index.js');
+const { Insumos } = require('../models/index.js');
 const { validarInsumo } = require('../validators/insumosValidator.js');
-const { Op } = require('sequelize');
 
 // GET - listar todos los insumos
 const getInsumos = async (req, res) => {
     try {
-        const insumos = await Insumos.findAll({
-            include: [{ model: Proveedores, as: 'proveedor', attributes: ['id', 'razon_social'] }]
-        });
+        const insumos = await Insumos.findAll();
         res.status(200).json(insumos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los insumos', error: error.message });
@@ -18,9 +15,7 @@ const getInsumos = async (req, res) => {
 const getInsumoById = async (req, res) => {
     try {
         const { id } = req.params;
-        const insumo = await Insumos.findByPk(id, {
-            include: [{ model: Proveedores, as: 'proveedor', attributes: ['id', 'razon_social'] }]
-        });
+        const insumo = await Insumos.findByPk(id);
 
         if (!insumo) {
             return res.status(404).json({ message: 'Insumo no encontrado' });
@@ -32,32 +27,15 @@ const getInsumoById = async (req, res) => {
     }
 };
 
-// GET - listar insumos activos
-const getInsumosActivos = async (req, res) => {
+// GET - listar insumos disponibles
+const getInsumosDisponibles = async (req, res) => {
     try {
         const insumos = await Insumos.findAll({
-            where: { estado: 'activo' },
-            include: [{ model: Proveedores, as: 'proveedor', attributes: ['id', 'razon_social'] }]
+            where: { estado: 'disponible' }
         });
         res.status(200).json(insumos);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener los insumos activos', error: error.message });
-    }
-};
-
-// GET - listar insumos con stock bajo (stock <= stock_minimo)
-const getInsumosBajoStock = async (req, res) => {
-    try {
-        const insumos = await Insumos.findAll({
-            where: {
-                estado: 'activo',
-                stock: { [Op.lte]: sequelize.col('stock_minimo') }
-            },
-            include: [{ model: Proveedores, as: 'proveedor', attributes: ['id', 'razon_social'] }]
-        });
-        res.status(200).json(insumos);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al obtener insumos con bajo stock', error: error.message });
+        res.status(500).json({ message: 'Error al obtener los insumos disponibles', error: error.message });
     }
 };
 
@@ -70,37 +48,19 @@ const createInsumo = async (req, res) => {
         }
 
         const {
-            nombre,
+            nombreInsumo,
             descripcion,
-            precio_unitario,
-            stock,
-            stock_minimo,
-            unidad_medida,
-            categoria,
+            precioUnitario,
+            unidadMedida,
             estado,
-            foto,
-            proveedorId,
         } = req.body;
 
-        // Verificar que el proveedor existe si se envió
-        if (proveedorId) {
-            const proveedor = await Proveedores.findByPk(proveedorId);
-            if (!proveedor) {
-                return res.status(404).json({ message: 'Proveedor no encontrado' });
-            }
-        }
-
         const insumo = await Insumos.create({
-            nombre,
-            descripcion,
-            precio_unitario,
-            stock:        stock        ?? 0,
-            stock_minimo: stock_minimo ?? 0,
-            unidad_medida,
-            categoria,
-            estado:       estado       ?? 'activo',
-            foto,
-            proveedorId:  proveedorId  ?? null,
+            nombreInsumo,
+            descripcion:    descripcion    ?? null,
+            precioUnitario: precioUnitario ?? 0.00,
+            unidadMedida,
+            estado:         estado         ?? 'disponible',
         });
 
         res.status(201).json({ message: 'Insumo creado correctamente', insumo });
@@ -129,36 +89,19 @@ const updateInsumo = async (req, res) => {
         }
 
         const {
-            nombre,
+            nombreInsumo,
             descripcion,
-            precio_unitario,
-            stock,
-            stock_minimo,
-            unidad_medida,
-            categoria,
+            precioUnitario,
+            unidadMedida,
             estado,
-            foto,
-            proveedorId,
         } = req.body;
 
-        if (proveedorId) {
-            const proveedor = await Proveedores.findByPk(proveedorId);
-            if (!proveedor) {
-                return res.status(404).json({ message: 'Proveedor no encontrado' });
-            }
-        }
-
         await insumo.update({
-            nombre,
-            descripcion,
-            precio_unitario,
-            stock,
-            stock_minimo,
-            unidad_medida,
-            categoria,
-            estado,
-            foto,
-            proveedorId: proveedorId ?? null,
+            ...(nombreInsumo   !== undefined && { nombreInsumo }),
+            ...(descripcion    !== undefined && { descripcion }),
+            ...(precioUnitario !== undefined && { precioUnitario }),
+            ...(unidadMedida   !== undefined && { unidadMedida }),
+            ...(estado         !== undefined && { estado }),
         });
 
         res.status(200).json({ message: 'Insumo actualizado correctamente', insumo });
@@ -171,7 +114,31 @@ const updateInsumo = async (req, res) => {
     }
 };
 
-// DELETE - desactivar insumo (soft delete)
+// PATCH - cambiar estado del insumo (disponible / agotado)
+const cambiarEstadoInsumo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { estado } = req.body;
+
+        if (!['disponible', 'agotado'].includes(estado)) {
+            return res.status(400).json({
+                message: 'Estado inválido. Use "disponible" o "agotado"'
+            });
+        }
+
+        const insumo = await Insumos.findByPk(id);
+        if (!insumo) {
+            return res.status(404).json({ message: 'Insumo no encontrado' });
+        }
+
+        await insumo.update({ estado });
+        res.status(200).json({ message: `Insumo marcado como ${estado}`, insumo });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al cambiar el estado del insumo', error: error.message });
+    }
+};
+
+// DELETE - soft delete → marca como agotado
 const deleteInsumo = async (req, res) => {
     try {
         const { id } = req.params;
@@ -181,14 +148,14 @@ const deleteInsumo = async (req, res) => {
             return res.status(404).json({ message: 'Insumo no encontrado' });
         }
 
-        await insumo.update({ estado: 'inactivo' });
-        res.status(200).json({ message: 'Insumo desactivado correctamente' });
+        await insumo.update({ estado: 'agotado' });
+        res.status(200).json({ message: 'Insumo marcado como agotado' });
     } catch (error) {
         res.status(500).json({ message: 'Error al desactivar el insumo', error: error.message });
     }
 };
 
-// DELETE (force) - eliminar físicamente
+// DELETE /force - eliminar físicamente
 const forceDeleteInsumo = async (req, res) => {
     try {
         const { id } = req.params;
@@ -196,6 +163,12 @@ const forceDeleteInsumo = async (req, res) => {
 
         if (!insumo) {
             return res.status(404).json({ message: 'Insumo no encontrado' });
+        }
+
+        if (insumo.estado === 'disponible') {
+            return res.status(400).json({
+                message: 'No se puede eliminar un insumo disponible. Márcalo como agotado primero.'
+            });
         }
 
         await insumo.destroy();
@@ -208,10 +181,10 @@ const forceDeleteInsumo = async (req, res) => {
 module.exports = {
     getInsumos,
     getInsumoById,
-    getInsumosActivos,
-    getInsumosBajoStock,
+    getInsumosDisponibles,
     createInsumo,
     updateInsumo,
+    cambiarEstadoInsumo,
     deleteInsumo,
     forceDeleteInsumo,
 };

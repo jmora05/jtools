@@ -1,3 +1,4 @@
+const { Op }               = require('sequelize');
 const { Proveedores, Insumos } = require('../models/index.js');
 const { validarProveedor } = require('../validators/proveedor.validator.js');
 
@@ -33,8 +34,12 @@ const getInsumosProveedor = async (req, res) => {
         const { id } = req.params;
         const proveedor = await Proveedores.findByPk(id, {
             include: [
-                { model: Insumos, as: 'insumos', attributes: ['id', 'nombre', 'descripcion', 'precio_unitario', 'stock', 'unidad_medida', 'estado'] }
-            ]
+                {
+                    model: Insumos,
+                    as: 'insumos',
+                    attributes: ['id', 'nombre', 'descripcion', 'precio_unitario', 'stock', 'unidad_medida', 'estado'],
+                },
+            ],
         });
 
         if (!proveedor) {
@@ -66,29 +71,41 @@ const createProveedor = async (req, res) => {
         }
 
         const {
-            razon_social,
-            tipo_documento,
-            numero_documento,
-            nombre_contacto,
-            direccion,
-            ciudad,
+            nombreEmpresa,
+            tipoDocumento,
+            numeroDocumento,
+            personaContacto,
             telefono,
             email,
+            direccion,
+            ciudad,
             estado,
-            foto,
         } = req.body;
 
+        // ── Validación de unicidad ────────────────────────────────────────────
+        const [emailExiste, docExiste] = await Promise.all([
+            Proveedores.findOne({ where: { email } }),
+            Proveedores.findOne({ where: { numeroDocumento } }),
+        ]);
+
+        const erroresUnicos = [];
+        if (emailExiste)  erroresUnicos.push('El correo electrónico ya está registrado');
+        if (docExiste)    erroresUnicos.push('El número de documento ya está registrado');
+        if (erroresUnicos.length > 0) {
+            return res.status(400).json({ message: 'Error de validación', errores: erroresUnicos });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const proveedor = await Proveedores.create({
-            razon_social,
-            tipo_documento,
-            numero_documento,
-            nombre_contacto,
-            direccion,
-            ciudad,
+            nombreEmpresa,
+            tipoDocumento,
+            numeroDocumento,
+            personaContacto,
             telefono,
             email,
+            direccion,
+            ciudad,
             estado,
-            foto,
         });
 
         res.status(201).json({ message: 'Proveedor creado correctamente', proveedor });
@@ -117,29 +134,41 @@ const updateProveedor = async (req, res) => {
         }
 
         const {
-            razon_social,
-            tipo_documento,
-            numero_documento,
-            nombre_contacto,
-            direccion,
-            ciudad,
+            nombreEmpresa,
+            tipoDocumento,
+            numeroDocumento,
+            personaContacto,
             telefono,
             email,
+            direccion,
+            ciudad,
             estado,
-            foto,
         } = req.body;
 
+        // ── Validación de unicidad (excluye el propio registro) ───────────────
+        const [emailExiste, docExiste] = await Promise.all([
+            email           ? Proveedores.findOne({ where: { email,           id: { [Op.ne]: id } } }) : null,
+            numeroDocumento ? Proveedores.findOne({ where: { numeroDocumento, id: { [Op.ne]: id } } }) : null,
+        ]);
+
+        const erroresUnicos = [];
+        if (emailExiste) erroresUnicos.push('El correo electrónico ya está registrado');
+        if (docExiste)   erroresUnicos.push('El número de documento ya está registrado');
+        if (erroresUnicos.length > 0) {
+            return res.status(400).json({ message: 'Error de validación', errores: erroresUnicos });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         await proveedor.update({
-            razon_social,
-            tipo_documento,
-            numero_documento,
-            nombre_contacto,
-            direccion,
-            ciudad,
+            nombreEmpresa,
+            tipoDocumento,
+            numeroDocumento,
+            personaContacto,
             telefono,
             email,
+            direccion,
+            ciudad,
             estado,
-            foto,
         });
 
         res.status(200).json({ message: 'Proveedor actualizado correctamente', proveedor });
@@ -152,7 +181,7 @@ const updateProveedor = async (req, res) => {
     }
 };
 
-// DELETE - desactivar proveedor (soft delete por historial)
+// DELETE - eliminar proveedor físicamente (bloquea si tiene insumos asociados)
 const deleteProveedor = async (req, res) => {
     try {
         const { id } = req.params;
@@ -162,21 +191,22 @@ const deleteProveedor = async (req, res) => {
             return res.status(404).json({ message: 'Proveedor no encontrado' });
         }
 
-        const insumosAsociados = await Insumos.findOne({ where: { proveedorId: id } });
-
+        const insumosAsociados = await Insumos.findOne({ where: { proveedoresId: id } });
         if (insumosAsociados) {
-            await proveedor.update({ estado: 'inactivo' });
-            return res.status(200).json({ message: 'Proveedor desactivado correctamente (tiene insumos asociados)' });
+            return res.status(400).json({
+                message: 'No se puede eliminar el proveedor porque tiene insumos asociados',
+                errores: ['No se puede eliminar el proveedor porque tiene insumos asociados'],
+            });
         }
 
-        await proveedor.update({ estado: 'inactivo' });
-        res.status(200).json({ message: 'Proveedor desactivado correctamente' });
+        await proveedor.destroy();
+        res.status(200).json({ message: 'Proveedor eliminado correctamente' });
     } catch (error) {
-        res.status(500).json({ message: 'Error al desactivar el proveedor', error: error.message });
+        res.status(500).json({ message: 'Error al eliminar el proveedor', error: error.message });
     }
 };
 
-// DELETE (force) - eliminar físicamente proveedor
+// DELETE (force) - eliminar físicamente sin verificación adicional (uso interno/admin)
 const forceDeleteProveedor = async (req, res) => {
     try {
         const { id } = req.params;
@@ -186,9 +216,11 @@ const forceDeleteProveedor = async (req, res) => {
             return res.status(404).json({ message: 'Proveedor no encontrado' });
         }
 
-        const insumosAsociados = await Insumos.findOne({ where: { proveedorId: id } });
+        const insumosAsociados = await Insumos.findOne({ where: { proveedoresId: id } });
         if (insumosAsociados) {
-            return res.status(400).json({ message: 'No se puede eliminar el proveedor porque tiene insumos asociados' });
+            return res.status(400).json({
+                message: 'No se puede eliminar el proveedor porque tiene insumos asociados',
+            });
         }
 
         await proveedor.destroy();
