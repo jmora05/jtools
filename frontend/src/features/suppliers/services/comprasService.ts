@@ -2,6 +2,12 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '@/services/http
 
 const BASE_URL = getApiBaseUrl();
 
+export interface DetalleCompraInput {
+    insumosId: number;
+    cantidad: number;
+    precioUnitario: number;
+}
+
 export const getCompras = async () => {
     const response = await fetch(`${BASE_URL}/compras`, {
         headers: buildAuthHeaders(),
@@ -29,6 +35,7 @@ export const createCompra = async (compraData: {
     fecha: string;
     metodoPago: 'efectivo' | 'transferencia';
     estado: 'pendiente' | 'en transito' | 'completada';
+    detalles?: DetalleCompraInput[];
 }) => {
     const response = await fetch(`${BASE_URL}/compras`, {
         method: 'POST',
@@ -42,6 +49,7 @@ export const updateCompra = async (id: number, compraData: {
     proveedoresId?: number;
     fecha?: string;
     metodoPago?: string;
+    detalles?: DetalleCompraInput[];
 }) => {
     const response = await fetch(`${BASE_URL}/compras/${id}`, {
         method: 'PUT',
