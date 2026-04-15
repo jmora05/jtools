@@ -588,8 +588,12 @@ export function SupplierManagement() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(supplier)}
                                                                 disabled={isToggling}
-                                                                title="Eliminar proveedor"
-                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50 transition-all duration-200"
+                                                                title={isInactive ? 'Proveedor inactivo' : 'Eliminar proveedor'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    isInactive
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
