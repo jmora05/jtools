@@ -101,6 +101,13 @@ RolPermiso.belongsTo(Permisos, { foreignKey: 'permisosId' });
 Roles.belongsToMany(Permisos, { through: RolPermiso, foreignKey: 'rolesId',    otherKey: 'permisosId', as: 'permisos' });
 Permisos.belongsToMany(Roles, { through: RolPermiso, foreignKey: 'permisosId', otherKey: 'rolesId',    as: 'roles' });
 
+// Usuarios ↔ Roles
+Usuarios.belongsTo(Roles, { foreignKey: 'rolesId', as: 'rol' });
+Roles.hasMany(Usuarios,   { foreignKey: 'rolesId', as: 'usuarios' });
+
+// Usuarios ↔ Clientes
+Usuarios.hasOne(Clientes,    { foreignKey: 'email', sourceKey: 'email', as: 'cliente', constraints: false });
+Clientes.belongsTo(Usuarios, { foreignKey: 'email', targetKey: 'email', as: 'usuario', constraints: false });
 
 // Ventas
 Ventas.belongsTo(Clientes,         { foreignKey: 'clientesId',  as: 'cliente' });

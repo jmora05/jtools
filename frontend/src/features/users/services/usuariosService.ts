@@ -1,9 +1,24 @@
 import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '@/services/http';
 
+export type UsuarioCliente = {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  razon_social: string | null;
+  telefono: string | null;
+  ciudad: string | null;
+  tipo_documento: string | null;
+  numero_documento: string | null;
+};
+
 export type Usuario = {
   id: number;
   rolesId: number;
+  rolNombre: string | null;
   email: string;
+  /** Nombre calculado en el backend: nombres+apellidos del cliente, o razon_social, o parte del email */
+  displayName: string;
+  cliente: UsuarioCliente | null;
   password?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -44,4 +59,3 @@ export async function deleteUsuario(id: number) {
   });
   return handleResponse<{ message: string }>(response);
 }
-
