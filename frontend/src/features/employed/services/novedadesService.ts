@@ -16,16 +16,13 @@ export interface Novedad {
   fecha_registro: string;
   fecha_inicio: string;
   fecha_finalizacion: string;
-  empleado_responsable: number | null;
   empleado_afectado: number | null;
-  empleadoResponsable?: EmpleadoResumen | null;
-  empleadoAfectado?:    EmpleadoResumen | null;
+  empleadoAfectado?: EmpleadoResumen | null;
 }
 
 export interface CreateNovedadDTO {
   titulo: string;
   descripcion_detallada: string;
-  empleado_responsable?: number | null;
   empleado_afectado?: number | null;
   estado?: EstadoNovedad;
   fecha_registro?: string;
@@ -36,7 +33,6 @@ export interface CreateNovedadDTO {
 export interface UpdateNovedadDTO {
   titulo?: string;
   descripcion_detallada?: string;
-  empleado_responsable?: number | null;
   empleado_afectado?: number | null;
   fecha_inicio?: string;
   fecha_finalizacion?: string;

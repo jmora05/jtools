@@ -66,11 +66,11 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (n: Novedad) => n.estado === 'registrada';
-const canDelete = (n: Novedad) => n.estado === 'registrada';
+const canEdit   = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
+const canDelete = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
 
-const editBlockReason   = (n: Novedad) => n.estado !== 'registrada' ? `No se puede editar: la novedad ya fue ${n.estado}` : null;
-const deleteBlockReason = (n: Novedad) => n.estado !== 'registrada' ? `No se puede eliminar: la novedad ya fue ${n.estado}` : null;
+const editBlockReason   = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede editar: la novedad ya fue aprobada' : null;
+const deleteBlockReason = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede eliminar: la novedad ya fue aprobada' : null;
 
 // ─── Tipos del formulario ─────────────────────────────────────────────────────
 
@@ -86,7 +86,6 @@ interface FormValues {
   descripcion_detallada: string;
   fecha_inicio: string;
   fecha_finalizacion: string;
-  empleado_responsable: EmpleadoSeleccionado | null;
   empleado_afectado: EmpleadoSeleccionado | null;
   estado: 'registrada' | 'aprobada' | 'rechazada';
 }
@@ -104,7 +103,6 @@ const emptyForm: FormValues = {
   descripcion_detallada: '',
   fecha_inicio: '',
   fecha_finalizacion: '',
-  empleado_responsable: null,
   empleado_afectado: null,
   estado: 'registrada',
 };
@@ -423,7 +421,6 @@ export function NewsModule() {
     const matchSearch =
       n.titulo.toLowerCase().includes(q) ||
       n.descripcion_detallada.toLowerCase().includes(q) ||
-      nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q) ||
       nombreCompleto(n.empleadoAfectado).toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || n.estado === statusFilter;
     return matchSearch && matchStatus;
@@ -448,7 +445,6 @@ export function NewsModule() {
         descripcion_detallada: form.descripcion_detallada.trim(),
         fecha_inicio:          form.fecha_inicio,
         fecha_finalizacion:    form.fecha_finalizacion,
-        empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
       const nueva = await createNovedad(dto);
@@ -484,7 +480,6 @@ export function NewsModule() {
         descripcion_detallada: form.descripcion_detallada.trim(),
         fecha_inicio:          form.fecha_inicio,
         fecha_finalizacion:    form.fecha_finalizacion,
-        empleado_responsable:  form.empleado_responsable?.id ?? null,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
       let updated = await updateNovedad(selectedNovedad.id, dto);
@@ -548,8 +543,7 @@ export function NewsModule() {
       descripcion_detallada: n.descripcion_detallada,
       fecha_inicio:          n.fecha_inicio      ? n.fecha_inicio.split('T')[0]      : '',
       fecha_finalizacion:    n.fecha_finalizacion ? n.fecha_finalizacion.split('T')[0] : '',
-      empleado_responsable:  resolveEmpleado(n.empleado_responsable, n.empleadoResponsable),
-      empleado_afectado:     resolveEmpleado(n.empleado_afectado,    n.empleadoAfectado),
+      empleado_afectado:     resolveEmpleado(n.empleado_afectado, n.empleadoAfectado),
       estado:                n.estado,
     });
 
@@ -647,17 +641,6 @@ export function NewsModule() {
 
       </div>
 
-      {/* ── Empleado Responsable ──────────────────────────────────────────── */}
-      <EmpleadoAutocomplete
-        label="Empleado Responsable"
-        value={form.empleado_responsable}
-        onChange={emp => setForm(prev => ({ ...prev, empleado_responsable: emp }))}
-        allEmpleados={allEmpleados}
-        loadingEmpleados={loadingEmpleados}
-        hint="Opcional — busca por nombre o cargo"
-        placeholder="Buscar empleado responsable..."
-      />
-
       {/* ── Empleado Afectado ─────────────────────────────────────────────── */}
       <EmpleadoAutocomplete
         label="Empleado Afectado"
@@ -744,32 +727,33 @@ export function NewsModule() {
         </div>
 
         {/* Filtros */}
-        <Card className="shadow-lg border border-gray-100 p-6">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por título, responsable, afectado o descripción..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+
+              <div className="relative w-full sm:flex-[3]">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <Input
+                  placeholder="Buscar por título, responsable, afectado o descripción..."
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  className="pl-10 w-full"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-1/4 sm:w-40 sm:flex-[1]"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="registrada">Registrada</option>
+                <option value="aprobada">Aprobada</option>
+                <option value="rechazada">Rechazada</option>
+              </select>
+
             </div>
-            <div className="w-full sm:w-52">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="registrada">Registrada</SelectItem>
-                  <SelectItem value="aprobada">Aprobada</SelectItem>
-                  <SelectItem value="rechazada">Rechazada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <span className="text-sm text-gray-600 whitespace-nowrap">
-              {filtered.length} novedad(es)
-            </span>
-          </div>
+          </CardContent>
         </Card>
 
         {/* Tabla */}
@@ -781,7 +765,6 @@ export function NewsModule() {
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Título</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Responsable</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -789,7 +772,7 @@ export function NewsModule() {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3 text-gray-400">
                         <Loader2Icon className="w-8 h-8 animate-spin" />
                         <p>Cargando novedades...</p>
@@ -798,7 +781,7 @@ export function NewsModule() {
                   </tr>
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center text-gray-500">
                         <AlertCircleIcon className="w-12 h-12 mb-3 text-gray-300" />
                         <p className="text-gray-900">No se encontraron novedades</p>
@@ -822,8 +805,6 @@ export function NewsModule() {
                         </td>
 
                         <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>
-
-                        <td className="px-6 py-4 text-sm text-gray-900">{nombreCompleto(novedad.empleadoResponsable)}</td>
 
                         <td className="px-6 py-4 text-sm text-gray-900">{nombreCompleto(novedad.empleadoAfectado)}</td>
 
@@ -874,7 +855,7 @@ export function NewsModule() {
 
                       {bannerNovedadId === novedad.id && (
                         <tr className="border-b border-amber-100">
-                          <td colSpan={6} className="px-6 py-0">
+                          <td colSpan={5} className="px-6 py-0">
                             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
                               <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                               <span>
@@ -964,15 +945,6 @@ export function NewsModule() {
                       <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
                     </div>
 
-                    {/* Responsable */}
-                    <div>
-                      <p className="text-xs text-gray-500">Empleado responsable</p>
-                      <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                        <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                        {nombreCompleto(selectedNovedad.empleadoResponsable)}
-                      </p>
-                    </div>
-
                     {/* Afectado */}
                     <div>
                       <p className="text-xs text-gray-500">Empleado afectado</p>
@@ -994,7 +966,7 @@ export function NewsModule() {
 
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Cerrar</Button>
-                    {selectedNovedad.estado === 'registrada' && (
+                    {canEdit(selectedNovedad) && (
                       <Button
                         onClick={() => {
                           const fresco = novedades.find(n => n.id === selectedNovedad.id) ?? selectedNovedad;
@@ -1043,7 +1015,6 @@ export function NewsModule() {
                 {selectedNovedad && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-sm text-gray-900"><strong>Título:</strong> {selectedNovedad.titulo}</p>
-                    <p className="text-sm text-gray-600 mt-1"><strong>Responsable:</strong> {nombreCompleto(selectedNovedad.empleadoResponsable)}</p>
                     <p className="text-sm text-gray-600 mt-1"><strong>Afectado:</strong> {nombreCompleto(selectedNovedad.empleadoAfectado)}</p>
                   </div>
                 )}
