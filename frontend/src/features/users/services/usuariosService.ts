@@ -52,6 +52,14 @@ export async function updateUsuario(
   return handleResponse<{ message: string; usuario: Usuario }>(response);
 }
 
+export async function toggleUsuarioEstado(id: number) {
+  const response = await fetch(`${getApiBaseUrl()}/usuarios/${id}/toggle`, {
+    method: 'PATCH',
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<{ message: string; usuario: Usuario }>(response);
+}
+
 export async function deleteUsuario(id: number) {
   const response = await fetch(`${getApiBaseUrl()}/usuarios/${id}`, {
     method: 'DELETE',

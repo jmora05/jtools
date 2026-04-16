@@ -32,33 +32,35 @@ const permisosRoutes               = require('./routes/permisosRoutes.js');
 const rolesRoutes                  = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
-const { verifyToken }              = require('./middleware/authMiddleware.js');
+const { verifyToken, requireAdmin }              = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
 // ── Rutas PÚBLICAS ──
 app.use('/api/auth', authRoutes);
 
-// ── Rutas PROTEGIDAS ──
-app.use('/api/empleados',               verifyToken, empleadosRoutes);
-app.use('/api/ordenes-produccion',      verifyToken, ordenesProduccionRoutes);
-app.use('/api/ventas',                  verifyToken, ventasRoutes);
-app.use('/api/proveedores',             verifyToken, proveedoresRoutes);
+// ── Rutas PROTEGIDAS (cualquier usuario autenticado) ──
 app.use('/api/productos',               verifyToken, productosRoutes);
 app.use('/api/pedidos',                 verifyToken, pedidosRoutes);
+app.use('/api/ventas',                  verifyToken, ventasRoutes);
+app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
+
+// ── Rutas SOLO ADMIN (bloquean el perfil 'client') ──
+app.use('/api/usuarios',                verifyToken, requireAdmin, usuariosRoutes);
+app.use('/api/roles',                   verifyToken, requireAdmin, rolesRoutes);
+app.use('/api/permisos',                verifyToken, requireAdmin, permisosRoutes);
+app.use('/api/clientes',                verifyToken, requireAdmin, clientesRoutes);
+app.use('/api/proveedores',             verifyToken, requireAdmin, proveedoresRoutes);
+app.use('/api/insumos',                 verifyToken, requireAdmin, insumosRoutes);
+app.use('/api/compras',                 verifyToken, requireAdmin, comprasRoutes);
+app.use('/api/empleados',               verifyToken, requireAdmin, empleadosRoutes);
+app.use('/api/ordenes-produccion',      verifyToken, requireAdmin, ordenesProduccionRoutes);
+app.use('/api/fichas-tecnicas',         verifyToken, requireAdmin, fichaTecnicaRoutes);
 app.use('/api/novedades',               verifyToken, novedadesRoutes);
-app.use('/api/insumos',                 verifyToken, insumosRoutes);
-app.use('/api/insumo-producto',         verifyToken, insumoProductoRoutes);
+app.use('/api/insumo-producto',         verifyToken, requireAdmin, insumoProductoRoutes);
 app.use('/api/detalle-ventas',          verifyToken, detalleVentasRoutes);
 app.use('/api/detalle-pedidos',         verifyToken, detallePedidosRoutes);
-app.use('/api/detalle-orden',           verifyToken, detalleOrdenRoutes);
-app.use('/api/detalle-compra-insumo',   verifyToken, detalleCompraInsumoRoutes);
-app.use('/api/compras',                 verifyToken, comprasRoutes);
-app.use('/api/clientes',                verifyToken, clientesRoutes);
-app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
-app.use('/api/usuarios',                verifyToken, usuariosRoutes);
-app.use('/api/permisos',                verifyToken, permisosRoutes);
-app.use('/api/roles',                   verifyToken, rolesRoutes);
-app.use('/api/fichas-tecnicas',         verifyToken, fichaTecnicaRoutes);
+app.use('/api/detalle-orden',           verifyToken, requireAdmin, detalleOrdenRoutes);
+app.use('/api/detalle-compra-insumo',   verifyToken, requireAdmin, detalleCompraInsumoRoutes);
 
 // ================= CONEXIÓN + SINCRONIZACIÓN =================
 testConnection()
@@ -67,14 +69,14 @@ testConnection()
 })
 
 .then(() => {
-    console.log("✅ Tablas sincronizadas correctamente");
+    console.log("Tablas sincronizadas correctamente");
 
     // ================= INICIAR SERVIDOR =================
     app.listen(process.env.PORT, () => {
-        console.log(`🚀 Servidor corriendo en http://localhost:${process.env.PORT}`);
+        console.log(`Servidor corriendo en http://localhost:${process.env.PORT}`);
     });
 })
 
 .catch(err => {
-    console.error("❌ Error al iniciar:", err.message);
+    console.error("Error al iniciar:", err.message);
 });

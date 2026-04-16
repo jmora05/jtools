@@ -189,7 +189,8 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       const resp = await authService.login(loginForm.email, loginForm.password);
       localStorage.setItem('jrepuestos_token', resp.token);
       // El backend ya devuelve userType ('admin' | 'client') basado en el nombre del rol
-      const userType = (resp.usuario as any).userType ?? (resp.usuario.rolesId === 1 ? 'admin' : 'client');
+      const rawUserType = (resp.usuario as any).userType as string | undefined;
+      const userType: 'admin' | 'client' = rawUserType === 'client' ? 'client' : 'admin';
       onLogin({
         id: resp.usuario.id,
         email: resp.usuario.email,
@@ -440,7 +441,13 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                         documentNumber: '', firstName: '', lastName: '', businessName: ''
                       })}>
                       <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent side="bottom" align="start" position="popper" sideOffset={4} className="w-[--radix-select-trigger-width] z-50">
+                        <SelectContent
+                          position="popper"
+                          side="bottom"
+                          align="start"
+                          sideOffset={4}
+                          className="z-[200] w-[--radix-select-trigger-width]"
+                        >
                         <SelectItem value="natural"><div className="flex items-center gap-2"><UserIcon className="w-4 h-4" />Persona Natural</div></SelectItem>
                         <SelectItem value="empresa"><div className="flex items-center gap-2"><BuildingIcon className="w-4 h-4" />Empresa</div></SelectItem>
                       </SelectContent>
@@ -487,7 +494,13 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     <Select value={registerForm.documentType}
                       onValueChange={(value: string) => setRegisterForm({ ...registerForm, documentType: value })}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
+                      <SelectContent
+                        position="popper"
+                        side="bottom"
+                        align="start"
+                        sideOffset={4}
+                        className="z-[200] w-[--radix-select-trigger-width]"
+                      >
                         {registerForm.personType === 'natural' ? (
                           <>
                             <SelectItem value="CC">Cédula de Ciudadanía</SelectItem>

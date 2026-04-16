@@ -18,6 +18,7 @@ import { Card } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { toast } from 'sonner';
+import { Switch } from '@/shared/components/ui/switch';
 import {
   PlusIcon,
   EyeIcon,
@@ -31,6 +32,7 @@ import {
   CheckIcon,
   XIcon,
   LockIcon,
+  Loader2Icon,
 } from 'lucide-react';
 import * as usuariosService from '@/features/users/services/usuariosService';
 import * as rolesService from '@/features/roles/services/rolesService';
@@ -44,6 +46,7 @@ interface TableUser {
   displayName: string;
   telefono: string | null;
   ciudad: string | null;
+  estado: 'activo' | 'inactivo';
 }
 
 export function UserManagement() {
@@ -66,12 +69,13 @@ export function UserManagement() {
             email:       u.email,
             rolesId:     u.rolesId,
             userType:    u.rolNombre ?? `Rol ${u.rolesId}`,
-            // ✅ Nombre real desde el cliente vinculado (calculado en el backend)
             displayName: u.displayName,
             telefono:    u.cliente?.telefono ?? null,
             ciudad:      u.cliente?.ciudad   ?? null,
+            estado:      (u as any).estado ?? 'activo',   // ← NUEVO
           }))
         );
+
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al cargar usuarios/roles'))
       .finally(() => { if (mounted) setLoading(false); });
@@ -86,6 +90,7 @@ export function UserManagement() {
     length: false, uppercase: false, numbers: false, special: false,
   });
 
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [showModal,       setShowModal]       = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -114,6 +119,23 @@ export function UserManagement() {
   }, [formData.password]);
 
   // ── Envío ──────────────────────────────────────────────────────────────────
+const handleToggleEstado = async (user: TableUser) => {
+  const nuevoEstado = user.estado === 'activo' ? 'inactivo' : 'activo';
+  // Optimistic update
+  setUsers(prev => prev.map(u => u.id === user.id ? { ...u, estado: nuevoEstado } : u));
+  setTogglingIds(prev => new Set(prev).add(user.id));
+  try {
+    await usuariosService.toggleUsuarioEstado(user.id);
+    toast.success(`Usuario ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`);
+  } catch (err) {
+    // Revertir si falla
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, estado: user.estado } : u));
+    toast.error(err instanceof Error ? err.message : 'Error al cambiar estado');
+  } finally {
+    setTogglingIds(prev => { const s = new Set(prev); s.delete(user.id); return s; });
+  }
+};
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -377,6 +399,7 @@ export function UserManagement() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Usuario</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Contacto</th>
+                  <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
@@ -410,6 +433,18 @@ export function UserManagement() {
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <p>{user.email}</p>
                         {user.ciudad && <p className="text-xs text-gray-400">{user.ciudad}</p>}
+                      </td>
+
+                      {/* Estado con Switch */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Switch
+                            checked={user.estado === 'activo'}
+                            onCheckedChange={() => handleToggleEstado(user)}
+                            disabled={togglingIds.has(user.id)}
+                          />
+                          {togglingIds.has(user.id) && <Loader2Icon className="w-3 h-3 animate-spin text-gray-400" />}
+                        </div>
                       </td>
 
                       {/* Acciones */}

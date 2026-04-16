@@ -61,9 +61,27 @@ async function seed() {
         console.log('Superadmin ya existe.');
     }
 
+    // 6. Crear rol Cliente si no existe
+    const [rolCliente] = await Roles.findOrCreate({
+        where: { name: 'Cliente' },
+        defaults: { 
+            name: 'Cliente', 
+            description: 'Acceso restringido para clientes del sistema' 
+        }
+    });
+
+    // Asignar solo los permisos que el cliente necesita
+    const permisosCliente = await Permisos.findAll({
+        where: { moduleKey: ['catalog', 'orders', 'sales', 'dashboard'] }
+    });
+    await rolCliente.setPermisos(permisosCliente.map(p => p.id));
+    console.log(`Rol "Cliente" (id: ${rolCliente.id}) configurado con ${permisosCliente.length} permisos.`);
+
     console.log('Seed completado.');
     process.exit(0);
 }
+
+
 
 seed().catch((err) => {
     console.error('Error en seed:', err.message);

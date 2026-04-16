@@ -23,4 +23,20 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-module.exports = { verifyToken };
+/**
+ * Middleware que bloquea el acceso a cualquier usuario con userType === 'client'.
+ * Solo pasan: 'admin' y 'Administrador'.
+ * Debe usarse DESPUÉS de verifyToken.
+ */
+const requireAdmin = (req, res, next) => {
+    // userType viene del JWT: 'client' | 'admin'
+    const userType = (req.usuario?.userType || '').toLowerCase();
+    if (userType === 'client') {
+        return res.status(403).json({ 
+            message: 'Acceso denegado: se requiere perfil administrador' 
+        });
+    }
+    next();
+};
+
+module.exports = { verifyToken, requireAdmin  };

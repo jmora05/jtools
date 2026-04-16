@@ -62,8 +62,9 @@ const login = async (req, res) => {
     }
 
     const rolName = usuario.rol?.name || '';
+    
     // Es cliente solo si su rol se llama exactamente 'Cliente'
-    const userType = rolName === 'Cliente' ? 'client' : 'admin';
+    const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 
     const token = jwt.sign(
       { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType },
