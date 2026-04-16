@@ -383,7 +383,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: nuevoEstado } : c));
         setTogglingIds(prev => new Set(prev).add(client.id));
         try {
-            await updateCliente(client.id, { ...client, estado: nuevoEstado });
+            await updateCliente(client.id, { estado: nuevoEstado });
             toast.success(`Cliente ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} exitosamente`);
         } catch (error: any) {
             setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: client.estado } : c));

@@ -100,6 +100,8 @@ const register = async (req, res) => {
     const telefono = req.body?.telefono;
     const tipo_documento = req.body?.tipo_documento || null;
     const direccion = req.body?.direccion || null;
+    const contacto = req.body?.contacto || null;
+
 
     // Validación de campos requeridos — ya cubierta por validateRegisterBody arriba
     // Busca el rol Cliente automáticamente    
@@ -144,6 +146,7 @@ const register = async (req, res) => {
           telefono,
           tipo_documento,
           direccion,
+          contacto,
           estado: 'activo',
         },
         { transaction: t }
