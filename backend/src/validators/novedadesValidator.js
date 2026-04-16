@@ -9,7 +9,6 @@ const validateCreateNovedad = (req, res, next) => {
         descripcion_detallada,
         estado,
         fecha_registro,
-        empleado_responsable,
         empleado_afectado
     } = req.body;
 
@@ -35,13 +34,6 @@ const validateCreateNovedad = (req, res, next) => {
         errors.push('La fecha de registro debe ser una fecha válida');
     }
 
-    // empleado_responsable (opcional)
-    if (empleado_responsable !== undefined && empleado_responsable !== null) {
-        if (!Number.isInteger(Number(empleado_responsable)) || Number(empleado_responsable) <= 0) {
-            errors.push('El empleado_responsable debe ser un número entero positivo');
-        }
-    }
-
     // empleado_afectado (opcional)
     if (empleado_afectado !== undefined && empleado_afectado !== null) {
         if (!Number.isInteger(Number(empleado_afectado)) || Number(empleado_afectado) <= 0) {
@@ -58,7 +50,7 @@ const validateCreateNovedad = (req, res, next) => {
 
 const validateUpdateNovedad = (req, res, next) => {
     const errors = [];
-    const { titulo, descripcion_detallada, empleado_responsable, empleado_afectado } = req.body;
+    const { titulo, descripcion_detallada, empleado_afectado } = req.body;
 
     if (titulo !== undefined) {
         if (!titulo || titulo.trim() === '') {
@@ -71,12 +63,6 @@ const validateUpdateNovedad = (req, res, next) => {
     if (descripcion_detallada !== undefined) {
         if (!descripcion_detallada || descripcion_detallada.trim() === '') {
             errors.push('La descripción detallada no puede estar vacía');
-        }
-    }
-
-    if (empleado_responsable !== undefined && empleado_responsable !== null) {
-        if (!Number.isInteger(Number(empleado_responsable)) || Number(empleado_responsable) <= 0) {
-            errors.push('El empleado_responsable debe ser un número entero positivo');
         }
     }
 
