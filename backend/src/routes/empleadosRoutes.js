@@ -12,11 +12,11 @@ const {
 } = require('../controllers/empleadosController.js');
 
 router.get('/', getEmpleados);
-router.get('/:id', getEmpleadoById);
 router.get('/:id/puede-eliminarse', puedeEliminarse);
+router.get('/:id', getEmpleadoById);
 router.post('/', createEmpleado);
-router.put('/:id', updateEmpleado);
 router.put('/:id/desactivar', desactivarEmpleado);
+router.put('/:id', updateEmpleado);
 router.delete('/:id', deleteEmpleadoPermanente);
 
 module.exports = router;

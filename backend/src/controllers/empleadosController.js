@@ -224,6 +224,7 @@ const updateEmpleado = async (req, res) => {
 const puedeEliminarse = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('=== puedeEliminarse - ID:', id);
 
     if (!id || isNaN(id)) {
       return res.status(400).json({ message: 'El ID proporcionado no es válido' });
@@ -233,36 +234,71 @@ const puedeEliminarse = async (req, res) => {
     if (!empleado) {
       return res.status(404).json({ message: 'Empleado no encontrado' });
     }
+    console.log('Empleado encontrado:', empleado.nombres);
 
     // Verificar referencias en Novedades
-    const novedadesRegistradas = await Novedades.count({
-      where: { registrado_por: id }
-    });
+    let novedadesRegistradas = 0;
+    let novedadesResponsable = 0;
+    let novedadesAfectado = 0;
+    
+    try {
+      novedadesRegistradas = await Novedades.count({
+        where: { registrado_por: id }
+      });
+      console.log('novedadesRegistradas:', novedadesRegistradas);
+    } catch (err) {
+      console.error('Error contando novedadesRegistradas:', err.message);
+    }
 
-    const novedadesResponsable = await Novedades.count({
-      where: { empleado_responsable: id }
-    });
+    try {
+      novedadesResponsable = await Novedades.count({
+        where: { empleado_responsable: id }
+      });
+      console.log('novedadesResponsable:', novedadesResponsable);
+    } catch (err) {
+      console.error('Error contando novedadesResponsable:', err.message);
+    }
 
-    const novedadesAfectado = await Novedades.count({
-      where: { empleado_afectado: id }
-    });
+    try {
+      novedadesAfectado = await Novedades.count({
+        where: { empleado_afectado: id }
+      });
+      console.log('novedadesAfectado:', novedadesAfectado);
+    } catch (err) {
+      console.error('Error contando novedadesAfectado:', err.message);
+    }
 
     // Verificar referencias en OrdenesProduccion
-    const ordenesProduccion = await OrdenesProduccion.count({
-      where: { responsableId: id }
-    });
+    let ordenesProduccion = 0;
+    try {
+      ordenesProduccion = await OrdenesProduccion.count({
+        where: { responsableId: id }
+      });
+      console.log('ordenesProduccion:', ordenesProduccion);
+    } catch (err) {
+      console.error('Error contando ordenesProduccion:', err.message);
+    }
 
     // Verificar referencias en FichaTecnica (TODAS, activas e inactivas)
-    const fichasTecnicas = await FichaTecnica.findAll();
-
     let fichaTecnicaCount = 0;
-    for (const ficha of fichasTecnicas) {
-      if (ficha.procesos && Array.isArray(ficha.procesos)) {
-        const procesosConEmpleado = ficha.procesos.filter(p => p.responsableId === parseInt(id));
-        if (procesosConEmpleado.length > 0) {
-          fichaTecnicaCount++;
+    try {
+      const fichasTecnicas = await FichaTecnica.findAll({
+        attributes: ['id', 'procesos']
+      });
+      console.log('Fichas técnicas encontradas:', fichasTecnicas.length);
+
+      for (const ficha of fichasTecnicas) {
+        if (ficha.procesos && Array.isArray(ficha.procesos)) {
+          const procesosConEmpleado = ficha.procesos.filter(p => p.responsableId === parseInt(id));
+          if (procesosConEmpleado.length > 0) {
+            fichaTecnicaCount++;
+          }
         }
       }
+      console.log('fichaTecnicaCount:', fichaTecnicaCount);
+    } catch (fichaError) {
+      console.error('Error al verificar fichas técnicas:', fichaError.message);
+      // Continuar sin contar fichas técnicas si hay error
     }
 
     const totalReferencias = novedadesRegistradas + novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
@@ -276,6 +312,8 @@ const puedeEliminarse = async (req, res) => {
       total: totalReferencias
     };
 
+    console.log('Total referencias:', totalReferencias);
+
     res.status(200).json({
       puedeEliminarse: totalReferencias === 0,
       referencias,
@@ -285,6 +323,7 @@ const puedeEliminarse = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('=== ERROR en puedeEliminarse:', error);
     res.status(500).json({ message: 'Error al verificar si puede eliminarse', error: error.message });
   }
 };

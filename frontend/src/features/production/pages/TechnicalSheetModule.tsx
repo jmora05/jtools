@@ -811,7 +811,7 @@ export function TechnicalSheetModule() {
                                                             className={`border transition-colors ${
                                                                 ficha.estado === 'Inactiva'
                                                                     ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
-                                                                    : 'bg-white text-blue-900 border border-blue-900 hover:bg-blue-50'
+                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
                                                             }`}>
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
