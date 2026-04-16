@@ -9,9 +9,8 @@ const validateCreateNovedad = (req, res, next) => {
         descripcion_detallada,
         estado,
         fecha_registro,
-        registrado_por,
         empleado_responsable,
-        empleado_afectado       // ← NUEVO
+        empleado_afectado
     } = req.body;
 
     // titulo
@@ -36,13 +35,6 @@ const validateCreateNovedad = (req, res, next) => {
         errors.push('La fecha de registro debe ser una fecha válida');
     }
 
-    // registrado_por
-    if (!registrado_por) {
-        errors.push('El empleado que registra la novedad es obligatorio');
-    } else if (!Number.isInteger(Number(registrado_por)) || Number(registrado_por) <= 0) {
-        errors.push('El registrado_por debe ser un número entero positivo');
-    }
-
     // empleado_responsable (opcional)
     if (empleado_responsable !== undefined && empleado_responsable !== null) {
         if (!Number.isInteger(Number(empleado_responsable)) || Number(empleado_responsable) <= 0) {
@@ -50,7 +42,7 @@ const validateCreateNovedad = (req, res, next) => {
         }
     }
 
-    // empleado_afectado (opcional) ← NUEVO
+    // empleado_afectado (opcional)
     if (empleado_afectado !== undefined && empleado_afectado !== null) {
         if (!Number.isInteger(Number(empleado_afectado)) || Number(empleado_afectado) <= 0) {
             errors.push('El empleado_afectado debe ser un número entero positivo');
@@ -68,7 +60,6 @@ const validateUpdateNovedad = (req, res, next) => {
     const errors = [];
     const { titulo, descripcion_detallada, empleado_responsable, empleado_afectado } = req.body;
 
-    // El PUT de novedades solo permite editar estos campos
     if (titulo !== undefined) {
         if (!titulo || titulo.trim() === '') {
             errors.push('El título no puede estar vacío');
@@ -89,7 +80,6 @@ const validateUpdateNovedad = (req, res, next) => {
         }
     }
 
-    // empleado_afectado (opcional) ← NUEVO
     if (empleado_afectado !== undefined && empleado_afectado !== null) {
         if (!Number.isInteger(Number(empleado_afectado)) || Number(empleado_afectado) <= 0) {
             errors.push('El empleado_afectado debe ser un número entero positivo');

@@ -63,18 +63,15 @@ InsumoProducto.belongsTo(Insumos,   { foreignKey: 'insumosId' });
 InsumoProducto.belongsTo(Productos, { foreignKey: 'productosId' });
 
 
-// FIX #7: Asociación Proveedores ↔ Insumos añadida
-// Sin esta relación, getInsumosProveedor() y los findOne({ where: { proveedoresId } })
-// del controlador fallan en runtime.
-// Nota: verifica que la columna FK en la tabla "insumos" se llame efectivamente "proveedoresId"
-Proveedores.hasMany(Insumos, { foreignKey: 'proveedoresId', as: 'insumos', constraints: false });
+// Proveedores ↔ Insumos
+Proveedores.hasMany(Insumos, { foreignKey: 'proveedoresId', as: 'insumos',    constraints: false });
 Insumos.belongsTo(Proveedores, { foreignKey: 'proveedoresId', as: 'proveedor', constraints: false });
 
 
 // Novedades
-Novedades.belongsTo(Empleados, { foreignKey: 'registrado_por',       as: 'registradoPor' });
 Novedades.belongsTo(Empleados, { foreignKey: 'empleado_responsable', as: 'empleadoResponsable' });
 Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado',    as: 'empleadoAfectado' });
+
 
 // OrdenesProduccion
 OrdenesProduccion.belongsTo(Productos, { foreignKey: 'productoId',    as: 'producto' });
@@ -112,11 +109,6 @@ Clientes.hasMany(Pedidos,          { foreignKey: 'clienteId',   as: 'pedidos' })
 Ventas.hasMany(DetalleVentas,      { foreignKey: 'ventasId',    as: 'detalles' });
 DetalleVentas.belongsTo(Ventas,    { foreignKey: 'ventasId' });
 DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
-
-
-
-
-
 
 
 // ================= EXPORTACIÓN =================

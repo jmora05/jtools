@@ -49,10 +49,7 @@ const Novedades = sequelize.define('Novedades', {
         defaultValue: DataTypes.NOW
     },
 
-    registrado_por: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-    },
+
 
 
     empleado_responsable: {

@@ -1,10 +1,9 @@
 const { Novedades, Empleados } = require('../models/index.js');
 
-// Include base reutilizable con los tres empleados asociados
+// Include base reutilizable con los dos empleados asociados
 const INCLUDE_EMPLEADOS = [
-    { model: Empleados, as: 'registradoPor',        attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-    { model: Empleados, as: 'empleadoResponsable',  attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-    { model: Empleados, as: 'empleadoAfectado',     attributes: ['id', 'nombres', 'apellidos', 'cargo'] } // ← NUEVO
+    { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
+    { model: Empleados, as: 'empleadoAfectado',    attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
 ];
 
 // GET - listar todas las novedades
@@ -60,19 +59,9 @@ const createNovedad = async (req, res) => {
             fecha_registro,
             fecha_inicio,
             fecha_finalizacion,
-            registrado_por,
             empleado_responsable,
-            empleado_afectado       // ← NUEVO
+            empleado_afectado
         } = req.body;
-
-        // verificar que el empleado que registra existe y está activo
-        const empleadoRegistra = await Empleados.findByPk(registrado_por);
-        if (!empleadoRegistra) {
-            return res.status(404).json({ message: 'El empleado que registra la novedad no existe' });
-        }
-        if (empleadoRegistra.estado === 'inactivo') {
-            return res.status(400).json({ message: 'El empleado que registra está inactivo' });
-        }
 
         // verificar que el empleado responsable existe si se especificó
         if (empleado_responsable) {
@@ -85,7 +74,7 @@ const createNovedad = async (req, res) => {
             }
         }
 
-        // verificar que el empleado afectado existe si se especificó ← NUEVO
+        // verificar que el empleado afectado existe si se especificó
         if (empleado_afectado) {
             const empleadoAf = await Empleados.findByPk(empleado_afectado);
             if (!empleadoAf) {
@@ -103,9 +92,8 @@ const createNovedad = async (req, res) => {
             fecha_registro,
             fecha_inicio,
             fecha_finalizacion,
-            registrado_por,
             empleado_responsable,
-            empleado_afectado       // ← NUEVO
+            empleado_afectado
         });
 
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
@@ -141,7 +129,7 @@ const updateNovedad = async (req, res) => {
             fecha_inicio,
             fecha_finalizacion,
             empleado_responsable,
-            empleado_afectado       // ← NUEVO
+            empleado_afectado
         } = req.body;
 
         // verificar que el empleado responsable existe si se actualizó
@@ -152,7 +140,7 @@ const updateNovedad = async (req, res) => {
             }
         }
 
-        // verificar que el empleado afectado existe si se actualizó ← NUEVO
+        // verificar que el empleado afectado existe si se actualizó
         if (empleado_afectado) {
             const empleadoAf = await Empleados.findByPk(empleado_afectado);
             if (!empleadoAf) {
@@ -160,10 +148,15 @@ const updateNovedad = async (req, res) => {
             }
         }
 
-        await novedad.update({ titulo, descripcion_detallada, fecha_inicio,
-            fecha_finalizacion, empleado_responsable, empleado_afectado });
+        await novedad.update({
+            titulo,
+            descripcion_detallada,
+            fecha_inicio,
+            fecha_finalizacion,
+            empleado_responsable,
+            empleado_afectado
+        });
 
-        // Recargar con asociaciones para devolver el objeto completo
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
 
         res.status(200).json(novedad);
@@ -199,7 +192,6 @@ const cambiarEstadoNovedad = async (req, res) => {
 
         await novedad.update({ estado });
 
-        // Recargar con asociaciones para devolver el objeto completo
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
 
         res.status(200).json(novedad);
