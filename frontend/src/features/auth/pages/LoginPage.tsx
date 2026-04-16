@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 
 type FieldErrors = Partial<Record<string, string>>;
 
-const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÁÁ“ÁšñÁ‘Á¼Áœ\s]+$/;
+const NAME_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/;
 
 function validateNameField(value: string, label: string): string {
   if (!value) return `${label} es obligatorio`;
@@ -240,8 +240,8 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       await authService.register({
         email: registerForm.email,
         password: registerForm.password,
-        nombres: registerForm.personType === 'natural' ? registerForm.firstName : registerForm.businessName,
-        apellidos: registerForm.personType === 'natural' ? registerForm.lastName : '',
+        nombres:      registerForm.personType === 'natural' ? registerForm.firstName  : 'N/A',
+        apellidos:    registerForm.personType === 'natural' ? registerForm.lastName   : 'N/A',
         razon_social: registerForm.personType === 'empresa' ? registerForm.businessName : '',
         tipo_documento: registerForm.documentType,
         numero_documento: registerForm.documentNumber,
@@ -431,7 +431,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                 <form onSubmit={handleRegister} className="space-y-3">
 
                   {/* Tipo de Persona */}
-                  <div className="space-y-1">
+                  <div className="space-y-1 relative">
                     <Label htmlFor="register-personType" className="text-sm">Tipo de persona <span className="text-red-500">*</span></Label>
                     <Select value={registerForm.personType}
                       onValueChange={(value: string) => setRegisterForm({
@@ -439,8 +439,8 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                         documentType: value === 'natural' ? 'CC' : 'RUT',
                         documentNumber: '', firstName: '', lastName: '', businessName: ''
                       })}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
+                      <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent side="bottom" align="start" position="popper" sideOffset={4} className="w-[--radix-select-trigger-width] z-50">
                         <SelectItem value="natural"><div className="flex items-center gap-2"><UserIcon className="w-4 h-4" />Persona Natural</div></SelectItem>
                         <SelectItem value="empresa"><div className="flex items-center gap-2"><BuildingIcon className="w-4 h-4" />Empresa</div></SelectItem>
                       </SelectContent>

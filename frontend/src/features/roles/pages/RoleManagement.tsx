@@ -494,7 +494,7 @@ export function RoleManagement() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setRoleToDelete(null); }}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar Rol</AlertDialogAction>
+              <AlertDialogAction onClick={confirmDelete} className="bg-blue-600 hover:bg-blue-700 text-white">Eliminar Rol</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
