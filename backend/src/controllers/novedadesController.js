@@ -35,10 +35,10 @@ const getNovedadById = async (req, res) => {
 const getNovedadesByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['registrada', 'aprobada', 'rechazada'];
+        const estadosValidos = ['registrada', 'aprobada'];
 
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada o rechazada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
         }
 
         const novedades = await Novedades.findAll({ where: { estado }, include: INCLUDE_EMPLEADOS });
@@ -104,7 +104,6 @@ const updateNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        // no permitir editar novedades aprobadas
         if (novedad.estado === 'aprobada') {
             return res.status(400).json({ message: 'No se puede editar una novedad que ya fue aprobada' });
         }
@@ -145,7 +144,7 @@ const updateNovedad = async (req, res) => {
     }
 };
 
-// PATCH - cambiar estado de la novedad (aprobar o rechazar)
+// PATCH - cambiar estado de la novedad (registrada <-> aprobada)
 const cambiarEstadoNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -156,14 +155,9 @@ const cambiarEstadoNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        const estadosValidos = ['registrada', 'aprobada', 'rechazada'];
+        const estadosValidos = ['registrada', 'aprobada'];
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada o rechazada' });
-        }
-
-        // no permitir volver a registrada si ya fue aprobada o rechazada
-        if (novedad.estado !== 'registrada' && estado === 'registrada') {
-            return res.status(400).json({ message: 'No se puede volver al estado registrada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
         }
 
         await novedad.update({ estado });

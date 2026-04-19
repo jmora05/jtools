@@ -6,12 +6,10 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Badge } from '@/shared/components/ui/badge';
+import { Switch } from '@/shared/components/ui/switch';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/shared/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/shared/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -38,13 +36,11 @@ import { getEmpleados, desactivarEmpleado } from '../services/empleadosService';
 const ESTADO_COLORS: Record<string, string> = {
   registrada: 'bg-blue-100 text-blue-900 border-blue-200',
   aprobada:   'bg-green-100 text-green-900 border-green-200',
-  rechazada:  'bg-gray-100 text-gray-900 border-gray-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
   registrada: 'Registrada',
   aprobada:   'Aprobada',
-  rechazada:  'Rechazada',
 };
 
 const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
@@ -66,8 +62,8 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
-const canDelete = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
+const canEdit   = (n: Novedad) => n.estado === 'registrada';
+const canDelete = (n: Novedad) => n.estado === 'registrada';
 
 const editBlockReason   = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede editar: la novedad ya fue aprobada' : null;
 const deleteBlockReason = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede eliminar: la novedad ya fue aprobada' : null;
@@ -87,7 +83,7 @@ interface FormValues {
   fecha_inicio: string;
   fecha_finalizacion: string;
   empleado_afectado: EmpleadoSeleccionado | null;
-  estado: 'registrada' | 'aprobada' | 'rechazada';
+  estado: 'registrada' | 'aprobada';
 }
 
 interface FormErrors {
@@ -349,9 +345,26 @@ export function NewsModule() {
 
   const [bannerNovedadId, setBannerNovedadId] = useState<number | null>(null);
   const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | null>(null);
+  const [togglingIds,     setTogglingIds]     = useState<Set<number>>(new Set());
 
   const showRowBanner = (id: number, action: 'edit' | 'delete') => { setBannerNovedadId(id); setBannerAction(action); };
   const closeBanner   = () => { setBannerNovedadId(null); setBannerAction(null); };
+
+  const handleToggleEstado = async (novedad: Novedad) => {
+    const nuevoEstado: 'registrada' | 'aprobada' = novedad.estado === 'aprobada' ? 'registrada' : 'aprobada';
+    setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: nuevoEstado } : n));
+    setTogglingIds(prev => new Set(prev).add(novedad.id));
+    try {
+      const updated = await cambiarEstadoNovedad(novedad.id, nuevoEstado);
+      setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      toast.success(`Novedad ${nuevoEstado === 'aprobada' ? 'aprobada' : 'registrada'} exitosamente`);
+    } catch (err: any) {
+      setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: novedad.estado } : n));
+      toast.error(err.message ?? 'Error al cambiar el estado');
+    } finally {
+      setTogglingIds(prev => { const next = new Set(prev); next.delete(novedad.id); return next; });
+    }
+  };
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const fetchNovedades = useCallback(async () => {
@@ -653,23 +666,19 @@ export function NewsModule() {
       />
 
       {isEdit && (
-        <Field label="Estado">
-          <Select
-            value={form.estado}
-            onValueChange={(value: 'registrada' | 'aprobada' | 'rechazada') =>
-              setForm(prev => ({ ...prev, estado: value }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="registrada">Registrada</SelectItem>
-              <SelectItem value="aprobada">Aprobada</SelectItem>
-              <SelectItem value="rechazada">Rechazada</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={form.estado === 'aprobada'}
+              onCheckedChange={(checked: boolean) =>
+                setForm(prev => ({ ...prev, estado: checked ? 'aprobada' : 'registrada' }))
+              }
+            />
+            <span className="text-sm text-gray-600">
+              Estado: <strong>{form.estado === 'aprobada' ? 'Aprobada' : 'Registrada'}</strong>
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="flex gap-4 pt-2">
@@ -749,7 +758,6 @@ export function NewsModule() {
                 <option value="all">Todos los estados</option>
                 <option value="registrada">Registrada</option>
                 <option value="aprobada">Aprobada</option>
-                <option value="rechazada">Rechazada</option>
               </select>
 
             </div>
@@ -799,9 +807,17 @@ export function NewsModule() {
                         </td>
 
                         <td className="px-6 py-4">
-                          <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
-                            {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={novedad.estado === 'aprobada'}
+                              onCheckedChange={() => handleToggleEstado(novedad)}
+                              disabled={togglingIds.has(novedad.id)}
+                            />
+                            <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
+                              {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
+                            </Badge>
+                            {togglingIds.has(novedad.id) && <Loader2Icon className="w-3 h-3 animate-spin text-gray-400" />}
+                          </div>
                         </td>
 
                         <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>

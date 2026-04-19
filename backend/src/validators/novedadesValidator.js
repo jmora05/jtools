@@ -1,6 +1,6 @@
 // validators/novedadesValidator.js
 
-const ESTADOS_VALIDOS = ['registrada', 'aprobada', 'rechazada'];
+const ESTADOS_VALIDOS = ['registrada', 'aprobada'];
 
 const validateCreateNovedad = (req, res, next) => {
     const errors = [];
