@@ -29,7 +29,13 @@ import {
 } from '@/shared/components/ui/dropdown-menu';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
-import { ChevronDownIcon, UserIcon, LogOutIcon, ShieldIcon, EyeIcon, ChevronRightIcon, MenuIcon, XIcon } from 'lucide-react';
+import {
+  ChevronDownIcon, UserIcon, LogOutIcon, ShieldIcon, EyeIcon,
+  ChevronRightIcon, MenuIcon, XIcon,
+  LayoutDashboard, Package, Tag, Settings, Users, Truck,
+  FlaskConical, ShoppingCart, TrendingUp, ClipboardList,
+  Newspaper, Factory, HardHat, FileText, Lock, ShieldCheck,
+} from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type AppUser = {
@@ -45,8 +51,8 @@ type AppUser = {
 };
 
 type ModuleItem =
-  | { id: string; label: string; icon: string; hasSubmenu?: false; submenu?: never }
-  | { id: string; label: string; icon: string; hasSubmenu: true; submenu: { id: string; label: string; icon: string }[] };
+  | { id: string; label: string; icon: React.ReactNode; hasSubmenu?: false; submenu?: never }
+  | { id: string; label: string; icon: React.ReactNode; hasSubmenu: true; submenu: { id: string; label: string; icon: React.ReactNode }[] };
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -144,49 +150,49 @@ export default function App() {
   }
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
-      { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-      { id: 'catalog',   label: 'Productos',  icon: '📦' },
-    ];
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+  { id: 'catalog',   label: 'Productos',  icon: <Package size={18} /> },
+];
 
     if (isClientPreview) return baseModules;
 
     if (u.userType === 'admin') {
       return [
-        ...baseModules,
-        { id: 'product-categories', label: 'Categorías de productos', icon: '🏷️' },
-        {
-          id: 'configuration', label: 'Configuración', icon: '⚙️', hasSubmenu: true,
-          submenu: [
-            { id: 'users',       label: 'Usuarios', icon: '👥' },
-            { id: 'roles',       label: 'Roles',    icon: '🔒' },
-            { id: 'permissions', label: 'Permisos', icon: '🛡️' },
-          ],
-        },
-        { id: 'clients',   label: 'Clientes',            icon: '👥' },
-        { id: 'suppliers', label: 'Proveedores',          icon: '🏭' },
-        { id: 'supplies',  label: 'Insumos',              icon: '📋' },
-        { id: 'purchases', label: 'Compras de insumos',   icon: '🛒' },
-        { id: 'sales',     label: 'Ventas',               icon: '💵' },
-        { id: 'orders',    label: 'Pedidos',              icon: '📋' },
-        { id: 'news',      label: 'Novedades',            icon: '📰' },
-        {
-          id: 'production', label: 'Producción', icon: '🏭', hasSubmenu: true,
-          submenu: [
-            { id: 'production-employees',        label: 'Empleados',             icon: '👷' },
-            { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: '📋' },
-            { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: '📄' },
-          ],
-        },
-      ];
+  ...baseModules,
+  { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
+  {
+    id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true,
+    submenu: [
+      { id: 'users',       label: 'Usuarios', icon: <Users size={16} /> },
+      { id: 'roles',       label: 'Roles',    icon: <Lock size={16} /> },
+      { id: 'permissions', label: 'Permisos', icon: <ShieldCheck size={16} /> },
+    ],
+  },
+  { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
+  { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={18} /> },
+  { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
+  { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
+  { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
+  { id: 'orders',    label: 'Pedidos',            icon: <ClipboardList size={18} /> },
+  { id: 'news',      label: 'Novedades',          icon: <Newspaper size={18} /> },
+  {
+    id: 'production', label: 'Producción', icon: <Factory size={18} />, hasSubmenu: true,
+    submenu: [
+      { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={16} /> },
+      { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <ClipboardList size={16} /> },
+      { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={16} /> },
+    ],
+  },
+];
     }
 
     // Cliente registrado: Compras (ventas filtradas) + Pedidos + Productos
     return [
-      { id: 'dashboard',        label: 'Dashboard',    icon: '📊' },
-      { id: 'catalog',          label: 'Productos',    icon: '📦' },
-      { id: 'client-purchases', label: 'Mis Compras',  icon: '🛒' },
-      { id: 'client-orders',    label: 'Mis Pedidos',  icon: '📋' },
-    ];
+  { id: 'dashboard',        label: 'Dashboard',   icon: <LayoutDashboard size={18} /> },
+  { id: 'catalog',          label: 'Productos',   icon: <Package size={18} /> },
+  { id: 'client-purchases', label: 'Mis Compras', icon: <ShoppingCart size={18} /> },
+  { id: 'client-orders',    label: 'Mis Pedidos', icon: <ClipboardList size={18} /> },
+];
   };
 
   const renderModule = () => {
@@ -319,7 +325,7 @@ export default function App() {
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <span className="text-lg">{item.icon}</span>
+                        {item.icon}
                         <span>{item.label}</span>
                       </div>
                       <ChevronRightIcon className={`w-4 h-4 transition-transform ${
@@ -339,7 +345,7 @@ export default function App() {
                               currentModule === sub.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                            <span className="text-base">{sub.icon}</span>
+                            {sub.icon}
                             <span>{sub.label}</span>
                           </button>
                         ))}
@@ -353,7 +359,7 @@ export default function App() {
                       currentModule === item.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    {item.icon}
                     <span>{item.label}</span>
                   </button>
                 )}

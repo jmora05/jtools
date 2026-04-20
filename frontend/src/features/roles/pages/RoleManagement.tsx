@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { toast }       from 'sonner';
-import { Plus, Edit, Trash2, Shield, Eye, AlertTriangle, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, Eye, AlertTriangle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as rolesService from '@/features/roles/services/rolesService';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -51,7 +51,6 @@ export function RoleManagement() {
   const itemsPerPage = 5;
 
   // ── Estado del formulario ───────────────────────────────────────────────────
-  // Usamos useRef para las permissions para evitar el bucle de re-render
   const [formData, setFormData] = useState<FormState>(EMPTY_FORM);
   const permissionsRef = useRef<number[]>([]);
 
@@ -65,7 +64,6 @@ export function RoleManagement() {
           name: r.name,
           description: r.description ?? '',
           isActive: r.isActive !== false,
-          // Los permisos ya vienen incluidos desde el backend
           permissions: (r.permisos ?? []).map(p => p.id),
           permissionCount: (r.permisos ?? []).length,
         })));
@@ -76,8 +74,6 @@ export function RoleManagement() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  // Resetear página al cambiar búsqueda
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
   // ── Helpers del formulario ──────────────────────────────────────────────────
@@ -96,6 +92,10 @@ export function RoleManagement() {
   }, []);
 
   const handleEdit = useCallback(async (role: RoleRow) => {
+    if (!role.isActive) {
+      toast.warning('No se puede editar un rol inactivo. Actívalo primero.');
+      return;
+    }
     setEditingRole(role);
     setFormData({ name: role.name, description: role.description, permissions: [] });
     permissionsRef.current = [];
@@ -105,7 +105,6 @@ export function RoleManagement() {
       const permsDelRol = await rolesService.getRolPermisos(role.id);
       const ids = permsDelRol.map(p => p.id);
       permissionsRef.current = ids;
-      // Forzamos un re-render sin tocar el array directamente en formData
       setFormData(prev => ({ ...prev, permissions: ids }));
     } catch {
       toast.error('No se pudieron cargar los permisos del rol');
@@ -114,14 +113,12 @@ export function RoleManagement() {
     }
   }, []);
 
-  // Toggle de permiso — usa input nativo para evitar el bucle de Radix Checkbox
   const togglePermission = useCallback((id: number) => {
     const current = permissionsRef.current;
     const next = current.includes(id)
       ? current.filter(x => x !== id)
       : [...current, id];
     permissionsRef.current = next;
-    // Actualizamos formData con el nuevo array (snapshot, no referencia)
     setFormData(prev => ({ ...prev, permissions: [...next] }));
   }, []);
 
@@ -129,6 +126,7 @@ export function RoleManagement() {
   const handleSubmit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!formData.name.trim()) { toast.error('El nombre del rol es obligatorio'); return; }
+    if (formData.name.trim().length < 2) { toast.error('El nombre debe tener al menos 2 caracteres'); return; }
 
     const payload = { name: formData.name.trim(), description: formData.description.trim() || null };
     try {
@@ -190,6 +188,10 @@ export function RoleManagement() {
 
   // ── Eliminar ────────────────────────────────────────────────────────────────
   const handleDelete = useCallback((role: RoleRow) => {
+    if (!role.isActive) {
+      toast.warning('No se puede eliminar un rol inactivo. Actívalo primero.');
+      return;
+    }
     setRoleToDelete(role);
     setShowDeleteDialog(true);
   }, []);
@@ -224,25 +226,26 @@ export function RoleManagement() {
     <TooltipProvider>
       <div className="p-6 space-y-6">
 
-        {/* ── Header: título + botón Nuevo Rol ─────────────────────────────── */}
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Roles</h1>
             <p className="text-blue-800">Administra los roles y permisos del sistema</p>
           </div>
-          {/* Botón fuera del Dialog para evitar warning de refs */}
           <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="w-4 h-4 mr-2" />Nuevo Rol
           </Button>
         </div>
 
-        {/* ── Dialog de crear/editar (controlado, sin DialogTrigger) ───────── */}
+        {/* ── Dialog crear/editar ─────────────────────────────────────────────── */}
         <Dialog open={showModal} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingRole ? 'Editar Rol' : 'Crear Nuevo Rol'}</DialogTitle>
               <DialogDescription>
-                {editingRole ? 'Modifica la información del rol y sus permisos.' : 'Completa la información para crear un nuevo rol.'}
+                {editingRole
+                  ? 'Modifica la información del rol y sus permisos.'
+                  : 'Completa la información para crear un nuevo rol.'}
               </DialogDescription>
             </DialogHeader>
 
@@ -250,20 +253,46 @@ export function RoleManagement() {
               {/* Nombre */}
               <div className="space-y-2">
                 <Label htmlFor="role-name">Nombre del rol *</Label>
-                <Input id="role-name" value={formData.name}
+                <Input
+                  id="role-name"
+                  value={formData.name}
                   onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Ej: Vendedor, Gerente, Supervisor" required />
+                  placeholder="Ej: Vendedor, Gerente, Supervisor"
+                  maxLength={50}
+                  required
+                  className={
+                    formData.name && (formData.name.trim().length < 2 || formData.name.trim().length > 50)
+                      ? 'border-red-400' : ''
+                  }
+                />
+                {formData.name && formData.name.trim().length < 2 ? (
+                  <p className="text-xs text-red-500">Mínimo 2 caracteres</p>
+                ) : formData.name && formData.name.trim().length > 50 ? (
+                  <p className="text-xs text-red-500">Máximo 50 caracteres</p>
+                ) : (
+                  <p className="text-xs text-gray-400 text-right">{formData.name.length}/50</p>
+                )}
               </div>
 
               {/* Descripción */}
               <div className="space-y-2">
-                <Label htmlFor="role-desc">Descripción</Label>
-                <Input id="role-desc" value={formData.description}
+                <Label htmlFor="role-desc">
+                  Descripción <span className="text-gray-400 text-xs">(opcional)</span>
+                </Label>
+                <Input
+                  id="role-desc"
+                  value={formData.description}
                   onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Opcional" />
+                  placeholder="Describe para qué sirve este rol"
+                  maxLength={200}
+                  className={formData.description.length > 200 ? 'border-red-400' : ''}
+                />
+                <p className={`text-xs text-right ${formData.description.length > 180 ? 'text-orange-500' : 'text-gray-400'}`}>
+                  {formData.description.length}/200
+                </p>
               </div>
 
-              {/* Selector de permisos — usa <input type="checkbox"> nativo para evitar bucle de Radix */}
+              {/* Selector de permisos */}
               <div className="space-y-3">
                 <Label>Seleccionar permisos</Label>
                 {loadingPerms ? (
@@ -281,7 +310,6 @@ export function RoleManagement() {
                             checked ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/40'
                           }`}
                         >
-                          {/* input nativo — no dispara bucle de re-render */}
                           <input
                             type="checkbox"
                             checked={checked}
@@ -297,7 +325,7 @@ export function RoleManagement() {
                 <p className="text-sm text-gray-500">{formData.permissions.length} módulo(s) seleccionado(s)</p>
               </div>
 
-              {/* Acciones del formulario */}
+              {/* Acciones */}
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
                 <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -308,21 +336,27 @@ export function RoleManagement() {
           </DialogContent>
         </Dialog>
 
-        {/* ── Barra de búsqueda ────────────────────────────────────────────── */}
+        {/* ── Barra de búsqueda ───────────────────────────────────────────────── */}
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
               <div className="relative w-full sm:flex-[3]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                <Input placeholder="Buscar roles por nombre..." value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+                <Input
+                  placeholder="Buscar roles por nombre..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full"
+                />
               </div>
-              <span className="text-sm text-gray-500 whitespace-nowrap self-center">{filteredRoles.length} rol(es)</span>
+              <span className="text-sm text-gray-500 whitespace-nowrap self-center">
+                {filteredRoles.length} rol(es)
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* ── Tabla de roles ───────────────────────────────────────────────── */}
+        {/* ── Tabla de roles ──────────────────────────────────────────────────── */}
         <Card>
           <CardContent className="p-0">
             {loadingData ? (
@@ -341,67 +375,115 @@ export function RoleManagement() {
                   </thead>
                   <tbody>
                     {currentRoles.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-12 text-gray-500">No se encontraron roles</td></tr>
+                      <tr>
+                        <td colSpan={5} className="text-center py-12 text-gray-500">
+                          No se encontraron roles
+                        </td>
+                      </tr>
                     ) : currentRoles.map(role => {
                       const isInactive = !role.isActive;
                       return (
-                      <tr key={role.id} className={`border-b border-blue-100 transition-colors ${isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'}`}>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <Shield className={`w-4 h-4 shrink-0 ${isInactive ? 'text-gray-400' : 'text-blue-600'}`} />
-                            <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>{role.name}</span>
-                          </div>
-                        </td>
-                        <td className={`py-4 px-6 text-sm ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {role.description || <span className="italic">Sin descripción</span>}
-                        </td>
-                        <td className="py-4 px-6">
-                          <Badge variant="secondary" className={isInactive ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}>
-                            {role.permissionCount} permiso(s)
-                          </Badge>
-                        </td>
-                        {/* Columna Estado con Switch */}
-                        <td className="py-4 px-6">
-                          <Switch
-                            checked={role.isActive}
-                            onCheckedChange={() => toggleStatus(role)}
-                            disabled={togglingIds.has(role.id)}
-                          />
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="outline" size="sm" onClick={() => handleViewDetail(role)}
-                                  className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-400">
-                                  <Eye className="w-4 h-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Ver detalle</p></TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="outline" size="sm"
-                                  onClick={() => !isInactive && handleEdit(role)}
-                                  className={isInactive ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-400'}>
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{isInactive ? 'Rol inactivo' : 'Editar rol'}</p></TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="outline" size="sm"
-                                  onClick={() => !isInactive && handleDelete(role)}
-                                  className={isInactive ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-400'}>
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{isInactive ? 'Rol inactivo' : 'Eliminar rol'}</p></TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </td>
-                      </tr>
+                        <tr
+                          key={role.id}
+                          className={`border-b border-blue-100 transition-colors ${
+                            isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'
+                          }`}
+                        >
+                          {/* Nombre */}
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              <Shield className={`w-4 h-4 shrink-0 ${isInactive ? 'text-gray-400' : 'text-blue-600'}`} />
+                              <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>
+                                {role.name}
+                              </span>
+                            </div>
+                          </td>
+                          {/* Descripción */}
+                          <td className={`py-4 px-6 text-sm ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {role.description || <span className="italic">Sin descripción</span>}
+                          </td>
+                          {/* Permisos */}
+                          <td className="py-4 px-6">
+                            <Badge
+                              variant="secondary"
+                              className={
+                                isInactive
+                                  ? 'bg-gray-100 text-gray-400 border border-gray-200'
+                                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+                              }
+                            >
+                              {role.permissionCount} permiso(s)
+                            </Badge>
+                          </td>
+                          {/* Estado */}
+                          <td className="py-4 px-6">
+                            <Switch
+                              checked={role.isActive}
+                              onCheckedChange={() => toggleStatus(role)}
+                              disabled={togglingIds.has(role.id)}
+                            />
+                          </td>
+                          {/* Acciones */}
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-2">
+                              {/* Ver detalle — siempre habilitado */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleViewDetail(role)}
+                                    className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Ver detalle</p></TooltipContent>
+                              </Tooltip>
+
+                              {/* Editar */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleEdit(role)}
+                                    disabled={togglingIds.has(role.id)}
+                                    className={
+                                      isInactive
+                                        ? 'bg-gray-100 text-gray-300 border border-gray-200 opacity-40 cursor-not-allowed'
+                                        : 'bg-white text-blue-900 border border-blue-900 hover:bg-blue-50'
+                                    }
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{isInactive ? 'Activa el rol para editar' : 'Editar rol'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+
+                              {/* Eliminar */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleDelete(role)}
+                                    disabled={togglingIds.has(role.id)}
+                                    className={
+                                      isInactive
+                                        ? 'bg-gray-100 text-gray-300 border border-gray-200 opacity-40 cursor-not-allowed'
+                                        : 'bg-white text-blue-900 border border-blue-900 hover:bg-blue-50'
+                                    }
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{isInactive ? 'Activa el rol para eliminar' : 'Eliminar rol'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -411,24 +493,39 @@ export function RoleManagement() {
 
             {/* Paginación */}
             {filteredRoles.length > itemsPerPage && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-blue-100">
-                <span className="text-sm text-gray-500">Página {currentPage} de {totalPages}</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1} className="border-blue-200 text-blue-700 hover:bg-blue-50">
-                    ‹ Anterior
+              <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
+                  >
+                    {page}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages} className="border-blue-200 text-blue-700 hover:bg-blue-50">
-                    Siguiente ›
-                  </Button>
-                </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* ── Modal de detalle del rol ─────────────────────────────────────── */}
+        {/* ── Modal de detalle del rol ────────────────────────────────────────── */}
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -436,7 +533,7 @@ export function RoleManagement() {
               <DialogDescription>Información completa del rol y sus permisos asignados.</DialogDescription>
             </DialogHeader>
             {viewingRole && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-gray-500 text-xs uppercase tracking-wide">Nombre</Label>
@@ -446,19 +543,46 @@ export function RoleManagement() {
                     <Label className="text-gray-500 text-xs uppercase tracking-wide">Descripción</Label>
                     <p className="text-gray-700 mt-1">{viewingRole.description || '—'}</p>
                   </div>
+                  <div>
+                    <Label className="text-gray-500 text-xs uppercase tracking-wide">Estado</Label>
+                    <div className="mt-1">
+                      <Badge
+                        className={
+                          viewingRole.isActive
+                            ? 'bg-green-100 text-green-700 border border-green-200'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200'
+                        }
+                      >
+                        {viewingRole.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-gray-500 text-xs uppercase tracking-wide">Total de permisos</Label>
+                    <p className="text-gray-900 font-semibold mt-1">
+                      {viewingRole.permissionsData?.length ?? viewingRole.permissionCount}
+                    </p>
+                  </div>
                 </div>
+
                 <div>
                   <Label className="text-gray-500 text-xs uppercase tracking-wide mb-3 block">
-                    Permisos asignados ({viewingRole.permissionsData?.length ?? viewingRole.permissionCount})
+                    Permisos asignados
                   </Label>
                   {!viewingRole.permissionsData ? (
                     <p className="text-sm text-gray-500">Cargando permisos...</p>
                   ) : viewingRole.permissionsData.length === 0 ? (
-                    <p className="text-sm text-gray-500">Sin permisos asignados</p>
+                    <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                      <p className="text-sm text-gray-500">Este rol no tiene permisos asignados</p>
+                    </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
                       {viewingRole.permissionsData.map(perm => (
-                        <div key={perm.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                        <div
+                          key={perm.id}
+                          className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200"
+                        >
                           <Shield className="w-4 h-4 text-blue-600 shrink-0" />
                           <span className="text-sm text-gray-900">{perm.name}</span>
                         </div>
@@ -466,12 +590,18 @@ export function RoleManagement() {
                     </div>
                   )}
                 </div>
+
+                <div className="flex justify-end pt-2 border-t">
+                  <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+                    Cerrar
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
-        {/* ── AlertDialog de confirmación de eliminación ───────────────────── */}
+        {/* ── AlertDialog confirmar eliminación ──────────────────────────────── */}
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -479,22 +609,34 @@ export function RoleManagement() {
                 <AlertTriangle className="w-5 h-5 text-amber-500" />
                 Confirmar Eliminación
               </AlertDialogTitle>
-              {/* asChild en Description para evitar <p> anidado */}
               <AlertDialogDescription asChild>
                 <div className="space-y-3">
-                  <span className="block">¿Estás seguro de que deseas eliminar este rol?</span>
+                  <span className="block">¿Estás seguro de que deseas eliminar este rol? Esta acción no se puede deshacer.</span>
                   {roleToDelete && (
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
-                      <p className="text-sm"><span className="text-gray-500">Rol: </span><span className="font-medium text-gray-900">{roleToDelete.name}</span></p>
-                      <p className="text-sm"><span className="text-gray-500">Permisos: </span><span className="text-gray-900">{roleToDelete.permissionCount}</span></p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Rol: </span>
+                        <span className="font-medium text-gray-900">{roleToDelete.name}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-500">Permisos asignados: </span>
+                        <span className="text-gray-900">{roleToDelete.permissionCount}</span>
+                      </p>
                     </div>
                   )}
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setRoleToDelete(null); }}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-blue-600 hover:bg-blue-700 text-white">Eliminar Rol</AlertDialogAction>
+              <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setRoleToDelete(null); }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900"
+              >
+                Eliminar Rol
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

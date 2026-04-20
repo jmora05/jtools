@@ -4,6 +4,7 @@ const {
     getInsumos,
     getInsumoById,
     getInsumosDisponibles,
+    getInsumosDependencias,
     createInsumo,
     updateInsumo,
     cambiarEstadoInsumo,
@@ -12,9 +13,10 @@ const {
 } = require('../controllers/insumosController');
 
 // GET
-router.get('/',            getInsumos);
-router.get('/disponibles', getInsumosDisponibles);
-router.get('/:id',         getInsumoById);
+router.get('/',                    getInsumos);
+router.get('/disponibles',         getInsumosDisponibles);
+router.get('/:id/dependencias',    getInsumosDependencias);
+router.get('/:id',                 getInsumoById);
 
 // POST
 router.post('/', createInsumo);

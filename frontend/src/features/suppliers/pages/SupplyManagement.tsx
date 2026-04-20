@@ -23,8 +23,10 @@ import {
     updateInsumo,
     deleteInsumo,
     cambiarEstadoInsumo,
+    getInsumosDependencias,
     mapInsumoToSupply,
     mapSupplyToDTO,
+    type InsumosDependencias,
 } from '../services/insumosService';
 import { getProveedores } from '../services/proveedoresService';
 
@@ -135,6 +137,8 @@ export function SupplyManagement() {
     const [editingSupply, setEditingSupply]   = useState<Supply | null>(null);
     const [viewingSupply, setViewingSupply]   = useState<Supply | null>(null);
     const [deletingSupply, setDeletingSupply] = useState<Supply | null>(null);
+    const [deleteCheck, setDeleteCheck]       = useState<(InsumosDependencias & { loading: boolean }) | null>(null);
+    const [deleteConfirmed, setDeleteConfirmed] = useState(false);
 
     const [searchTerm, setSearchTerm]   = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -296,13 +300,21 @@ export function SupplyManagement() {
     };
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
-    const handleDelete = (supply: Supply) => {
+    const handleDelete = async (supply: Supply) => {
         if (supply.status) {
             triggerInactiveBanner(supply.id);
             return;
         }
         setDeletingSupply(supply);
+        setDeleteCheck({ loading: true, enUso: false, compras: [], productos: [], fichasTecnicas: [] });
+        setDeleteConfirmed(false);
         setShowDeleteModal(true);
+        try {
+            const deps = await getInsumosDependencias(supply.id);
+            setDeleteCheck({ loading: false, ...deps });
+        } catch {
+            setDeleteCheck({ loading: false, enUso: false, compras: [], productos: [], fichasTecnicas: [] });
+        }
     };
 
     const confirmDelete = async () => {
@@ -320,6 +332,8 @@ export function SupplyManagement() {
             setSaving(false);
             setShowDeleteModal(false);
             setDeletingSupply(null);
+            setDeleteCheck(null);
+            setDeleteConfirmed(false);
         }
     };
 
@@ -679,8 +693,6 @@ export function SupplyManagement() {
                                             <SelectItem value="Unidades">Unidades</SelectItem>
                                             <SelectItem value="Litros">Litros</SelectItem>
                                             <SelectItem value="Kilogramos">Kilogramos</SelectItem>
-                                            <SelectItem value="Metros">Metros</SelectItem>
-                                            <SelectItem value="Juegos">Juegos</SelectItem>
                                             <SelectItem value="Cajas">Cajas</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -884,7 +896,12 @@ export function SupplyManagement() {
 
             {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
             <Dialog open={showDeleteModal} onOpenChange={(open) => {
-                if (!open) { setShowDeleteModal(false); setDeletingSupply(null); }
+                if (!open) {
+                    setShowDeleteModal(false);
+                    setDeletingSupply(null);
+                    setDeleteCheck(null);
+                    setDeleteConfirmed(false);
+                }
             }}>
                 <DialogContent className="max-w-md p-0">
                     <div className="p-6">
@@ -894,32 +911,131 @@ export function SupplyManagement() {
                             </DialogTitle>
                             <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
                         </DialogHeader>
+
                         {deletingSupply && (
                             <div className="mt-4 space-y-3">
+                                {/* Tarjeta del insumo */}
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                     <p className="font-semibold text-blue-900">{deletingSupply.name}</p>
-                                    <p className="text-sm text-blue-700 mt-1">{deletingSupply.unit} · ${deletingSupply.price.toLocaleString()}</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        {deletingSupply.unit} · ${deletingSupply.price.toLocaleString()}
+                                    </p>
                                 </div>
-                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
-                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
-                                    <div className="text-sm">
-                                        <p className="font-semibold">¿Estás seguro?</p>
-                                        <p className="text-amber-700 mt-0.5">El insumo será eliminado permanentemente del sistema.</p>
+
+                                {/* Verificando dependencias */}
+                                {deleteCheck?.loading && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                        Verificando dependencias del insumo...
                                     </div>
-                                </div>
+                                )}
+
+                                {/* Bloqueado: hay dependencias */}
+                                {!deleteCheck?.loading && deleteCheck?.enUso && (
+                                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                        <div className="text-sm space-y-2">
+                                            <p className="font-semibold">No es posible eliminar este insumo</p>
+                                            <p className="text-amber-700">
+                                                Está siendo utilizado en otras partes del sistema. Retíralo primero de:
+                                            </p>
+                                            <ul className="space-y-1 text-amber-800">
+                                                {deleteCheck.compras.length > 0 && (
+                                                    <li className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <strong>{deleteCheck.compras.length}</strong>&nbsp;compra(s) registrada(s)
+                                                    </li>
+                                                )}
+                                                {deleteCheck.productos.length > 0 && (
+                                                    <li className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <strong>{deleteCheck.productos.length}</strong>&nbsp;producto(s) asociado(s)
+                                                        <span className="text-xs text-amber-600">
+                                                            ({deleteCheck.productos.slice(0, 2).map(p => p.nombreProducto).join(', ')}
+                                                            {deleteCheck.productos.length > 2 ? '...' : ''})
+                                                        </span>
+                                                    </li>
+                                                )}
+                                                {deleteCheck.fichasTecnicas.length > 0 && (
+                                                    <li className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                                        <strong>{deleteCheck.fichasTecnicas.length}</strong>&nbsp;ficha(s) técnica(s)
+                                                        <span className="text-xs text-amber-600">
+                                                            ({deleteCheck.fichasTecnicas.slice(0, 2).map(f => f.codigoFicha).join(', ')}
+                                                            {deleteCheck.fichasTecnicas.length > 2 ? '...' : ''})
+                                                        </span>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Libre: sin dependencias */}
+                                {!deleteCheck?.loading && deleteCheck && !deleteCheck.enUso && (
+                                    <>
+                                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+                                            <Info className="w-4 h-4 shrink-0 text-blue-500" />
+                                            <span>Este insumo no está en uso y puede eliminarse de forma segura.</span>
+                                        </div>
+                                        {!deleteConfirmed ? (
+                                            <p className="text-sm text-gray-600">
+                                                ¿Estás seguro de que deseas eliminarlo permanentemente?
+                                            </p>
+                                        ) : (
+                                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
+                                                <AlertTriangle className="w-4 h-4 shrink-0 text-blue-600" />
+                                                Confirma que entiendes que esta acción es irreversible.
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         )}
+
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button variant="outline"
-                                onClick={() => { setShowDeleteModal(false); setDeletingSupply(null); }}
-                                disabled={saving}>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setShowDeleteModal(false);
+                                    setDeletingSupply(null);
+                                    setDeleteCheck(null);
+                                    setDeleteConfirmed(false);
+                                }}
+                                disabled={saving}
+                            >
                                 Cancelar
                             </Button>
-                            <Button onClick={confirmDelete} disabled={saving}
-                                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900">
-                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                Sí, eliminar
-                            </Button>
+
+                            {/* Bloqueado: hay dependencias */}
+                            {!deleteCheck?.loading && deleteCheck?.enUso && (
+                                <Button disabled className="bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed">
+                                    No se puede eliminar
+                                </Button>
+                            )}
+
+                            {/* Libre: confirmación en 2 pasos */}
+                            {!deleteCheck?.loading && deleteCheck && !deleteCheck.enUso && (
+                                <>
+                                    {!deleteConfirmed ? (
+                                        <Button
+                                            onClick={() => setDeleteConfirmed(true)}
+                                            className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900"
+                                        >
+                                            Sí, eliminar
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={confirmDelete}
+                                            disabled={saving}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                                        >
+                                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                            Confirmar eliminación
+                                        </Button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </DialogContent>

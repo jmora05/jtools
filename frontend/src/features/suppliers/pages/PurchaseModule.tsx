@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import {
     Search, Plus, Edit, Eye, Trash2, ShoppingCart, ChevronLeft, ChevronRight,
     Loader2, Info, AlertTriangle, Lock, X, FileDown, PackageIcon, CalendarIcon,
-    TruckIcon, CheckCircleIcon, ClockIcon,
+    TruckIcon, CheckCircleIcon, ClockIcon, BanIcon,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -24,6 +24,16 @@ import {
     cambiarEstadoCompra, deleteCompra, getProveedores, getInsumos,
 } from '../../suppliers/services/comprasService';
 
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const FECHA_MIN_ISO  = '2000-01-01';
+const NOTAS_MAX      = 500;
+const PRECIO_MAX     = 999_999_999;
+const CANTIDAD_MAX   = 100_000;
+const FACTURA_MAX    = 2_147_483_647;
+const IVA_RATE       = 0.19;            // IVA Colombia 19 %
+const EDIT_LIMIT_DAYS = 5;              // días máximos para poder editar
+const FLUJO_ESTADO: Record<string, number> = { pendiente: 0, 'en transito': 1, completada: 2 };
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Proveedor {
     id: number; nombreEmpresa: string; personaContacto: string;
@@ -31,7 +41,7 @@ interface Proveedor {
 }
 interface Insumo {
     id: number; nombreInsumo: string; codigoInsumo?: string;
-    unidadMedida: string; precioUnitario?: number; stock?: number;
+    unidadMedida: string; precioUnitario?: number; cantidad?: number;
 }
 interface DetalleCompra {
     id?: number; insumosId: number; cantidad: number;
@@ -39,7 +49,7 @@ interface DetalleCompra {
 }
 interface Compra {
     id: number; proveedoresId: number; fecha: string;
-    metodoPago: string; estado: 'pendiente' | 'en transito' | 'completada';
+    metodoPago: string; estado: 'pendiente' | 'en transito' | 'completada' | 'anulada';
     proveedor?: Proveedor; detalles?: DetalleCompra[];
 }
 interface ItemCarrito {
@@ -63,13 +73,13 @@ interface CompraFormErrors {
 }
 interface CarritoItemError { precio?: string; cantidad?: string; }
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-const FECHA_MIN_ISO = '2000-01-01';
-const NOTAS_MAX     = 500;
-const PRECIO_MAX    = 999_999_999;
-const CANTIDAD_MAX  = 100_000;
-const FACTURA_MAX   = 2_147_483_647;
-const FLUJO_ESTADO: Record<string, number> = { pendiente: 0, 'en transito': 1, completada: 2 };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+/** Devuelve true si la fecha de la compra está dentro del límite de edición */
+const isEditableByDate = (fecha: string): boolean => {
+    const purchaseDate = new Date(fecha.split('T')[0] + 'T12:00:00');
+    const diffDays = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+    return diffDays <= EDIT_LIMIT_DAYS;
+};
 
 // ─── Validación ───────────────────────────────────────────────────────────────
 function validateCompraForm(form: CompraFormData): CompraFormErrors {
@@ -81,15 +91,11 @@ function validateCompraForm(form: CompraFormData): CompraFormErrors {
     if (!form.fecha || form.fecha.trim() === '') {
         errors.fecha = 'La fecha es obligatoria.';
     } else {
-        const d    = new Date(form.fecha);
-        const hoy  = new Date();
-        hoy.setHours(23, 59, 59, 999);
-        if (isNaN(d.getTime()))
-            errors.fecha = 'Fecha inválida.';
-        else if (d < new Date(FECHA_MIN_ISO))
-            errors.fecha = 'La fecha no puede ser anterior al año 2000.';
-        else if (d > hoy)
-            errors.fecha = 'La fecha no puede ser una fecha futura.';
+        const d   = new Date(form.fecha);
+        const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
+        if (isNaN(d.getTime()))        errors.fecha = 'Fecha inválida.';
+        else if (d < new Date(FECHA_MIN_ISO)) errors.fecha = 'La fecha no puede ser anterior al año 2000.';
+        else if (d > hoy)              errors.fecha = 'La fecha no puede ser una fecha futura.';
     }
 
     if (!form.metodoPago || form.metodoPago.trim() === '')
@@ -165,9 +171,10 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
 
 const EstadoBadge = ({ estado }: { estado: string }) => {
     const config: Record<string, { icon: React.ReactNode; clase: string }> = {
-        pendiente:      { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-amber-50 text-amber-700 border border-amber-200' },
-        'en transito':  { icon: <TruckIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
-        completada:     { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-green-50 text-green-700 border border-green-200' },
+        pendiente:     { icon: <ClockIcon className="w-3 h-3 mr-1" />,        clase: 'bg-amber-50 text-amber-700 border border-amber-200' },
+        'en transito': { icon: <TruckIcon className="w-3 h-3 mr-1" />,        clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
+        completada:    { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />,  clase: 'bg-green-50 text-green-700 border border-green-200' },
+        anulada:       { icon: <BanIcon className="w-3 h-3 mr-1" />,          clase: 'bg-red-50 text-red-600 border border-red-200' },
     };
     const { icon, clase } = config[estado] ?? { icon: null, clase: 'bg-gray-100 text-gray-600' };
     return (
@@ -179,8 +186,8 @@ const EstadoBadge = ({ estado }: { estado: string }) => {
 
 // ─── Generación de PDF ────────────────────────────────────────────────────────
 function generarPDFCompra(compra: Compra): void {
-    const doc   = new jsPDF();
-    const pageW = doc.internal.pageSize.getWidth();
+    const doc    = new jsPDF();
+    const pageW  = doc.internal.pageSize.getWidth();
     const margin = 14;
 
     const azulOscuro: [number, number, number] = [30,  58, 138];
@@ -189,66 +196,64 @@ function generarPDFCompra(compra: Compra): void {
     const grisTexto:  [number, number, number] = [55,  65,  81];
     const grisClaro:  [number, number, number] = [243, 244, 246];
 
+    // Cabecera
     doc.setFillColor(...azulOscuro);
     doc.rect(0, 0, pageW, 38, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20); doc.setFont('helvetica', 'bold');
     doc.text('COMPRA DE INSUMOS', margin, 18);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
     doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin, 28);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
     doc.text(`# ${compra.id}`, pageW - margin, 20, { align: 'right' });
 
     const estadoConfig: Record<string, { color: [number, number, number]; label: string }> = {
-        pendiente:     { color: [217, 119, 6],  label: 'Pendiente'   },
-        'en transito': { color: [37,  99, 235], label: 'En tránsito' },
-        completada:    { color: [16,  185, 129], label: 'Completada' },
+        pendiente:     { color: [217, 119, 6],   label: 'Pendiente'   },
+        'en transito': { color: [37,  99,  235],  label: 'En tránsito' },
+        completada:    { color: [16,  185, 129],  label: 'Completada'  },
+        anulada:       { color: [220, 38,  38],   label: 'Anulada'     },
     };
     const ec = estadoConfig[compra.estado] ?? { color: [107, 114, 128] as [number, number, number], label: compra.estado };
     doc.setFillColor(...ec.color);
     doc.roundedRect(pageW - margin - 42, 24, 42, 10, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
     doc.text(ec.label, pageW - margin - 21, 30.5, { align: 'center' });
 
+    // Bloque de datos generales
     let y = 50;
     doc.setFillColor(...azulClaro);
     doc.roundedRect(margin, y, pageW - margin * 2, 38, 3, 3, 'F');
     doc.setTextColor(...grisTexto);
-    doc.setFontSize(8);
     const col1x = margin + 4;
     const col2x = pageW / 2 + 4;
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
     doc.text('PROVEEDOR', col1x, y + 8);
     doc.text('FECHA', col2x, y + 8);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.text(compra.proveedor?.nombreEmpresa ?? `ID #${compra.proveedoresId}`, col1x, y + 15);
-    doc.text(new Date(compra.fecha).toLocaleDateString('es-CO'), col2x, y + 15);
+    doc.text(new Date(compra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO'), col2x, y + 15);
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
     doc.text('CONTACTO', col1x, y + 23);
     doc.text('MÉTODO DE PAGO', col2x, y + 23);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     const contacto = [compra.proveedor?.personaContacto, compra.proveedor?.telefono].filter(Boolean).join(' · ') || '—';
     doc.text(contacto, col1x, y + 30);
     doc.text((compra.metodoPago ?? '').charAt(0).toUpperCase() + (compra.metodoPago ?? '').slice(1), col2x, y + 30);
 
+    // Tabla de detalles
     y += 48;
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
     doc.setTextColor(...azulOscuro);
     doc.text('Detalle de Insumos', margin, y);
     y += 4;
 
     if (compra.detalles && compra.detalles.length > 0) {
+        const subtotal = compra.detalles.reduce((sum, d) => sum + d.cantidad * d.precioUnitario, 0);
+        const iva      = subtotal * IVA_RATE;
+        const total    = subtotal + iva;
+
         const rows = compra.detalles.map((d, idx) => [
             (idx + 1).toString(),
             d.insumo?.nombreInsumo ?? `ID #${d.insumosId}`,
@@ -257,17 +262,20 @@ function generarPDFCompra(compra: Compra): void {
             `$${Number(d.precioUnitario).toLocaleString('es-CO')}`,
             `$${(d.cantidad * d.precioUnitario).toLocaleString('es-CO')}`,
         ]);
-        const total = compra.detalles.reduce((sum, d) => sum + d.cantidad * d.precioUnitario, 0);
 
         (doc as any).autoTable({
             startY: y,
-            head: [['#', 'Insumo', 'Unidad', 'Cant.', 'Precio Unit.', 'Subtotal']],
-            body: rows,
-            foot: [['', '', '', '', 'TOTAL', `$${total.toLocaleString('es-CO')}`]],
+            head:   [['#', 'Insumo', 'Unidad', 'Cant.', 'Precio Unit.', 'Subtotal']],
+            body:   rows,
+            foot:   [
+                ['', '', '', '', 'Subtotal',   `$${subtotal.toLocaleString('es-CO')}`],
+                ['', '', '', '', `IVA (${IVA_RATE * 100}%)`, `$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+                ['', '', '', '', 'TOTAL',      `$${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+            ],
             margin: { left: margin, right: margin },
-            styles:        { fontSize: 9, cellPadding: 4, textColor: grisTexto },
-            headStyles:    { fillColor: azulOscuro, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-            footStyles:    { fillColor: azulMedio, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
+            styles:            { fontSize: 9, cellPadding: 4, textColor: grisTexto },
+            headStyles:        { fillColor: azulOscuro, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+            footStyles:        { fillColor: azulMedio,  textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
             alternateRowStyles: { fillColor: grisClaro },
             columnStyles: {
                 0: { cellWidth: 10, halign: 'center' },
@@ -277,18 +285,16 @@ function generarPDFCompra(compra: Compra): void {
             },
         });
     } else {
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
         doc.setTextColor(150, 150, 150);
         doc.text('Sin detalles registrados.', margin, y + 8);
     }
 
+    // Pie de página
     const pageH = doc.internal.pageSize.getHeight();
     doc.setFillColor(...azulOscuro);
     doc.rect(0, pageH - 14, pageW, 14, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
     doc.text('Documento generado automáticamente — Sistema de Compras', pageW / 2, pageH - 5, { align: 'center' });
 
     doc.save(`compra_${compra.id}.pdf`);
@@ -338,7 +344,7 @@ const CompraFormSection = ({
             {/* N° Factura + Fecha */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm text-gray-700 mb-2">N° Factura (opcional)</label>
+                    <label className="block text-sm text-gray-700 mb-2">N° Factura</label>
                     <Input
                         type="number"
                         placeholder="Ej: 1001"
@@ -375,46 +381,24 @@ const CompraFormSection = ({
                 </div>
             </div>
 
-            {/* Método de pago + Estado */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm text-gray-700 mb-2">
-                        Método de pago <span className="text-red-500">*</span>
-                    </label>
-                    <Select
-                        value={formData.metodoPago}
-                        onValueChange={(v) => { onChange('metodoPago', v); onBlur('metodoPago'); }}
-                    >
-                        <SelectTrigger className={touched.metodoPago && errors.metodoPago ? 'border-red-400 focus-visible:ring-red-300' : ''}>
-                            <SelectValue placeholder="Seleccionar..." />
-                        </SelectTrigger>
-                        <SelectContent position="popper" className="z-[9999]">
-                            <SelectItem value="efectivo">Efectivo</SelectItem>
-                            <SelectItem value="transferencia">Transferencia</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <FieldError message={touched.metodoPago ? errors.metodoPago : undefined} />
-                </div>
-                <div>
-                    <label className="block text-sm text-gray-700 mb-2">Estado</label>
-                    <Select
-                        value={formData.estado}
-                        onValueChange={(v) => onChange('estado', v)}
-                        disabled={isEditing}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent position="popper" className="z-[9999]">
-                            <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en transito">En tránsito</SelectItem>
-                            <SelectItem value="completada">Completada</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {isEditing && (
-                        <p className="text-xs text-gray-400 mt-1">Avanza el estado desde la tabla principal.</p>
-                    )}
-                </div>
+            {/* Método de pago — el estado se elimina del formulario: siempre inicia como 'pendiente' */}
+            <div>
+                <label className="block text-sm text-gray-700 mb-2">
+                    Método de pago <span className="text-red-500">*</span>
+                </label>
+                <Select
+                    value={formData.metodoPago}
+                    onValueChange={(v) => { onChange('metodoPago', v); onBlur('metodoPago'); }}
+                >
+                    <SelectTrigger className={touched.metodoPago && errors.metodoPago ? 'border-red-400 focus-visible:ring-red-300' : ''}>
+                        <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent position="popper" className="z-[9999]">
+                        <SelectItem value="efectivo">Efectivo</SelectItem>
+                        <SelectItem value="transferencia">Transferencia</SelectItem>
+                    </SelectContent>
+                </Select>
+                <FieldError message={touched.metodoPago ? errors.metodoPago : undefined} />
             </div>
 
             {/* Notas */}
@@ -456,36 +440,37 @@ export function PurchaseModule() {
 
     const [showModal, setShowModal]             = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
-    const [showCancelModal, setShowCancelModal] = useState(false);
-    const [cancelConfirmed, setCancelConfirmed] = useState(false);
+    const [showAnularModal, setShowAnularModal] = useState(false);
+    const [anularConfirmed, setAnularConfirmed] = useState(false);
 
-    const [editingCompra, setEditingCompra]     = useState<Compra | null>(null);
-    const [viewingCompra, setViewingCompra]     = useState<Compra | null>(null);
-    const [cancelingCompra, setCancelingCompra] = useState<Compra | null>(null);
-    const [loadingDetail, setLoadingDetail]     = useState(false);
+    const [editingCompra, setEditingCompra]   = useState<Compra | null>(null);
+    const [viewingCompra, setViewingCompra]   = useState<Compra | null>(null);
+    const [anulatingCompra, setAnulatingCompra] = useState<Compra | null>(null);
+    const [loadingDetail, setLoadingDetail]   = useState(false);
 
-    const [blockedAlertId, setBlockedAlertId] = useState<number | null>(null);
+    const [blockedAlertId, setBlockedAlertId]     = useState<number | null>(null);
+    const [blockedAlertMsg, setBlockedAlertMsg]   = useState('');
 
-    // ── Estado del carrito ────────────────────────────────────────────────────
-    const [supplySearch, setSupplySearch]   = useState('');
-    const [carrito, setCarrito]             = useState<ItemCarrito[]>([]);
-    const [carritoErrors, setCarritoErrors] = useState<Record<number, CarritoItemError>>({});
+    // ── Estado del carrito ─────────────────────────────────────────────────
+    const [supplySearch, setSupplySearch]       = useState('');
+    const [carrito, setCarrito]                 = useState<ItemCarrito[]>([]);
+    const [carritoErrors, setCarritoErrors]     = useState<Record<number, CarritoItemError>>({});
     const [submitAttempted, setSubmitAttempted] = useState(false);
 
-    // ── Estado del formulario ─────────────────────────────────────────────────
+    // ── Estado del formulario ──────────────────────────────────────────────
     const emptyForm: CompraFormData = {
         proveedoresId: '',
-        fecha: new Date().toISOString().split('T')[0],
-        metodoPago: 'efectivo',
-        estado: 'pendiente',
-        notas: '',
+        fecha:         new Date().toISOString().split('T')[0],
+        metodoPago:    'efectivo',
+        estado:        'pendiente',   // siempre pendiente en creación
+        notas:         '',
         numeroFactura: '',
     };
     const [formData, setFormData]     = useState<CompraFormData>(emptyForm);
     const [formErrors, setFormErrors] = useState<CompraFormErrors>({});
     const [touched, setTouched]       = useState<Partial<Record<keyof CompraFormData, boolean>>>({});
 
-    // ── Carga de datos ────────────────────────────────────────────────────────
+    // ── Carga de datos ─────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -506,7 +491,7 @@ export function PurchaseModule() {
     useEffect(() => { setFormErrors(validateCompraForm(formData)); }, [formData]);
     useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
 
-    // ── Filtrado y paginación ─────────────────────────────────────────────────
+    // ── Filtrado y paginación ──────────────────────────────────────────────
     const filteredCompras = compras.filter((c) => {
         const term = searchTerm.toLowerCase();
         const matchesSearch =
@@ -524,7 +509,7 @@ export function PurchaseModule() {
         (i.codigoInsumo ?? '').toLowerCase().includes(supplySearch.toLowerCase())
     );
 
-    // ── Operaciones del carrito ───────────────────────────────────────────────
+    // ── Operaciones del carrito ────────────────────────────────────────────
     const agregarInsumo = (insumo: Insumo) => {
         setCarrito((prev) => {
             const existe = prev.find((i) => i.insumoId === insumo.id);
@@ -562,10 +547,13 @@ export function PurchaseModule() {
         setCarritoErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
     };
 
-    const totalCarrito = carrito.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
+    // IVA 19 % aplicado sobre el subtotal del carrito
+    const subtotalCarrito = carrito.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
+    const ivaCarrito      = subtotalCarrito * IVA_RATE;
+    const totalCarrito    = subtotalCarrito + ivaCarrito;
     const carritoTieneErrores = Object.keys(carritoErrors).length > 0;
 
-    // ── Formulario ────────────────────────────────────────────────────────────
+    // ── Formulario ─────────────────────────────────────────────────────────
     const resetForm = () => {
         setFormData(emptyForm);
         setFormErrors({});
@@ -588,7 +576,7 @@ export function PurchaseModule() {
         proveedoresId: true, fecha: true, metodoPago: true, notas: true, numeroFactura: true,
     });
 
-    // ── Crear / Editar ────────────────────────────────────────────────────────
+    // ── Crear / Editar ─────────────────────────────────────────────────────
     const handleSave = async () => {
         setSubmitAttempted(true);
         touchAll();
@@ -632,32 +620,39 @@ export function PurchaseModule() {
                 });
                 toast.success('Compra actualizada exitosamente.');
             } else {
+                // Las compras nuevas SIEMPRE inician como 'pendiente'
                 await createCompra({
                     ...(formData.numeroFactura.trim() ? { id: parseInt(formData.numeroFactura) } : {}),
                     proveedoresId: parseInt(formData.proveedoresId),
                     fecha:         formData.fecha,
                     metodoPago:    formData.metodoPago as 'efectivo' | 'transferencia',
-                    estado:        formData.estado as 'pendiente' | 'en transito' | 'completada',
+                    estado:        'pendiente',
                     detalles,
                 });
                 toast.success('Compra registrada exitosamente.');
+                // El stock lo actualiza el backend cuando el estado llega a 'completada'
             }
             resetForm();
             fetchData();
         } catch (error: any) {
-            const msg = error.message ?? 'Error desconocido';
-            if (msg.toLowerCase().includes('factura'))
-                toast.error(`N° Factura: ${msg}`);
-            else if (msg.toLowerCase().includes('proveedor'))
-                toast.error(`Proveedor: ${msg}`);
-            else
-                toast.error(`Error al guardar: ${msg}`);
+            const errores: any[] = Array.isArray(error.errores) ? error.errores : [];
+            const facturaErr = errores.find((e) =>
+                (typeof e === 'string' ? e : (e?.mensaje ?? '')).toLowerCase().includes('factura')
+            );
+            if (facturaErr) {
+                toast.error(typeof facturaErr === 'string' ? facturaErr : facturaErr.mensaje);
+                return;
+            }
+            const msg: string = typeof error.message === 'string' ? error.message : 'Error desconocido';
+            if (msg.toLowerCase().includes('factura'))        toast.error(msg);
+            else if (msg.toLowerCase().includes('proveedor')) toast.error(`Proveedor: ${msg}`);
+            else                                               toast.error(`Error al guardar: ${msg}`);
         } finally {
             setSaving(false);
         }
     };
 
-    // ── Ver detalle ───────────────────────────────────────────────────────────
+    // ── Ver detalle ────────────────────────────────────────────────────────
     const openViewDialog = async (compra: Compra) => {
         setShowDetailModal(true);
         setViewingCompra(null);
@@ -672,8 +667,17 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Abrir edición ─────────────────────────────────────────────────────────
+    // ── Abrir edición ──────────────────────────────────────────────────────
     const openEditDialog = async (compra: Compra) => {
+        // Verificar límite de 5 días
+        if (!isEditableByDate(compra.fecha)) {
+            setBlockedAlertId(compra.id);
+            setBlockedAlertMsg(
+                `Esta compra no puede editarse: han pasado más de ${EDIT_LIMIT_DAYS} días desde su fecha de registro.`
+            );
+            return;
+        }
+
         setLoadingDetail(true);
         try {
             const detail = await getCompraById(compra.id);
@@ -686,17 +690,15 @@ export function PurchaseModule() {
                 notas:         '',
                 numeroFactura: detail.id.toString(),
             });
-            if (detail.detalles && detail.detalles.length > 0) {
-                setCarrito(detail.detalles.map((d: DetalleCompra) => ({
+            setCarrito(
+                (detail.detalles ?? []).map((d: DetalleCompra) => ({
                     insumoId: d.insumosId,
                     nombre:   d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`,
                     unidad:   d.insumo?.unidadMedida ?? '',
                     precio:   Number(d.precioUnitario),
                     cantidad: d.cantidad,
-                })));
-            } else {
-                setCarrito([]);
-            }
+                }))
+            );
             setFormErrors({});
             setTouched({});
             setCarritoErrors({});
@@ -709,51 +711,63 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Cancelar compra ───────────────────────────────────────────────────────
-    const openCancelDialog = (compra: Compra) => {
-        setCancelingCompra(compra);
-        setCancelConfirmed(false);
-        setShowCancelModal(true);
+    // ── Anular compra ──────────────────────────────────────────────────────
+    const openAnularDialog = (compra: Compra) => {
+        setAnulatingCompra(compra);
+        setAnularConfirmed(false);
+        setShowAnularModal(true);
     };
 
-    const confirmCancel = async () => {
-        if (!cancelingCompra) return;
+    const confirmAnular = async () => {
+        if (!anulatingCompra) return;
         try {
             setSaving(true);
-            await deleteCompra(cancelingCompra.id);
-            toast.success('Compra cancelada exitosamente.');
-            setShowCancelModal(false);
-            setCancelingCompra(null);
-            setCancelConfirmed(false);
+            await deleteCompra(anulatingCompra.id);
+            toast.success('Compra anulada exitosamente.');
+            setShowAnularModal(false);
+            setAnulatingCompra(null);
+            setAnularConfirmed(false);
             fetchData();
         } catch (error: any) {
-            toast.error(`Error al cancelar: ${error.message}`);
+            const errores: any[] = Array.isArray(error.errores) ? error.errores : [];
+            if (errores.length > 0) { toast.error(errores[0].mensaje); return; }
+            toast.error(typeof error.message === 'string' ? error.message : 'Error al anular');
         } finally {
             setSaving(false);
         }
     };
 
-    // ── Avanzar estado ────────────────────────────────────────────────────────
+    // ── Avanzar estado (el backend actualiza el stock al completar) ────────
     const handleAvanzarEstado = async (compra: Compra) => {
         const idxActual = FLUJO_ESTADO[compra.estado] ?? -1;
-        if (idxActual >= 2) return;
+        if (idxActual < 0 || idxActual >= 2) return;
         const nuevoEstado = Object.keys(FLUJO_ESTADO).find((k) => FLUJO_ESTADO[k] === idxActual + 1)!;
+
+        // Actualización optimista
         setCompras((prev) => prev.map((c) =>
             c.id === compra.id ? { ...c, estado: nuevoEstado as Compra['estado'] } : c
         ));
         setTogglingIds((prev) => new Set(prev).add(compra.id));
+
         try {
             await cambiarEstadoCompra(compra.id, nuevoEstado);
-            toast.success(`Estado actualizado a "${nuevoEstado}".`);
+            if (nuevoEstado === 'completada') {
+                toast.success(`Compra #${compra.id} completada. Stock de insumos actualizado.`);
+                await fetchData(); // refrescar para mostrar stock actualizado
+            } else {
+                toast.success(`Estado actualizado a "${nuevoEstado}".`);
+            }
         } catch (error: any) {
-            setCompras((prev) => prev.map((c) => c.id === compra.id ? { ...c, estado: compra.estado } : c));
+            setCompras((prev) => prev.map((c) =>
+                c.id === compra.id ? { ...c, estado: compra.estado } : c
+            ));
             toast.error(`Error al cambiar estado: ${error.message}`);
         } finally {
             setTogglingIds((prev) => { const n = new Set(prev); n.delete(compra.id); return n; });
         }
     };
 
-    // ── PDF ───────────────────────────────────────────────────────────────────
+    // ── PDF ────────────────────────────────────────────────────────────────
     const handleDescargarPDF = () => {
         if (!viewingCompra) return;
         try {
@@ -764,8 +778,10 @@ export function PurchaseModule() {
         }
     };
 
-    const handleBlockedClick = (compraId: number) =>
+    const handleBlockedClick = (compraId: number, msg: string) => {
         setBlockedAlertId((prev) => prev === compraId ? null : compraId);
+        setBlockedAlertMsg(msg);
+    };
 
     const totalFormErrors = Object.keys(formErrors).length;
 
@@ -819,6 +835,7 @@ export function PurchaseModule() {
                             <option value="pendiente">Pendiente</option>
                             <option value="en transito">En tránsito</option>
                             <option value="completada">Completada</option>
+                            <option value="anulada">Anulada</option>
                         </select>
                     </div>
                 </CardContent>
@@ -837,11 +854,11 @@ export function PurchaseModule() {
                             <table className="w-full">
                                 <thead className="bg-blue-900">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">N° Factura</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Fecha</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Insumos</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Total</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Total (c/IVA)</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                                     </tr>
@@ -849,17 +866,26 @@ export function PurchaseModule() {
                                 <tbody>
                                     {currentItems.map((compra) => {
                                         const isPending  = compra.estado === 'pendiente';
+                                        const isAnulada  = compra.estado === 'anulada';
                                         const isComplete = compra.estado === 'completada';
                                         const isToggling = togglingIds.has(compra.id);
-                                        const total      = compra.detalles?.reduce(
+                                        const canEdit    = isPending && isEditableByDate(compra.fecha);
+
+                                        const subtotal = compra.detalles?.reduce(
                                             (sum, d) => sum + d.cantidad * Number(d.precioUnitario), 0
                                         ) ?? 0;
+                                        const totalConIva = subtotal * (1 + IVA_RATE);
+
                                         return (
                                             <React.Fragment key={compra.id}>
-                                                <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                                                <tr className={`border-b border-blue-100 transition-colors ${
+                                                    isAnulada ? 'bg-gray-50 opacity-60' : 'hover:bg-blue-50'
+                                                }`}>
                                                     {/* ID */}
                                                     <td className="py-4 px-6">
-                                                        <span className="font-mono text-gray-500 text-sm">#{compra.id}</span>
+                                                        <span className={`font-mono text-sm ${isAnulada ? 'line-through text-gray-400' : 'text-gray-500'}`}>
+                                                            #{compra.id}
+                                                        </span>
                                                     </td>
                                                     {/* Proveedor */}
                                                     <td className="py-4 px-6">
@@ -873,7 +899,7 @@ export function PurchaseModule() {
                                                     {/* Fecha */}
                                                     <td className="py-4 px-6">
                                                         <span className="text-gray-600 text-sm">
-                                                            {new Date(compra.fecha).toLocaleDateString('es-CO')}
+                                                            {new Date(compra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO')}
                                                         </span>
                                                     </td>
                                                     {/* Insumos */}
@@ -885,26 +911,25 @@ export function PurchaseModule() {
                                                             }
                                                         </span>
                                                     </td>
-                                                    {/* Total */}
+                                                    {/* Total con IVA */}
                                                     <td className="py-4 px-6">
                                                         <span className="font-semibold text-blue-900 text-sm">
-                                                            {total > 0 ? `$${total.toLocaleString('es-CO')}` : '—'}
+                                                            {totalConIva > 0
+                                                                ? `$${totalConIva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+                                                                : '—'}
                                                         </span>
                                                     </td>
                                                     {/* Estado */}
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col gap-1">
                                                             <EstadoBadge estado={compra.estado} />
-                                                            {!isComplete && (
+                                                            {!isComplete && !isAnulada && (
                                                                 <button
                                                                     onClick={() => handleAvanzarEstado(compra)}
                                                                     disabled={isToggling}
                                                                     className="text-xs text-blue-600 hover:underline text-left flex items-center gap-1 disabled:opacity-50"
                                                                 >
-                                                                    {isToggling
-                                                                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                                                                        : null
-                                                                    }
+                                                                    {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
                                                                     → Avanzar estado
                                                                 </button>
                                                             )}
@@ -921,29 +946,47 @@ export function PurchaseModule() {
                                                             >
                                                                 <Eye className="w-4 h-4" />
                                                             </Button>
-                                                            {/* EDITAR — solo pendiente */}
+                                                            {/* EDITAR — solo pendiente + dentro de 5 días */}
                                                             <Button
                                                                 size="sm"
-                                                                onClick={() => isPending ? openEditDialog(compra) : handleBlockedClick(compra.id)}
-                                                                className={`border ${
-                                                                    isPending
-                                                                        ? 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                        : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                onClick={() => {
+                                                                    if (canEdit) {
+                                                                        openEditDialog(compra);
+                                                                    } else {
+                                                                        const msg = !isPending
+                                                                            ? `Solo se pueden editar compras en estado "pendiente".`
+                                                                            : `Solo se pueden editar compras con menos de ${EDIT_LIMIT_DAYS} días desde su fecha.`;
+                                                                        handleBlockedClick(compra.id, msg);
+                                                                    }
+                                                                }}
+                                                                className={`border ${canEdit
+                                                                    ? 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                    : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
                                                                 }`}
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
-                                                            {/* CANCELAR — solo pendiente */}
+                                                            {/* ANULAR — solo pendiente */}
                                                             <Button
                                                                 size="sm"
-                                                                onClick={() => isPending ? openCancelDialog(compra) : handleBlockedClick(compra.id)}
-                                                                className={`border ${
-                                                                    isPending
-                                                                        ? 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                        : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                onClick={() => {
+                                                                    if (isPending) {
+                                                                        openAnularDialog(compra);
+                                                                    } else {
+                                                                        handleBlockedClick(
+                                                                            compra.id,
+                                                                            isAnulada
+                                                                                ? 'Esta compra ya fue anulada.'
+                                                                                : `Solo se pueden anular compras en estado "pendiente". Esta compra está en estado "${compra.estado}".`
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className={`border ${isPending
+                                                                    ? 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                    : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
                                                                 }`}
                                                             >
-                                                                <Trash2 className="w-4 h-4" />
+                                                                <BanIcon className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     </td>
@@ -954,7 +997,7 @@ export function PurchaseModule() {
                                                     <tr>
                                                         <td colSpan={7} className="px-6 pb-3 pt-0">
                                                             <BlockedAlert
-                                                                message={`Compra bloqueada: Solo se pueden editar o cancelar compras en estado "pendiente". Esta compra está en estado "${compra.estado}".`}
+                                                                message={blockedAlertMsg}
                                                                 onClose={() => setBlockedAlertId(null)}
                                                             />
                                                         </td>
@@ -1016,8 +1059,8 @@ export function PurchaseModule() {
                             </DialogTitle>
                             <DialogDescription>
                                 {editingCompra
-                                    ? 'Modifica los datos de la compra. Solo se pueden editar compras pendientes.'
-                                    : 'Registra una nueva adquisición de insumos para el taller.'}
+                                    ? 'Modifica los datos de la compra. Solo se pueden editar compras pendientes dentro de los primeros 5 días.'
+                                    : 'Registra una nueva adquisición de insumos. La compra iniciará en estado Pendiente.'}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1120,9 +1163,7 @@ export function PurchaseModule() {
                                         <h3 className="font-semibold text-blue-900">Carrito de compra</h3>
                                     </div>
                                     {carrito.length > 0 && (
-                                        <Badge className="bg-blue-600 text-white">
-                                            {carrito.length} ítem(s)
-                                        </Badge>
+                                        <Badge className="bg-blue-600 text-white">{carrito.length} ítem(s)</Badge>
                                     )}
                                 </div>
 
@@ -1174,15 +1215,13 @@ export function PurchaseModule() {
                                                                             onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
                                                                             onKeyDown={blockNonNumeric}
                                                                             placeholder="Precio"
-                                                                            min="0.01"
-                                                                            max={PRECIO_MAX}
-                                                                            step="0.01"
+                                                                            min="0.01" max={PRECIO_MAX} step="0.01"
                                                                             className={`w-24 h-7 text-xs text-right ${itemErr?.precio ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
                                                                         />
                                                                     </div>
                                                                     <FieldError message={itemErr?.precio} />
                                                                 </div>
-                                                                {/* Subtotal */}
+                                                                {/* Subtotal ítem */}
                                                                 {item.precio > 0 && !itemErr && (
                                                                     <span className="text-xs font-semibold text-blue-600 w-20 text-right">
                                                                         ${(item.precio * item.cantidad).toLocaleString('es-CO')}
@@ -1202,12 +1241,24 @@ export function PurchaseModule() {
                                                 );
                                             })}
                                         </div>
-                                        {totalCarrito > 0 && !carritoTieneErrores && (
-                                            <div className="bg-blue-900 px-4 py-3 flex justify-between items-center">
-                                                <span className="text-white font-semibold">Total estimado</span>
-                                                <span className="text-white font-bold text-lg">
-                                                    ${totalCarrito.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                                                </span>
+
+                                        {/* Totales con IVA */}
+                                        {subtotalCarrito > 0 && !carritoTieneErrores && (
+                                            <div className="border-t border-blue-100 bg-blue-50 px-4 py-2 space-y-1 text-sm">
+                                                <div className="flex justify-between text-gray-600">
+                                                    <span>Subtotal</span>
+                                                    <span>${subtotalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</span>
+                                                </div>
+                                                <div className="flex justify-between text-gray-600">
+                                                    <span>IVA (19%)</span>
+                                                    <span>${ivaCarrito.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center bg-blue-900 rounded-md px-3 py-2 mt-1">
+                                                    <span className="text-white font-semibold">Total con IVA</span>
+                                                    <span className="text-white font-bold text-base">
+                                                        ${totalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1262,7 +1313,7 @@ export function PurchaseModule() {
                                     <div>
                                         <p className="text-xs text-gray-500 uppercase">Fecha</p>
                                         <p className="font-semibold">
-                                            {new Date(viewingCompra.fecha).toLocaleDateString('es-CO')}
+                                            {new Date(viewingCompra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO')}
                                         </p>
                                     </div>
                                     <div>
@@ -1276,39 +1327,53 @@ export function PurchaseModule() {
                                     </div>
                                 </div>
 
-                                {viewingCompra.detalles && viewingCompra.detalles.length > 0 ? (
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-700 mb-2">
-                                            Insumos adquiridos ({viewingCompra.detalles.length})
-                                        </p>
-                                        <div className="divide-y rounded-lg border overflow-hidden">
-                                            {viewingCompra.detalles.map((d, i) => (
-                                                <div key={i} className="flex justify-between items-center px-4 py-3 bg-white hover:bg-blue-50">
-                                                    <div>
-                                                        <p className="font-medium text-gray-900">{d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}</p>
-                                                        <p className="text-xs text-gray-500">{d.insumo?.unidadMedida}</p>
+                                {viewingCompra.detalles && viewingCompra.detalles.length > 0 ? (() => {
+                                    const sub   = viewingCompra.detalles.reduce((s, d) => s + d.cantidad * Number(d.precioUnitario), 0);
+                                    const iva   = sub * IVA_RATE;
+                                    const total = sub + iva;
+                                    return (
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-700 mb-2">
+                                                Insumos adquiridos ({viewingCompra.detalles.length})
+                                            </p>
+                                            <div className="divide-y rounded-lg border overflow-hidden">
+                                                {viewingCompra.detalles.map((d, i) => (
+                                                    <div key={i} className="flex justify-between items-center px-4 py-3 bg-white hover:bg-blue-50">
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">{d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}</p>
+                                                            <p className="text-xs text-gray-500">{d.insumo?.unidadMedida}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-semibold text-blue-900">
+                                                                {d.cantidad} × ${Number(d.precioUnitario).toLocaleString('es-CO')}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                = ${(d.cantidad * Number(d.precioUnitario)).toLocaleString('es-CO')}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-sm font-semibold text-blue-900">
-                                                            {d.cantidad} × ${Number(d.precioUnitario).toLocaleString('es-CO')}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            = ${(d.cantidad * Number(d.precioUnitario)).toLocaleString('es-CO')}
-                                                        </p>
-                                                    </div>
+                                                ))}
+                                            </div>
+                                            {/* Resumen IVA en detalle */}
+                                            <div className="border border-t-0 rounded-b-lg overflow-hidden">
+                                                <div className="bg-blue-50 px-4 py-2 flex justify-between text-sm text-gray-600">
+                                                    <span>Subtotal</span>
+                                                    <span>${sub.toLocaleString('es-CO')}</span>
                                                 </div>
-                                            ))}
+                                                <div className="bg-blue-50 px-4 py-2 flex justify-between text-sm text-gray-600 border-t border-blue-100">
+                                                    <span>IVA (19%)</span>
+                                                    <span>${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+                                                </div>
+                                                <div className="bg-blue-900 px-4 py-3 flex justify-between items-center">
+                                                    <span className="text-white font-semibold text-sm">Total con IVA</span>
+                                                    <span className="text-white font-bold">
+                                                        ${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="bg-blue-900 rounded-b-lg px-4 py-3 flex justify-between items-center">
-                                            <span className="text-white font-semibold text-sm">Total</span>
-                                            <span className="text-white font-bold">
-                                                ${viewingCompra.detalles.reduce(
-                                                    (sum, d) => sum + d.cantidad * Number(d.precioUnitario), 0
-                                                ).toLocaleString('es-CO')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
+                                    );
+                                })() : (
                                     <p className="text-sm text-gray-400 italic">Sin insumos registrados para esta compra.</p>
                                 )}
 
@@ -1327,34 +1392,36 @@ export function PurchaseModule() {
                 </DialogContent>
             </Dialog>
 
-            {/* ════ MODAL — CANCELAR COMPRA ════ */}
-            <Dialog open={showCancelModal} onOpenChange={(open) => {
-                if (!open) { setShowCancelModal(false); setCancelingCompra(null); setCancelConfirmed(false); }
+            {/* ════ MODAL — ANULAR COMPRA ════ */}
+            <Dialog open={showAnularModal} onOpenChange={(open) => {
+                if (!open) { setShowAnularModal(false); setAnulatingCompra(null); setAnularConfirmed(false); }
             }}>
                 <DialogContent className="max-w-md p-0">
                     <div className="p-6">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2 text-blue-900">
-                                <Trash2 className="w-5 h-5" />Cancelar compra
+                                <BanIcon className="w-5 h-5" />Anular compra
                             </DialogTitle>
-                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
+                            <DialogDescription>
+                                La compra pasará a estado "anulada". Esta acción no se puede deshacer.
+                            </DialogDescription>
                         </DialogHeader>
 
-                        {cancelingCompra && (
+                        {anulatingCompra && (
                             <div className="mt-4 space-y-3">
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <p className="font-mono font-semibold text-blue-900">#{cancelingCompra.id}</p>
+                                    <p className="font-mono font-semibold text-blue-900">#{anulatingCompra.id}</p>
                                     <p className="text-sm text-blue-700 mt-1">
-                                        {cancelingCompra.proveedor?.nombreEmpresa ?? `Proveedor #${cancelingCompra.proveedoresId}`}
+                                        {anulatingCompra.proveedor?.nombreEmpresa ?? `Proveedor #${anulatingCompra.proveedoresId}`}
                                     </p>
                                     <p className="text-sm text-blue-700">
-                                        {new Date(cancelingCompra.fecha).toLocaleDateString('es-CO')} · <span className="capitalize">{cancelingCompra.metodoPago}</span>
+                                        {new Date(anulatingCompra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO')} · <span className="capitalize">{anulatingCompra.metodoPago}</span>
                                     </p>
                                 </div>
 
-                                {!cancelConfirmed ? (
+                                {!anularConfirmed ? (
                                     <p className="text-sm text-gray-600">
-                                        ¿Estás seguro de que deseas cancelar esta compra permanentemente?
+                                        ¿Estás seguro de que deseas anular esta compra permanentemente?
                                     </p>
                                 ) : (
                                     <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
@@ -1368,26 +1435,26 @@ export function PurchaseModule() {
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                             <Button
                                 variant="outline"
-                                onClick={() => { setShowCancelModal(false); setCancelingCompra(null); setCancelConfirmed(false); }}
+                                onClick={() => { setShowAnularModal(false); setAnulatingCompra(null); setAnularConfirmed(false); }}
                                 disabled={saving}
                             >
                                 Volver
                             </Button>
-                            {!cancelConfirmed ? (
+                            {!anularConfirmed ? (
                                 <Button
-                                    onClick={() => setCancelConfirmed(true)}
+                                    onClick={() => setAnularConfirmed(true)}
                                     className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900"
                                 >
-                                    Sí, cancelar
+                                    Sí, anular
                                 </Button>
                             ) : (
                                 <Button
-                                    onClick={confirmCancel}
+                                    onClick={confirmAnular}
                                     disabled={saving}
                                     className="bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    Confirmar cancelación
+                                    Confirmar anulación
                                 </Button>
                             )}
                         </div>

@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
 import { toast }       from 'sonner';
-import { Plus, Edit, Trash2, Shield, AlertTriangle, RefreshCw, Lock, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, AlertTriangle, Lock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as permisosService from '@/features/permisos/services/permisosService';
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -26,7 +26,6 @@ export function PermissionManagement() {
   const [permisoToDelete, setPermisoToDelete] = useState<permisosService.Permiso | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [searchTerm, setSearchTerm]           = useState('');
-  const [syncing, setSyncing]                 = useState(false);
   const [filterType, setFilterType]           = useState<'all' | 'system' | 'custom'>('all');
   const [currentPage, setCurrentPage]         = useState(1);
   const itemsPerPage = 5;
@@ -57,6 +56,10 @@ export function PermissionManagement() {
   };
 
   const handleEdit = (permiso: permisosService.Permiso) => {
+    if (permiso.isActive === false) {
+      toast.warning('No se puede editar un permiso inactivo. Actívalo primero.');
+      return;
+    }
     setEditingPermiso(permiso);
     setFormData({ name: permiso.name ?? '', description: permiso.description ?? '' });
     setShowModal(true);
@@ -64,11 +67,23 @@ export function PermissionManagement() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!editingPermiso?.isSystem && !formData.name.trim()) {
-      toast.error('El nombre del permiso es obligatorio');
-      return;
+
+    // Validaciones para permisos personalizados
+    if (!editingPermiso?.isSystem) {
+      if (!formData.name.trim()) {
+        toast.error('El nombre del permiso es obligatorio');
+        return;
+      }
+      if (formData.name.trim().length < 2) {
+        toast.error('El nombre debe tener al menos 2 caracteres');
+        return;
+      }
     }
-    const payload = { name: formData.name.trim(), description: formData.description.trim() || null };
+
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim() || null,
+    };
 
     if (editingPermiso) {
       permisosService.updatePermiso(editingPermiso.id, payload)
@@ -91,7 +106,10 @@ export function PermissionManagement() {
 
   // ── Toggle activo/inactivo ─────────────────────────────────────────────────
   const toggleStatus = (permiso: permisosService.Permiso) => {
-    if (permiso.isSystem) { toast.error('No se puede cambiar el estado de un permiso del sistema'); return; }
+    if (permiso.isSystem) {
+      toast.error('No se puede cambiar el estado de un permiso del sistema');
+      return;
+    }
     setTogglingIds(prev => new Set(prev).add(permiso.id));
     permisosService.togglePermisoActivo(permiso.id)
       .then(resp => {
@@ -104,7 +122,14 @@ export function PermissionManagement() {
 
   // ── Eliminar ───────────────────────────────────────────────────────────────
   const handleDelete = (permiso: permisosService.Permiso) => {
-    if (permiso.isSystem) { toast.error('Los permisos del sistema no se pueden eliminar'); return; }
+    if (permiso.isSystem) {
+      toast.error('Los permisos del sistema no se pueden eliminar');
+      return;
+    }
+    if (permiso.isActive === false) {
+      toast.warning('No se puede eliminar un permiso inactivo. Actívalo primero.');
+      return;
+    }
     setPermisoToDelete(permiso);
     setShowDeleteDialog(true);
   };
@@ -123,22 +148,6 @@ export function PermissionManagement() {
         setShowDeleteDialog(false);
         setPermisoToDelete(null);
       });
-  };
-
-  // ── Sincronizar módulos ────────────────────────────────────────────────────
-  const handleSyncModules = () => {
-    setSyncing(true);
-    permisosService.syncSystemModules()
-      .then(resp => {
-        toast.success(
-          resp.created.length > 0
-            ? `Sincronizado: ${resp.created.length} nuevo(s) permiso(s) creado(s)`
-            : 'Todos los módulos ya están sincronizados'
-        );
-        loadPermisos();
-      })
-      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Error al sincronizar'))
-      .finally(() => setSyncing(false));
   };
 
   // ── Filtrado y paginación ──────────────────────────────────────────────────
@@ -164,16 +173,13 @@ export function PermissionManagement() {
           <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Permisos</h1>
           <p className="text-blue-800">Administra los permisos del sistema</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Botón nuevo permiso — fuera del Dialog */}
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo Permiso
-          </Button>
-        </div>
+        <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Plus className="w-4 h-4 mr-2" />
+          Nuevo Permiso
+        </Button>
       </div>
 
-      {/* ── Dialog crear/editar (controlado, sin DialogTrigger) ── */}
+      {/* ── Dialog crear/editar ── */}
       <Dialog open={showModal} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -181,8 +187,9 @@ export function PermissionManagement() {
             <DialogDescription>
               {editingPermiso?.isSystem
                 ? 'Los permisos del sistema solo permiten editar la descripción.'
-                : editingPermiso ? 'Modifica la información del permiso.'
-                : 'Completa el formulario para crear un permiso personalizado.'}
+                : editingPermiso
+                  ? 'Modifica la información del permiso.'
+                  : 'Completa el formulario para crear un permiso personalizado.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -298,62 +305,95 @@ export function PermissionManagement() {
                 ) : currentPermisos.map(p => {
                   const isInactive = p.isActive === false;
                   return (
-                  <tr key={p.id} className={`border-b border-blue-100 transition-colors ${isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'}`}>
-                    {/* Nombre del permiso */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <Shield className={`w-4 h-4 shrink-0 ${isInactive ? 'text-gray-400' : 'text-blue-600'}`} />
-                        <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>{p.name}</span>
-                      </div>
-                    </td>
-                    {/* Descripción */}
-                    <td className={`py-4 px-6 text-sm ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {p.description ?? <span className="italic">Sin descripción</span>}
-                    </td>
-                    {/* Tipo: Sistema o Personalizado */}
-                    <td className="py-4 px-6">
-                      {p.isSystem ? (
-                        <Badge className={`gap-1 ${isInactive ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                          <Lock className="w-3 h-3" />Sistema
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className={isInactive ? 'text-gray-400' : ''}>Personalizado</Badge>
-                      )}
-                    </td>
-                    {/* Estado activo/inactivo */}
-                    <td className="py-4 px-6">
-                      <Switch
-                        checked={!isInactive}
-                        onCheckedChange={() => toggleStatus(p)}
-                        disabled={p.isSystem || togglingIds.has(p.id)}
-                        className={p.isSystem ? 'opacity-40 cursor-not-allowed' : ''}
-                      />
-                    </td>
-                    {/* Acciones */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline" size="sm"
-                          onClick={() => !isInactive && handleEdit(p)}
-                          className={isInactive ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-400'}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline" size="sm"
-                          onClick={() => !isInactive && !p.isSystem && handleDelete(p)}
-                          disabled={p.isSystem}
-                          className={
-                            p.isSystem || isInactive
-                              ? 'opacity-30 cursor-not-allowed border-gray-200 text-gray-400'
-                              : 'border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-400'
-                          }
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+                    <tr
+                      key={p.id}
+                      className={`border-b border-blue-100 transition-colors ${
+                        isInactive ? 'bg-gray-50 opacity-75' : 'hover:bg-blue-50'
+                      }`}
+                    >
+                      {/* Nombre */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <Shield className={`w-4 h-4 shrink-0 ${isInactive ? 'text-gray-400' : 'text-blue-600'}`} />
+                          <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>
+                            {p.name}
+                          </span>
+                        </div>
+                      </td>
+                      {/* Descripción */}
+                      <td className={`py-4 px-6 text-sm ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {p.description ?? <span className="italic">Sin descripción</span>}
+                      </td>
+                      {/* Tipo */}
+                      <td className="py-4 px-6">
+                        {p.isSystem ? (
+                          <Badge
+                            className={`gap-1 ${
+                              isInactive
+                                ? 'bg-gray-100 text-gray-400 border-gray-200'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}
+                          >
+                            <Lock className="w-3 h-3" />Sistema
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className={isInactive ? 'text-gray-400 bg-gray-100' : ''}
+                          >
+                            Personalizado
+                          </Badge>
+                        )}
+                      </td>
+                      {/* Estado */}
+                      <td className="py-4 px-6">
+                        <Switch
+                          checked={!isInactive}
+                          onCheckedChange={() => toggleStatus(p)}
+                          disabled={p.isSystem || togglingIds.has(p.id)}
+                          className={p.isSystem ? 'opacity-40 cursor-not-allowed' : ''}
+                        />
+                      </td>
+                      {/* Acciones */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          {/* Editar */}
+                          <Button
+                            size="sm"
+                            onClick={() => handleEdit(p)}
+                            disabled={togglingIds.has(p.id)}
+                            title={isInactive ? 'Activa el permiso para editar' : 'Editar permiso'}
+                            className={
+                              isInactive
+                                ? 'bg-gray-100 text-gray-300 border border-gray-200 opacity-40 cursor-not-allowed'
+                                : 'bg-white text-blue-900 border border-blue-900 hover:bg-blue-50'
+                            }
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          {/* Eliminar */}
+                          <Button
+                            size="sm"
+                            onClick={() => handleDelete(p)}
+                            disabled={togglingIds.has(p.id)}
+                            title={
+                              p.isSystem
+                                ? 'Los permisos del sistema no se pueden eliminar'
+                                : isInactive
+                                  ? 'Activa el permiso para eliminar'
+                                  : 'Eliminar permiso'
+                            }
+                            className={
+                              p.isSystem || isInactive
+                                ? 'bg-gray-100 text-gray-300 border border-gray-200 opacity-40 cursor-not-allowed'
+                                : 'bg-white text-blue-900 border border-blue-900 hover:bg-blue-50'
+                            }
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -362,22 +402,33 @@ export function PermissionManagement() {
 
           {/* Paginación */}
           {filtered.length > itemsPerPage && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-blue-100">
-              <span className="text-sm text-gray-500">Página {currentPage} de {totalPages}</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="border-blue-200 text-blue-700 hover:bg-blue-50">
-                  ‹ Anterior
+            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
+                >
+                  {page}
                 </Button>
-                <Button variant="outline" size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="border-blue-200 text-blue-700 hover:bg-blue-50">
-                  Siguiente ›
-                </Button>
-              </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
           )}
         </CardContent>
@@ -392,10 +443,24 @@ export function PermissionManagement() {
               Confirmar Eliminación
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div>
-                ¿Estás seguro de que deseas eliminar el permiso{' '}
-                <span className="font-semibold">"{permisoToDelete?.name}"</span>?
-                Esta acción no se puede deshacer.
+              <div className="space-y-3">
+                <span className="block">
+                  ¿Estás seguro de que deseas eliminar este permiso? Esta acción no se puede deshacer.
+                </span>
+                {permisoToDelete && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
+                    <p className="text-sm">
+                      <span className="text-gray-500">Permiso: </span>
+                      <span className="font-medium text-gray-900">"{permisoToDelete.name}"</span>
+                    </p>
+                    {permisoToDelete.description && (
+                      <p className="text-sm">
+                        <span className="text-gray-500">Descripción: </span>
+                        <span className="text-gray-700">{permisoToDelete.description}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -403,8 +468,11 @@ export function PermissionManagement() {
             <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setPermisoToDelete(null); }}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Eliminar
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900"
+            >
+              Eliminar Permiso
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

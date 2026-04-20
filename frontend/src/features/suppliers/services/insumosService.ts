@@ -81,6 +81,22 @@ export async function cambiarEstadoInsumo(
   return handleResponse<{ message: string; insumo: InsumoBackend }>(res);
 }
 
+// ─── Dependencias ─────────────────────────────────────────────────────────────
+
+export interface InsumosDependencias {
+  enUso:          boolean;
+  compras:        { id: number; fecha: string; estado: string }[];
+  productos:      { id: number; nombreProducto: string }[];
+  fichasTecnicas: { id: number; codigoFicha: string; estado: string }[];
+}
+
+export async function getInsumosDependencias(id: number): Promise<InsumosDependencias> {
+  const res = await fetch(insumosUrl(`/${id}/dependencias`), {
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<InsumosDependencias>(res);
+}
+
 export async function deleteInsumo(id: number): Promise<{ message: string }> {
   const res = await fetch(insumosUrl(`/${id}/force`),  // ← /force para eliminar físicamente
     {

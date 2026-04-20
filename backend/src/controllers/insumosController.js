@@ -1,11 +1,73 @@
-const { Insumos, Proveedores } = require('../models/index.js');
+const {
+    Insumos, Proveedores,
+    DetalleCompraInsumo, Compras,
+    InsumoProducto, Productos,
+    FichaTecnica,
+} = require('../models/index.js');
 const { validarInsumo } = require('../validators/insumosValidator.js');
 
 const includeProveedor = {
-    model: Proveedores,
-    as: 'proveedor',
+    model:      Proveedores,
+    as:         'proveedor',
     attributes: ['id', 'nombreEmpresa'],
 };
+
+// ─── Helper: verificar todas las dependencias de un insumo ────────────────────
+async function getDependenciasDeInsumo(id, nombreInsumo) {
+    // 1. Compras que usan este insumo (via DetalleCompraInsumo)
+    const detalles = await DetalleCompraInsumo.findAll({
+        where:   { insumosId: id },
+        include: [{ model: Compras, as: 'compra', attributes: ['id', 'fecha', 'estado'] }],
+    });
+    const comprasMap = new Map();
+    for (const d of detalles) {
+        if (d.compra && !comprasMap.has(d.compra.id)) {
+            comprasMap.set(d.compra.id, {
+                id:     d.compra.id,
+                fecha:  d.compra.fecha,
+                estado: d.compra.estado,
+            });
+        }
+    }
+    const compras = [...comprasMap.values()];
+
+    // 2. Productos que usan este insumo (via InsumoProducto)
+    const insumosProducto = await InsumoProducto.findAll({
+        where:   { insumosId: id },
+        include: [{ model: Productos, attributes: ['id', 'nombreProducto'] }],
+    });
+    const productos = insumosProducto.map(ip => ({
+        id:             ip.Producto?.id         ?? ip.productosId,
+        nombreProducto: ip.Producto?.nombreProducto ?? `Producto #${ip.productosId}`,
+    }));
+
+    // 3. Fichas técnicas que mencionan este insumo por nombre (campo JSON)
+    const todasFichas = await FichaTecnica.findAll({
+        attributes: ['id', 'codigoFicha', 'estado', 'insumos'],
+    });
+    const fichasTecnicas = [];
+    for (const ficha of todasFichas) {
+        try {
+            const arr = typeof ficha.insumos === 'string'
+                ? JSON.parse(ficha.insumos)
+                : (ficha.insumos || []);
+            if (Array.isArray(arr) && arr.some(i => i.name === nombreInsumo)) {
+                fichasTecnicas.push({
+                    id:          ficha.id,
+                    codigoFicha: ficha.codigoFicha,
+                    estado:      ficha.estado,
+                });
+            }
+        } catch { /* ignorar fichas con JSON malformado */ }
+    }
+
+    return {
+        enUso: compras.length > 0 || productos.length > 0 || fichasTecnicas.length > 0,
+        compras,
+        productos,
+        fichasTecnicas,
+    };
+}
 
 // GET - listar todos los insumos
 const getInsumos = async (req, res) => {
@@ -42,6 +104,23 @@ const getInsumosDisponibles = async (req, res) => {
         res.status(200).json(insumos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los insumos disponibles', error: error.message });
+    }
+};
+
+// GET - verificar todas las dependencias de un insumo antes de eliminar
+const getInsumosDependencias = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const insumo = await Insumos.findByPk(id);
+
+        if (!insumo) {
+            return res.status(404).json({ message: 'Insumo no encontrado' });
+        }
+
+        const dependencias = await getDependenciasDeInsumo(id, insumo.nombreInsumo);
+        res.status(200).json(dependencias);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al verificar dependencias', error: error.message });
     }
 };
 
@@ -169,7 +248,7 @@ const deleteInsumo = async (req, res) => {
     }
 };
 
-// DELETE /force - eliminar físicamente
+// DELETE /force - eliminar físicamente con validación estricta de dependencias
 const forceDeleteInsumo = async (req, res) => {
     try {
         const { id } = req.params;
@@ -179,9 +258,30 @@ const forceDeleteInsumo = async (req, res) => {
             return res.status(404).json({ message: 'Insumo no encontrado' });
         }
 
+        // Regla 1: solo se puede eliminar si está agotado
         if (insumo.estado === 'disponible') {
             return res.status(400).json({
                 message: 'No se puede eliminar un insumo disponible. Márcalo como agotado primero.'
+            });
+        }
+
+        // Regla 2: no se puede eliminar si está en uso en el sistema
+        const dependencias = await getDependenciasDeInsumo(id, insumo.nombreInsumo);
+        if (dependencias.enUso) {
+            const partes = [];
+            if (dependencias.compras.length > 0)
+                partes.push(`${dependencias.compras.length} compra(s)`);
+            if (dependencias.productos.length > 0)
+                partes.push(`${dependencias.productos.length} producto(s)`);
+            if (dependencias.fichasTecnicas.length > 0)
+                partes.push(`${dependencias.fichasTecnicas.length} ficha(s) técnica(s)`);
+
+            return res.status(409).json({
+                message: `No se puede eliminar: el insumo está en uso en ${partes.join(', ')}.`,
+                enUso:          dependencias.enUso,
+                compras:        dependencias.compras,
+                productos:      dependencias.productos,
+                fichasTecnicas: dependencias.fichasTecnicas,
             });
         }
 
@@ -196,6 +296,7 @@ module.exports = {
     getInsumos,
     getInsumoById,
     getInsumosDisponibles,
+    getInsumosDependencias,
     createInsumo,
     updateInsumo,
     cambiarEstadoInsumo,

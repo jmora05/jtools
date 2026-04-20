@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
     Search, Plus, Edit, Eye, Package, FileText,
-    ChevronLeft, ChevronRight, Loader2, CheckCircle2, Info, ChevronDown, Check, AlertTriangle, Trash2, Lock, X, ImageOff
+    ChevronLeft, ChevronRight, Loader2, CheckCircle2, Info, ChevronDown, Check, AlertTriangle, Trash2, Lock, X, ImageOff, Upload, Link
 } from 'lucide-react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
@@ -22,24 +22,23 @@ interface Producto {
     categoriaProductoId: number; descripcion: string | null;
     precio: number; stock: number; estado: 'activo' | 'inactivo';
     categoria?: Categoria;
-    imagenUrl?: string | null; // ✅ NUEVO
+    imagenUrl?: string | null;
 }
 interface ProductoForm {
     nombreProducto: string; referencia: string; categoriaProductoId: string;
     descripcion: string; precio: string; stock: string; estado: 'activo' | 'inactivo';
-    imagenUrl: string; // ✅ NUEVO
+    imagenUrl: string;
 }
 const emptyForm: ProductoForm = {
     nombreProducto: '', referencia: '', categoriaProductoId: '',
     descripcion: '', precio: '', stock: '', estado: 'activo',
-    imagenUrl: '', // ✅ NUEVO
+    imagenUrl: '',
 };
 interface FormErrors {
     nombreProducto?: string; referencia?: string; categoriaProductoId?: string;
     descripcion?: string; precio?: string; stock?: string;
-    imagenUrl?: string; // ✅ NUEVO
+    imagenUrl?: string;
 }
-
 interface DuplicateErrors {
     nombreProducto?: string;
     referencia?: string;
@@ -52,11 +51,9 @@ const SOLO_DESCRIPCION_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();
 const CHARS_BLOQUEADOS_TEXTO = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';:]/;
 const CHARS_BLOQUEADOS_REF   = /[$%@#&*|\\^`~<>=+{}[\]!?¡¿"';: áéíóúÁÉÍÓÚñÑüÜ]/;
 const CHARS_BLOQUEADOS_DESC  = /[$%@#&*|\\^`~<>=+{}[\]¡¿]/;
-
-// ─── Constante de precio máximo ───────────────────────────────────────────────
 const PRECIO_MAXIMO = 99999999.99;
 
-// ─── Validación de formulario ─────────────────────────────────────────────────
+// ─── Validación ───────────────────────────────────────────────────────────────
 function validateProductoForm(form: ProductoForm): FormErrors {
     const errors: FormErrors = {};
 
@@ -108,10 +105,13 @@ function validateProductoForm(form: ProductoForm): FormErrors {
         errors.stock = 'El stock no puede superar 999,999 unidades.';
     }
 
-    // ✅ NUEVO — validación de URL de imagen (opcional)
+    // Acepta URL externa o data URL (archivo local)
     if (form.imagenUrl && form.imagenUrl.trim().length > 0) {
-        try { new URL(form.imagenUrl.trim()); }
-        catch { errors.imagenUrl = 'Ingresa una URL válida (ej: https://...).'; }
+        const url = form.imagenUrl.trim();
+        if (!url.startsWith('data:image/')) {
+            try { new URL(url); }
+            catch { errors.imagenUrl = 'Ingresa una URL válida (ej: https://...).'; }
+        }
     }
 
     return errors;
@@ -137,12 +137,10 @@ const bloquearNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
     if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
     if (!/[\d.]/.test(e.key)) { e.preventDefault(); return; }
-    const input = e.currentTarget;
-    const val   = input.value;
+    const input = e.currentTarget; const val = input.value;
     if (e.key === '.' && val.includes('.')) { e.preventDefault(); return; }
     if (e.key === '0' && (val === '' || (input.selectionStart === 0 && input.selectionEnd === val.length))) {
-        e.preventDefault();
-        toast.warning('El precio no puede empezar con 0.');
+        e.preventDefault(); toast.warning('El precio no puede empezar con 0.');
     }
 };
 const bloquearNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -167,8 +165,7 @@ const InfoAlert = ({ message }: { message: string }) => (
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
     <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
         <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 shrink-0 text-gray-500" />
-            <span>{message}</span>
+            <Lock className="w-4 h-4 shrink-0 text-gray-500" /><span>{message}</span>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-4 shrink-0">
             <X className="w-4 h-4" />
@@ -176,7 +173,6 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
     </div>
 );
 
-// ✅ NUEVO — Componente de imagen con fallback
 const ProductImage = ({ src, alt, className }: { src?: string | null; alt: string; className?: string }) => {
     const [error, setError] = useState(false);
     if (!src || error) {
@@ -199,9 +195,9 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Seleccionar...'
     const ref = useRef<HTMLDivElement>(null);
     const selectedLabel = options.find(o => o.value === value)?.label;
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
     }, []);
     return (
         <div ref={ref} className="relative w-full">
@@ -214,17 +210,18 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Seleccionar...'
             </button>
             {open && (
                 <div className="absolute left-0 top-full mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg z-50 max-h-52 overflow-y-auto">
-                    {options.length === 0 ? (
-                        <div className="px-3 py-4 text-sm text-gray-400 text-center">Sin opciones</div>
-                    ) : options.map(option => (
-                        <button key={option.value} type="button"
-                            onClick={() => { onChange(option.value); setOpen(false); }}
-                            className={`flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-900 transition-colors
-                                ${value === option.value ? 'bg-blue-50 text-blue-900 font-medium' : 'text-gray-700'}`}>
-                            {option.label}
-                            {value === option.value && <Check className="w-4 h-4 text-blue-600" />}
-                        </button>
-                    ))}
+                    {options.length === 0
+                        ? <div className="px-3 py-4 text-sm text-gray-400 text-center">Sin opciones</div>
+                        : options.map(option => (
+                            <button key={option.value} type="button"
+                                onClick={() => { onChange(option.value); setOpen(false); }}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-900 transition-colors
+                                    ${value === option.value ? 'bg-blue-50 text-blue-900 font-medium' : 'text-gray-700'}`}>
+                                {option.label}
+                                {value === option.value && <Check className="w-4 h-4 text-blue-600" />}
+                            </button>
+                        ))
+                    }
                 </div>
             )}
         </div>
@@ -241,6 +238,37 @@ interface ProductFormProps {
 }
 const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, duplicates }: ProductFormProps) => {
     const categoriaOptions = categorias.map(cat => ({ value: cat.id.toString(), label: cat.nombreCategoria }));
+
+    // ── Modo de imagen ────────────────────────────────────────────────────────
+    const [imageMode, setImageMode] = useState<'url' | 'file'>(
+        form.imagenUrl.startsWith('data:image/') ? 'file' : 'url'
+    );
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const switchMode = (mode: 'url' | 'file') => {
+        setImageMode(mode);
+        onChange('imagenUrl', '');
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.warning('Solo se permiten archivos de imagen (JPG, PNG, WEBP, etc.).');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.warning('La imagen no puede superar 5 MB.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            onChange('imagenUrl', ev.target?.result as string);
+            onBlur('imagenUrl');
+        };
+        reader.readAsDataURL(file);
+        e.target.value = ''; // permite reseleccionar el mismo archivo
+    };
 
     const handlePrecioChange = (raw: string) => {
         const sanitized = raw.replace(/^0+(\d)/, '$1');
@@ -266,8 +294,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                     <FieldError message={touched.nombreProducto ? errors.nombreProducto : undefined} />
                     {duplicates.nombreProducto && !errors.nombreProducto && (
                         <p className="text-amber-600 text-xs mt-1 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 shrink-0" />
-                            Ya existe un producto con ese nombre.
+                            <AlertTriangle className="w-3 h-3 shrink-0" />Ya existe un producto con ese nombre.
                         </p>
                     )}
                 </div>
@@ -284,8 +311,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                     <FieldError message={touched.referencia ? errors.referencia : undefined} />
                     {duplicates.referencia && !errors.referencia && (
                         <p className="text-amber-600 text-xs mt-1 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 shrink-0" />
-                            Ya existe un producto con esa referencia.
+                            <AlertTriangle className="w-3 h-3 shrink-0" />Ya existe un producto con esa referencia.
                         </p>
                     )}
                 </div>
@@ -351,10 +377,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                         onKeyDown={bloquearNonInteger}
                         onPaste={(e) => {
                             const pasted = e.clipboardData.getData('text');
-                            if (!/^\d+$/.test(pasted)) {
-                                e.preventDefault();
-                                toast.warning('El stock solo acepta números enteros.');
-                            }
+                            if (!/^\d+$/.test(pasted)) { e.preventDefault(); toast.warning('El stock solo acepta números enteros.'); }
                         }}
                         placeholder="0" min="0"
                         className={touched.stock && errors.stock ? 'border-red-400 focus-visible:ring-red-300' : ''}
@@ -363,37 +386,92 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                 </div>
             </div>
 
-            {/* ✅ NUEVO — Campo de imagen */}
-            {/* ✅ WIDGET CLOUDINARY */}
-<div>
-    <label className="block text-sm text-gray-700 mb-2">Imagen del producto</label>
-    <div className="space-y-2">
-    <Input
-        type="url"
-        value={form.imagenUrl}
-        onChange={(e) => { onChange('imagenUrl', e.target.value); onBlur('imagenUrl'); }}
-        placeholder="https://res.cloudinary.com/..."
-        className={touched.imagenUrl && errors.imagenUrl ? 'border-red-400 focus-visible:ring-red-300' : ''}
-    />
-    {form.imagenUrl && (
-        <div className="flex items-center gap-2">
-            <ProductImage
-                src={form.imagenUrl}
-                alt="Preview"
-                className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-            />
-            <button
-                type="button"
-                onClick={() => onChange('imagenUrl', '')}
-                className="text-xs text-red-400 hover:text-red-600"
-            >
-                Quitar
-            </button>
-        </div>
-    )}
-</div>
-    <p className="text-xs text-gray-400 mt-1">Sube una imagen desde tu dispositivo. Campo opcional.</p>
-</div>
+            {/* ── Imagen del producto — URL o archivo local ─────────────────── */}
+            <div>
+                <label className="block text-sm text-gray-700 mb-2">Imagen del producto</label>
+
+                {/* Toggle URL / Archivo */}
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit mb-3">
+                    <button
+                        type="button"
+                        onClick={() => switchMode('url')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                            imageMode === 'url' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                        <Link className="w-3 h-3" />
+                        Enlace URL
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => switchMode('file')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 ${
+                            imageMode === 'file' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                        <Upload className="w-3 h-3" />
+                        Archivo local
+                    </button>
+                </div>
+
+                {/* Input según modo */}
+                {imageMode === 'url' ? (
+                    <Input
+                        type="url"
+                        value={form.imagenUrl}
+                        onChange={(e) => { onChange('imagenUrl', e.target.value); onBlur('imagenUrl'); }}
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                        className={touched.imagenUrl && errors.imagenUrl ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                    />
+                ) : (
+                    <>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        >
+                            <Upload className="w-4 h-4" />
+                            {form.imagenUrl ? 'Cambiar imagen' : 'Haz clic para seleccionar una imagen'}
+                        </button>
+                        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP, GIF · máx. 5 MB</p>
+                    </>
+                )}
+
+                {/* Preview común a ambos modos */}
+                {form.imagenUrl && (
+                    <div className="flex items-center gap-3 mt-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <ProductImage
+                            src={form.imagenUrl}
+                            alt="Preview"
+                            className="w-14 h-14 object-cover rounded-lg border border-gray-200 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-500 truncate">
+                                {form.imagenUrl.startsWith('data:')
+                                    ? 'Imagen desde archivo local'
+                                    : form.imagenUrl}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onChange('imagenUrl', '')}
+                            className="text-xs text-red-400 hover:text-red-600 shrink-0 flex items-center gap-1"
+                        >
+                            <X className="w-3 h-3" /> Quitar
+                        </button>
+                    </div>
+                )}
+
+                <FieldError message={touched.imagenUrl ? errors.imagenUrl : undefined} />
+                <p className="text-xs text-gray-400 mt-1">Campo opcional.</p>
+            </div>
         </div>
     );
 };
@@ -420,9 +498,9 @@ export function ProductCatalog() {
 
     const [blockedAlertId, setBlockedAlertId] = useState<number | null>(null);
 
-    const [searchTerm, setSearchTerm]         = useState('');
-    const [statusFilter, setStatusFilter]     = useState('all');
-    const [currentPage, setCurrentPage]       = useState(1);
+    const [searchTerm, setSearchTerm]     = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [currentPage, setCurrentPage]   = useState(1);
     const itemsPerPage = 5;
 
     const [productForm, setProductForm] = useState<ProductoForm>(emptyForm);
@@ -450,17 +528,11 @@ export function ProductCatalog() {
         const ref    = productForm.referencia.trim().toLowerCase();
         const newDups: DuplicateErrors = {};
         if (nombre) {
-            const dup = products.find((p) => {
-                if (editingProduct && p.id === editingProduct.id) return false;
-                return p.nombreProducto.trim().toLowerCase() === nombre;
-            });
+            const dup = products.find(p => { if (editingProduct && p.id === editingProduct.id) return false; return p.nombreProducto.trim().toLowerCase() === nombre; });
             if (dup) newDups.nombreProducto = dup.nombreProducto;
         }
         if (ref) {
-            const dup = products.find((p) => {
-                if (editingProduct && p.id === editingProduct.id) return false;
-                return p.referencia.trim().toLowerCase() === ref;
-            });
+            const dup = products.find(p => { if (editingProduct && p.id === editingProduct.id) return false; return p.referencia.trim().toLowerCase() === ref; });
             if (dup) newDups.referencia = dup.referencia;
         }
         setDuplicates(newDups);
@@ -488,7 +560,7 @@ export function ProductCatalog() {
         }
     };
 
-    const filteredProducts = products.filter((p) => {
+    const filteredProducts = products.filter(p => {
         const matchesSearch = p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) || p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' && p.estado === 'activo') || (statusFilter === 'inactive' && p.estado === 'inactivo');
         return matchesSearch && matchesStatus;
@@ -498,9 +570,9 @@ export function ProductCatalog() {
     const currentProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const handleFormChange = (field: keyof ProductoForm, value: string) =>
-        setProductForm((prev) => ({ ...prev, [field]: value }));
+        setProductForm(prev => ({ ...prev, [field]: value }));
 
-    const handleBlur = (field: keyof ProductoForm) => setTouched((prev) => ({ ...prev, [field]: true }));
+    const handleBlur = (field: keyof ProductoForm) => setTouched(prev => ({ ...prev, [field]: true }));
 
     const touchAll = () => setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, stock: true, descripcion: true, imagenUrl: true });
 
@@ -526,7 +598,7 @@ export function ProductCatalog() {
                 precio: parseFloat(productForm.precio),
                 stock: parseInt(productForm.stock),
                 estado: productForm.estado,
-                imagenUrl: productForm.imagenUrl.trim() || undefined, // ✅ NUEVO
+                imagenUrl: productForm.imagenUrl.trim() || undefined,
             });
             showFeedback('✓ Producto creado exitosamente');
             toast.success('Producto creado exitosamente');
@@ -554,7 +626,7 @@ export function ProductCatalog() {
                 precio: parseFloat(productForm.precio),
                 stock: parseInt(productForm.stock),
                 estado: productForm.estado,
-                imagenUrl: productForm.imagenUrl.trim() || undefined, // ✅ NUEVO
+                imagenUrl: productForm.imagenUrl.trim() || undefined,
             });
             showFeedback('✓ Producto actualizado correctamente');
             toast.success('Producto actualizado exitosamente');
@@ -574,9 +646,7 @@ export function ProductCatalog() {
     };
 
     const openDeleteModal = (product: Producto) => {
-        setDeletingProduct(product);
-        setDeleteConfirmed(false);
-        setShowDeleteModal(true);
+        setDeletingProduct(product); setDeleteConfirmed(false); setShowDeleteModal(true);
     };
 
     const handleDelete = async () => {
@@ -586,14 +656,11 @@ export function ProductCatalog() {
             await deleteProducto(deletingProduct.id);
             setProducts(prev => prev.filter(p => p.id !== deletingProduct.id));
             toast.success('Producto eliminado correctamente');
-            setShowDeleteModal(false);
-            setDeletingProduct(null);
-        } catch (error: any) {
-            toast.error(error.message);
-        } finally { setDeleting(false); }
+            setShowDeleteModal(false); setDeletingProduct(null);
+        } catch (error: any) { toast.error(error.message); }
+        finally { setDeleting(false); }
     };
 
-    // ✅ ACTUALIZADO — incluye imagenUrl al abrir edición
     const openEditDialog = (product: Producto) => {
         setEditingProduct(product);
         setProductForm({
@@ -604,15 +671,14 @@ export function ProductCatalog() {
             precio: product.precio.toString(),
             stock: product.stock.toString(),
             estado: product.estado,
-            imagenUrl: product.imagenUrl ?? '', // ✅ NUEVO
+            imagenUrl: product.imagenUrl ?? '',
         });
         setFormErrors({}); setTouched({}); setDuplicates({});
         setShowModal(true);
     };
 
-    const handleBlockedClick = (productId: number) => {
+    const handleBlockedClick = (productId: number) =>
         setBlockedAlertId(prev => prev === productId ? null : productId);
-    };
 
     return (
         <div className="p-6 space-y-6">
@@ -640,12 +706,9 @@ export function ProductCatalog() {
                     <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <Input
-                                placeholder="Buscar por nombre o referencia..."
-                                value={searchTerm}
+                            <Input placeholder="Buscar por nombre o referencia..." value={searchTerm}
                                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                className="pl-10 w-full"
-                            />
+                                className="pl-10 w-full" />
                         </div>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger className="w-40 shrink-0"><SelectValue placeholder="Estado" /></SelectTrigger>
@@ -675,7 +738,7 @@ export function ProductCatalog() {
                                 <thead className="bg-blue-900">
                                     <tr>
                                         <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Imagen</th>{/* ✅ NUEVO */}
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Imagen</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Categoría</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Precio / Stock</th>
@@ -684,21 +747,14 @@ export function ProductCatalog() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentProducts.map((product) => {
+                                    {currentProducts.map(product => {
                                         const disabled = product.estado === 'inactivo';
                                         return (
                                             <React.Fragment key={product.id}>
                                                 <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                                                    <td className="py-4 px-6"><span className="font-mono text-sm text-gray-500">#{product.id}</span></td>
                                                     <td className="py-4 px-6">
-                                                        <span className="font-mono text-sm text-gray-500">#{product.id}</span>
-                                                    </td>
-                                                    {/* ✅ NUEVO — miniatura en tabla */}
-                                                    <td className="py-4 px-6">
-                                                        <ProductImage
-                                                            src={product.imagenUrl}
-                                                            alt={product.nombreProducto}
-                                                            className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-                                                        />
+                                                        <ProductImage src={product.imagenUrl} alt={product.nombreProducto} className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
@@ -706,9 +762,7 @@ export function ProductCatalog() {
                                                             <span className="text-sm text-blue-900">Ref: {product.referencia}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-4 px-6">
-                                                        <Badge variant="secondary">{product.categoria?.nombreCategoria ?? `#${product.categoriaProductoId}`}</Badge>
-                                                    </td>
+                                                    <td className="py-4 px-6"><Badge variant="secondary">{product.categoria?.nombreCategoria ?? `#${product.categoriaProductoId}`}</Badge></td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
                                                             <span className="text-blue-900 font-semibold">${Number(product.precio).toLocaleString()}</span>
@@ -723,31 +777,18 @@ export function ProductCatalog() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
-                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
-                                                                <Eye className="w-4 h-4" />
-                                                            </Button>
-                                                            <Button size="sm"
-                                                                onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
-                                                                <Edit className="w-4 h-4" />
-                                                            </Button>
-                                                            <Button size="sm"
-                                                                onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
+                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"><Eye className="w-4 h-4" /></Button>
+                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}><Edit className="w-4 h-4" /></Button>
+                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}><Trash2 className="w-4 h-4" /></Button>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 {blockedAlertId === product.id && (
-                                                    <tr>
-                                                        <td colSpan={7} className="px-6 pb-3 pt-0">
-                                                            <BlockedAlert
-                                                                message="Producto inactivo: No puedes editar ni eliminar un producto inactivo. Actívalo primero usando el interruptor de estado."
-                                                                onClose={() => setBlockedAlertId(null)}
-                                                            />
-                                                        </td>
-                                                    </tr>
+                                                    <tr><td colSpan={7} className="px-6 pb-3 pt-0">
+                                                        <BlockedAlert message="Producto inactivo: No puedes editar ni eliminar un producto inactivo. Actívalo primero usando el interruptor de estado." onClose={() => setBlockedAlertId(null)} />
+                                                    </td></tr>
                                                 )}
                                             </React.Fragment>
                                         );
@@ -759,7 +800,7 @@ export function ProductCatalog() {
                         {totalPages > 1 && (
                             <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="w-4 h-4" /></Button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                                     <Button key={page} size="sm" onClick={() => setCurrentPage(page)} className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>{page}</Button>
                                 ))}
                                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="w-4 h-4" /></Button>
@@ -768,18 +809,12 @@ export function ProductCatalog() {
                     </CardContent>
                 </Card>
             ) : (
-                // ✅ VISTA GRID — imagen en la parte superior de cada card
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {currentProducts.map((product) => {
+                    {currentProducts.map(product => {
                         const disabled = product.estado === 'inactivo';
                         return (
                             <Card key={product.id} className="overflow-hidden">
-                                {/* ✅ NUEVO — imagen en card */}
-                                <ProductImage
-                                    src={product.imagenUrl}
-                                    alt={product.nombreProducto}
-                                    className="w-full h-40 object-cover"
-                                />
+                                <ProductImage src={product.imagenUrl} alt={product.nombreProducto} className="w-full h-40 object-cover" />
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{product.referencia}</code>
@@ -799,26 +834,15 @@ export function ProductCatalog() {
                                     </div>
                                     <p className="text-sm text-gray-500 mb-3">Stock: {product.stock} und</p>
                                     <div className="flex space-x-2">
-                                        <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1">
-                                            <Eye className="w-4 h-4 mr-1" /> Ver
-                                        </Button>
-                                        <Button variant="outline" size="sm"
-                                            onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                            className={`flex-1 ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}>
-                                            <Edit className="w-4 h-4 mr-1" /> Editar
-                                        </Button>
-                                        <Button variant="outline" size="sm"
-                                            onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                            className={disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}>
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1"><Eye className="w-4 h-4 mr-1" /> Ver</Button>
+                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                            className={`flex-1 ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}><Edit className="w-4 h-4 mr-1" /> Editar</Button>
+                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                            className={disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}><Trash2 className="w-4 h-4" /></Button>
                                     </div>
                                     {blockedAlertId === product.id && (
                                         <div className="mt-2">
-                                            <BlockedAlert
-                                                message="Producto inactivo: Actívalo primero para editar o eliminar."
-                                                onClose={() => setBlockedAlertId(null)}
-                                            />
+                                            <BlockedAlert message="Producto inactivo: Actívalo primero para editar o eliminar." onClose={() => setBlockedAlertId(null)} />
                                         </div>
                                     )}
                                 </CardContent>
@@ -829,9 +853,9 @@ export function ProductCatalog() {
             )}
 
             {/* MODAL — CREAR / EDITAR */}
-            <Dialog open={showModal} onOpenChange={(open) => { 
-    if (!open && !(window as any)._cloudinaryOpen) resetForm(); 
-}}>
+            <Dialog open={showModal} onOpenChange={(open) => {
+                if (!open && !(window as any)._cloudinaryOpen) resetForm();
+            }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
                     <div className="overflow-y-auto max-h-[90vh] p-6">
                         <DialogHeader>
@@ -870,14 +894,9 @@ export function ProductCatalog() {
                             <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
                         ) : viewingProduct ? (
                             <div className="space-y-4 mt-4">
-                                {/* ✅ NUEVO — imagen en modal de detalle */}
                                 {viewingProduct.imagenUrl && (
                                     <div className="flex justify-center">
-                                        <ProductImage
-                                            src={viewingProduct.imagenUrl}
-                                            alt={viewingProduct.nombreProducto}
-                                            className="w-48 h-48 object-cover rounded-xl border border-gray-200 shadow"
-                                        />
+                                        <ProductImage src={viewingProduct.imagenUrl} alt={viewingProduct.nombreProducto} className="w-48 h-48 object-cover rounded-xl border border-gray-200 shadow" />
                                     </div>
                                 )}
                                 <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
@@ -916,30 +935,23 @@ export function ProductCatalog() {
                                     <p className="font-semibold text-blue-900">{deletingProduct.nombreProducto}</p>
                                     <p className="text-sm text-blue-700 mt-1">Ref: {deletingProduct.referencia}</p>
                                 </div>
-                                {!deleteConfirmed ? (
-                                    <p className="text-sm text-gray-600">¿Estás seguro de que deseas eliminar este producto permanentemente?</p>
-                                ) : (
-                                    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
+                                {!deleteConfirmed
+                                    ? <p className="text-sm text-gray-600">¿Estás seguro de que deseas eliminar este producto permanentemente?</p>
+                                    : <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
                                         <AlertTriangle className="w-4 h-4 shrink-0 text-blue-600" />
                                         Confirma que entiendes que esta acción es irreversible.
-                                    </div>
-                                )}
+                                      </div>
+                                }
                             </div>
                         )}
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }} disabled={deleting}>
-                                Cancelar
-                            </Button>
-                            {!deleteConfirmed ? (
-                                <Button onClick={() => setDeleteConfirmed(true)} className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900">
-                                    Sí, eliminar
-                                </Button>
-                            ) : (
-                                <Button onClick={handleDelete} disabled={deleting} className="bg-blue-600 hover:bg-blue-700 text-white">
-                                    {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    Confirmar eliminación
-                                </Button>
-                            )}
+                            <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }} disabled={deleting}>Cancelar</Button>
+                            {!deleteConfirmed
+                                ? <Button onClick={() => setDeleteConfirmed(true)} className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900">Sí, eliminar</Button>
+                                : <Button onClick={handleDelete} disabled={deleting} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                    {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Confirmar eliminación
+                                  </Button>
+                            }
                         </div>
                     </div>
                 </DialogContent>
