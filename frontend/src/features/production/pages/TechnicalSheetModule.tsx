@@ -231,11 +231,17 @@ function ItemsForm({
                         </div>
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Duración *</Label>
+                                <Label className="text-xs">Duración (min) *</Label>
                                 <CharCounter valor={newProc.duration} limite={50} />
                             </div>
-                            <Input placeholder="15 min, 2 horas" value={newProc.duration}
-                                onChange={e => updateProcField('duration', e.target.value)} className={inputErr(!!procErrors.duration)} />
+                            <Input 
+                                type="text" 
+                                inputMode="numeric"
+                                placeholder="Ej: 15, 30, 60" 
+                                value={newProc.duration}
+                                onChange={e => updateProcField('duration', e.target.value)} 
+                                className={inputErr(!!procErrors.duration)} 
+                            />
                             <FieldError mensaje={procErrors.duration} />
                         </div>
                     </div>
@@ -283,7 +289,7 @@ function ItemsForm({
                                     )}
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
+                                    <Badge variant="outline" className="text-xs shrink-0">{p.duration} min</Badge>
                                     <Button type="button" variant="ghost" size="sm"
                                         onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
                                         className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
@@ -1021,7 +1027,7 @@ export function TechnicalSheetModule() {
                                                 <div key={i} className="bg-gray-50 rounded p-3 border text-sm space-y-1">
                                                     <div className="flex justify-between items-start">
                                                         <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
-                                                        <Badge variant="outline">{p.duration}</Badge>
+                                                        <Badge variant="outline">{p.duration} min</Badge>
                                                     </div>
                                                     {responsable && (
                                                         <p className="text-xs text-gray-600 flex items-center gap-1">

@@ -10,7 +10,7 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     tipoDocumento: {
-        type: DataTypes.ENUM('CC', 'CE', 'Pasaporte'),
+        type: DataTypes.ENUM('CC', 'CE', 'PPT'),
         allowNull: false,
     },
 

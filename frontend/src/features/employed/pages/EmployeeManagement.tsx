@@ -31,7 +31,7 @@ import {
 const AREAS:  Empleado['area'][]  = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
 
 type FormState = {
-    tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+    tipoDocumento: 'CC' | 'CE' | 'PPT';
     numeroDocumento: string;
     nombres: string;
     apellidos: string;
@@ -149,7 +149,7 @@ function FormFields({
                             >
                                 <option value="CC">Cédula de Ciudadanía </option>
                                 <option value="CE">Cédula de Extranjería </option>
-                                <option value="Pasaporte">Pasaporte</option>
+                                <option value="PPT">PPT (Permiso Temporal de Permanencia)</option>
                             </select>
                             <FieldError mensaje={errores.tipoDocumento} />
                         </div>

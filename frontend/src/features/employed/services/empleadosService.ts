@@ -2,7 +2,7 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 
 export type Empleado = {
   id?: number;
-  tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+  tipoDocumento: 'CC' | 'CE' | 'PPT';
   numeroDocumento: string;
   nombres: string;
   apellidos: string;

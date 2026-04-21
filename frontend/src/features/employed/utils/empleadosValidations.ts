@@ -4,7 +4,7 @@
 // ============================================================
 
 export type FormState = {
-  tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+  tipoDocumento: 'CC' | 'CE' | 'PPT';
   numeroDocumento: string;
   nombres: string;
   apellidos: string;
@@ -42,7 +42,7 @@ export function sanitizarNombre(valor: string): string {
 
 /**
  * Filtra el número de documento según el tipo:
- * - CC / CE / Pasaporte: solo dígitos, máximo 10 dígitos
+ * - CC / CE / PPT: solo dígitos, máximo 10 dígitos
  */
 export function sanitizarDocumento(valor: string, tipo: FormState['tipoDocumento']): string {
   const soloDigitos = valor.replace(/\D/g, '');

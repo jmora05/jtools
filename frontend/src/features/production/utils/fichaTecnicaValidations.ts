@@ -39,8 +39,8 @@ const MAX_UNIDAD    = 30;
 // Descripciones: texto libre sin caracteres de inyección
 const REGEX_DESCRIPCION = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()\\/°%&'"!?¿¡]*$/;
 
-// Duración: alfanumérico + separadores de tiempo
-const REGEX_DURACION = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9 :.,\-/]*$/;
+// Duración: solo números enteros positivos (minutos)
+const REGEX_DURACION = /^[0-9]*$/;
 
 // Parámetro / valor de medida
 const REGEX_PARAMETRO = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()°²³µ%/]*$/;
@@ -55,7 +55,7 @@ const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöü
 const REGEX_UNIDAD = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 /°.]*$/;
 
 const CHARS_PROHIBIDOS_DESCRIPCION = /[<>{}|^`[\]@#$]/g;
-const CHARS_PROHIBIDOS_DURACION    = /[<>{}|\\^`[\]@#$!?¿¡'"+=&*;()]/g;
+const CHARS_PROHIBIDOS_DURACION    = /[^0-9]/g;  // Solo permite números
 const CHARS_PROHIBIDOS_PARAMETRO   = /[<>{}|\\^`[\]@#$!?¿¡'"+&*]/g;
 const CHARS_PROHIBIDOS_NOTAS       = /[<>{}|\\^`[\]]/g;
 
@@ -69,7 +69,7 @@ export function filtrarDescripcion(valor: string): string {
 }
 
 /**
- * Filtra caracteres no permitidos de una duración.
+ * Filtra caracteres no permitidos de una duración (solo números).
  */
 export function filtrarDuracion(valor: string): string {
   return valor.replace(CHARS_PROHIBIDOS_DURACION, '');
@@ -152,7 +152,9 @@ export function validarProcesoCampos(proc: { description: string; duration: stri
   } else if (proc.duration.trim().length > MAX_DURACION) {
     e.duration = `Máximo ${MAX_DURACION} caracteres`;
   } else if (!REGEX_DURACION.test(proc.duration.trim())) {
-    e.duration = 'Solo letras, números, espacios, :, ., , y -';
+    e.duration = 'Solo se permiten números enteros';
+  } else if (parseInt(proc.duration.trim()) <= 0) {
+    e.duration = 'La duración debe ser mayor a 0';
   }
 
   return e;
