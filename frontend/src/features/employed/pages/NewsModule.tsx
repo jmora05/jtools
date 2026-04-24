@@ -35,7 +35,7 @@ import { getEmpleados, desactivarEmpleado } from '../services/empleadosService';
 
 const ESTADO_COLORS: Record<string, string> = {
   registrada: 'bg-blue-100 text-blue-900 border-blue-200',
-  aprobada:   'bg-green-100 text-green-900 border-green-200',
+  aprobada:   'bg-blue-100 text-blue-900 border-blue-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -771,9 +771,9 @@ export function NewsModule() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Título</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>                 
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
@@ -806,6 +806,10 @@ export function NewsModule() {
                           <div className="text-sm font-medium text-gray-900 max-w-xs truncate">{novedad.titulo}</div>
                         </td>
 
+                        <td className="px-6 py-4 text-sm text-gray-900">{nombreCompleto(novedad.empleadoAfectado)}</td>
+                        
+                        <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>
+                        
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <Switch
@@ -819,10 +823,6 @@ export function NewsModule() {
                             {togglingIds.has(novedad.id) && <Loader2Icon className="w-3 h-3 animate-spin text-gray-400" />}
                           </div>
                         </td>
-
-                        <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>
-
-                        <td className="px-6 py-4 text-sm text-gray-900">{nombreCompleto(novedad.empleadoAfectado)}</td>
 
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">

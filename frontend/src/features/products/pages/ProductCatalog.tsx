@@ -250,7 +250,23 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
         onChange('imagenUrl', '');
     };
 
+    // ── FIX: evita que el Dialog de Radix UI se cierre cuando el selector
+    //         de archivos del SO roba el foco al navegador.
+    const handleFileButtonClick = () => {
+        (window as any)._filePickerOpen = true;
+        const clearFlag = () => {
+            (window as any)._filePickerOpen = false;
+            window.removeEventListener('focus', clearFlag);
+        };
+        // Cuando el selector de archivos cierra, el foco vuelve a la ventana
+        window.addEventListener('focus', clearFlag);
+        fileInputRef.current?.click();
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // El foco ya volvió, limpiamos el flag por si acaso
+        (window as any)._filePickerOpen = false;
+
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith('image/')) {
@@ -365,7 +381,10 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                         className={touched.precio && errors.precio ? 'border-red-400 focus-visible:ring-red-300' : ''}
                     />
                     <FieldError message={touched.precio ? errors.precio : undefined} />
-                    <p className="text-xs text-red-500 mt-1">Máximo: $99,999,999.99</p>
+                    {/* FIX: solo se muestra cuando el error es específicamente el de precio máximo */}
+                    {touched.precio && errors.precio === 'El precio no puede superar $99,999,999.99.' && (
+                        <p className="text-xs text-red-500 mt-1">Máximo: $99,999,999.99</p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">Stock <span className="text-red-500">*</span></label>
@@ -425,6 +444,9 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                     />
                 ) : (
                     <>
+                        {/* FIX: el input se mantiene en el DOM pero el click se dispara
+                            desde handleFileButtonClick que registra el flag antes de abrir
+                            el selector del SO, evitando que Radix cierre el Dialog. */}
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -434,7 +456,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                         />
                         <button
                             type="button"
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={handleFileButtonClick}
                             className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                         >
                             <Upload className="w-4 h-4" />
@@ -853,10 +875,17 @@ export function ProductCatalog() {
             )}
 
             {/* MODAL — CREAR / EDITAR */}
+            {/* FIX: onInteractOutside evita que Radix cierre el Dialog cuando el selector
+                de archivos del SO roba el foco a la ventana del navegador. */}
             <Dialog open={showModal} onOpenChange={(open) => {
-                if (!open && !(window as any)._cloudinaryOpen) resetForm();
+                if (!open && !(window as any)._cloudinaryOpen && !(window as any)._filePickerOpen) resetForm();
             }}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+                <DialogContent
+                    className="max-w-2xl max-h-[90vh] overflow-visible p-0"
+                    onInteractOutside={(e) => {
+                        if ((window as any)._filePickerOpen) e.preventDefault();
+                    }}
+                >
                     <div className="overflow-y-auto max-h-[90vh] p-6">
                         <DialogHeader>
                             <DialogTitle>{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
