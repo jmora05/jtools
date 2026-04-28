@@ -359,6 +359,123 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 <div className="flex-1 overflow-y-auto px-8 py-8">
                   <div className="space-y-8 max-w-7xl mx-auto">
 
+                    {/* ── Información del Cliente ──────────────────────────── */}
+                    <Card className="shadow-lg border-2 border-gray-100">
+                      <CardHeader className="pb-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                        <CardTitle className="text-xl text-gray-900">👤 Seleccionar Cliente</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-8 px-10 pb-10 space-y-5">
+                        {!saleForm.clientId ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label className="text-base">Buscar Cliente <span className="text-red-500 ml-1">*</span></Label>
+                              <div className="relative">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                <Input
+                                  placeholder="Buscar por nombre o documento..."
+                                  value={clientSearch}
+                                  onChange={(e) => setClientSearch(e.target.value)}
+                                  className="pl-12 h-12 text-base"
+                                />
+                              </div>
+                            </div>
+
+                            {clientSearch && (
+                              <div className="border rounded-xl overflow-hidden shadow-sm">
+                                {filteredClients.length === 0 ? (
+                                  <div className="px-4 py-6 text-center">
+                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-2">
+                                      <SearchIcon className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <p className="text-sm text-gray-500">No se encontraron clientes para</p>
+                                    <p className="text-sm font-semibold text-gray-700 mt-0.5">"{clientSearch}"</p>
+                                  </div>
+                                ) : (
+                                  <div className="max-h-64 overflow-y-auto">
+                                    {filteredClients.map(client => (
+                                      <button
+                                        key={client.id}
+                                        type="button"
+                                        onClick={() => handleSelectClient(client)}
+                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-0 transition-colors group"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
+                                            <span className="text-xs font-bold text-blue-700">
+                                              {(client.name?.[0] ?? '?').toUpperCase()}
+                                            </span>
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
+                                            <p className="text-xs text-gray-500 truncate mt-0.5">
+                                              {client.document && <span className="mr-3">🪪 {client.document}</span>}
+                                              {client.phone && <span>📞 {client.phone}</span>}
+                                            </p>
+                                          </div>
+                                          <PlusIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-blue-700 text-sm font-semibold">
+                                ✅ Cliente seleccionado
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSaleForm({ ...saleForm, clientId: '', clientName: '', clientDocument: '' })}
+                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                title="Cambiar cliente"
+                              >
+                                <XIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs text-gray-500">Nombre completo</p>
+                                <p className="font-medium text-gray-800">{saleForm.clientName}</p>
+                              </div>
+                              {saleForm.clientDocument && (
+                                <div>
+                                  <p className="text-xs text-gray-500">Documento</p>
+                                  <p className="font-medium text-gray-800">{saleForm.clientDocument}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-xs text-gray-500">ID</p>
+                                <p className="font-medium text-gray-800">{saleForm.clientId}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Método de pago */}
+                        <div className="space-y-2">
+                          <Label className="text-base">Método de Pago <span className="text-red-500 ml-1">*</span></Label>
+                          <Select
+                            value={saleForm.paymentMethod}
+                            onValueChange={(value) => setSaleForm({ ...saleForm, paymentMethod: value })}
+                          >
+                            <SelectTrigger className="h-12">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Efectivo">Efectivo</SelectItem>
+                              <SelectItem value="Tarjeta">Tarjeta</SelectItem>
+                              <SelectItem value="Transferencia">Transferencia</SelectItem>
+                              <SelectItem value="Crédito">Crédito</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </CardContent>
+                    </Card>
+
                     {/* ── Carrito ─────────────────────────────────────────── */}
                     <Card className="shadow-2xl border-2 border-blue-100">
                       <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg border-b-2 border-blue-300 py-6 px-8">
@@ -489,123 +606,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               </div>
                             </div>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* ── Información del Cliente ──────────────────────────── */}
-                    <Card className="shadow-lg border-2 border-gray-100">
-                      <CardHeader className="pb-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                        <CardTitle className="text-xl text-gray-900">👤 Seleccionar Cliente</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-8 px-10 pb-10 space-y-5">
-                        {!saleForm.clientId ? (
-                          <>
-                            <div className="space-y-2">
-                              <Label className="text-base">Buscar Cliente <span className="text-red-500 ml-1">*</span></Label>
-                              <div className="relative">
-                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                <Input
-                                  placeholder="Buscar por nombre o documento..."
-                                  value={clientSearch}
-                                  onChange={(e) => setClientSearch(e.target.value)}
-                                  className="pl-12 h-12 text-base"
-                                />
-                              </div>
-                            </div>
-
-                            {clientSearch && (
-                              <div className="border rounded-xl overflow-hidden shadow-sm">
-                                {filteredClients.length === 0 ? (
-                                  <div className="px-4 py-6 text-center">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-2">
-                                      <SearchIcon className="w-5 h-5 text-gray-400" />
-                                    </div>
-                                    <p className="text-sm text-gray-500">No se encontraron clientes para</p>
-                                    <p className="text-sm font-semibold text-gray-700 mt-0.5">"{clientSearch}"</p>
-                                  </div>
-                                ) : (
-                                  <div className="max-h-64 overflow-y-auto">
-                                    {filteredClients.map(client => (
-                                      <button
-                                        key={client.id}
-                                        type="button"
-                                        onClick={() => handleSelectClient(client)}
-                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-0 transition-colors group"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
-                                            <span className="text-xs font-bold text-blue-700">
-                                              {(client.name?.[0] ?? '?').toUpperCase()}
-                                            </span>
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
-                                            <p className="text-xs text-gray-500 truncate mt-0.5">
-                                              {client.document && <span className="mr-3">🪪 {client.document}</span>}
-                                              {client.phone && <span>📞 {client.phone}</span>}
-                                            </p>
-                                          </div>
-                                          <PlusIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-5 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-blue-700 text-sm font-semibold">
-                                ✅ Cliente seleccionado
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setSaleForm({ ...saleForm, clientId: '', clientName: '', clientDocument: '' })}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                title="Cambiar cliente"
-                              >
-                                <XIcon className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <p className="text-xs text-gray-500">Nombre completo</p>
-                                <p className="font-medium text-gray-800">{saleForm.clientName}</p>
-                              </div>
-                              {saleForm.clientDocument && (
-                                <div>
-                                  <p className="text-xs text-gray-500">Documento</p>
-                                  <p className="font-medium text-gray-800">{saleForm.clientDocument}</p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-xs text-gray-500">ID</p>
-                                <p className="font-medium text-gray-800">{saleForm.clientId}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Método de pago */}
-                        <div className="space-y-2">
-                          <Label className="text-base">Método de Pago <span className="text-red-500 ml-1">*</span></Label>
-                          <Select
-                            value={saleForm.paymentMethod}
-                            onValueChange={(value) => setSaleForm({ ...saleForm, paymentMethod: value })}
-                          >
-                            <SelectTrigger className="h-12">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Efectivo">Efectivo</SelectItem>
-                              <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                              <SelectItem value="Transferencia">Transferencia</SelectItem>
-                              <SelectItem value="Crédito">Crédito</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </CardContent>
                     </Card>

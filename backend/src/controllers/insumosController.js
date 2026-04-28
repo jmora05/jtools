@@ -6,11 +6,19 @@ const {
 } = require('../models/index.js');
 const { validarInsumo } = require('../validators/insumosValidator.js');
 
-const includeProveedor = {
-    model:      Proveedores,
-    as:         'proveedor',
-    attributes: ['id', 'nombreEmpresa'],
-};
+const includeProveedores = [
+    {
+        model:      Proveedores,
+        as:         'proveedor',
+        attributes: ['id', 'nombreEmpresa'],
+    },
+    {
+        model:      Proveedores,
+        as:         'proveedores',
+        attributes: ['id', 'nombreEmpresa'],
+        through:    { attributes: [] },
+    },
+];
 
 // ─── Helper: verificar todas las dependencias de un insumo ────────────────────
 async function getDependenciasDeInsumo(id, nombreInsumo) {
@@ -72,7 +80,7 @@ async function getDependenciasDeInsumo(id, nombreInsumo) {
 // GET - listar todos los insumos
 const getInsumos = async (req, res) => {
     try {
-        const insumos = await Insumos.findAll({ include: [includeProveedor] });
+        const insumos = await Insumos.findAll({ include: includeProveedores });
         res.status(200).json(insumos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los insumos', error: error.message });
@@ -138,9 +146,11 @@ const createInsumo = async (req, res) => {
             precioUnitario,
             unidadMedida,
             cantidad,
-            proveedoresId,
+            proveedoresIds,
             estado,
         } = req.body;
+
+        const ids = Array.isArray(proveedoresIds) ? proveedoresIds.map(Number).filter(Boolean) : [];
 
         const insumo = await Insumos.create({
             nombreInsumo,
@@ -148,11 +158,14 @@ const createInsumo = async (req, res) => {
             precioUnitario: precioUnitario ?? 0.00,
             unidadMedida,
             cantidad:       cantidad       ?? null,
-            proveedoresId:  proveedoresId  ?? null,
+            proveedoresId:  ids[0]         ?? null,
             estado:         estado         ?? 'disponible',
         });
 
-        res.status(201).json({ message: 'Insumo creado correctamente', insumo });
+        if (ids.length > 0) await insumo.setProveedores(ids);
+
+        const insumoConProveedores = await Insumos.findByPk(insumo.id, { include: includeProveedores });
+        res.status(201).json({ message: 'Insumo creado correctamente', insumo: insumoConProveedores });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
@@ -183,9 +196,11 @@ const updateInsumo = async (req, res) => {
             precioUnitario,
             unidadMedida,
             cantidad,
-            proveedoresId,
+            proveedoresIds,
             estado,
         } = req.body;
+
+        const ids = Array.isArray(proveedoresIds) ? proveedoresIds.map(Number).filter(Boolean) : undefined;
 
         await insumo.update({
             ...(nombreInsumo   !== undefined && { nombreInsumo }),
@@ -193,11 +208,14 @@ const updateInsumo = async (req, res) => {
             ...(precioUnitario !== undefined && { precioUnitario }),
             ...(unidadMedida   !== undefined && { unidadMedida }),
             ...(cantidad       !== undefined && { cantidad }),
-            ...(proveedoresId  !== undefined && { proveedoresId }),
+            ...(ids            !== undefined && { proveedoresId: ids[0] ?? null }),
             ...(estado         !== undefined && { estado }),
         });
 
-        res.status(200).json({ message: 'Insumo actualizado correctamente', insumo });
+        if (ids !== undefined) await insumo.setProveedores(ids);
+
+        const insumoActualizado = await Insumos.findByPk(insumo.id, { include: includeProveedores });
+        res.status(200).json({ message: 'Insumo actualizado correctamente', insumo: insumoActualizado });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
