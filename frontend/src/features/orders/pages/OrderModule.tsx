@@ -5,7 +5,8 @@ import {
   createPedido,
   updatePedido,
 } from '@/features/orders/services/pedidosService';
-import { getClientes } from '@/features/clients/services/clientesService'; // ← ajusta la ruta si es distinta
+import { getClientes } from '@/features/clients/services/clientesService';
+import { getProductos } from '@/features/products/services/productosService';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -21,7 +22,7 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { toast } from 'sonner';
 import {
-  PlusIcon, SearchIcon, ShoppingCartIcon, EyeIcon, XIcon, EditIcon,
+  PlusIcon, MinusIcon, SearchIcon, ShoppingCartIcon, EyeIcon, XIcon, EditIcon,
   PackageIcon, RotateCcwIcon, XCircleIcon, AlertTriangleIcon,
   ChevronLeftIcon, ChevronRightIcon, FileTextIcon,
   Lock, X, CheckIcon, LoaderCircleIcon,
@@ -167,7 +168,7 @@ function useClienteSearch() {
 
 export function OrderModule() {
   const [orders,   setOrders]   = useState([]);
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -259,14 +260,22 @@ export function OrderModule() {
     };
     cargarPedidos();
 
-    
-    setProducts([
-      { id: 3, name: 'Filtro de Aceite Toyota',  code: 'FO-TOY-001', price: 25000,  stock: 15, category: 'Filtros' },
-      { id: 4, name: 'Pastillas de Freno Honda',  code: 'PF-HON-002', price: 85000,  stock: 8,  category: 'Frenos' },
-      { id: 5, name: 'Amortiguador Delantero',    code: 'AM-DEL-003', price: 150000, stock: 5,  category: 'Suspensión' },
-      { id: 6, name: 'Bujía NGK',                 code: 'BU-NGK-004', price: 12000,  stock: 30, category: 'Sistema eléctrico' },
-      { id: 7, name: 'Correa de Distribución',    code: 'CD-UNI-005', price: 95000,  stock: 12, category: 'Motor' },
-    ]);
+    const cargarProductos = async () => {
+      try {
+        const data = await getProductos() as any[];
+        setProducts(data.map((p: any) => ({
+          id: String(p.id),
+          name: p.nombreProducto ?? '',
+          code: p.referencia ?? '',
+          price: Number(p.precio) ?? 0,
+          stock: p.stock ?? 0,
+          category: p.categoriaProducto?.nombre ?? '',
+        })));
+      } catch (error: any) {
+        toast.error(error.message || 'Error al cargar los productos');
+      }
+    };
+    cargarProductos();
   }, []);
 
   // Revalidar al cambiar el form
@@ -915,6 +924,9 @@ export function OrderModule() {
                 <div className="flex-1 overflow-y-auto px-8 py-8">
                   <div className="space-y-8 max-w-7xl mx-auto">
 
+                    {renderClienteSection()}
+                    {renderEntregaSection()}
+
                     {/* Carrito */}
                     <Card className="shadow-2xl border-2 border-blue-100">
                       <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg border-b-2 border-blue-300 py-6 px-8">
@@ -930,6 +942,7 @@ export function OrderModule() {
                       </CardHeader>
                       <CardContent className="p-0">
                         <div className="space-y-6">
+
                           {/* Búsqueda de productos */}
                           <div className="p-8 border-b border-gray-200">
                             <div className="space-y-5">
@@ -937,38 +950,49 @@ export function OrderModule() {
                                 <Label className="text-base">🔍 Buscar Productos</Label>
                                 <div className="relative">
                                   <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                  <Input placeholder="Buscar por nombre o código..." value={productSearch}
-                                    onChange={e => setProductSearch(e.target.value)} className="pl-12 h-12 text-base" />
+                                  <Input
+                                    placeholder="Buscar por nombre o código..."
+                                    value={productSearch}
+                                    onChange={e => setProductSearch(e.target.value)}
+                                    className="pl-12 h-12 text-base"
+                                  />
                                 </div>
                               </div>
-                              <div className="grid grid-cols-1 gap-3 border rounded-lg p-4 bg-gray-50">
-                                {filteredProducts.map(product => (
-                                  <Card key={product.id} className="border-gray-200 bg-white hover:border-blue-400 hover:shadow-lg transition-all">
-                                    <CardContent className="p-5">
-                                      <div className="space-y-3">
-                                        <div className="flex justify-between items-start">
-                                          <div className="space-y-1 flex-1">
-                                            <h4 className="text-base text-gray-900">{product.name}</h4>
-                                            <p className="text-sm text-gray-500">{product.code}</p>
-                                            <Badge variant="outline" className="text-xs">{product.category}</Badge>
+
+                              {productSearch && (
+                                <div className="grid grid-cols-1 gap-3 border rounded-lg p-4 bg-gray-50">
+                                  {filteredProducts.length === 0 ? (
+                                    <p className="text-sm text-gray-500 text-center py-4">No se encontraron productos</p>
+                                  ) : filteredProducts.map(product => (
+                                    <Card key={product.id} className="border-gray-200 bg-white hover:border-blue-400 hover:shadow-lg transition-all">
+                                      <CardContent className="p-5">
+                                        <div className="space-y-3">
+                                          <div className="flex justify-between items-start">
+                                            <div className="space-y-1 flex-1">
+                                              <h4 className="text-base text-gray-900">{product.name}</h4>
+                                              <p className="text-sm text-gray-500">{product.code}</p>
+                                              <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                                            </div>
+                                            <div className="text-right ml-3">
+                                              <Badge variant="secondary" className="text-blue-600 mb-2 text-sm px-3 py-1">
+                                                ${product.price.toLocaleString()}
+                                              </Badge>
+                                              <p className="text-sm text-gray-500">Stock: {product.stock}</p>
+                                            </div>
                                           </div>
-                                          <div className="text-right ml-3">
-                                            <Badge variant="secondary" className="text-blue-600 mb-2 text-sm px-3 py-1">
-                                              ${product.price.toLocaleString()}
-                                            </Badge>
-                                            <p className="text-sm text-gray-500">Stock: {product.stock}</p>
-                                          </div>
+                                          <Button
+                                            type="button" size="default" variant="outline"
+                                            onClick={() => addProduct(product)}
+                                            className="w-full text-blue-600 border-blue-200 hover:bg-blue-50 h-10"
+                                          >
+                                            <PlusIcon className="w-4 h-4 mr-2" />Agregar
+                                          </Button>
                                         </div>
-                                        <Button type="button" size="default" variant="outline"
-                                          onClick={() => addProduct(product)}
-                                          className="w-full text-blue-600 border-blue-200 hover:bg-blue-50 h-10">
-                                          <PlusIcon className="w-4 h-4 mr-2" />Agregar
-                                        </Button>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                ))}
-                              </div>
+                                      </CardContent>
+                                    </Card>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -987,18 +1011,32 @@ export function OrderModule() {
                                     <h4 className="text-sm text-gray-900">{item.name}</h4>
                                     <p className="text-xs text-gray-500">{item.code}</p>
                                   </div>
-                                  <Button type="button" size="sm" variant="outline" onClick={() => removeItem(item.id)}
-                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 w-8 h-8 p-0">
+                                  <Button
+                                    type="button" size="sm" variant="outline"
+                                    onClick={() => removeItem(item.id)}
+                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 w-8 h-8 p-0"
+                                  >
                                     <XIcon className="w-3 h-3" />
                                   </Button>
                                 </div>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-2">
-                                    <Button type="button" size="sm" variant="outline" onClick={() => updateQty(item.id, item.quantity - 1)} className="w-8 h-8 p-0">-</Button>
+                                    <Button type="button" size="sm" variant="outline"
+                                      onClick={() => updateQty(item.id, item.quantity - 1)}
+                                      className="w-8 h-8 p-0">
+                                      <MinusIcon className="w-3 h-3" />
+                                    </Button>
                                     <span className="text-sm w-10 text-center bg-white px-2 py-1 border rounded">{item.quantity}</span>
-                                    <Button type="button" size="sm" variant="outline" onClick={() => updateQty(item.id, item.quantity + 1)} className="w-8 h-8 p-0">+</Button>
+                                    <Button type="button" size="sm" variant="outline"
+                                      onClick={() => updateQty(item.id, item.quantity + 1)}
+                                      className="w-8 h-8 p-0">
+                                      <PlusIcon className="w-3 h-3" />
+                                    </Button>
                                   </div>
-                                  <p className="text-sm text-gray-900">${(item.quantity * item.price).toLocaleString()}</p>
+                                  <div className="text-right">
+                                    <p className="text-xs text-gray-500">${item.price.toLocaleString()} c/u</p>
+                                    <p className="text-sm text-gray-900">${(item.quantity * item.price).toLocaleString()}</p>
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -1012,13 +1050,9 @@ export function OrderModule() {
                                   <span className="text-gray-700">Subtotal:</span>
                                   <span>${subtotal.toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between text-base">
-                                  <span className="text-gray-700">IVA (19%):</span>
-                                  <span>${Math.round(subtotal * 0.19).toLocaleString()}</span>
-                                </div>
                                 <div className="border-t-2 border-blue-300 pt-3 flex justify-between text-xl">
                                   <span>Total:</span>
-                                  <span className="text-blue-600">${Math.round(subtotal * 1.19).toLocaleString()}</span>
+                                  <span className="text-blue-600">${subtotal.toLocaleString()}</span>
                                 </div>
                               </div>
                             </div>
@@ -1027,9 +1061,6 @@ export function OrderModule() {
                       </CardContent>
                     </Card>
 
-                    {renderClienteSection()}
-                    {renderEstadoSection()}
-                    {renderEntregaSection()}
                     {renderNotasSection()}
                   </div>
                 </div>
