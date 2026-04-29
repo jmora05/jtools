@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import {
     Search, Plus, Edit, Eye, ShoppingCart, ChevronLeft, ChevronRight,
     Loader2, Info, AlertTriangle, Lock, X, FileDown, PackageIcon, CalendarIcon,
-    TruckIcon, CheckCircleIcon, ClockIcon, BanIcon, Percent,
+    TruckIcon, CheckCircleIcon, ClockIcon, BanIcon, Percent, ChevronDown,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -24,17 +24,25 @@ import {
     cambiarEstadoCompra, deleteCompra, getProveedores, getInsumos,
 } from '../../suppliers/services/comprasService';
 
-// ─── Importar updateInsumo para actualizar stock al registrar compra ──────────
 import { updateInsumo } from '../../suppliers/services/insumosService';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const FECHA_MIN_ISO   = '2000-01-01';
 const NOTAS_MAX       = 500;
 const PRECIO_MAX      = 999_999_999;
 const CANTIDAD_MAX    = 100_000;
 const FACTURA_MAX     = 2_147_483_647;
 const EDIT_LIMIT_DAYS = 5;
-const IVA_DEFAULT     = 19; // porcentaje por defecto
+const IVA_DEFAULT     = 19;
+const FECHA_MIN_ISO   = '2000-01-01';
+// Máximo días hacia el pasado permitidos al registrar/editar una compra
+const MAX_DAYS_PAST   = 7;
+
+// ─── Helper: fecha mínima dinámica (hoy - MAX_DAYS_PAST) ─────────────────────
+function getFechaMinima(): string {
+    const d = new Date();
+    d.setDate(d.getDate() - MAX_DAYS_PAST);
+    return d.toISOString().split('T')[0];
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Proveedor {
@@ -92,11 +100,26 @@ function validateCompraForm(form: CompraFormData): CompraFormErrors {
     if (!form.fecha || form.fecha.trim() === '') {
         errors.fecha = 'La fecha es obligatoria.';
     } else {
-        const d   = new Date(form.fecha);
+        const d   = new Date(form.fecha + 'T12:00:00');
         const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
-        if (isNaN(d.getTime()))                    errors.fecha = 'Fecha inválida.';
-        else if (d < new Date(FECHA_MIN_ISO))       errors.fecha = 'La fecha no puede ser anterior al año 2000.';
-        else if (d > hoy)                           errors.fecha = 'La fecha no puede ser una fecha futura.';
+
+        // Fecha mínima absoluta (año 2000)
+        const fechaAbsMin = new Date(FECHA_MIN_ISO + 'T00:00:00');
+
+        // Fecha mínima dinámica: hoy - MAX_DAYS_PAST
+        const fechaMinDinamica = new Date();
+        fechaMinDinamica.setDate(fechaMinDinamica.getDate() - MAX_DAYS_PAST);
+        fechaMinDinamica.setHours(0, 0, 0, 0);
+
+        if (isNaN(d.getTime())) {
+            errors.fecha = 'Fecha inválida.';
+        } else if (d < fechaAbsMin) {
+            errors.fecha = 'La fecha no puede ser anterior al año 2000.';
+        } else if (d < fechaMinDinamica) {
+            errors.fecha = `La fecha no puede ser mayor a ${MAX_DAYS_PAST} días en el pasado.`;
+        } else if (d > hoy) {
+            errors.fecha = 'La fecha no puede ser una fecha futura.';
+        }
     }
 
     if (!form.metodoPago || form.metodoPago.trim() === '')
@@ -158,6 +181,21 @@ const InfoAlert = ({ message }: { message: string }) => (
     </div>
 );
 
+// Alerta que aparece cuando se intenta poner una fecha demasiado antigua
+const DateBlockedAlert = ({ onClose }: { onClose: () => void }) => (
+    <div className="flex items-center justify-between bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3 text-sm mt-1">
+        <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>
+                Solo se permiten fechas de los últimos {MAX_DAYS_PAST} días. Por favor selecciona una fecha válida.
+            </span>
+        </div>
+        <button onClick={onClose} className="text-amber-400 hover:text-amber-700 ml-4 shrink-0">
+            <X className="w-4 h-4" />
+        </button>
+    </div>
+);
+
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
     <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
         <div className="flex items-center gap-2">
@@ -170,7 +208,6 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
     </div>
 );
 
-// EstadoBadge se mantiene solo para el modal de detalle
 const EstadoBadge = ({ estado }: { estado: string }) => {
     const config: Record<string, { icon: React.ReactNode; clase: string }> = {
         pendiente:     { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-amber-50 text-amber-700 border border-amber-200' },
@@ -186,8 +223,139 @@ const EstadoBadge = ({ estado }: { estado: string }) => {
     );
 };
 
+// ─── Combobox buscador de proveedores ─────────────────────────────────────────
+interface ProveedorComboboxProps {
+    proveedores: Proveedor[];
+    value: string;              // id como string
+    onChange: (id: string) => void;
+    onBlur: () => void;
+    hasError: boolean;
+}
+
+const ProveedorCombobox = ({ proveedores, value, onChange, onBlur, hasError }: ProveedorComboboxProps) => {
+    const [query, setQuery]   = useState('');
+    const [open, setOpen]     = useState(false);
+    const containerRef        = useRef<HTMLDivElement>(null);
+    const inputRef            = useRef<HTMLInputElement>(null);
+
+    const selectedProveedor = proveedores.find((p) => p.id.toString() === value);
+
+    const filtered = proveedores.filter((p) => {
+        const q = query.toLowerCase();
+        return (
+            p.nombreEmpresa.toLowerCase().includes(q) ||
+            (p.personaContacto ?? '').toLowerCase().includes(q) ||
+            (p.email ?? '').toLowerCase().includes(q)
+        );
+    });
+
+    // Cerrar al hacer clic fuera
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const handleSelect = (proveedor: Proveedor) => {
+        onChange(proveedor.id.toString());
+        setOpen(false);
+        setQuery('');
+        onBlur();
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setQuery(val);
+        if (val === '') onChange('');
+        // Solo mostrar la lista si el usuario ha escrito algo
+        setOpen(val.length > 0);
+    };
+
+    // Valor mostrado en el input: si hay query activo, muestra el query; si no, el nombre del seleccionado
+    const displayValue = query.length > 0 ? query : (selectedProveedor?.nombreEmpresa ?? '');
+
+    return (
+        <div ref={containerRef} className="relative">
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <Input
+                    ref={inputRef}
+                    placeholder="Escribe para buscar proveedor..."
+                    value={displayValue}
+                    onChange={handleInputChange}
+                    onFocus={() => {
+                        // Al hacer focus, limpiar query para poder buscar desde cero
+                        // pero NO abrir la lista todavía
+                        setQuery('');
+                        setOpen(false);
+                    }}
+                    onBlur={() => {
+                        setTimeout(() => {
+                            setOpen(false);
+                            onBlur();
+                        }, 150);
+                    }}
+                    className={`pl-10 pr-10 ${hasError ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                    autoComplete="off"
+                />
+                {/* El chevron solo enfoca el input para que el usuario empiece a escribir */}
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => inputRef.current?.focus()}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                    <Search className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* Solo muestra el dropdown cuando el usuario ha escrito algo */}
+            {open && query.length > 0 && (
+                <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                    {filtered.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-gray-400 text-center">
+                            Sin resultados para "<span className="font-medium">{query}</span>"
+                        </div>
+                    ) : (
+                        <ul className="max-h-52 overflow-y-auto divide-y divide-gray-50">
+                            {filtered.map((p) => {
+                                const isSelected = p.id.toString() === value;
+                                return (
+                                    <li key={p.id}>
+                                        <button
+                                            type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() => handleSelect(p)}
+                                            className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors ${
+                                                isSelected ? 'bg-blue-50' : ''
+                                            }`}
+                                        >
+                                            <p className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+                                                {p.nombreEmpresa}
+                                            </p>
+                                            {(p.personaContacto || p.email) && (
+                                                <p className="text-xs text-gray-400 mt-0.5">
+                                                    {[p.personaContacto, p.email].filter(Boolean).join(' · ')}
+                                                </p>
+                                            )}
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ─── Generación de PDF ────────────────────────────────────────────────────────
-// ivaRate recibe el porcentaje (ej. 19 para 19%)
 function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
     const doc   = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
@@ -309,43 +477,46 @@ interface CompraFormSectionProps {
     touched: Partial<Record<keyof CompraFormData, boolean>>;
     onBlur: (field: keyof CompraFormData) => void;
     isEditing: boolean;
-    // IVA controlado por el usuario
     ivaRate: number;
     onIvaChange: (value: number) => void;
+    // Alerta de fecha bloqueada
+    showDateBlockedAlert: boolean;
+    onCloseDateBlockedAlert: () => void;
 }
 
 const CompraFormSection = ({
     proveedores, formData, onChange, errors, touched, onBlur, isEditing,
-    ivaRate, onIvaChange,
+    ivaRate, onIvaChange, showDateBlockedAlert, onCloseDateBlockedAlert,
 }: CompraFormSectionProps) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today      = new Date().toISOString().split('T')[0];
+    const fechaMin   = getFechaMinima(); // hoy - 7 días
+
+    const handleDateChange = (value: string) => {
+        onChange('fecha', value);
+        onBlur('fecha');
+    };
+
     return (
         <div className="space-y-4">
-            {/* Proveedor */}
+            {/* ── Proveedor (combobox buscador) ── */}
             <div>
                 <label className="block text-sm text-gray-700 mb-2">
                     Proveedor <span className="text-red-500">*</span>
                 </label>
-                <Select
+                <ProveedorCombobox
+                    proveedores={proveedores}
                     value={formData.proveedoresId}
-                    onValueChange={(v) => { onChange('proveedoresId', v); onBlur('proveedoresId'); }}
-                >
-                    <SelectTrigger className={touched.proveedoresId && errors.proveedoresId ? 'border-red-400 focus-visible:ring-red-300' : ''}>
-                        <SelectValue placeholder="Seleccionar proveedor..." />
-                    </SelectTrigger>
-                    <SelectContent position="popper" className="z-[9999]">
-                        {proveedores.length === 0
-                            ? <SelectItem value="__none__" disabled>No hay proveedores activos</SelectItem>
-                            : proveedores.map((p) => (
-                                <SelectItem key={p.id} value={p.id.toString()}>{p.nombreEmpresa}</SelectItem>
-                            ))
-                        }
-                    </SelectContent>
-                </Select>
+                    onChange={(id) => onChange('proveedoresId', id)}
+                    onBlur={() => onBlur('proveedoresId')}
+                    hasError={!!(touched.proveedoresId && errors.proveedoresId)}
+                />
                 <FieldError message={touched.proveedoresId ? errors.proveedoresId : undefined} />
+                <p className="text-xs text-gray-400 mt-1">
+                    Escribe para filtrar entre los proveedores activos registrados en el sistema.
+                </p>
             </div>
 
-            {/* N° Factura + Fecha */}
+            {/* ── N° Factura + Fecha ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">N° Factura</label>
@@ -365,6 +536,7 @@ const CompraFormSection = ({
                         <p className="text-xs text-gray-400 mt-1">El N° de factura no puede modificarse.</p>
                     )}
                 </div>
+
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
                         Fecha <span className="text-red-500">*</span>
@@ -374,18 +546,25 @@ const CompraFormSection = ({
                         <Input
                             type="date"
                             value={formData.fecha}
-                            min={FECHA_MIN_ISO}
+                            min={fechaMin}   // ← solo permite los últimos 7 días
                             max={today}
-                            onChange={(e) => { onChange('fecha', e.target.value); onBlur('fecha'); }}
+                            onChange={(e) => handleDateChange(e.target.value)}
                             onBlur={() => onBlur('fecha')}
                             className={`pl-10 ${touched.fecha && errors.fecha ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
                         />
                     </div>
                     <FieldError message={touched.fecha ? errors.fecha : undefined} />
+                    <p className="text-xs text-gray-400 mt-1">
+                        Solo se permiten fechas de los últimos {MAX_DAYS_PAST} días.
+                    </p>
+                    {/* Alerta visible si burlan el min del input */}
+                    {showDateBlockedAlert && (
+                        <DateBlockedAlert onClose={onCloseDateBlockedAlert} />
+                    )}
                 </div>
             </div>
 
-            {/* Método de pago + IVA */}
+            {/* ── Método de pago + IVA ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
@@ -406,7 +585,6 @@ const CompraFormSection = ({
                     <FieldError message={touched.metodoPago ? errors.metodoPago : undefined} />
                 </div>
 
-                {/* IVA editable por el usuario */}
                 <div>
                     <label className="block text-sm text-gray-700 mb-2">
                         IVA (%) <span className="text-red-500">*</span>
@@ -434,7 +612,7 @@ const CompraFormSection = ({
                 </div>
             </div>
 
-            {/* Notas */}
+            {/* ── Notas ── */}
             <div>
                 <label className="block text-sm text-gray-700 mb-2">Notas (opcional)</label>
                 <Textarea
@@ -465,7 +643,7 @@ export function PurchaseModule() {
     const [loading, setLoading]         = useState(true);
     const [saving, setSaving]           = useState(false);
 
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm]   = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
@@ -474,24 +652,28 @@ export function PurchaseModule() {
     const [showAnularModal, setShowAnularModal] = useState(false);
     const [anularConfirmed, setAnularConfirmed] = useState(false);
 
-    const [editingCompra, setEditingCompra]       = useState<Compra | null>(null);
-    const [viewingCompra, setViewingCompra]       = useState<Compra | null>(null);
-    const [anulatingCompra, setAnulatingCompra]   = useState<Compra | null>(null);
-    const [loadingDetail, setLoadingDetail]       = useState(false);
+    const [editingCompra, setEditingCompra]     = useState<Compra | null>(null);
+    const [viewingCompra, setViewingCompra]     = useState<Compra | null>(null);
+    const [anulatingCompra, setAnulatingCompra] = useState<Compra | null>(null);
+    const [loadingDetail, setLoadingDetail]     = useState(false);
 
     const [blockedAlertId, setBlockedAlertId]   = useState<number | null>(null);
     const [blockedAlertMsg, setBlockedAlertMsg] = useState('');
 
-    // IVA configurable por el usuario (porcentaje, ej. 19 = 19%)
+    // ── Alerta de fecha demasiado antigua ─────────────────────────────────────
+    const [showDateBlockedAlert, setShowDateBlockedAlert] = useState(false);
+
     const [ivaRate, setIvaRate] = useState<number>(IVA_DEFAULT);
 
-    // ── Estado del carrito ─────────────────────────────────────────────────
+    // ── Estado del carrito ─────────────────────────────────────────────────────
     const [supplySearch, setSupplySearch]       = useState('');
     const [carrito, setCarrito]                 = useState<ItemCarrito[]>([]);
     const [carritoErrors, setCarritoErrors]     = useState<Record<number, CarritoItemError>>({});
     const [submitAttempted, setSubmitAttempted] = useState(false);
+    // Valores raw (string) de cada input de cantidad — permite borrar el campo temporalmente
+    const [cantidadStr, setCantidadStr] = useState<Record<number, string>>({});
 
-    // ── Estado del formulario ──────────────────────────────────────────────
+    // ── Estado del formulario ──────────────────────────────────────────────────
     const emptyForm: CompraFormData = {
         proveedoresId: '',
         fecha:         new Date().toISOString().split('T')[0],
@@ -504,7 +686,7 @@ export function PurchaseModule() {
     const [formErrors, setFormErrors] = useState<CompraFormErrors>({});
     const [touched, setTouched]       = useState<Partial<Record<keyof CompraFormData, boolean>>>({});
 
-    // ── Carga de datos ─────────────────────────────────────────────────────
+    // ── Carga de datos ─────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -525,7 +707,22 @@ export function PurchaseModule() {
     useEffect(() => { setFormErrors(validateCompraForm(formData)); }, [formData]);
     useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
-    // ── Filtrado y paginación (sin filtro de estado) ───────────────────────
+    // Detectar cuando la fecha cambia y es inválida por ser demasiado antigua
+    useEffect(() => {
+        if (formData.fecha) {
+            const d = new Date(formData.fecha + 'T12:00:00');
+            const fechaMinDinamica = new Date();
+            fechaMinDinamica.setDate(fechaMinDinamica.getDate() - MAX_DAYS_PAST);
+            fechaMinDinamica.setHours(0, 0, 0, 0);
+            if (!isNaN(d.getTime()) && d < fechaMinDinamica) {
+                setShowDateBlockedAlert(true);
+            } else {
+                setShowDateBlockedAlert(false);
+            }
+        }
+    }, [formData.fecha]);
+
+    // ── Filtrado y paginación ──────────────────────────────────────────────────
     const filteredCompras = compras.filter((c) => {
         const term = searchTerm.toLowerCase();
         return (
@@ -542,15 +739,18 @@ export function PurchaseModule() {
         (i.codigoInsumo ?? '').toLowerCase().includes(supplySearch.toLowerCase())
     );
 
-    // ── Operaciones del carrito ────────────────────────────────────────────
+    // ── Operaciones del carrito ────────────────────────────────────────────────
     const agregarInsumo = (insumo: Insumo) => {
         setCarrito((prev) => {
             const existe = prev.find((i) => i.insumoId === insumo.id);
             if (existe) {
+                const nuevaCantidad = Math.min(existe.cantidad + 1, CANTIDAD_MAX);
+                setCantidadStr((s) => ({ ...s, [insumo.id]: nuevaCantidad.toString() }));
                 return prev.map((i) =>
-                    i.insumoId === insumo.id ? { ...i, cantidad: Math.min(i.cantidad + 1, CANTIDAD_MAX) } : i
+                    i.insumoId === insumo.id ? { ...i, cantidad: nuevaCantidad } : i
                 );
             }
+            setCantidadStr((s) => ({ ...s, [insumo.id]: '1' }));
             return [...prev, {
                 insumoId: insumo.id,
                 nombre:   insumo.nombreInsumo,
@@ -562,12 +762,17 @@ export function PurchaseModule() {
     };
 
     const actualizarCantidad = (insumoId: number, value: number) => {
-        if (value <= 0) {
-            setCarrito((prev) => prev.filter((i) => i.insumoId !== insumoId));
-            setCarritoErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
+        const entero = Math.floor(value);
+        if (entero < 1) {
+            // Nunca bajar de 1 — mostrar alerta y mantener en 1
+            toast.warning('La cantidad mínima es 1.');
+            setCantidadStr((prev) => ({ ...prev, [insumoId]: '1' }));
+            setCarrito((prev) => prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad: 1 } : i));
             return;
         }
-        setCarrito((prev) => prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad: value } : i));
+        if (entero > CANTIDAD_MAX) return;
+        setCantidadStr((prev) => ({ ...prev, [insumoId]: entero.toString() }));
+        setCarrito((prev) => prev.map((i) => i.insumoId === insumoId ? { ...i, cantidad: entero } : i));
     };
 
     const actualizarPrecio = (insumoId: number, raw: string) => {
@@ -578,6 +783,7 @@ export function PurchaseModule() {
     const eliminarDelCarrito = (insumoId: number) => {
         setCarrito((prev) => prev.filter((i) => i.insumoId !== insumoId));
         setCarritoErrors((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
+        setCantidadStr((prev) => { const n = { ...prev }; delete n[insumoId]; return n; });
     };
 
     const ivaDecimal      = ivaRate / 100;
@@ -586,7 +792,7 @@ export function PurchaseModule() {
     const totalCarrito    = subtotalCarrito + ivaCarrito;
     const carritoTieneErrores = Object.keys(carritoErrors).length > 0;
 
-    // ── Formulario ─────────────────────────────────────────────────────────
+    // ── Formulario ─────────────────────────────────────────────────────────────
     const resetForm = () => {
         setFormData(emptyForm);
         setFormErrors({});
@@ -596,7 +802,9 @@ export function PurchaseModule() {
         setCarritoErrors({});
         setSubmitAttempted(false);
         setEditingCompra(null);
-        setIvaRate(IVA_DEFAULT); // resetear IVA al valor por defecto
+        setIvaRate(IVA_DEFAULT);
+        setShowDateBlockedAlert(false);
+        setCantidadStr({});
         setShowModal(false);
     };
 
@@ -610,7 +818,7 @@ export function PurchaseModule() {
         proveedoresId: true, fecha: true, metodoPago: true, notas: true, numeroFactura: true,
     });
 
-    // ── Crear / Editar — actualiza stock al registrar ──────────────────────
+    // ── Crear / Editar ─────────────────────────────────────────────────────────
     const handleSave = async () => {
         setSubmitAttempted(true);
         touchAll();
@@ -647,7 +855,6 @@ export function PurchaseModule() {
             setSaving(true);
 
             if (editingCompra) {
-                // ── Edición: solo actualiza datos de la compra ─────────────
                 await updateCompra(editingCompra.id, {
                     proveedoresId: parseInt(formData.proveedoresId),
                     fecha:         formData.fecha,
@@ -656,7 +863,6 @@ export function PurchaseModule() {
                 });
                 toast.success('Compra actualizada exitosamente.');
             } else {
-                // ── Creación: registra la compra ───────────────────────────
                 await createCompra({
                     ...(formData.numeroFactura.trim() ? { id: parseInt(formData.numeroFactura) } : {}),
                     proveedoresId: parseInt(formData.proveedoresId),
@@ -666,18 +872,11 @@ export function PurchaseModule() {
                     detalles,
                 });
 
-                // ── Actualizar stock de cada insumo comprado ───────────────
-                // Tomamos la lista actual de insumos en estado para calcular la nueva cantidad
                 const updateStockPromises = carrito.map(async (item) => {
-                    const insumoActual = insumos.find((i) => i.id === item.insumoId);
+                    const insumoActual   = insumos.find((i) => i.id === item.insumoId);
                     const cantidadActual = Number(insumoActual?.cantidad ?? 0);
                     const nuevaCantidad  = cantidadActual + item.cantidad;
-
-                    return updateInsumo(item.insumoId, {
-                        cantidad: nuevaCantidad,
-                        // Si estaba agotado, al recibir stock vuelve a disponible
-                        estado: 'disponible',
-                    });
+                    return updateInsumo(item.insumoId, { cantidad: nuevaCantidad, estado: 'disponible' });
                 });
 
                 await Promise.all(updateStockPromises);
@@ -704,7 +903,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Ver detalle ────────────────────────────────────────────────────────
+    // ── Ver detalle ────────────────────────────────────────────────────────────
     const openViewDialog = async (compra: Compra) => {
         setShowDetailModal(true);
         setViewingCompra(null);
@@ -719,7 +918,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Abrir edición ──────────────────────────────────────────────────────
+    // ── Abrir edición ──────────────────────────────────────────────────────────
     const openEditDialog = async (compra: Compra) => {
         if (!isEditableByDate(compra.fecha)) {
             setBlockedAlertId(compra.id);
@@ -741,19 +940,23 @@ export function PurchaseModule() {
                 notas:         '',
                 numeroFactura: detail.id.toString(),
             });
-            setCarrito(
-                (detail.detalles ?? []).map((d: DetalleCompra) => ({
-                    insumoId: d.insumosId,
-                    nombre:   d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`,
-                    unidad:   d.insumo?.unidadMedida ?? '',
-                    precio:   Number(d.precioUnitario),
-                    cantidad: d.cantidad,
-                }))
-            );
+            const carritoItems = (detail.detalles ?? []).map((d: DetalleCompra) => ({
+                insumoId: d.insumosId,
+                nombre:   d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`,
+                unidad:   d.insumo?.unidadMedida ?? '',
+                precio:   Number(d.precioUnitario),
+                cantidad: Math.round(Number(d.cantidad)), // siempre entero
+            }));
+            setCarrito(carritoItems);
+            // Inicializar los inputs de cantidad como strings
+            const initCantidadStr: Record<number, string> = {};
+            carritoItems.forEach((item) => { initCantidadStr[item.insumoId] = item.cantidad.toString(); });
+            setCantidadStr(initCantidadStr);
             setFormErrors({});
             setTouched({});
             setCarritoErrors({});
             setSubmitAttempted(false);
+            setShowDateBlockedAlert(false);
             setShowModal(true);
         } catch (error: any) {
             toast.error(`Error al cargar la compra: ${error.message}`);
@@ -762,7 +965,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── Anular compra ──────────────────────────────────────────────────────
+    // ── Anular compra ──────────────────────────────────────────────────────────
     const openAnularDialog = (compra: Compra) => {
         setAnulatingCompra(compra);
         setAnularConfirmed(false);
@@ -788,7 +991,7 @@ export function PurchaseModule() {
         }
     };
 
-    // ── PDF ────────────────────────────────────────────────────────────────
+    // ── PDF ────────────────────────────────────────────────────────────────────
     const handleDescargarPDF = () => {
         if (!viewingCompra) return;
         try {
@@ -806,7 +1009,7 @@ export function PurchaseModule() {
 
     const totalFormErrors = Object.keys(formErrors).length;
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
 
@@ -826,6 +1029,7 @@ export function PurchaseModule() {
                         setSupplySearch('');
                         setSubmitAttempted(false);
                         setIvaRate(IVA_DEFAULT);
+                        setShowDateBlockedAlert(false);
                         setShowModal(true);
                     }}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -834,7 +1038,7 @@ export function PurchaseModule() {
                 </Button>
             </div>
 
-            {/* ── Filtro de búsqueda (sin filtro de estado) ── */}
+            {/* ── Filtro de búsqueda ── */}
             <Card>
                 <CardContent className="p-4">
                     <div className="relative">
@@ -850,7 +1054,7 @@ export function PurchaseModule() {
                 </CardContent>
             </Card>
 
-            {/* ── Tabla (sin columna Estado) ── */}
+            {/* ── Tabla ── */}
             {loading ? (
                 <div className="flex justify-center items-center py-16">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -880,22 +1084,18 @@ export function PurchaseModule() {
                                         const subtotal = compra.detalles?.reduce(
                                             (sum, d) => sum + d.cantidad * Number(d.precioUnitario), 0
                                         ) ?? 0;
-                                        // En la tabla usamos IVA_DEFAULT para mostrar el total
-                                        // (el IVA real aplicado queda en el PDF/detalle)
-                                        const totalConIva = subtotal * (1 + IVA_DEFAULT / 100);
+                                        const totalConIva = subtotal * (1 + ivaRate / 100);
 
                                         return (
                                             <React.Fragment key={compra.id}>
                                                 <tr className={`border-b border-blue-100 transition-colors ${
                                                     isAnulada ? 'bg-gray-50 opacity-60' : 'hover:bg-blue-50'
                                                 }`}>
-                                                    {/* N° Factura */}
                                                     <td className="py-4 px-6">
                                                         <span className={`font-mono text-sm ${isAnulada ? 'line-through text-gray-400' : 'text-gray-500'}`}>
                                                             #{compra.id}
                                                         </span>
                                                     </td>
-                                                    {/* Proveedor */}
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
                                                             <span className="font-semibold text-blue-900">
@@ -904,22 +1104,25 @@ export function PurchaseModule() {
                                                             <span className="text-xs text-gray-400 capitalize">{compra.metodoPago}</span>
                                                         </div>
                                                     </td>
-                                                    {/* Fecha */}
                                                     <td className="py-4 px-6">
                                                         <span className="text-gray-600 text-sm">
                                                             {new Date(compra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO')}
                                                         </span>
                                                     </td>
-                                                    {/* Insumos */}
                                                     <td className="py-4 px-6">
-                                                        <span className="text-gray-600 text-sm">
+                                                        <div className="flex flex-col gap-0.5">
                                                             {(compra.detalles?.length ?? 0) > 0
-                                                                ? `${compra.detalles!.length} ítem(s)`
-                                                                : <em className="text-gray-400">Sin detalles</em>
+                                                                ? compra.detalles!.map((d, idx) => (
+                                                                    <span key={idx} className="text-xs text-gray-600 leading-tight">
+                                                                        <span className="font-semibold text-blue-900">{Math.round(Number(d.cantidad))}</span>
+                                                                        {' · '}
+                                                                        {d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}
+                                                                    </span>
+                                                                  ))
+                                                                : <em className="text-gray-400 text-sm">Sin detalles</em>
                                                             }
-                                                        </span>
+                                                        </div>
                                                     </td>
-                                                    {/* Total con IVA */}
                                                     <td className="py-4 px-6">
                                                         <span className="font-semibold text-blue-900 text-sm">
                                                             {totalConIva > 0
@@ -927,10 +1130,8 @@ export function PurchaseModule() {
                                                                 : '—'}
                                                         </span>
                                                     </td>
-                                                    {/* Acciones */}
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
-                                                            {/* VER */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => openViewDialog(compra)}
@@ -939,7 +1140,6 @@ export function PurchaseModule() {
                                                             >
                                                                 <Eye className="w-4 h-4" />
                                                             </Button>
-                                                            {/* EDITAR */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
@@ -960,7 +1160,6 @@ export function PurchaseModule() {
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
-                                                            {/* ANULAR */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
@@ -987,7 +1186,6 @@ export function PurchaseModule() {
                                                     </td>
                                                 </tr>
 
-                                                {/* Fila de alerta de bloqueo */}
                                                 {blockedAlertId === compra.id && (
                                                     <tr>
                                                         <td colSpan={6} className="px-6 pb-3 pt-0">
@@ -1012,7 +1210,6 @@ export function PurchaseModule() {
                             )}
                         </div>
 
-                        {/* Paginación */}
                         {totalPages > 1 && (
                             <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
                                 <Button
@@ -1088,6 +1285,8 @@ export function PurchaseModule() {
                                     isEditing={!!editingCompra}
                                     ivaRate={ivaRate}
                                     onIvaChange={setIvaRate}
+                                    showDateBlockedAlert={showDateBlockedAlert}
+                                    onCloseDateBlockedAlert={() => setShowDateBlockedAlert(false)}
                                 />
                             </div>
 
@@ -1186,25 +1385,62 @@ export function PurchaseModule() {
                                                                 <p className="text-xs text-gray-400">{item.unidad}</p>
                                                             </div>
                                                             <div className="flex items-center gap-2 flex-wrap justify-end">
-                                                                {/* Cantidad */}
                                                                 <div className="flex flex-col items-center">
                                                                     <div className="flex items-center gap-1">
                                                                         <Button
                                                                             size="sm" variant="outline"
                                                                             onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
-                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold"
+                                                                            disabled={item.cantidad <= 1}
+                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold disabled:opacity-40"
                                                                         >-</Button>
-                                                                        <span className="w-8 text-center text-sm font-bold text-blue-900">{item.cantidad}</span>
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={cantidadStr[item.insumoId] ?? item.cantidad.toString()}
+                                                                            onChange={(e) => {
+                                                                                const raw = e.target.value;
+                                                                                // Permitir campo temporalmente vacío para que el usuario pueda borrar y escribir
+                                                                                setCantidadStr((prev) => ({ ...prev, [item.insumoId]: raw }));
+                                                                                if (raw !== '') {
+                                                                                    const val = parseInt(raw, 10);
+                                                                                    // Solo actualizar el carrito si es un entero válido >= 1
+                                                                                    if (!isNaN(val) && val >= 1 && val <= CANTIDAD_MAX) {
+                                                                                        setCarrito((prev) => prev.map((i) =>
+                                                                                            i.insumoId === item.insumoId ? { ...i, cantidad: val } : i
+                                                                                        ));
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            onBlur={() => {
+                                                                                const raw = cantidadStr[item.insumoId] ?? '';
+                                                                                const val = parseInt(raw, 10);
+                                                                                if (isNaN(val) || val < 1) {
+                                                                                    toast.warning('La cantidad mínima es 1.');
+                                                                                    setCantidadStr((prev) => ({ ...prev, [item.insumoId]: '1' }));
+                                                                                    setCarrito((prev) => prev.map((i) =>
+                                                                                        i.insumoId === item.insumoId ? { ...i, cantidad: 1 } : i
+                                                                                    ));
+                                                                                } else if (val > CANTIDAD_MAX) {
+                                                                                    setCantidadStr((prev) => ({ ...prev, [item.insumoId]: CANTIDAD_MAX.toString() }));
+                                                                                    setCarrito((prev) => prev.map((i) =>
+                                                                                        i.insumoId === item.insumoId ? { ...i, cantidad: CANTIDAD_MAX } : i
+                                                                                    ));
+                                                                                }
+                                                                            }}
+                                                                            onKeyDown={blockNonInteger}
+                                                                            min="1"
+                                                                            max={CANTIDAD_MAX}
+                                                                            step="1"
+                                                                            className="w-16 h-7 text-center text-sm font-bold text-blue-900 px-1"
+                                                                        />
                                                                         <Button
                                                                             size="sm" variant="outline"
                                                                             onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
                                                                             disabled={item.cantidad >= CANTIDAD_MAX}
-                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold"
+                                                                            className="w-7 h-7 p-0 border-blue-200 text-blue-900 font-bold disabled:opacity-40"
                                                                         >+</Button>
                                                                     </div>
                                                                     <FieldError message={itemErr?.cantidad} />
                                                                 </div>
-                                                                {/* Precio */}
                                                                 <div className="flex flex-col items-end">
                                                                     <div className="flex items-center gap-1">
                                                                         <span className="text-xs text-gray-400">$</span>
@@ -1220,13 +1456,11 @@ export function PurchaseModule() {
                                                                     </div>
                                                                     <FieldError message={itemErr?.precio} />
                                                                 </div>
-                                                                {/* Subtotal ítem */}
                                                                 {item.precio > 0 && !itemErr && (
                                                                     <span className="text-xs font-semibold text-blue-600 w-20 text-right">
                                                                         ${(item.precio * item.cantidad).toLocaleString('es-CO')}
                                                                     </span>
                                                                 )}
-                                                                {/* Eliminar */}
                                                                 <button
                                                                     onClick={() => eliminarDelCarrito(item.insumoId)}
                                                                     className="text-gray-400 hover:text-red-500 transition-colors"
@@ -1241,7 +1475,6 @@ export function PurchaseModule() {
                                             })}
                                         </div>
 
-                                        {/* Totales con IVA definido por el usuario */}
                                         {subtotalCarrito > 0 && !carritoTieneErrores && (
                                             <div className="border-t border-blue-100 bg-blue-50 px-4 py-2 space-y-1 text-sm">
                                                 <div className="flex justify-between text-gray-600">
