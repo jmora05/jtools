@@ -174,15 +174,10 @@ export default function App() {
   { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
   { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
   { id: 'orders',    label: 'Pedidos',            icon: <ClipboardList size={18} /> },
-  { id: 'news',      label: 'Novedades',          icon: <Newspaper size={18} /> },
-  {
-    id: 'production', label: 'Producción', icon: <Factory size={18} />, hasSubmenu: true,
-    submenu: [
-      { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={16} /> },
-      { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <ClipboardList size={16} /> },
-      { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={16} /> },
-    ],
-  },
+  { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
+  { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
+  { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
+  { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
 ];
     }
 

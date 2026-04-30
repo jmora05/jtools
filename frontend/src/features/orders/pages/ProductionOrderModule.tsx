@@ -33,7 +33,7 @@ import {
 type Producto = { id: number; nombreProducto: string; referencia: string };
 
 const EMPTY_CREATE: FormCreate = {
-    tipoOrden: '',
+    tipoOrden: 'Venta', // Siempre será Venta para stock propio
     productoId: '',
     cantidad: '',
     responsableId: '',
@@ -638,23 +638,9 @@ export function ProductionOrderModule() {
                         <div className="border border-blue-100 rounded-lg overflow-hidden">
                             <div className="bg-blue-50 py-3 px-4">
                                 <p className="text-sm font-semibold text-blue-900">Información de la Orden</p>
+                                <p className="text-xs text-gray-600 mt-1">Tipo de orden: <span className="font-semibold">Venta</span> (para stock propio)</p>
                             </div>
                             <div className="p-4 space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-700 mb-2">Tipo de Orden <span className="text-red-500">*</span></label>
-                                    <select
-                                        className={selectCls(!!createErrors.tipoOrden)}
-                                        value={createForm.tipoOrden}
-                                        onChange={e => setCreateField('tipoOrden', e.target.value)}
-                                        onBlur={() => touchCreateField('tipoOrden')}
-                                    >
-                                        <option value="">Seleccionar tipo</option>
-                                        <option value="Pedido">Pedido — Producción basada en pedido de cliente</option>
-                                        <option value="Venta">Venta — Producción para inventario y venta directa</option>
-                                    </select>
-                                    <FieldError mensaje={createErrors.tipoOrden} />
-                                </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm text-gray-700 mb-2">Producto <span className="text-red-500">*</span></label>

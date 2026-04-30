@@ -21,13 +21,38 @@ const DetalleOrden = sequelize.define('DetalleOrden', {
         comment: 'Identificador de la orden de producción a la que pertenece el detalle'
     },
 
+    step: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Número de paso del proceso de fabricación'
+    },
+
+    description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Descripción del proceso de fabricación'
+    },
+
+    duration: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Duración del proceso en minutos'
+    },
+
+    responsableId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'empleados', key: 'id' },
+        comment: 'Empleado responsable de este proceso específico'
+    },
+
     descripcion: { 
         type: DataTypes.STRING(255),
         allowNull: true,
         validate: {
             len: { args: [0, 255], msg: 'La descripción debe tener como máximo 255 caracteres' }
         },
-        comment: 'Descripción adicional sobre el detalle de la orden de producción'
+        comment: 'Descripción adicional sobre el detalle de la orden de producción (campo legacy)'
     }
 
 }, {
