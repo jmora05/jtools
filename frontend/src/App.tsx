@@ -6,7 +6,6 @@ import LandingPage from '@/features/dashboard/pages/LandingPage';
 import { ConfigurationModule } from '@/features/configuration/pages/ConfigurationModule';
 import { RoleManagement } from '@/features/roles/pages/RoleManagement';
 import { UserManagement } from '@/features/users/pages/UserManagement';
-import { PermissionManagement } from '@/features/permisos/pages/PermissionManagement';
 import { EmployeeManagement } from '@/features/employed/pages/EmployeeManagement';
 import { ProductCatalog } from '@/features/products/pages/ProductCatalog';
 import { ProductCategoryManagement } from '@/features/products/pages/ProductCategoryManagement';
@@ -34,7 +33,7 @@ import {
   ChevronRightIcon, MenuIcon, XIcon,
   LayoutDashboard, Package, Tag, Settings, Users, Truck,
   FlaskConical, ShoppingCart, TrendingUp, ClipboardList,
-  Newspaper, Factory, HardHat, FileText, Lock, ShieldCheck,
+  Newspaper, Factory, HardHat, FileText, Lock,
 } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -74,7 +73,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (['users', 'roles', 'permissions'].includes(currentModule)) {
+    if (['users', 'roles'].includes(currentModule)) {
       setConfigurationExpanded(true);
     }
   }, [currentModule]);
@@ -163,9 +162,8 @@ export default function App() {
   {
     id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true,
     submenu: [
-      { id: 'users',       label: 'Usuarios', icon: <Users size={16} /> },
-      { id: 'roles',       label: 'Roles',    icon: <Lock size={16} /> },
-      { id: 'permissions', label: 'Permisos', icon: <ShieldCheck size={16} /> },
+      { id: 'users',       label: 'Usuarios',         icon: <Users size={16} /> },
+      { id: 'roles',       label: 'Roles y Permisos', icon: <Lock size={16} /> },
     ],
   },
   { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
@@ -204,7 +202,7 @@ export default function App() {
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
       case 'users':               return !isClient ? <UserManagement /> : D();
       case 'roles':               return !isClient ? <RoleManagement /> : D();
-      case 'permissions':         return !isClient ? <PermissionManagement /> : D();
+      case 'permissions':         return D();
       case 'clients':             return !isClient ? <ClientManagement onNavigateToSales={handleNavigateToSalesWithClient as any} /> : D();
       case 'suppliers':           return !isClient ? <SupplierManagement /> : D();
       case 'supplies':            return !isClient ? <SupplyManagement /> : D();
@@ -225,8 +223,8 @@ export default function App() {
       dashboard:                      'Panel Principal',
       configuration:                  'Configuración del Sistema',
       users:                          'Gestión de Usuarios',
-      roles:                          'Gestión de Roles',
-      permissions:                    'Gestión de Permisos',
+      roles:                          'Roles y Permisos',
+      permissions:                    'Roles y Permisos',
       catalog:                        'Productos',
       clients:                        'Gestión de Clientes',
       suppliers:                      'Gestión de Proveedores',

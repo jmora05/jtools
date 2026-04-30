@@ -1,23 +1,11 @@
 const express = require('express');
-const router = express.Router();
-const {
-    getPermisos,
-    getPermisosById,
-    createPermisos,
-    updatePermisos,
-    deletePermisos,
-    syncSystemModules,
-    getSystemModules,
-    togglePermisoActivo
-} = require('../controllers/permisosController.js');
+const router  = express.Router();
+const { getPermisos, syncSystemModules } = require('../controllers/permisosController.js');
 
+// GET  /api/permisos          — lista todos los permisos del sistema (para checkboxes en roles)
 router.get('/', getPermisos);
-router.get('/system-modules', getSystemModules);
+
+// POST /api/permisos/sync-modules — sincroniza módulos del sistema como permisos en BD
 router.post('/sync-modules', syncSystemModules);
-router.get('/:id', getPermisosById);
-router.post('/', createPermisos);
-router.put('/:id', updatePermisos);
-router.delete('/:id', deletePermisos);
-router.patch('/:id/toggle', togglePermisoActivo);
 
 module.exports = router;

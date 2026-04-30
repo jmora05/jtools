@@ -1,7 +1,8 @@
 require('dotenv').config();
 
 const express = require("express");
-const cors = require("cors");
+const cors    = require("cors");
+const rateLimit = require('express-rate-limit');
 const { sequelize, testConnection } = require("./config/jtools_db.js");
 const db = require("./models/index.js");
 
@@ -9,6 +10,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Rate limiting para endpoints de auth sensibles ──────────────────────────
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 10,                   // máx 10 requests por IP en la ventana
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Demasiadas solicitudes. Intenta de nuevo en 15 minutos.' },
+});
+
+const otpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 3,                    // máx 3 solicitudes de OTP por IP cada 15 min
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Demasiadas solicitudes de código. Intenta de nuevo en 15 minutos.' },
+});
 
 // ================= RUTAS =================
 const empleadosRoutes              = require('./routes/empleadosRoutes.js');
@@ -36,7 +54,10 @@ const { verifyToken, requireAdmin }              = require('./middleware/authMid
 
 // ================= REGISTRO DE RUTAS =================
 // ── Rutas PÚBLICAS ──
-app.use('/api/auth', authRoutes);
+app.use('/api/auth/login',            authLimiter, authRoutes);
+app.use('/api/auth/forgot-password',  otpLimiter,  authRoutes);
+app.use('/api/auth/resend-code',      otpLimiter,  authRoutes);
+app.use('/api/auth',                               authRoutes);
 
 // ── Rutas PROTEGIDAS (cualquier usuario autenticado) ──
 app.use('/api/productos',               verifyToken, productosRoutes);

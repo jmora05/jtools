@@ -15,6 +15,7 @@ const Insumos               = require('./insumos');
 const Novedades             = require('./novedades');
 const OrdenesProduccion     = require('./ordenesProduccion');
 const Pedidos               = require('./pedidos');
+const PasswordResetOtp      = require('./passwordResetOtp');
 const Permisos              = require('./permisos');
 const Productos             = require('./productos');
 const Proveedores           = require('./proveedores');
@@ -129,6 +130,10 @@ DetalleVentas.belongsTo(Ventas,    { foreignKey: 'ventasId' });
 DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
 
 
+// PasswordResetOtp → Usuarios
+PasswordResetOtp.belongsTo(Usuarios, { foreignKey: 'usuarioId', as: 'usuario' });
+Usuarios.hasMany(PasswordResetOtp,   { foreignKey: 'usuarioId', as: 'otps' });
+
 // ================= EXPORTACIÓN =================
 
 module.exports = {
@@ -146,6 +151,7 @@ module.exports = {
     Insumos,
     Novedades,
     OrdenesProduccion,
+    PasswordResetOtp,
     Pedidos,
     Permisos,
     Productos,
