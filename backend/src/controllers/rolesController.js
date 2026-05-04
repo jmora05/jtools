@@ -26,12 +26,26 @@ const getRolesById = async (req, res) => {
     }
 };
 
-// POST - crear rol
+// POST - crear rol (requiere al menos un permiso)
 const createRoles = async (req, res) => {
     try {
-        const { name, description } = req.body;
+        const { name, description, permisosIds } = req.body;
+
+        // Validación: debe tener al menos un permiso
+        if (!Array.isArray(permisosIds) || permisosIds.length === 0) {
+            return res.status(400).json({ message: 'Un rol debe tener al menos un permiso asignado' });
+        }
+
         const role = await Roles.create({ name, description });
-        res.status(201).json({ message: 'Rol creado correctamente', role });
+
+        // Asignar permisos al rol recién creado
+        await role.setPermisos(permisosIds);
+
+        const created = await Roles.findByPk(role.id, {
+            include: [{ association: 'permisos', attributes: ['id', 'name'] }]
+        });
+
+        res.status(201).json({ message: 'Rol creado correctamente', role: created });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);

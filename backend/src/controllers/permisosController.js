@@ -1,7 +1,8 @@
 const { Permisos } = require('../models/index.js');
-const { validateCreatePermiso, validateUpdatePermiso } = require('../validators/permisosValidator');
 
-// Lista canónica de módulos del sistema
+// ─── Lista canónica de módulos del sistema ────────────────────────────────────
+// Cada módulo del sistema tiene un permiso correspondiente en la BD.
+// Esta lista es la fuente de verdad — no se crean permisos manualmente.
 const SYSTEM_MODULES = [
   { moduleKey: 'dashboard',                   name: 'Dashboard',                  description: 'Panel principal del sistema' },
   { moduleKey: 'catalog',                     name: 'Catálogo de Productos',       description: 'Gestión del catálogo de productos' },
@@ -14,121 +15,36 @@ const SYSTEM_MODULES = [
   { moduleKey: 'orders',                      name: 'Pedidos',                     description: 'Módulo de pedidos' },
   { moduleKey: 'news',                        name: 'Novedades',                   description: 'Novedades y comunicados' },
   { moduleKey: 'users',                       name: 'Usuarios',                    description: 'Gestión de usuarios del sistema' },
-  { moduleKey: 'roles',                       name: 'Roles',                       description: 'Gestión de roles' },
-  { moduleKey: 'permissions',                 name: 'Permisos',                    description: 'Gestión de permisos' },
+  { moduleKey: 'roles',                       name: 'Roles y Permisos',            description: 'Gestión de roles y permisos' },
   { moduleKey: 'production-employees',        name: 'Empleados de Producción',     description: 'Gestión de empleados de producción' },
   { moduleKey: 'production-orders-sub',       name: 'Órdenes de Producción',       description: 'Gestión de órdenes de producción' },
   { moduleKey: 'production-technical-sheets', name: 'Fichas Técnicas',             description: 'Gestión de fichas técnicas' },
 ];
 
-// GET - listar permisos
-const getPermisos = async (req, res) => {
+// GET /api/permisos — listar todos los permisos del sistema
+// Usado por RoleManagement para mostrar los checkboxes al crear/editar un rol
+const getPermisos = async (_req, res) => {
     try {
-        const permisos = await Permisos.findAll({ order: [['isSystem', 'DESC'], ['name', 'ASC']] });
+        const permisos = await Permisos.findAll({
+            where: { isSystem: true },
+            order: [['name', 'ASC']]
+        });
         res.status(200).json(permisos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los permisos', error: error.message });
     }
 };
 
-// GET - obtener permiso por ID
-const getPermisosById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const permiso = await Permisos.findByPk(id);
-        if (!permiso) return res.status(404).json({ message: 'Permiso no encontrado' });
-        res.status(200).json(permiso);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al obtener el permiso', error: error.message });
-    }
-};
-
-// POST - crear permiso
-const createPermisos = async (req, res) => {
-    try {
-        const errors = validateCreatePermiso(req.body);
-        if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
-
-        const { name, description } = req.body;
-        const permiso = await Permisos.create({ name: String(name).trim(), description: description || null, isSystem: false });
-        res.status(201).json({ message: 'Permiso creado correctamente', permiso });
-    } catch (error) {
-        if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-            const mensajes = error.errors.map(e => e.message);
-            return res.status(400).json({ message: 'Error de validación', errores: mensajes });
-        }
-        res.status(500).json({ message: 'Error al crear el permiso', error: error.message });
-    }
-};
-
-// PUT - actualizar permiso
-const updatePermisos = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const permiso = await Permisos.findByPk(id);
-        if (!permiso) return res.status(404).json({ message: 'Permiso no encontrado' });
-
-        const errors = validateUpdatePermiso(req.body, permiso.isSystem);
-        if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
-
-        const { name, description } = req.body;
-        if (permiso.isSystem) {
-            await permiso.update({ description: description !== undefined ? description : permiso.description });
-        } else {
-            await permiso.update({
-                ...(name !== undefined ? { name: String(name).trim() } : {}),
-                ...(description !== undefined ? { description } : {}),
-            });
-        }
-
-        res.status(200).json({ message: 'Permiso actualizado correctamente', permiso });
-    } catch (error) {
-        if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-            const mensajes = error.errors.map(e => e.message);
-            return res.status(400).json({ message: 'Error de validación', errores: mensajes });
-        }
-        res.status(500).json({ message: 'Error al actualizar el permiso', error: error.message });
-    }
-};
-
-// DELETE - eliminar permiso
-const deletePermisos = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const permiso = await Permisos.findByPk(id);
-        if (!permiso) return res.status(404).json({ message: 'Permiso no encontrado' });
-
-        if (permiso.isSystem) {
-            return res.status(403).json({ message: 'No se puede eliminar un permiso del sistema' });
-        }
-
-        await permiso.destroy();
-        res.status(200).json({ message: 'Permiso eliminado correctamente' });
-    } catch (error) {
-        // Restricción de llave foránea: el permiso está asignado a uno o más roles
-        if (
-            error.name === 'SequelizeForeignKeyConstraintError' ||
-            (error.parent && error.parent.code === '23503')
-        ) {
-            return res.status(409).json({
-                message: 'No se puede eliminar el permiso porque está asignado a uno o más roles. Desasígnalo primero.'
-            });
-        }
-        res.status(500).json({ message: 'Error al eliminar el permiso', error: error.message });
-    }
-};
-
-// POST - sincronizar módulos del sistema como permisos
-const syncSystemModules = async (req, res) => {
+// POST /api/permisos/sync-modules — sincronizar módulos del sistema como permisos
+// Crea en BD los permisos que no existan todavía. Usado por seed.js y por el botón de sincronización.
+const syncSystemModules = async (_req, res) => {
     try {
         const results = { created: [], updated: [] };
-
         for (const mod of SYSTEM_MODULES) {
             const [permiso, created] = await Permisos.findOrCreate({
                 where: { moduleKey: mod.moduleKey },
                 defaults: { name: mod.name, description: mod.description, isSystem: true, moduleKey: mod.moduleKey }
             });
-
             if (created) {
                 results.created.push(permiso.name);
             } else if (!permiso.isSystem) {
@@ -136,48 +52,10 @@ const syncSystemModules = async (req, res) => {
                 results.updated.push(permiso.name);
             }
         }
-
-        res.status(200).json({
-            message: 'Módulos sincronizados correctamente',
-            created: results.created,
-            updated: results.updated
-        });
+        res.status(200).json({ message: 'Módulos sincronizados correctamente', created: results.created, updated: results.updated });
     } catch (error) {
         res.status(500).json({ message: 'Error al sincronizar módulos', error: error.message });
     }
 };
 
-// GET - obtener lista de módulos del sistema
-const getSystemModules = async (req, res) => {
-    try {
-        res.status(200).json(SYSTEM_MODULES);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al obtener módulos del sistema', error: error.message });
-    }
-};
-
-// PATCH - toggle estado activo/inactivo de un permiso
-const togglePermisoActivo = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const permiso = await Permisos.findByPk(id);
-        if (!permiso) return res.status(404).json({ message: 'Permiso no encontrado' });
-        if (permiso.isSystem) return res.status(403).json({ message: 'No se puede cambiar el estado de un permiso del sistema' });
-        await permiso.update({ isActive: !permiso.isActive });
-        return res.status(200).json({ message: `Permiso ${permiso.isActive ? 'activado' : 'desactivado'}`, permiso });
-    } catch (error) {
-        return res.status(500).json({ message: 'Error al cambiar estado del permiso', error: error.message });
-    }
-};
-
-module.exports = {
-    getPermisos,
-    getPermisosById,
-    createPermisos,
-    updatePermisos,
-    deletePermisos,
-    syncSystemModules,
-    getSystemModules,
-    togglePermisoActivo,
-    SYSTEM_MODULES
-};
+module.exports = { getPermisos, syncSystemModules, SYSTEM_MODULES };

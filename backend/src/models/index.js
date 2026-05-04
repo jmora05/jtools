@@ -10,10 +10,12 @@ const DetalleVentas         = require('./detalleVentas');
 const Empleados             = require('./empleados');
 const FichaTecnica          = require('./fichaTecnica');
 const InsumoProducto        = require('./insumoProducto');
+const InsumoProveedores     = require('./insumoProveedores');
 const Insumos               = require('./insumos');
 const Novedades             = require('./novedades');
 const OrdenesProduccion     = require('./ordenesProduccion');
 const Pedidos               = require('./pedidos');
+const PasswordResetOtp      = require('./passwordResetOtp');
 const Permisos              = require('./permisos');
 const Productos             = require('./productos');
 const Proveedores           = require('./proveedores');
@@ -63,9 +65,23 @@ InsumoProducto.belongsTo(Insumos,   { foreignKey: 'insumosId' });
 InsumoProducto.belongsTo(Productos, { foreignKey: 'productosId' });
 
 
-// Proveedores ↔ Insumos
+// Proveedores ↔ Insumos (FK legada — un solo proveedor principal)
 Proveedores.hasMany(Insumos, { foreignKey: 'proveedoresId', as: 'insumos',    constraints: false });
 Insumos.belongsTo(Proveedores, { foreignKey: 'proveedoresId', as: 'proveedor', constraints: false });
+
+// Proveedores ↔ Insumos (many-to-many — múltiples proveedores)
+Insumos.belongsToMany(Proveedores, {
+    through: InsumoProveedores,
+    foreignKey: 'insumoId',
+    otherKey:   'proveedorId',
+    as: 'proveedores',
+});
+Proveedores.belongsToMany(Insumos, {
+    through: InsumoProveedores,
+    foreignKey: 'proveedorId',
+    otherKey:   'insumoId',
+    as: 'insumosRelacionados',
+});
 
 
 // Novedades
@@ -114,6 +130,10 @@ DetalleVentas.belongsTo(Ventas,    { foreignKey: 'ventasId' });
 DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
 
 
+// PasswordResetOtp → Usuarios
+PasswordResetOtp.belongsTo(Usuarios, { foreignKey: 'usuarioId', as: 'usuario' });
+Usuarios.hasMany(PasswordResetOtp,   { foreignKey: 'usuarioId', as: 'otps' });
+
 // ================= EXPORTACIÓN =================
 
 module.exports = {
@@ -127,9 +147,11 @@ module.exports = {
     Empleados,
     FichaTecnica,
     InsumoProducto,
+    InsumoProveedores,
     Insumos,
     Novedades,
     OrdenesProduccion,
+    PasswordResetOtp,
     Pedidos,
     Permisos,
     Productos,

@@ -217,119 +217,62 @@ export async function register(
  *     evitando que un atacante pueda enumerar emails registrados.
  *   - devCode solo debe usarse en entornos de desarrollo/testing.
  */
+
+// FORGOT PASSWORD
+// Inicia el flujo. El backend genera OTP, lo hashea, lo guarda en BD y lo envía por email.
+// Siempre responde con mensaje genérico (anti user-enumeration).
+// En desarrollo, si el envío falla, devuelve devCode para poder probar.
 export async function forgotPassword(
   email: string,
-): Promise<{ message: string; devCode?: string; expiresInMs?: number }> {
-  if (!email?.trim()) {
-    throw new Error('El email es requerido');
-  }
-
+): Promise<{ message: string; devCode?: string }> {
+  if (!email?.trim()) throw new Error('El email es requerido');
   const response = await fetch(`${getApiBaseUrl()}/auth/forgot-password`, {
-    method:  'POST',
-    headers: buildAuthHeaders(),
-    body:    JSON.stringify({ email: email.trim().toLowerCase() }),
+    method: 'POST', headers: buildAuthHeaders(),
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
-
-  return handleResponse<{ message: string; devCode?: string; expiresInMs?: number }>(response);
+  return handleResponse<{ message: string; devCode?: string }>(response);
 }
 
-/**
- * VERIFY CODE
- * ───────────
- * Valida que el código de 6 dígitos ingresado por el usuario sea correcto y
- * no haya expirado, antes de permitir el cambio de contraseña.
- *
- * LÓGICA INTERNA:
- *   El backend busca el código en su mapa en memoria asociado al email,
- *   verifica que no haya expirado (TTL) y que los dígitos coincidan.
- *
- * CONEXIÓN CON EL SISTEMA:
- *   Este paso es obligatorio antes de llamar a resetPassword().
- *   El flujo completo es: forgotPassword → verifyCode → resetPassword.
- */
+// VERIFY CODE
+// Valida el OTP de 6 dígitos contra el hash en BD.
+// Si es válido devuelve un resetToken JWT de un solo uso (15 min).
+// Si es incorrecto devuelve remainingAttempts.
 export async function verifyCode(
   email: string,
   code: string,
-): Promise<{ message: string }> {
-  if (!email?.trim() || !code?.trim()) {
-    throw new Error('Email y código son requeridos');
-  }
-
+): Promise<{ message: string; resetToken?: string; remainingAttempts?: number }> {
+  if (!email?.trim() || !code?.trim()) throw new Error('Email y código son requeridos');
   const response = await fetch(`${getApiBaseUrl()}/auth/verify-code`, {
-    method:  'POST',
-    headers: buildAuthHeaders(),
-    body:    JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
+    method: 'POST', headers: buildAuthHeaders(),
+    body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
   });
-
-  return handleResponse<{ message: string }>(response);
+  return handleResponse<{ message: string; resetToken?: string; remainingAttempts?: number }>(response);
 }
 
-/**
- * RESEND CODE
- * ───────────
- * Regenera y reenvía el código de recuperación para el email indicado.
- *
- * LÓGICA INTERNA:
- *   Genera un nuevo código (invalidando el anterior) y reinicia el TTL.
- *   Útil cuando el código expiró o el usuario no lo recibió.
- *
- * CUÁNDO USARLO:
- *   Mostrar un botón "Reenviar código" en la pantalla de verificación,
- *   idealmente con un cooldown de ~60 segundos para evitar spam.
- */
+// RESEND CODE
+// Invalida el OTP anterior, genera uno nuevo y lo envía por email.
 export async function resendCode(
   email: string,
-): Promise<{ message: string; devCode?: string; expiresInMs?: number }> {
-  if (!email?.trim()) {
-    throw new Error('El email es requerido');
-  }
-
+): Promise<{ message: string; devCode?: string }> {
+  if (!email?.trim()) throw new Error('El email es requerido');
   const response = await fetch(`${getApiBaseUrl()}/auth/resend-code`, {
-    method:  'POST',
-    headers: buildAuthHeaders(),
-    body:    JSON.stringify({ email: email.trim().toLowerCase() }),
+    method: 'POST', headers: buildAuthHeaders(),
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
-
-  return handleResponse<{ message: string; devCode?: string; expiresInMs?: number }>(response);
+  return handleResponse<{ message: string; devCode?: string }>(response);
 }
 
-/**
- * RESET PASSWORD
- * ──────────────
- * Cambia la contraseña del usuario después de verificar el código de recuperación.
- *
- * LÓGICA INTERNA:
- *   1. El backend re-verifica el código (por si alguien llama al endpoint directo).
- *   2. Hashea la nueva contraseña con bcrypt.
- *   3. Actualiza el campo password en la BD y elimina el código del mapa en memoria.
- *
- * SEGURIDAD:
- *   - El backend nunca acepta la nueva contraseña sin validar el código primero.
- *   - La contraseña se hashea siempre del lado del servidor, nunca se guarda en plano.
- *   - El código se elimina tras usarse (uso único), evitando reutilización.
- *
- * CONEXIÓN CON EL SISTEMA:
- *   Tras un reset exitoso, redirigir al usuario al login para que inicie
- *   sesión con su nueva contraseña.
- */
+// RESET PASSWORD
+// Cambia la contrasena usando el resetToken JWT obtenido en verifyCode.
+// El token es de un solo uso y expira en 15 minutos.
 export async function resetPassword(
-  email: string,
-  code: string,
+  resetToken: string,
   newPassword: string,
 ): Promise<{ message: string }> {
-  if (!email?.trim() || !code?.trim() || !newPassword) {
-    throw new Error('Email, código y nueva contraseña son requeridos');
-  }
-
+  if (!resetToken || !newPassword) throw new Error('resetToken y nueva contrasena son requeridos');
   const response = await fetch(`${getApiBaseUrl()}/auth/reset-password`, {
-    method:  'POST',
-    headers: buildAuthHeaders(),
-    body:    JSON.stringify({
-      email:       email.trim().toLowerCase(),
-      code:        code.trim(),
-      newPassword,
-    }),
+    method: 'POST', headers: buildAuthHeaders(),
+    body: JSON.stringify({ resetToken, newPassword }),
   });
-
   return handleResponse<{ message: string }>(response);
 }

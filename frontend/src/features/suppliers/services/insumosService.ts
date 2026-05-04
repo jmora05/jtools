@@ -13,19 +13,20 @@ export interface InsumoBackend {
   cantidad:       number | null;
   proveedoresId:  number | null;
   proveedor?:     { id: number; nombreEmpresa: string } | null;
+  proveedores?:   { id: number; nombreEmpresa: string }[];
   estado:         EstadoInsumo;
   createdAt?:     string;
   updatedAt?:     string;
 }
 
 export interface CreateInsumoDTO {
-  nombreInsumo:   string;
-  descripcion?:   string;
-  precioUnitario: number;
-  unidadMedida:   string;
-  cantidad?:      number | null;
-  proveedoresId?: number | null;
-  estado?:        EstadoInsumo;
+  nombreInsumo:    string;
+  descripcion?:    string;
+  precioUnitario:  number;
+  unidadMedida:    string;
+  cantidad?:       number | null;
+  proveedoresIds?: number[];
+  estado?:         EstadoInsumo;
 }
 
 export type UpdateInsumoDTO = Partial<CreateInsumoDTO>;
@@ -109,6 +110,12 @@ export async function deleteInsumo(id: number): Promise<{ message: string }> {
 // ─── Mapeos frontend ↔ backend ────────────────────────────────────────────────
 
 export function mapInsumoToSupply(i: InsumoBackend) {
+  // Preferir many-to-many; si aún no tiene entradas en la junction table,
+  // caer al FK legado para mostrar el proveedor existente
+  let proveedores = (i.proveedores ?? []).map(p => ({ id: p.id, nombre: p.nombreEmpresa }));
+  if (proveedores.length === 0 && i.proveedor) {
+    proveedores = [{ id: i.proveedor.id, nombre: i.proveedor.nombreEmpresa }];
+  }
   return {
     id:            i.id,
     name:          i.nombreInsumo,
@@ -116,20 +123,23 @@ export function mapInsumoToSupply(i: InsumoBackend) {
     price:         Number(i.precioUnitario),
     unit:          i.unidadMedida,
     cantidad:      i.cantidad     ?? null,
-    proveedoresId: i.proveedoresId ?? null,
-    proveedorNombre: i.proveedor?.nombreEmpresa ?? null,
+    proveedores,
+    proveedoresIds: proveedores.map(p => p.id),
+    proveedorNombre: proveedores.length > 0
+      ? proveedores.map(p => p.nombre).join(', ')
+      : null,
     status:        i.estado === 'disponible',
   };
 }
 
 export function mapSupplyToDTO(form: {
-  name:          string;
-  description:   string;
-  price:         string;
-  unit:          string;
-  cantidad:      string;
-  proveedoresId: number | null;
-  status:        boolean;
+  name:           string;
+  description:    string;
+  price:          string;
+  unit:           string;
+  cantidad:       string;
+  proveedoresIds: number[];
+  status:         boolean;
 }): CreateInsumoDTO {
   return {
     nombreInsumo:   form.name,
@@ -137,7 +147,7 @@ export function mapSupplyToDTO(form: {
     precioUnitario: parseFloat(form.price),
     unidadMedida:   form.unit,
     cantidad:       form.cantidad !== '' ? parseInt(form.cantidad, 10) : null,
-    proveedoresId:  form.proveedoresId ?? null,
+    proveedoresIds: form.proveedoresIds.length > 0 ? form.proveedoresIds : undefined,
     estado:         form.status ? 'disponible' : 'agotado',
   };
 }

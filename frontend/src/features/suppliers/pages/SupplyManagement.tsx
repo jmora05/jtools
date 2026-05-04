@@ -38,19 +38,20 @@ interface Supply {
     price:           number;
     unit:            string;
     cantidad:        number | null;
-    proveedoresId:   number | null;
+    proveedores:     { id: number; nombre: string }[];
+    proveedoresIds:  number[];
     proveedorNombre: string | null;
     status:          boolean;
 }
 
 interface FormData {
-    name:          string;
-    description:   string;
-    price:         string;
-    unit:          string;
-    cantidad:      string;
-    proveedoresId: number | null;
-    status:        boolean;
+    name:           string;
+    description:    string;
+    price:          string;
+    unit:           string;
+    cantidad:       string;
+    proveedoresIds: number[];
+    status:         boolean;
 }
 
 interface FormErrors {
@@ -151,11 +152,13 @@ export function SupplyManagement() {
         setTimeout(() => setBanner(null), 5000);
     }, []);
 
-    // Banner de fila (insumo agotado al intentar eliminar)
-    const [inactiveBannerId, setInactiveBannerId] = useState<number | null>(null);
-    const triggerInactiveBanner = (id: number) => {
+    // Banner de fila (inactivo al intentar editar o eliminar)
+    const [inactiveBannerId, setInactiveBannerId]         = useState<number | null>(null);
+    const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | 'delete' | null>(null);
+    const triggerInactiveBanner = (id: number, action: 'edit' | 'delete') => {
         setInactiveBannerId(id);
-        setTimeout(() => setInactiveBannerId(null), 4000);
+        setInactiveBannerAction(action);
+        setTimeout(() => { setInactiveBannerId(null); setInactiveBannerAction(null); }, 4000);
     };
 
     // Errores de formulario
@@ -164,7 +167,7 @@ export function SupplyManagement() {
 
     const emptyForm: FormData = {
         name: '', description: '', price: '', unit: 'Unidades',
-        cantidad: '', proveedoresId: null, status: true,
+        cantidad: '', proveedoresIds: [], status: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -189,7 +192,11 @@ export function SupplyManagement() {
     const fetchProveedores = async () => {
         try {
             const data = await getProveedores();
-            setProveedores(data.map(p => ({ id: p.id, nombre: p.nombreEmpresa })));
+            setProveedores(
+                data
+                    .filter(p => p.estado === 'activo')
+                    .map(p => ({ id: p.id, nombre: p.nombreEmpresa }))
+            );
         } catch { /* silencioso */ }
     };
 
@@ -262,18 +269,22 @@ export function SupplyManagement() {
 
     // ── Editar ────────────────────────────────────────────────────────────────
     const handleEdit = (supply: Supply) => {
+        if (!supply.status) {
+            triggerInactiveBanner(supply.id, 'edit');
+            return;
+        }
         setFormData({
-            name:          supply.name,
-            description:   supply.description,
-            price:         supply.price.toString(),
-            unit:          supply.unit,
-            cantidad:      supply.cantidad != null ? supply.cantidad.toString() : '',
-            proveedoresId: supply.proveedoresId,
-            status:        supply.status,
+            name:           supply.name,
+            description:    supply.description,
+            price:          supply.price.toString(),
+            unit:           supply.unit,
+            cantidad:       supply.cantidad != null ? supply.cantidad.toString() : '',
+            proveedoresIds: supply.proveedoresIds,
+            status:         supply.status,
         });
         setFormErrors({});
         setSubmitAttempted(false);
-        setProveedorQuery(supply.proveedorNombre ?? '');
+        setProveedorQuery('');
         setProveedorOpen(false);
         setEditingSupply(supply);
         setShowModal(true);
@@ -301,8 +312,8 @@ export function SupplyManagement() {
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
     const handleDelete = async (supply: Supply) => {
-        if (supply.status) {
-            triggerInactiveBanner(supply.id);
+        if (!supply.status) {
+            triggerInactiveBanner(supply.id, 'delete');
             return;
         }
         setDeletingSupply(supply);
@@ -416,7 +427,6 @@ export function SupplyManagement() {
                                         <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Precio</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Cantidad</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Total</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Unidad</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
@@ -425,7 +435,7 @@ export function SupplyManagement() {
                                 <tbody>
                                     {currentSupplies.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="text-center py-12 text-gray-500">
+                                            <td colSpan={7} className="text-center py-12 text-gray-500">
                                                 No se encontraron insumos
                                             </td>
                                         </tr>
@@ -456,9 +466,17 @@ export function SupplyManagement() {
 
                                                     {/* Proveedor */}
                                                     <td className="py-4 px-6">
-                                                        <p className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>
-                                                            {supply.proveedorNombre || '—'}
-                                                        </p>
+                                                        {supply.proveedores.length === 0 ? (
+                                                            <span className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>—</span>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {supply.proveedores.map(p => (
+                                                                    <span key={p.id} className={`text-xs px-2 py-0.5 rounded-full ${isAgotado ? 'bg-gray-100 text-gray-400' : 'bg-blue-100 text-blue-800'}`}>
+                                                                        {p.nombre}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </td>
 
                                                     {/* Precio */}
@@ -472,15 +490,6 @@ export function SupplyManagement() {
                                                     <td className="py-4 px-6">
                                                         <p className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>
                                                             {supply.cantidad ?? '—'}
-                                                        </p>
-                                                    </td>
-
-                                                    {/* Total */}
-                                                    <td className="py-4 px-6">
-                                                        <p className={`text-sm font-medium ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
-                                                            {supply.cantidad != null
-                                                                ? `$${(supply.price * supply.cantidad).toLocaleString()}`
-                                                                : '—'}
                                                         </p>
                                                     </td>
 
@@ -519,19 +528,24 @@ export function SupplyManagement() {
                                                                 size="sm"
                                                                 onClick={() => handleEdit(supply)}
                                                                 disabled={isToggling}
-                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                                                                title={isAgotado ? 'Insumo inactivo' : 'Editar'}
+                                                                className={`border transition-all duration-200 ${
+                                                                    isAgotado
+                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                }`}
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
 
-                                                            {/* Eliminar — solo si agotado */}
+                                                            {/* Eliminar */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => handleDelete(supply)}
                                                                 disabled={isToggling}
-                                                                title={supply.status ? 'Márcalo como agotado para eliminar' : 'Eliminar insumo'}
+                                                                title={isAgotado ? 'Insumo inactivo' : 'Eliminar insumo'}
                                                                 className={`border transition-all duration-200 ${
-                                                                    supply.status
+                                                                    isAgotado
                                                                         ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
                                                                         : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
                                                                 }`}
@@ -543,18 +557,21 @@ export function SupplyManagement() {
                                                     </td>
                                                 </tr>
 
-                                                {/* ── Banner inline fila (insumo disponible → no se puede eliminar) ── */}
+                                                {/* ── Banner inline fila (inactivo al intentar editar o eliminar) ── */}
                                                 {showRowBanner && (
                                                     <tr className="border-b border-amber-100">
-                                                        <td colSpan={8} className="px-6 py-0">
+                                                        <td colSpan={7} className="px-6 py-0">
                                                             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
                                                                 <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                                                                 <span>
-                                                                    <strong>Insumo disponible:</strong>{' '}
-                                                                    Márcalo como agotado usando el interruptor de estado antes de eliminarlo.
+                                                                    <strong>Insumo inactivo:</strong>{' '}
+                                                                    {inactiveBannerAction === 'delete'
+                                                                        ? 'No puedes eliminar un insumo inactivo. Actívalo primero usando el interruptor de estado.'
+                                                                        : 'No puedes editar un insumo inactivo. Actívalo primero usando el interruptor de estado.'
+                                                                    }
                                                                 </span>
                                                                 <button
-                                                                    onClick={() => setInactiveBannerId(null)}
+                                                                    onClick={() => { setInactiveBannerId(null); setInactiveBannerAction(null); }}
                                                                     className="ml-auto opacity-60 hover:opacity-100"
                                                                 >
                                                                     <X className="w-3.5 h-3.5" />
@@ -656,6 +673,94 @@ export function SupplyManagement() {
                                 </div>
                             </div>
 
+                            {/* Proveedores (multi-select) */}
+                            <div className="relative">
+                                <label className="block text-sm text-gray-700 mb-2">
+                                    Proveedores
+                                    <span className="ml-1 text-xs text-gray-400">(opcional — puedes agregar varios)</span>
+                                </label>
+
+                                {/* Chips de proveedores seleccionados */}
+                                {formData.proveedoresIds.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {formData.proveedoresIds.map(id => {
+                                            const p = proveedores.find(pr => pr.id === id);
+                                            return p ? (
+                                                <span key={id} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                                                    {p.nombre}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            proveedoresIds: prev.proveedoresIds.filter(i => i !== id),
+                                                        }))}
+                                                        className="ml-0.5 hover:text-blue-600"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </span>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Autocomplete */}
+                                <div className="relative flex items-center border rounded-md border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
+                                    <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
+                                    <input
+                                        type="text"
+                                        value={proveedorQuery}
+                                        placeholder="Buscar proveedor por nombre..."
+                                        className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
+                                        onChange={e => { setProveedorQuery(e.target.value); setProveedorOpen(true); }}
+                                        onFocus={() => setProveedorOpen(true)}
+                                    />
+                                    {proveedorQuery && (
+                                        <button type="button" className="p-2 text-gray-400 hover:text-gray-600"
+                                            onClick={() => { setProveedorQuery(''); setProveedorOpen(false); }}>
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {proveedorOpen && proveedorQuery && (
+                                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                                        {(() => {
+                                            const filtrados = proveedores
+                                                .filter(p =>
+                                                    p.nombre.toLowerCase().includes(proveedorQuery.toLowerCase()) &&
+                                                    !formData.proveedoresIds.includes(p.id)
+                                                )
+                                                .slice(0, 8);
+                                            return filtrados.length === 0 ? (
+                                                <p className="px-4 py-3 text-sm text-gray-500">No se encontraron proveedores</p>
+                                            ) : (
+                                                <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
+                                                    {filtrados.map(p => (
+                                                        <li key={p.id}>
+                                                            <button
+                                                                type="button"
+                                                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors"
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        proveedoresIds: [...prev.proveedoresIds, p.id],
+                                                                    }));
+                                                                    setProveedorQuery('');
+                                                                    setProveedorOpen(false);
+                                                                }}
+                                                            >
+                                                                {p.nombre}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Precio + Unidad */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
@@ -700,99 +805,22 @@ export function SupplyManagement() {
                                 </div>
                             </div>
 
-                            {/* Proveedor (autocomplete) */}
-                            <div className="relative">
+                            {/* Cantidad */}
+                            <div>
                                 <label className="block text-sm text-gray-700 mb-2">
-                                    Proveedor
-                                    <span className="ml-1 text-xs text-gray-400">(opcional)</span>
+                                    Cantidad
+                                    <span className="ml-1 text-xs text-gray-400">(opcional, ≥ 0)</span>
                                 </label>
-                                <div className="relative flex items-center border rounded-md border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
-                                    <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
-                                    <input
-                                        type="text"
-                                        value={proveedorQuery}
-                                        placeholder="Buscar proveedor por nombre..."
-                                        className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
-                                        onChange={e => {
-                                            setProveedorQuery(e.target.value);
-                                            setFormData(prev => ({ ...prev, proveedoresId: null }));
-                                            setProveedorOpen(true);
-                                        }}
-                                        onFocus={() => setProveedorOpen(true)}
-                                    />
-                                    {formData.proveedoresId && (
-                                        <button
-                                            type="button"
-                                            className="p-2 text-gray-400 hover:text-gray-600"
-                                            onClick={() => {
-                                                setProveedorQuery('');
-                                                setFormData(prev => ({ ...prev, proveedoresId: null }));
-                                            }}
-                                        >
-                                            <X className="w-3.5 h-3.5" />
-                                        </button>
-                                    )}
-                                </div>
-                                {proveedorOpen && (
-                                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                                        {(() => {
-                                            const filtrados = proveedores.filter(p =>
-                                                p.nombre.toLowerCase().includes(proveedorQuery.toLowerCase())
-                                            ).slice(0, 8);
-                                            return filtrados.length === 0 ? (
-                                                <p className="px-4 py-3 text-sm text-gray-500">No se encontraron proveedores</p>
-                                            ) : (
-                                                <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
-                                                    {filtrados.map(p => (
-                                                        <li key={p.id}>
-                                                            <button
-                                                                type="button"
-                                                                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${formData.proveedoresId === p.id ? 'bg-blue-50 font-medium' : ''}`}
-                                                                onClick={() => {
-                                                                    setFormData(prev => ({ ...prev, proveedoresId: p.id }));
-                                                                    setProveedorQuery(p.nombre);
-                                                                    setProveedorOpen(false);
-                                                                }}
-                                                            >
-                                                                {p.nombre}
-                                                            </button>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            );
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Cantidad + Total */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Cantidad
-                                        <span className="ml-1 text-xs text-gray-400">(opcional, ≥ 0)</span>
-                                    </label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        value={formData.cantidad}
-                                        onChange={e => setFormData(prev => ({ ...prev, cantidad: e.target.value }))}
-                                        placeholder="0"
-                                        className={formErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    />
-                                    <FieldError msg={formErrors.cantidad} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-700 mb-2">Total</label>
-                                    <div className="flex items-center h-10 px-3 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700 font-medium">
-                                        {formData.cantidad !== '' && formData.price !== '' &&
-                                        !isNaN(parseInt(formData.cantidad)) && !isNaN(parseFloat(formData.price))
-                                            ? `$${(parseInt(formData.cantidad) * parseFloat(formData.price)).toLocaleString()}`
-                                            : '—'}
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-1">Calculado: cantidad × precio unitario</p>
-                                </div>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={formData.cantidad}
+                                    onChange={e => setFormData(prev => ({ ...prev, cantidad: e.target.value }))}
+                                    placeholder="0"
+                                    className={formErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.cantidad} />
                             </div>
 
                             {/* Estado — solo al editar */}
@@ -847,8 +875,18 @@ export function SupplyManagement() {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-500">Proveedor</p>
-                                        <p className="font-semibold text-sm">{viewingSupply.proveedorNombre || '—'}</p>
+                                        <p className="text-xs text-gray-500">Proveedores</p>
+                                        {viewingSupply.proveedores.length === 0 ? (
+                                            <p className="font-semibold text-sm">—</p>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {viewingSupply.proveedores.map(p => (
+                                                    <span key={p.id} className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
+                                                        {p.nombre}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500">Precio unitario</p>

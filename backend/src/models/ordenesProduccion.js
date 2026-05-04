@@ -115,6 +115,13 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: 'Motivo de anulación — obligatorio cuando estado es Anulada'
+    },
+
+    insumosCalculados: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+        comment: 'Insumos calculados para esta orden [{name, quantity, unit}]'
     }
 
 }, {
