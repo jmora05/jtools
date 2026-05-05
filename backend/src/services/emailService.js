@@ -3,7 +3,7 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Dominio remitente — cambiar por el dominio verificado en Resend
-const FROM = 'Jrepuestos <no-reply@jrepuestos.com>';
+const FROM = 'Jrepuestos <onboarding@resend.dev>';
 
 /**
  * Envía el OTP de recuperación de contraseña al email del usuario.
@@ -12,7 +12,7 @@ const FROM = 'Jrepuestos <no-reply@jrepuestos.com>';
 async function sendOtpEmail({ to, otp, userName }) {
     await resend.emails.send({
         from: FROM,
-        to,
+        to,          // ✅ FIX: antes era 'jtoolsinvestigacion@gmail.com' hardcodeado
         subject: 'Código de recuperación de contraseña — Jrepuestos',
         html: `
 <!DOCTYPE html>
@@ -46,7 +46,7 @@ async function sendOtpEmail({ to, otp, userName }) {
           </p>
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;">
           <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
-            Por seguridad, nunca compartamos este código con nadie.<br>
+            Por seguridad, nunca compartas este código con nadie.<br>
             Jrepuestos Medellín — soporte@jrepuestos.com
           </p>
         </td></tr>
