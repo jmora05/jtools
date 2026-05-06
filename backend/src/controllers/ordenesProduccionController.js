@@ -10,6 +10,16 @@ const {
   validarAnularOrden,
 } = require('../validators/ordenesProduccionValidator');
 
+// ── Calcula el estado del pedido según el conjunto de estados de sus órdenes ──
+function calcularEstadoPedido(estadosOrdenes) {
+  if (estadosOrdenes.some(e => e === 'En Proceso')) return 'En Proceso';
+  if (estadosOrdenes.some(e => e === 'Pausada'))    return 'Pausada';
+  if (estadosOrdenes.every(e => e === 'Anulada'))   return 'Anulada';
+  if (estadosOrdenes.every(e => e === 'Finalizada' || e === 'Anulada'))
+    return 'Finalizada';
+  return 'Pendiente';
+}
+
 // ── Generador de código único tipo OP-2025-001 ───────────────────────────────
 const generarCodigoOrden = async () => {
   const year = new Date().getFullYear();
@@ -334,6 +344,23 @@ const updateOrdenProduccion = async (req, res) => {
     }
 
     await orden.update(updates, { transaction });
+
+    // Sincronizar estado del pedido asociado cuando cambia el estado de la orden
+    if (estado && orden.pedidoId) {
+      const todasOrdenes = await OrdenesProduccion.findAll({
+        where: { pedidoId: orden.pedidoId },
+        transaction,
+      });
+      const estadosActuales = todasOrdenes.map(o =>
+        o.id === Number(id) ? updates.estado : o.estado
+      );
+      const nuevoPedidoEstado = calcularEstadoPedido(estadosActuales);
+      await Pedidos.update(
+        { estado: nuevoPedidoEstado },
+        { where: { id: orden.pedidoId }, transaction }
+      );
+    }
+
     await transaction.commit();
 
     const ordenActualizada = await OrdenesProduccion.findByPk(id, { include: includeRelaciones });
@@ -378,6 +405,18 @@ const anularOrdenProduccion = async (req, res) => {
 
     const { motivoAnulacion } = req.body;
     await orden.update({ estado: 'Anulada', motivoAnulacion: motivoAnulacion.trim() });
+
+    // Sincronizar estado del pedido asociado
+    if (orden.pedidoId) {
+      const todasOrdenes = await OrdenesProduccion.findAll({
+        where: { pedidoId: orden.pedidoId },
+      });
+      const estadosActuales = todasOrdenes.map(o =>
+        o.id === Number(id) ? 'Anulada' : o.estado
+      );
+      const nuevoPedidoEstado = calcularEstadoPedido(estadosActuales);
+      await Pedidos.update({ estado: nuevoPedidoEstado }, { where: { id: orden.pedidoId } });
+    }
 
     res.status(200).json({ message: 'Orden anulada correctamente', orden });
 

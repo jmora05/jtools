@@ -338,8 +338,8 @@ export function OrderModule() {
 
   const getBannerMessage = (order, action) => {
     if (action === 'edit') {
-      if (order?.status === 'Completo')  return 'No puedes editar un pedido completado.';
-      if (order?.status === 'Cancelado') return 'No puedes editar un pedido cancelado.';
+      if (order?.status === 'Finalizada') return 'No puedes editar un pedido finalizado.';
+      if (order?.status === 'Anulada')   return 'No puedes editar un pedido anulado.';
     }
     if (action === 'cancel') return 'Este pedido ya no puede cancelarse.';
     return 'Acción no disponible para este pedido.';
@@ -485,7 +485,7 @@ export function OrderModule() {
     if (error) { setCancelReasonError(error); return; }
     setOrders(prev => prev.map(o =>
       o.id === orderToCancel.id
-        ? { ...o, status: 'Cancelado', cancelReason: cancelReason.trim(), cancelledAt: new Date().toISOString().split('T')[0] }
+        ? { ...o, status: 'Anulada', cancelReason: cancelReason.trim(), cancelledAt: new Date().toISOString().split('T')[0] }
         : o
     ));
     toast.success('Pedido cancelado');
@@ -497,7 +497,7 @@ export function OrderModule() {
 
   // ── Abrir edición ─────────────────────────────────────────────────────────
   const openEdit = (order) => {
-    if (order.status === 'Completo' || order.status === 'Cancelado') {
+    if (order.status === 'Finalizada' || order.status === 'Anulada') {
       showBanner(order.id, 'edit');
       return;
     }
@@ -522,11 +522,7 @@ export function OrderModule() {
     setIsEditOrderDialogOpen(true);
   };
 
-  const getStatusColor = (s) => ({
-    Pendiente: 'bg-blue-50 text-blue-900 border-blue-200',
-    Completo:  'bg-blue-50 text-blue-900 border-blue-200',
-    Cancelado: 'bg-gray-100 text-gray-700 border-gray-300',
-  }[s] ?? 'bg-gray-100 text-gray-700 border-gray-300');
+  const getStatusColor = (s) => 'bg-blue-50 text-blue-900 border-blue-200';
 
   // ── Helper: limpiar selección de cliente ──────────────────────────────────
   const clearClienteSeleccion = () => {
@@ -883,8 +879,10 @@ export function OrderModule() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Pendiente">Pendiente</SelectItem>
-              <SelectItem value="Completo">Completo</SelectItem>
-              <SelectItem value="Cancelado">Cancelado</SelectItem>
+              <SelectItem value="En Proceso">En Proceso</SelectItem>
+              <SelectItem value="Pausada">Pausada</SelectItem>
+              <SelectItem value="Finalizada">Finalizada</SelectItem>
+              <SelectItem value="Anulada">Anulada</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -1094,8 +1092,10 @@ export function OrderModule() {
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Pendiente">Pendiente</SelectItem>
-                  <SelectItem value="Completo">Completo</SelectItem>
-                  <SelectItem value="Cancelado">Cancelado</SelectItem>
+                  <SelectItem value="En Proceso">En Proceso</SelectItem>
+                  <SelectItem value="Pausada">Pausada</SelectItem>
+                  <SelectItem value="Finalizada">Finalizada</SelectItem>
+                  <SelectItem value="Anulada">Anulada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1135,7 +1135,7 @@ export function OrderModule() {
                     </td>
                   </tr>
                 ) : currentOrders.map(order => {
-                  const isInactive = order.status === 'Completo' || order.status === 'Cancelado';
+                  const isInactive = order.status === 'Finalizada' || order.status === 'Anulada';
                   return (
                     <React.Fragment key={order.id}>
                       <tr className={`hover:bg-gray-50 transition-colors ${isInactive ? 'opacity-60' : ''}`}>
@@ -1227,7 +1227,7 @@ export function OrderModule() {
                               <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                               <span>
                                 <strong>
-                                  {order.status === 'Completo' ? 'Pedido completado:' : 'Pedido cancelado:'}
+                                  {order.status === 'Finalizada' ? 'Pedido finalizado:' : 'Pedido anulado:'}
                                 </strong>{' '}
                                 {getBannerMessage(order, inactiveBannerAction)}
                               </span>
@@ -1388,7 +1388,7 @@ export function OrderModule() {
                   )}
 
                   {/* Bloque cancelación */}
-                  {selectedOrderForView.status === 'Cancelado' && selectedOrderForView.cancelReason && (
+                  {selectedOrderForView.status === 'Anulada' && selectedOrderForView.cancelReason && (
                     <div className="grid grid-cols-2 gap-4 bg-red-50 border border-red-200 p-4 rounded-lg">
                       <div className="col-span-2 flex items-center gap-2">
                         <XCircleIcon className="w-5 h-5 text-red-500 shrink-0" />
@@ -1493,7 +1493,7 @@ export function OrderModule() {
                       : <p className="text-xs text-gray-400">{cancelReason.length}/300</p>
                     }
                   </div>
-                  <p className="text-sm text-blue-600">El pedido cambiará su estado a "Cancelado" y no se eliminará.</p>
+                  <p className="text-sm text-blue-600">El pedido cambiará su estado a "Anulada" y no se eliminará.</p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>

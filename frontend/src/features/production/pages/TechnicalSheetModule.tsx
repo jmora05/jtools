@@ -110,7 +110,7 @@ function ItemsForm({
     empleados?: any[];
 }) {
     const [newProc, setNewProc] = useState<{ description: string; duration: string; responsableId?: number }>({ description: '', duration: '' });
-    const [newMed, setNewMed]   = useState<Medida>({ parameter: '', value: '' });
+    const [newMed, setNewMed]   = useState<{ parameter: string; value: number; unit: string }>({ parameter: '', value: 0, unit: '' });
     const [selectedInsumoId, setSelectedInsumoId] = useState<string>('');
     const [newInsQuantity, setNewInsQuantity]      = useState<number>(0);
     const [newInsUnit, setNewInsUnit]              = useState<string>('');
@@ -153,9 +153,23 @@ function ItemsForm({
         setProcSubmitted(false);
     };
 
-    function updateMedField(campo: keyof typeof newMed, valor: string) {
-        const valorFiltrado = filtrarParametro(valor);
-        const nuevaMed = { ...newMed, [campo]: valorFiltrado };
+    function updateMedField(campo: 'parameter' | 'value' | 'unit', valor: string | number) {
+        let valorFiltrado: string | number = valor;
+        
+        if (campo === 'parameter') {
+            valorFiltrado = filtrarParametro(String(valor));
+        } else if (campo === 'value') {
+            // Solo permitir números y punto decimal
+            const numStr = String(valor).replace(/[^0-9.]/g, '');
+            valorFiltrado = numStr === '' ? 0 : parseFloat(numStr) || 0;
+        } else if (campo === 'unit') {
+            valorFiltrado = filtrarUnidad(String(valor));
+        }
+        
+        const nuevaMed = {
+            ...newMed,
+            [campo]: valorFiltrado
+        };
         setNewMed(nuevaMed);
         if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
     }
@@ -166,8 +180,12 @@ function ItemsForm({
         setMedErrors(camposErr);
         const { valid, errors } = validarMedida(newMed);
         if (!valid) { toast.error(errors[0]); return; }
-        setMedidas([...medidas, { parameter: newMed.parameter.trim(), value: newMed.value.trim() }]);
-        setNewMed({ parameter: '', value: '' });
+        setMedidas([...medidas, { 
+            parameter: newMed.parameter.trim(), 
+            value: newMed.value, 
+            unit: newMed.unit.trim() 
+        }]);
+        setNewMed({ parameter: '', value: 0, unit: '' });
         setMedErrors({});
         setMedSubmitted(false);
     };
@@ -311,10 +329,10 @@ function ItemsForm({
                     </p>
                 </div>
                 <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Parámetro *</Label>
+                                <Label className="text-xs">Parámetro</Label>
                                 <CharCounter valor={newMed.parameter} limite={100} />
                             </div>
                             <Input placeholder="Ej: Diámetro exterior, Longitud"
@@ -323,14 +341,35 @@ function ItemsForm({
                             <FieldError mensaje={medErrors.parameter} />
                         </div>
                         <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Valor *</Label>
-                                <CharCounter valor={newMed.value} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: 95 mm, 1.2 kg"
-                                value={newMed.value}
-                                onChange={e => updateMedField('value', e.target.value)} className={inputErr(!!medErrors.value)} />
+                            <Label className="text-xs">Valor</Label>
+                            <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                placeholder="Ej: 95, 1.2"
+                                value={newMed.value || ''}
+                                onChange={e => updateMedField('value', e.target.value)} 
+                                className={inputErr(!!medErrors.value)} />
                             <FieldError mensaje={medErrors.value} />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Unidad</Label>
+                            <select
+                                className={selectCls(!!medErrors.unit)}
+                                value={newMed.unit}
+                                onChange={e => updateMedField('unit', e.target.value)}
+                            >
+                                <option value="">Seleccionar unidad</option>
+                                <option value="cm">Centímetros (cm)</option>
+                                <option value="m">Metros (m)</option>
+                                <option value="mm">Milímetros (mm)</option>
+                                <option value="g">Gramos (g)</option>
+                                <option value="kg">Kilogramos (kg)</option>
+                                <option value="L">Litros (L)</option>
+                                <option value="ml">Mililitros (ml)</option>
+                                <option value="unidad">Unidad</option>
+                                <option value="pulgadas">Pulgadas (in)</option>
+                            </select>
+                            <FieldError mensaje={medErrors.unit} />
                         </div>
                     </div>
                     <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
@@ -340,7 +379,7 @@ function ItemsForm({
                         <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
                             <span className="text-gray-700">{m.parameter}</span>
                             <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{m.value}</Badge>
+                                <Badge variant="outline" className="text-xs">{m.value} {m.unit}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
                                     className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
@@ -1051,7 +1090,7 @@ export function TechnicalSheetModule() {
                                         <div className="p-4 space-y-2">
                                             {(selectedFicha.medidas ?? []).map((m, i) => (
                                                 <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value}</Badge>
+                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value} {m.unit}</Badge>
                                                 </div>
                                             ))}
                                         </div>

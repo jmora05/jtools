@@ -1,11 +1,19 @@
 import type { EstadoOrden, TipoOrden } from '../services/ordenesproduccionservice';
 
 export type FormCreate = {
-  productoId: string;
-  cantidad: string;
   responsableId: string;
   tipoOrden: TipoOrden | '';
   fechaEntrega: string;
+};
+
+export type ProductoOrdenInput = {
+  productoId: string;
+  cantidad: string;
+};
+
+export type ProductoOrdenInputErrors = {
+  productoId?: string;
+  cantidad?: string;
 };
 
 export type FormEdit = {
@@ -54,19 +62,6 @@ export function validarCampoCrear<K extends keyof FormCreate>(
         return 'Debe seleccionar el tipo de orden';
       break;
 
-    case 'productoId':
-      if (!valor) return 'Debe seleccionar un producto';
-      break;
-
-    case 'cantidad': {
-      if (!valor) return 'La cantidad es obligatoria';
-      if (!/^\d+$/.test(valor)) return 'Solo se permiten números enteros (sin decimales ni letras)';
-      const cant = parseInt(valor, 10);
-      if (cant <= 0) return 'La cantidad debe ser mayor a 0';
-      if (cant > 100000) return 'La cantidad no puede superar 100.000 unidades';
-      break;
-    }
-
     case 'responsableId':
       if (!valor) return 'Debe seleccionar un responsable';
       break;
@@ -83,6 +78,23 @@ export function validarCampoCrear<K extends keyof FormCreate>(
     }
   }
   return undefined;
+}
+
+export function validarProductoOrdenInput(input: ProductoOrdenInput): ProductoOrdenInputErrors {
+  const errors: ProductoOrdenInputErrors = {};
+  if (!input.productoId) {
+    errors.productoId = 'Debe seleccionar un producto';
+  }
+  if (!input.cantidad) {
+    errors.cantidad = 'La cantidad es obligatoria';
+  } else if (!/^\d+$/.test(input.cantidad)) {
+    errors.cantidad = 'Solo se permiten números enteros';
+  } else {
+    const n = parseInt(input.cantidad, 10);
+    if (n <= 0) errors.cantidad = 'La cantidad debe ser mayor a 0';
+    else if (n > 100000) errors.cantidad = 'No puede superar 100.000 unidades';
+  }
+  return errors;
 }
 
 export function validarCampoEditar<K extends keyof FormEdit>(
@@ -134,7 +146,7 @@ export function validarCampoEditar<K extends keyof FormEdit>(
 
 export function validarCrearOrden(form: FormCreate): CreateErrors {
   const errores: CreateErrors = {};
-  const campos: (keyof FormCreate)[] = ['tipoOrden', 'productoId', 'cantidad', 'responsableId', 'fechaEntrega'];
+  const campos: (keyof FormCreate)[] = ['tipoOrden', 'responsableId', 'fechaEntrega'];
   campos.forEach(campo => {
     const err = validarCampoCrear(campo, form[campo] as string, form);
     if (err) errores[campo] = err;

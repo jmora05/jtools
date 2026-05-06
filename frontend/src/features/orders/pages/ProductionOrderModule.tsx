@@ -24,21 +24,24 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 import {
     validarCrearOrden, validarEditarOrden, validarAnulacion,
     validarCampoCrear, validarCampoEditar, validarCampoAnulacion,
+    validarProductoOrdenInput,
     hayErrores, estadosPermitidos,
     filtrarTextoLibre, filtrarSoloEnteros, filtrarMotivo, contadorTexto,
     type FormCreate, type FormEdit, type CreateErrors, type EditErrors, type AnularErrors,
+    type ProductoOrdenInput, type ProductoOrdenInputErrors,
 } from '../utils/ordenesProduccionValidations';
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────────
 type Producto = { id: number; nombreProducto: string; referencia: string };
+type ProductoOrdenItem = { productoId: number; cantidad: number; nombreProducto: string };
 
 const EMPTY_CREATE: FormCreate = {
-    tipoOrden: 'Venta', // Siempre será Venta para stock propio
-    productoId: '',
-    cantidad: '',
+    tipoOrden: 'Venta',
     responsableId: '',
     fechaEntrega: '',
 };
+
+const EMPTY_NUEVO_PRODUCTO: ProductoOrdenInput = { productoId: '', cantidad: '' };
 
 const ESTADOS: EstadoOrden[] = ['Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'];
 
@@ -138,6 +141,11 @@ export function ProductionOrderModule() {
     const [editForm, setEditForm]     = useState<FormEdit>({ responsableId: '', fechaEntrega: '', nota: '', estado: 'Pendiente' });
     const [motivoAnulacion, setMotivoAnulacion] = useState('');
 
+    const [productosOrden, setProductosOrden] = useState<ProductoOrdenItem[]>([]);
+    const [nuevoProducto, setNuevoProducto] = useState<ProductoOrdenInput>(EMPTY_NUEVO_PRODUCTO);
+    const [nuevoProductoErrors, setNuevoProductoErrors] = useState<ProductoOrdenInputErrors>({});
+    const [productosListError, setProductosListError] = useState<string | null>(null);
+
     const [createErrors, setCreateErrors] = useState<CreateErrors>({});
     const [editErrors, setEditErrors]     = useState<EditErrors>({});
     const [anularErrors, setAnularErrors] = useState<AnularErrors>({});
@@ -193,14 +201,11 @@ export function ProductionOrderModule() {
 
     // ── Helpers de campo con validación en tiempo real ──────────────────────
     function setCreateField<K extends keyof FormCreate>(campo: K, valor: string) {
-        let valorFiltrado = valor;
-        if (campo === 'cantidad') valorFiltrado = filtrarSoloEnteros(valor);
-
-        const nuevoForm = { ...createForm, [campo]: valorFiltrado };
+        const nuevoForm = { ...createForm, [campo]: valor };
         setCreateForm(nuevoForm);
 
         if (createTouched[campo]) {
-            const err = validarCampoCrear(campo, valorFiltrado, nuevoForm);
+            const err = validarCampoCrear(campo, valor, nuevoForm);
             setCreateErrors(prev => ({ ...prev, [campo]: err }));
         }
     }
@@ -209,6 +214,32 @@ export function ProductionOrderModule() {
         setCreateTouched(prev => ({ ...prev, [campo]: true }));
         const err = validarCampoCrear(campo, createForm[campo] as string, createForm);
         setCreateErrors(prev => ({ ...prev, [campo]: err }));
+    }
+
+    function setNuevoProductoField(campo: keyof ProductoOrdenInput, valor: string) {
+        const v = campo === 'cantidad' ? filtrarSoloEnteros(valor) : valor;
+        setNuevoProducto(prev => ({ ...prev, [campo]: v }));
+        if (nuevoProductoErrors[campo]) {
+            setNuevoProductoErrors(prev => ({ ...prev, [campo]: undefined }));
+        }
+    }
+
+    function handleAgregarProducto() {
+        const errors = validarProductoOrdenInput(nuevoProducto);
+        setNuevoProductoErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+
+        const prod = productos.find(p => p.id === parseInt(nuevoProducto.productoId));
+        if (!prod) return;
+
+        setProductosOrden(prev => [...prev, {
+            productoId:     prod.id,
+            cantidad:       parseInt(nuevoProducto.cantidad),
+            nombreProducto: `${prod.nombreProducto} (${prod.referencia})`,
+        }]);
+        setNuevoProducto(EMPTY_NUEVO_PRODUCTO);
+        setNuevoProductoErrors({});
+        setProductosListError(null);
     }
 
     function setEditField<K extends keyof FormEdit>(campo: K, valor: string) {
@@ -255,6 +286,10 @@ export function ProductionOrderModule() {
         setCreateForm(EMPTY_CREATE);
         setCreateErrors({});
         setCreateTouched({});
+        setProductosOrden([]);
+        setNuevoProducto(EMPTY_NUEVO_PRODUCTO);
+        setNuevoProductoErrors({});
+        setProductosListError(null);
     };
 
     const resetEdit = () => {
@@ -279,21 +314,32 @@ export function ProductionOrderModule() {
 
         const errores = validarCrearOrden(createForm);
         setCreateErrors(errores);
-        if (hayErrores(errores)) {
+
+        if (productosOrden.length === 0) {
+            setProductosListError('Debe agregar al menos un producto');
+        }
+
+        if (hayErrores(errores) || productosOrden.length === 0) {
             toast.error('Corrige los errores antes de continuar');
             return;
         }
+
         setSaving(true);
         try {
-            const res = await createOrdenProduccion({
-                tipoOrden:     createForm.tipoOrden as TipoOrden,
-                productoId:    parseInt(createForm.productoId),
-                cantidad:      parseInt(createForm.cantidad),
-                responsableId: parseInt(createForm.responsableId),
-                fechaEntrega:  createForm.fechaEntrega,
-            });
-            showFeedback(`✓ Orden ${res.orden.codigoOrden} creada exitosamente`);
-            toast.success(`Orden ${res.orden.codigoOrden} creada exitosamente`);
+            const codigos: string[] = [];
+            for (const prod of productosOrden) {
+                const res = await createOrdenProduccion({
+                    tipoOrden:     createForm.tipoOrden as TipoOrden,
+                    productoId:    prod.productoId,
+                    cantidad:      prod.cantidad,
+                    responsableId: parseInt(createForm.responsableId),
+                    fechaEntrega:  createForm.fechaEntrega,
+                });
+                if (res.orden.codigoOrden) codigos.push(res.orden.codigoOrden);
+            }
+            const resumen = codigos.join(', ');
+            showFeedback(`✓ ${codigos.length > 1 ? 'Órdenes creadas' : 'Orden creada'}: ${resumen}`);
+            toast.success(`${codigos.length > 1 ? 'Órdenes creadas' : 'Orden creada'} exitosamente`);
             setShowCreateModal(false);
             resetCreate();
             fetchOrdenes();
@@ -433,6 +479,27 @@ export function ProductionOrderModule() {
         return `Orden ${estado}: No puedes ${accion} una orden ${estado}.`;
     };
 
+    // ── Auto-fill responsable con el usuario en sesión ─────────────────
+    const getResponsableIdUsuarioActual = useCallback((): string => {
+        try {
+            const raw = localStorage.getItem('jrepuestos_user');
+            if (!raw) return '';
+            const parsed = JSON.parse(raw) as { email?: string };
+            if (!parsed?.email) return '';
+            const match = empleados.find(e => e.email === parsed.email);
+            return match?.id ? String(match.id) : '';
+        } catch {
+            return '';
+        }
+    }, [empleados]);
+
+    const openCreateModal = () => {
+        resetCreate();
+        const defaultId = getResponsableIdUsuarioActual();
+        if (defaultId) setCreateForm(prev => ({ ...prev, responsableId: defaultId }));
+        setShowCreateModal(true);
+    };
+
     // ══════════════════════════════════════════════════════════════════
     //  RENDER
     // ══════════════════════════════════════════════════════════════════
@@ -446,7 +513,7 @@ export function ProductionOrderModule() {
                     <p className="text-blue-800">Gestiona las órdenes de fabricación</p>
                 </div>
                 <Button
-                    onClick={() => { resetCreate(); setShowCreateModal(true); }}
+                    onClick={openCreateModal}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                     <Plus className="w-4 h-4 mr-2" />Registrar Orden
@@ -515,15 +582,15 @@ export function ProductionOrderModule() {
                                             <tr key={orden.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-2">
-                                                        <ClipboardList className={`w-4 h-4 shrink-0 ${bloqueada ? 'text-gray-300' : 'text-blue-600'}`} />
-                                                        <span className={`text-sm font-semibold ${bloqueada ? 'text-gray-400' : 'text-black-600'}`}>{orden.codigoOrden}</span>
+                                                        <ClipboardList className="w-4 h-4 shrink-0 text-blue-600" />
+                                                        <span className="text-sm font-semibold text-black-600">{orden.codigoOrden}</span>
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-6">
-                                                    <p className={`font-semibold ${bloqueada ? 'text-gray-300' : 'text-gray-900'}`}>{orden.producto?.nombreProducto ?? 'Sin producto'}</p>
+                                                    <p className="font-semibold text-black-600">{orden.producto?.nombreProducto ?? 'Sin producto'}</p>
                                                 </td>
                                                 <td className="py-4 px-6">
-                                                    <Badge variant="secondary" className={`${bloqueada ? 'opacity-50' : 'bg-blue-50 text-black-600'}`}>
+                                                    <Badge variant="secondary" className="bg-blue-50 text-black-600">
                                                         {orden.cantidad ?? '—'} uds.
                                                     </Badge>
                                                 </td>
@@ -635,43 +702,13 @@ export function ProductionOrderModule() {
                     </DialogHeader>
 
                     <form onSubmit={handleCreate} className="mt-4 space-y-4">
+                        {/* ── Información general ── */}
                         <div className="border border-blue-100 rounded-lg overflow-hidden">
                             <div className="bg-blue-50 py-3 px-4">
                                 <p className="text-sm font-semibold text-blue-900">Información de la Orden</p>
                                 <p className="text-xs text-gray-600 mt-1">Tipo de orden: <span className="font-semibold">Venta</span> (para stock propio)</p>
                             </div>
-                            <div className="p-4 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Producto <span className="text-red-500">*</span></label>
-                                        <select
-                                            className={selectCls(!!createErrors.productoId)}
-                                            value={createForm.productoId}
-                                            onChange={e => setCreateField('productoId', e.target.value)}
-                                            onBlur={() => touchCreateField('productoId')}
-                                        >
-                                            <option value="">Seleccionar producto</option>
-                                            {productos.map(p => (
-                                                <option key={p.id} value={p.id}>{p.nombreProducto} ({p.referencia})</option>
-                                            ))}
-                                        </select>
-                                        <FieldError mensaje={createErrors.productoId} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Cantidad <span className="text-red-500">*</span></label>
-                                        <Input
-                                            type="text"
-                                            inputMode="numeric"
-                                            placeholder="Ej: 50"
-                                            value={createForm.cantidad}
-                                            onChange={e => setCreateField('cantidad', e.target.value)}
-                                            onBlur={() => touchCreateField('cantidad')}
-                                            className={createErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        />
-                                        <FieldError mensaje={createErrors.cantidad} />
-                                    </div>
-                                </div>
-
+                            <div className="p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm text-gray-700 mb-2">Responsable <span className="text-red-500">*</span></label>
@@ -704,6 +741,82 @@ export function ProductionOrderModule() {
                             </div>
                         </div>
 
+                        {/* ── Productos de la orden ── */}
+                        <div className="border border-blue-100 rounded-lg overflow-hidden">
+                            <div className="bg-blue-50 py-3 px-4">
+                                <p className="text-sm font-semibold text-blue-900">
+                                    Productos <span className="text-red-500">*</span>
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">Agrega uno o más productos con su cantidad</p>
+                            </div>
+                            <div className="p-4 space-y-3">
+                                {/* Fila de ingreso */}
+                                <div className="flex gap-2 items-start">
+                                    <div className="flex-1">
+                                        <select
+                                            className={selectCls(!!nuevoProductoErrors.productoId)}
+                                            value={nuevoProducto.productoId}
+                                            onChange={e => setNuevoProductoField('productoId', e.target.value)}
+                                        >
+                                            <option value="">Seleccionar producto</option>
+                                            {productos.map(p => (
+                                                <option key={p.id} value={p.id}>{p.nombreProducto} ({p.referencia})</option>
+                                            ))}
+                                        </select>
+                                        <FieldError mensaje={nuevoProductoErrors.productoId} />
+                                    </div>
+                                    <div className="w-32 shrink-0">
+                                        <Input
+                                            type="text"
+                                            inputMode="numeric"
+                                            placeholder="Cantidad"
+                                            value={nuevoProducto.cantidad}
+                                            onChange={e => setNuevoProductoField('cantidad', e.target.value)}
+                                            className={nuevoProductoErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        />
+                                        <FieldError mensaje={nuevoProductoErrors.cantidad} />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        onClick={handleAgregarProducto}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white shrink-0 h-9"
+                                    >
+                                        <Plus className="w-4 h-4 mr-1" />Agregar
+                                    </Button>
+                                </div>
+
+                                {/* Lista de productos agregados */}
+                                {productosOrden.length > 0 && (
+                                    <div className="space-y-2 mt-1">
+                                        {productosOrden.map((p, i) => (
+                                            <div key={i} className="flex items-center justify-between bg-white border border-blue-100 rounded-lg px-3 py-2 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <Package className="w-4 h-4 text-blue-400 shrink-0" />
+                                                    <span className="text-gray-800">{p.nombreProducto}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <Badge variant="secondary" className="bg-blue-50 text-blue-800">
+                                                        {p.cantidad} uds.
+                                                    </Badge>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setProductosOrden(prev => prev.filter((_, j) => j !== i))}
+                                                        className="text-gray-300 hover:text-red-500 transition-colors"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {productosListError && (
+                                    <FieldError mensaje={productosListError} />
+                                )}
+                            </div>
+                        </div>
+
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button type="button" variant="outline"
                                 onClick={() => { resetCreate(); setShowCreateModal(false); }}>
@@ -711,7 +824,10 @@ export function ProductionOrderModule() {
                             </Button>
                             <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                {saving ? 'Guardando...' : 'Registrar Orden'}
+                                {saving
+                                    ? 'Guardando...'
+                                    : `Registrar Orden${productosOrden.length > 1 ? ` (${productosOrden.length})` : ''}`
+                                }
                             </Button>
                         </div>
                     </form>

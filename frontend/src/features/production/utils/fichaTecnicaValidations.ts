@@ -22,6 +22,7 @@ export type ItemErrors = {
   parameter?: string;
   value?: string;
   insumoId?: string;
+  responsableId?: string;
 };
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -174,12 +175,18 @@ export function validarMedida(med: Partial<Medida>): ValidationResult {
     errors.push('El parámetro contiene caracteres no permitidos');
   }
 
-  if (!med.value || med.value.trim() === '') {
-    errors.push('El valor de la medida es obligatorio');
-  } else if (med.value.trim().length > MAX_VALOR) {
-    errors.push(`El valor no puede superar ${MAX_VALOR} caracteres`);
-  } else if (!REGEX_PARAMETRO.test(med.value.trim())) {
-    errors.push('El valor contiene caracteres no permitidos');
+  if (med.value === undefined || med.value === null || isNaN(med.value)) {
+    errors.push('El valor debe ser un número');
+  } else if (med.value <= 0) {
+    errors.push('El valor debe ser mayor a 0');
+  }
+
+  if (!med.unit || med.unit.trim() === '') {
+    errors.push('La unidad es obligatoria');
+  } else if (med.unit.trim().length > MAX_UNIDAD) {
+    errors.push(`La unidad no puede superar ${MAX_UNIDAD} caracteres`);
+  } else if (!REGEX_UNIDAD.test(med.unit.trim())) {
+    errors.push('La unidad solo permite letras, números, /, . y °');
   }
 
   return { valid: errors.length === 0, errors };
@@ -199,12 +206,18 @@ export function validarMedidaCampos(med: Partial<Medida>): ItemErrors {
     e.parameter = 'Contiene caracteres no permitidos';
   }
 
-  if (!med.value || med.value.trim() === '') {
-    e.value = 'El valor es obligatorio';
-  } else if (med.value.trim().length > MAX_VALOR) {
-    e.value = `Máximo ${MAX_VALOR} caracteres`;
-  } else if (!REGEX_PARAMETRO.test(med.value.trim())) {
-    e.value = 'Contiene caracteres no permitidos';
+  if (med.value === undefined || med.value === null || isNaN(med.value)) {
+    e.value = 'Debe ser un número';
+  } else if (med.value <= 0) {
+    e.value = 'Debe ser mayor a 0';
+  }
+
+  if (!med.unit || med.unit.trim() === '') {
+    e.unit = 'La unidad es obligatoria';
+  } else if (med.unit.trim().length > MAX_UNIDAD) {
+    e.unit = `Máximo ${MAX_UNIDAD} caracteres`;
+  } else if (!REGEX_UNIDAD.test(med.unit.trim())) {
+    e.unit = 'Solo letras, números, /, . y °';
   }
 
   return e;

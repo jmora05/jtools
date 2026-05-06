@@ -2,6 +2,8 @@ import { buildAuthHeaders, handleResponse, getApiBaseUrl } from '@/services/http
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+export type EstadoPedido = 'Pendiente' | 'En Proceso' | 'Pausada' | 'Finalizada' | 'Anulada';
+
 export interface Pedido {
   id:                     number;
   clienteId:              number;
@@ -9,6 +11,7 @@ export interface Pedido {
   total:                  number;
   direccion:              string;
   ciudad:                 string;
+  estado?:                EstadoPedido;
   instrucciones_entrega?: string;
   notas_observaciones?:   string;
   createdAt?:             string;

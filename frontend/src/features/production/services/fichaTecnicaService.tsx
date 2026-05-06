@@ -3,7 +3,7 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 export type Proceso    = { step: number; description: string; duration: string; responsableId?: number };
-export type Medida     = { parameter: string; value: string };
+export type Medida     = { parameter: string; value: number; unit: string };
 export type InsumoFT   = { name: string; quantity: number; unit: string };
 
 export type FichaTecnica = {
