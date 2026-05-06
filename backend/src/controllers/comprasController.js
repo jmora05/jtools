@@ -122,12 +122,16 @@ const createCompra = async (req, res) => {
             }));
             await DetalleCompraInsumo.bulkCreate(registros);
 
-            // Actualizar stock solo si la compra se crea directamente como completada
+            // Actualizar stock y proveedor solo si la compra se crea directamente como completada
             if (estado === 'completada') {
                 for (const d of detalles) {
                     const insumo = await Insumos.findByPk(d.insumosId);
                     if (insumo) {
-                        await insumo.update({ cantidad: (insumo.cantidad ?? 0) + d.cantidad });
+                        await insumo.update({
+                            cantidad:      (insumo.cantidad ?? 0) + d.cantidad,
+                            proveedoresId: proveedoresId,
+                        });
+                        await insumo.setProveedores([proveedoresId]);
                     }
                 }
             }
@@ -222,13 +226,17 @@ const cambiarEstadoCompra = async (req, res) => {
 
         await compra.update({ estado });
 
-        // Actualizar stock al completar
+        // Actualizar stock y proveedor al completar
         if (estado === 'completada') {
             const detallesCompra = await DetalleCompraInsumo.findAll({ where: { comprasId: id } });
             for (const d of detallesCompra) {
                 const insumo = await Insumos.findByPk(d.insumosId);
                 if (insumo) {
-                    await insumo.update({ cantidad: (insumo.cantidad ?? 0) + d.cantidad });
+                    await insumo.update({
+                        cantidad:      (insumo.cantidad ?? 0) + d.cantidad,
+                        proveedoresId: compra.proveedoresId,
+                    });
+                    await insumo.setProveedores([compra.proveedoresId]);
                 }
             }
         }

@@ -171,12 +171,14 @@ export function PurchaseModule() {
                     detalles,
                 });
 
+                const proveedorId = parseInt(formData.proveedoresId);
                 const updateStockPromises = carrito.map(async (item) => {
                     const insumoActual   = insumos.find((i) => i.id === item.insumoId);
                     const cantidadActual = Number(insumoActual?.cantidad ?? 0);
                     return updateInsumo(item.insumoId, {
-                        cantidad: cantidadActual + item.cantidad,
-                        estado:   'disponible',
+                        cantidad:       cantidadActual + item.cantidad,
+                        estado:         'disponible',
+                        proveedoresIds: [proveedorId],
                     });
                 });
 
