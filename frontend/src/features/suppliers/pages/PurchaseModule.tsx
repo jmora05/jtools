@@ -323,14 +323,14 @@ export function PurchaseModule() {
                             <table className="w-full">
                                 <thead className="bg-blue-900">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">N° Factura</th>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">Proveedor</th>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">Fecha</th>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">Insumos</th>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">
+                                        <th className="text-left py-4 px-6 text-black font-semibold">N° Factura</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Fecha</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Insumos</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">
                                             Total (c/IVA {ivaRate}%)
                                         </th>
-                                        <th className="text-left py-4 px-6 text-white font-semibold">Acciones</th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>

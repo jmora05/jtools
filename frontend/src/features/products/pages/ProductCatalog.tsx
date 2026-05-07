@@ -26,12 +26,12 @@ interface Producto {
 }
 interface ProductoForm {
     nombreProducto: string; referencia: string; categoriaProductoId: string;
-    descripcion: string; precio: string; stock: string; estado: 'activo' | 'inactivo';
+    descripcion: string; precio: string; estado: 'activo' | 'inactivo';
     imagenUrl: string;
 }
 const emptyForm: ProductoForm = {
     nombreProducto: '', referencia: '', categoriaProductoId: '',
-    descripcion: '', precio: '', stock: '', estado: 'activo',
+    descripcion: '', precio: '', estado: 'activo',
     imagenUrl: '',
 };
 interface FormErrors {
@@ -93,16 +93,6 @@ function validateProductoForm(form: ProductoForm): FormErrors {
         errors.precio = 'Máximo 2 decimales permitidos.';
     } else if (parseFloat(form.precio) > PRECIO_MAXIMO) {
         errors.precio = 'El precio no puede superar $99,999,999.99.';
-    }
-
-    if (form.stock === '') {
-        errors.stock = 'El stock es obligatorio.';
-    } else if (!/^\d+$/.test(form.stock)) {
-        errors.stock = 'El stock debe ser un número entero sin decimales.';
-    } else if (Number(form.stock) < 0) {
-        errors.stock = 'El stock no puede ser negativo.';
-    } else if (Number(form.stock) > 999999) {
-        errors.stock = 'El stock no puede superar 999,999 unidades.';
     }
 
     // Acepta URL externa o data URL (archivo local)
@@ -387,20 +377,7 @@ const ProductForm = ({ form, categorias, onChange, errors, touched, onBlur, dupl
                     )}
                 </div>
                 <div>
-                    <label className="block text-sm text-gray-700 mb-2">Stock <span className="text-red-500">*</span></label>
-                    <Input
-                        type="text" inputMode="numeric"
-                        value={form.stock}
-                        onChange={(e) => onChange('stock', e.target.value)}
-                        onBlur={() => onBlur('stock')}
-                        onKeyDown={bloquearNonInteger}
-                        onPaste={(e) => {
-                            const pasted = e.clipboardData.getData('text');
-                            if (!/^\d+$/.test(pasted)) { e.preventDefault(); toast.warning('El stock solo acepta números enteros.'); }
-                        }}
-                        placeholder="0" min="0"
-                        className={touched.stock && errors.stock ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                    />
+                    
                     <FieldError message={touched.stock ? errors.stock : undefined} />
                 </div>
             </div>
@@ -596,7 +573,7 @@ export function ProductCatalog() {
 
     const handleBlur = (field: keyof ProductoForm) => setTouched(prev => ({ ...prev, [field]: true }));
 
-    const touchAll = () => setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, stock: true, descripcion: true, imagenUrl: true });
+    const touchAll = () => setTouched({ nombreProducto: true, referencia: true, categoriaProductoId: true, precio: true, descripcion: true, imagenUrl: true });
 
     const resetForm = () => {
         setProductForm(emptyForm); setEditingProduct(null);
@@ -618,7 +595,7 @@ export function ProductCatalog() {
                 categoriaProductoId: parseInt(productForm.categoriaProductoId),
                 descripcion: productForm.descripcion.trim(),
                 precio: parseFloat(productForm.precio),
-                stock: parseInt(productForm.stock),
+                stock: 1,
                 estado: productForm.estado,
                 imagenUrl: productForm.imagenUrl.trim() || undefined,
             });
@@ -932,7 +909,7 @@ export function ProductCatalog() {
                                     <div><p className="text-xs text-gray-500 uppercase">Referencia</p><p className="font-semibold">{viewingProduct.referencia}</p></div>
                                     <div className="col-span-2"><p className="text-xs text-gray-500 uppercase">Producto</p><p className="font-semibold text-blue-900 text-lg">{viewingProduct.nombreProducto}</p></div>
                                     <div><p className="text-xs text-gray-500 uppercase">Precio</p><p className="text-blue-600 font-bold text-xl">${Number(viewingProduct.precio).toLocaleString()}</p></div>
-                                    <div><p className="text-xs text-gray-500 uppercase">Stock</p><p className="font-semibold text-xl">{viewingProduct.stock} und</p></div>
+                                    
                                     <div><p className="text-xs text-gray-500 uppercase">Categoría</p><Badge variant="secondary">{viewingProduct.categoria?.nombreCategoria ?? `#${viewingProduct.categoriaProductoId}`}</Badge></div>
                                     <div><p className="text-xs text-gray-500 uppercase">Estado</p><Badge className={viewingProduct.estado === 'activo' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-500'}>{viewingProduct.estado}</Badge></div>
                                     {viewingProduct.descripcion && (<div className="col-span-2"><p className="text-xs text-gray-500 uppercase">Descripción</p><p className="text-sm text-gray-700">{viewingProduct.descripcion}</p></div>)}
