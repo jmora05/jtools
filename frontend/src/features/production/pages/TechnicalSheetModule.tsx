@@ -911,99 +911,173 @@ export function TechnicalSheetModule() {
 
             {/* MODAL — CREAR */}
             <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) { resetCreate(); setShowCreateModal(false); } }}>
-                <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Registrar Nueva Ficha Técnica</DialogTitle>
-                            <DialogDescription>Completa los campos obligatorios (*) para crear la ficha.</DialogDescription>
-                        </DialogHeader>
-                        <form onSubmit={handleCreate} className="mt-4 space-y-4">
-                            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                <div className="bg-blue-50 py-3 px-4">
-                                    <p className="text-sm font-semibold text-blue-900">Información General</p>
-                                </div>
-                                <div className="p-4 space-y-4">
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Producto <span className="text-red-500">*</span></label>
-                                        <select
-                                            className={selectCls(!!createInfoErrors.productoId)}
-                                            value={createForm.productoId}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                setCreateForm({ ...createForm, productoId: val });
-                                                if (!val) {
-                                                    setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
-                                                } else if (productosConFichaActiva.has(parseInt(val))) {
-                                                    const fichaExistente = fichas.find(
-                                                        f => f.productoId === parseInt(val) && f.estado === 'Activa'
-                                                    );
-                                                    setCreateInfoErrors(prev => ({
-                                                        ...prev,
-                                                        productoId: `Este producto ya tiene la ficha activa ${fichaExistente?.codigoFicha ?? ''}. Inactívala antes de crear una nueva.`,
-                                                    }));
-                                                } else {
-                                                    setCreateInfoErrors(prev => ({ ...prev, productoId: undefined }));
-                                                }
-                                            }}
-                                        >
-                                            <option value="">Seleccionar producto</option>
-                                            {productos.map(p => {
-                                                const tieneActiva = productosConFichaActiva.has(p.id);
-                                                return (
-                                                    <option key={p.id} value={p.id} disabled={tieneActiva}>
-                                                        {tieneActiva ? '⚠ ' : ''}{p.nombreProducto} — {p.referencia}{p.categoria ? ` (${p.categoria.nombreCategoria})` : ''}{tieneActiva ? ' [ya tiene ficha activa]' : ''}
-                                                    </option>
+                <DialogContent
+                    className="p-0 gap-0 overflow-hidden"
+                    style={{
+                        width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh',
+                        display: 'flex', flexDirection: 'column', padding: 0, gap: 0,
+                    }}
+                >
+                    {/* ── HEADER ── */}
+                    <header style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                        flexShrink: 0, background: '#fff',
+                    }}>
+                        <div style={{
+                            width: 40, height: 40, background: '#1d4ed8',
+                            borderRadius: 8, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                        }}>
+                            <FileText style={{ width: 20, height: 20, color: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+                            <DialogTitle style={{
+                                fontSize: 18, fontWeight: 700, color: '#111827',
+                                lineHeight: 1.2, margin: 0,
+                            }}>
+                                Registrar Nueva Ficha Técnica
+                            </DialogTitle>
+                            <DialogDescription style={{
+                                fontSize: 12, color: '#6b7280', marginTop: 2, margin: 0,
+                            }}>
+                                Completa los campos obligatorios (*) para crear la ficha.
+                            </DialogDescription>
+                        </div>
+                    </header>
+
+                    {/* ── BODY (2 COLUMNAS) ── */}
+                    <form
+                        id="create-ficha-form"
+                        onSubmit={handleCreate}
+                        style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}
+                    >
+                        {/* ── SIDEBAR IZQUIERDO ── */}
+                        <aside style={{
+                            width: 320, flexShrink: 0,
+                            borderRight: '1px solid #e5e7eb', background: '#f9fafb',
+                            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                        }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+
+                                {/* Producto */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                                        Producto <span style={{ color: '#f87171' }}>*</span>
+                                    </label>
+                                    <select
+                                        className={selectCls(!!createInfoErrors.productoId)}
+                                        value={createForm.productoId}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setCreateForm({ ...createForm, productoId: val });
+                                            if (!val) {
+                                                setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
+                                            } else if (productosConFichaActiva.has(parseInt(val))) {
+                                                const fichaExistente = fichas.find(
+                                                    f => f.productoId === parseInt(val) && f.estado === 'Activa'
                                                 );
-                                            })}
-                                        </select>
-                                        <FieldError mensaje={createInfoErrors.productoId} />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <label className="block text-sm text-gray-700">Notas <span className="text-gray-400">(opcional)</span></label>
-                                            <CharCounter valor={createForm.notas} limite={1000} />
-                                        </div>
-                                        <Textarea
-                                            placeholder="Notas adicionales sobre la ficha técnica..."
-                                            value={createForm.notas}
-                                            rows={2}
-                                            onChange={e => updateCreateNotas(e.target.value)}
-                                            className={createInfoErrors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        />
-                                        <FieldError mensaje={createInfoErrors.notas} />
-                                    </div>
+                                                setCreateInfoErrors(prev => ({
+                                                    ...prev,
+                                                    productoId: `Este producto ya tiene la ficha activa ${fichaExistente?.codigoFicha ?? ''}. Inactívala antes de crear una nueva.`,
+                                                }));
+                                            } else {
+                                                setCreateInfoErrors(prev => ({ ...prev, productoId: undefined }));
+                                            }
+                                        }}
+                                        style={{ background: '#fff' }}
+                                    >
+                                        <option value="">Seleccionar producto</option>
+                                        {productos.map(p => {
+                                            const tieneActiva = productosConFichaActiva.has(p.id);
+                                            return (
+                                                <option key={p.id} value={p.id} disabled={tieneActiva}>
+                                                    {tieneActiva ? '⚠ ' : ''}{p.nombreProducto} — {p.referencia}{p.categoria ? ` (${p.categoria.nombreCategoria})` : ''}{tieneActiva ? ' [ya tiene ficha activa]' : ''}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    <FieldError mensaje={createInfoErrors.productoId} />
                                 </div>
+
+                                {/* Notas */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+                                            Notas <span style={{ color: '#9ca3af', fontWeight: 400 }}>(opcional)</span>
+                                        </label>
+                                        <CharCounter valor={createForm.notas} limite={1000} />
+                                    </div>
+                                    <Textarea
+                                        placeholder="Notas adicionales sobre la ficha técnica..."
+                                        value={createForm.notas}
+                                        rows={5}
+                                        onChange={e => updateCreateNotas(e.target.value)}
+                                        style={{ fontSize: 14, background: '#fff', resize: 'none',
+                                            borderColor: createInfoErrors.notas ? '#f87171' : undefined }}
+                                    />
+                                    <FieldError mensaje={createInfoErrors.notas} />
+                                </div>
+
+                                {errorInsumos && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 8,
+                                        padding: '10px 12px', borderRadius: 8,
+                                        background: '#fef2f2', border: '1px solid #fecaca',
+                                        fontSize: 13, color: '#dc2626',
+                                    }}>
+                                        <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
+                                        {errorInsumos}
+                                    </div>
+                                )}
                             </div>
+                        </aside>
 
-                            <ItemsForm
-                                procesos={cProcesos}     setProcesos={setCProcesos}
-                                medidas={cMedidas}       setMedidas={setCMedidas}
-                                insumos={cInsumos}       setInsumos={setCInsumos}
-                                catalogoInsumos={catalogoInsumos}
-                                loadingInsumos={loadingInsumos}
-                                insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
-                                empleados={empleados}
-                            />
-
-                            {errorInsumos && (
-                                <p className="text-red-500 text-sm flex items-center gap-1">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    {errorInsumos}
-                                </p>
-                            )}
-
-                            <div className="flex justify-end gap-2 pt-4 border-t">
-                                <Button type="button" variant="outline"
-                                    onClick={() => { resetCreate(); setShowCreateModal(false); }}>
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || !!errorInsumos}>
-                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
-                                </Button>
+                        {/* ── PANEL DERECHO ── */}
+                        <section style={{
+                            flex: 1, minWidth: 0,
+                            display: 'flex', flexDirection: 'column',
+                            overflow: 'hidden', background: '#fff',
+                        }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+                                <ItemsForm
+                                    procesos={cProcesos}     setProcesos={setCProcesos}
+                                    medidas={cMedidas}       setMedidas={setCMedidas}
+                                    insumos={cInsumos}       setInsumos={setCInsumos}
+                                    catalogoInsumos={catalogoInsumos}
+                                    loadingInsumos={loadingInsumos}
+                                    insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
+                                    empleados={empleados}
+                                />
                             </div>
-                        </form>
-                    </div>
+                        </section>
+                    </form>
+
+                    {/* ── FOOTER ── */}
+                    <footer style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                        gap: 8, padding: '12px 24px',
+                        borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
+                    }}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => { resetCreate(); setShowCreateModal(false); }}
+                            disabled={saving}
+                            style={{ height: 36, padding: '0 16px' }}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="submit"
+                            form="create-ficha-form"
+                            disabled={saving || !!errorInsumos}
+                            style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                        >
+                            {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
+                            {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
+                        </Button>
+                    </footer>
                 </DialogContent>
             </Dialog>
 

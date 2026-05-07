@@ -695,64 +695,80 @@ export function ProductionOrderModule() {
 
             {/* ═══ MODAL — CREAR ═══ */}
             <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) { resetCreate(); setShowCreateModal(false); } }}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-                    <DialogHeader>
-                        <DialogTitle>Nueva Orden de Producción</DialogTitle>
-                        <DialogDescription>Completa los campos obligatorios (*) para registrar la orden.</DialogDescription>
-                    </DialogHeader>
+                <DialogContent style={{ width: '96vw', maxWidth: 1400, height: '92vh', display: 'flex', flexDirection: 'column', padding: 0, gap: 0 }}>
 
-                    <form onSubmit={handleCreate} className="mt-4 space-y-4">
-                        {/* ── Información general ── */}
-                        <div className="border border-blue-100 rounded-lg overflow-hidden">
-                            <div className="bg-blue-50 py-3 px-4">
-                                <p className="text-sm font-semibold text-blue-900">Información de la Orden</p>
-                                <p className="text-xs text-gray-600 mt-1">Tipo de orden: <span className="font-semibold">Venta</span> (para stock propio)</p>
-                            </div>
-                            <div className="p-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Responsable <span className="text-red-500">*</span></label>
-                                        <select
-                                            className={selectCls(!!createErrors.responsableId)}
-                                            value={createForm.responsableId}
-                                            onChange={e => setCreateField('responsableId', e.target.value)}
-                                            onBlur={() => touchCreateField('responsableId')}
-                                        >
-                                            <option value="">Seleccionar responsable</option>
-                                            {empleados.map(emp => (
-                                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos}</option>
-                                            ))}
-                                        </select>
-                                        <FieldError mensaje={createErrors.responsableId} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Fecha de Entrega <span className="text-red-500">*</span></label>
-                                        <Input
-                                            type="date"
-                                            min={today}
-                                            value={createForm.fechaEntrega}
-                                            onChange={e => setCreateField('fechaEntrega', e.target.value)}
-                                            onBlur={() => touchCreateField('fechaEntrega')}
-                                            className={createErrors.fechaEntrega ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        />
-                                        <FieldError mensaje={createErrors.fechaEntrega} />
-                                    </div>
-                                </div>
-                            </div>
+                    {/* Header */}
+                    <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+                        <div style={{ width: 40, height: 40, background: '#1d4ed8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <ClipboardList className="w-5 h-5 text-white" />
                         </div>
+                        <div>
+                            <DialogTitle style={{ margin: 0 }}>Nueva Orden de Producción</DialogTitle>
+                            <p style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>Completa los campos obligatorios (*) para registrar la orden.</p>
+                        </div>
+                    </header>
 
-                        {/* ── Productos de la orden ── */}
-                        <div className="border border-blue-100 rounded-lg overflow-hidden">
-                            <div className="bg-blue-50 py-3 px-4">
-                                <p className="text-sm font-semibold text-blue-900">
-                                    Productos <span className="text-red-500">*</span>
-                                </p>
-                                <p className="text-xs text-gray-600 mt-1">Agrega uno o más productos con su cantidad</p>
+                    {/* Body: 2 columnas */}
+                    <form
+                        id="create-orden-form"
+                        onSubmit={handleCreate}
+                        style={{ display: 'flex', flex: 1, overflow: 'hidden' }}
+                    >
+                        {/* Sidebar izquierdo */}
+                        <aside style={{ width: 320, flexShrink: 0, background: '#f9fafb', borderRight: '1px solid #e5e7eb', overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px' }}>
+                                <p style={{ fontSize: 12, color: '#1d4ed8', fontWeight: 600 }}>Tipo de Orden</p>
+                                <p style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>Venta — para stock propio</p>
                             </div>
-                            <div className="p-4 space-y-3">
-                                {/* Fila de ingreso */}
-                                <div className="flex gap-2 items-start">
-                                    <div className="flex-1">
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6, fontWeight: 500 }}>
+                                    Responsable <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <select
+                                    className={selectCls(!!createErrors.responsableId)}
+                                    value={createForm.responsableId}
+                                    onChange={e => setCreateField('responsableId', e.target.value)}
+                                    onBlur={() => touchCreateField('responsableId')}
+                                >
+                                    <option value="">Seleccionar responsable</option>
+                                    {empleados.map(emp => (
+                                        <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos}</option>
+                                    ))}
+                                </select>
+                                <FieldError mensaje={createErrors.responsableId} />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6, fontWeight: 500 }}>
+                                    Fecha de Entrega <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <Input
+                                    type="date"
+                                    min={today}
+                                    value={createForm.fechaEntrega}
+                                    onChange={e => setCreateField('fechaEntrega', e.target.value)}
+                                    onBlur={() => touchCreateField('fechaEntrega')}
+                                    className={createErrors.fechaEntrega ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError mensaje={createErrors.fechaEntrega} />
+                            </div>
+                        </aside>
+
+                        {/* Panel derecho */}
+                        <section style={{ flex: 1, background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a' }}>
+                                    Productos <span style={{ color: '#ef4444' }}>*</span>
+                                </p>
+                                <p style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>Agrega uno o más productos con su cantidad</p>
+                            </div>
+
+                            {/* Fila agregar producto */}
+                            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                    <div style={{ flex: 1 }}>
                                         <select
                                             className={selectCls(!!nuevoProductoErrors.productoId)}
                                             value={nuevoProducto.productoId}
@@ -765,7 +781,7 @@ export function ProductionOrderModule() {
                                         </select>
                                         <FieldError mensaje={nuevoProductoErrors.productoId} />
                                     </div>
-                                    <div className="w-32 shrink-0">
+                                    <div style={{ width: 130, flexShrink: 0 }}>
                                         <Input
                                             type="text"
                                             inputMode="numeric"
@@ -784,17 +800,25 @@ export function ProductionOrderModule() {
                                         <Plus className="w-4 h-4 mr-1" />Agregar
                                     </Button>
                                 </div>
+                            </div>
 
-                                {/* Lista de productos agregados */}
-                                {productosOrden.length > 0 && (
-                                    <div className="space-y-2 mt-1">
+                            {/* Lista de productos */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+                                {productosOrden.length === 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af' }}>
+                                        <Package style={{ width: 48, height: 48, marginBottom: 12, opacity: 0.4 }} />
+                                        <p style={{ fontSize: 14 }}>No hay productos agregados</p>
+                                        <p style={{ fontSize: 12, marginTop: 4 }}>Usa el selector de arriba para agregar productos</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {productosOrden.map((p, i) => (
-                                            <div key={i} className="flex items-center justify-between bg-white border border-blue-100 rounded-lg px-3 py-2 text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <Package className="w-4 h-4 text-blue-400 shrink-0" />
-                                                    <span className="text-gray-800">{p.nombreProducto}</span>
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <Package style={{ width: 16, height: 16, color: '#3b82f6', flexShrink: 0 }} />
+                                                    <span style={{ fontSize: 14, color: '#1f2937' }}>{p.nombreProducto}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                                                     <Badge variant="secondary" className="bg-blue-50 text-blue-800">
                                                         {p.cantidad} uds.
                                                     </Badge>
@@ -810,27 +834,34 @@ export function ProductionOrderModule() {
                                         ))}
                                     </div>
                                 )}
-
                                 {productosListError && (
-                                    <FieldError mensaje={productosListError} />
+                                    <div style={{ marginTop: 12 }}>
+                                        <FieldError mensaje={productosListError} />
+                                    </div>
                                 )}
                             </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-4 border-t">
-                            <Button type="button" variant="outline"
-                                onClick={() => { resetCreate(); setShowCreateModal(false); }}>
-                                Cancelar
-                            </Button>
-                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
-                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                {saving
-                                    ? 'Guardando...'
-                                    : `Registrar Orden${productosOrden.length > 1 ? ` (${productosOrden.length})` : ''}`
-                                }
-                            </Button>
-                        </div>
+                        </section>
                     </form>
+
+                    {/* Footer */}
+                    <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+                        <Button type="button" variant="outline"
+                            onClick={() => { resetCreate(); setShowCreateModal(false); }}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="submit"
+                            form="create-orden-form"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={saving}
+                        >
+                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                            {saving
+                                ? 'Guardando...'
+                                : `Registrar Orden${productosOrden.length > 1 ? ` (${productosOrden.length})` : ''}`
+                            }
+                        </Button>
+                    </footer>
                 </DialogContent>
             </Dialog>
 
