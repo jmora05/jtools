@@ -31,6 +31,7 @@ export const createProducto = async (productoData: {
     precio: number;
     stock: number;
     estado: 'activo' | 'inactivo';
+    imagenUrl?: string; 
 }) => {
     const response = await fetch(`${BASE_URL}/productos`, {
         method: 'POST',
@@ -48,6 +49,7 @@ export const updateProducto = async (id: number, productoData: {
     precio?: number;
     stock?: number;
     estado?: 'activo' | 'inactivo';
+    imagenUrl?: string; 
 }) => {
     const response = await fetch(`${BASE_URL}/productos/${id}`, {
         method: 'PUT',

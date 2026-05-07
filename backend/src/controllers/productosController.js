@@ -63,7 +63,8 @@ const createProducto = async (req, res) => {
             descripcion,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl
         } = req.body;
 
         // Verificar que la categoría existe
@@ -79,7 +80,8 @@ const createProducto = async (req, res) => {
             descripcion: descripcion ? descripcion.trim() : null,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl: imagenUrl ? imagenUrl.trim() : null,
         });
 
         res.status(201).json({ message: 'Producto creado correctamente', producto });
@@ -88,7 +90,8 @@ const createProducto = async (req, res) => {
     const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
     return res.status(400).json({ message: 'Error de validación', errores: mensajes });
 }
-        res.status(500).json({ message: 'Error al crear el producto', error: error.message });
+        console.error('ERROR CREAR PRODUCTO:', error); // 👈 agregar
+res.status(500).json({ message: 'Error al crear el producto', error: error.message });
     }
 };
 
@@ -110,7 +113,8 @@ const updateProducto = async (req, res) => {
             descripcion,
             precio,
             stock,
-            estado
+            estado,
+            imagenUrl
         } = req.body;
 
         // Verificar que la categoría existe si se está actualizando
@@ -129,6 +133,9 @@ const updateProducto = async (req, res) => {
             precio: precio ?? producto.precio,
             stock: stock ?? producto.stock,
             estado: estado ?? producto.estado,
+            imagenUrl: imagenUrl !== undefined ? (imagenUrl ? imagenUrl.trim() : null) : producto.imagenUrl, // 👈 agregar
+
+
         });
 
         res.status(200).json({ message: 'Producto actualizado correctamente', producto });
@@ -142,6 +149,7 @@ const updateProducto = async (req, res) => {
 };
 
 // DELETE - desactivar producto (no se borra físicamente por historial de ventas y pedidos)
+// DELETE - eliminar producto físicamente
 const deleteProducto = async (req, res) => {
     try {
         const { id } = req.params;
@@ -151,13 +159,21 @@ const deleteProducto = async (req, res) => {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
 
-        await producto.update({ estado: 'inactivo' });
-        res.status(200).json({ message: 'Producto desactivado correctamente' });
+        await producto.destroy();
+        res.status(200).json({ message: 'Producto eliminado correctamente' });
+
     } catch (error) {
-        res.status(500).json({ message: 'Error al desactivar el producto', error: error.message });
+        if (
+            error.name === 'SequelizeForeignKeyConstraintError' ||
+            (error.original && error.original.code === 'ER_ROW_IS_REFERENCED_2')
+        ) {
+            return res.status(409).json({
+                message: 'No se puede eliminar: el producto tiene ventas o pedidos asociados. Desactívalo en su lugar.',
+            });
+        }
+        res.status(500).json({ message: 'Error al eliminar el producto', error: error.message });
     }
 };
-
 
 module.exports = {
     getProductos,

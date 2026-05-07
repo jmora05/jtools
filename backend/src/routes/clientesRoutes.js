@@ -7,7 +7,8 @@ const {
     getClientesActivos,
     createCliente,
     updateCliente,
-    deleteCliente
+    deleteCliente,
+    forceDeleteCliente
 } = require('../controllers/clientesController.js');
 
 router.get('/', getClientes);
@@ -17,5 +18,7 @@ router.get('/:id', getClienteById);
 router.post('/', createCliente);
 router.put('/:id', updateCliente);
 router.delete('/:id', deleteCliente);
+router.delete('/:id/force', forceDeleteCliente);
+
 
 module.exports = router;

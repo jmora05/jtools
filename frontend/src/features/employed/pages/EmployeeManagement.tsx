@@ -17,8 +17,9 @@ import {
     Loader2, CheckCircle2, Info, Lock, X,
 } from 'lucide-react';
 import {
-    getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado,
-    type Empleado,
+    getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado, getRoles,
+    verificarPuedeEliminarse, desactivarEmpleado,
+    type Empleado, type Rol, type VerificacionEliminacion,
 } from '../services/empleadosService';
 import {
     validarFormEmpleado, validarCampo, validarUnicidad, hayErrores,
@@ -28,10 +29,9 @@ import {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const AREAS:  Empleado['area'][]  = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
-const CARGOS: Empleado['cargo'][] = ['Supervisor de Producción', 'Jefe de Área', 'Operario', 'Técnico de Calidad', 'Asistente'];
 
 type FormState = {
-    tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+    tipoDocumento: 'CC' | 'CE' | 'PPT';
     numeroDocumento: string;
     nombres: string;
     apellidos: string;
@@ -104,11 +104,13 @@ function FormFields({
     setForm,
     errores = {},
     setErrores,
+    roles = [],
 }: {
     form: FormState;
     setForm: (f: FormState) => void;
     errores?: FormErrors;
     setErrores: (e: FormErrors) => void;
+    roles?: Rol[];
 }) {
     function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
         const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
@@ -135,6 +137,35 @@ function FormFields({
                 <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
+                            <label className="block text-sm text-gray-700 mb-2">Tipo de Documento <span className="text-red-500">*</span></label>
+                            <select
+                                className={selectCls(!!errores.tipoDocumento)}
+                                value={form.tipoDocumento}
+                                onChange={e => {
+                                    const tipo = e.target.value as FormState['tipoDocumento'];
+                                    setForm({ ...form, tipoDocumento: tipo, numeroDocumento: '' });
+                                    setErrores({ ...errores, tipoDocumento: undefined, numeroDocumento: undefined });
+                                }}
+                            >
+                                <option value="CC">Cédula de Ciudadanía </option>
+                                <option value="CE">Cédula de Extranjería </option>
+                                <option value="PPT">PPT (Permiso Temporal de Permanencia)</option>
+                            </select>
+                            <FieldError mensaje={errores.tipoDocumento} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Número de Documento <span className="text-red-500">*</span></label>
+                            <Input
+                                placeholder="Solo dígitos"
+                                value={form.numeroDocumento}
+                                onChange={e => update('numeroDocumento', e.target.value, sanitizarDocumento(e.target.value, form.tipoDocumento))}
+                                onBlur={() => blur('numeroDocumento')}
+                                className={errores.numeroDocumento ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={10}
+                            />
+                            <FieldError mensaje={errores.numeroDocumento} />
+                        </div>
+                        <div>
                             <label className="block text-sm text-gray-700 mb-2">Nombres <span className="text-red-500">*</span></label>
                             <Input
                                 placeholder="Nombres"
@@ -157,35 +188,6 @@ function FormFields({
                                 maxLength={100}
                             />
                             <FieldError mensaje={errores.apellidos} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-gray-700 mb-2">Tipo de Documento <span className="text-red-500">*</span></label>
-                            <select
-                                className={selectCls(!!errores.tipoDocumento)}
-                                value={form.tipoDocumento}
-                                onChange={e => {
-                                    const tipo = e.target.value as FormState['tipoDocumento'];
-                                    setForm({ ...form, tipoDocumento: tipo, numeroDocumento: '' });
-                                    setErrores({ ...errores, tipoDocumento: undefined, numeroDocumento: undefined });
-                                }}
-                            >
-                                <option value="CC">Cédula de Ciudadanía </option>
-                                <option value="CE">Cédula de Extranjería </option>
-                                <option value="Pasaporte">Pasaporte</option>
-                            </select>
-                            <FieldError mensaje={errores.tipoDocumento} />
-                        </div>
-                        <div>
-                            <label className="block text-sm text-gray-700 mb-2">Número de Documento <span className="text-red-500">*</span></label>
-                            <Input
-                                placeholder={form.tipoDocumento === 'Pasaporte' ? 'AB123456' : 'Solo dígitos'}
-                                value={form.numeroDocumento}
-                                onChange={e => update('numeroDocumento', e.target.value, sanitizarDocumento(e.target.value, form.tipoDocumento))}
-                                onBlur={() => blur('numeroDocumento')}
-                                className={errores.numeroDocumento ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={20}
-                            />
-                            <FieldError mensaje={errores.numeroDocumento} />
                         </div>
                     </div>
                 </div>
@@ -219,7 +221,7 @@ function FormFields({
                                 onChange={e => update('telefono', e.target.value, sanitizarTelefono(e.target.value))}
                                 onBlur={() => blur('telefono')}
                                 className={errores.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={20}
+                                maxLength={17}
                             />
                             <FieldError mensaje={errores.telefono} />
                         </div>
@@ -267,7 +269,7 @@ function FormFields({
                                 onBlur={() => blur('cargo')}
                             >
                                 <option value="">Seleccionar cargo</option>
-                                {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                                {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                             </select>
                             <FieldError mensaje={errores.cargo} />
                         </div>
@@ -316,6 +318,7 @@ function FormFields({
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function EmployeeManagement() {
     const [empleados, setEmpleados]       = useState<Empleado[]>([]);
+    const [roles, setRoles]               = useState<Rol[]>([]);
     const [loading, setLoading]           = useState(false);
     const [saving, setSaving]             = useState(false);
     const [togglingIds, setTogglingIds]   = useState<Set<number>>(new Set());
@@ -327,6 +330,8 @@ export function EmployeeManagement() {
     const [editingEmployee, setEditingEmployee]   = useState<Empleado | null>(null);
     const [viewingEmployee, setViewingEmployee]   = useState<Empleado | null>(null);
     const [deletingEmployee, setDeletingEmployee] = useState<Empleado | null>(null);
+    const [verificacionEliminacion, setVerificacionEliminacion] = useState<VerificacionEliminacion | null>(null);
+    const [checkingDelete, setCheckingDelete] = useState(false);
 
     const [searchTerm, setSearchTerm]       = useState('');
     const [filterEstado, setFilterEstado]   = useState('all');
@@ -362,6 +367,9 @@ export function EmployeeManagement() {
     }, []);
 
     useEffect(() => { fetchEmpleados(); }, [fetchEmpleados]);
+    useEffect(() => {
+        getRoles().then(setRoles).catch(() => {});
+    }, []);
 
     // ── Filtros ───────────────────────────────────────────────────────────────
     const filtered = empleados.filter(emp => {
@@ -524,11 +532,12 @@ export function EmployeeManagement() {
         if (!deletingEmployee?.id) return;
         setSaving(true);
         try {
-            await deleteEmpleado(deletingEmployee.id);
+            await desactivarEmpleado(deletingEmployee.id);
             showFeedback('✓ Empleado desactivado correctamente');
             toast.success('Empleado desactivado correctamente');
             setShowDeleteModal(false);
             setDeletingEmployee(null);
+            setVerificacionEliminacion(null);
             fetchEmpleados();
         } catch (err: any) {
             toast.error('Error al desactivar: ' + (err?.message ?? 'Error desconocido'));
@@ -537,17 +546,44 @@ export function EmployeeManagement() {
         }
     };
 
+    // ── Verificar si puede eliminarse ──────────────────────────────────────────
+    const handleVerificarEliminacion = async (emp: Empleado) => {
+        if (!emp.id) return;
+        setCheckingDelete(true);
+        try {
+            const verificacion = await verificarPuedeEliminarse(emp.id);
+            setVerificacionEliminacion(verificacion);
+            setDeletingEmployee(emp);
+            setShowDeleteModal(true);
+        } catch (err: any) {
+            toast.error('Error al verificar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setCheckingDelete(false);
+        }
+    };
+
+    // ── Eliminar permanentemente ───────────────────────────────────────────────
+    const handleDeletePermanente = async () => {
+        if (!deletingEmployee?.id) return;
+        setSaving(true);
+        try {
+            await deleteEmpleado(deletingEmployee.id);
+            showFeedback('✓ Empleado eliminado permanentemente');
+            toast.success('Empleado eliminado permanentemente');
+            setShowDeleteModal(false);
+            setDeletingEmployee(null);
+            setVerificacionEliminacion(null);
+            fetchEmpleados();
+        } catch (err: any) {
+            toast.error('Error al eliminar: ' + (err?.message ?? 'Error desconocido'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
     // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
-
-            {/* Feedback Banner */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
-                </div>
-            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -597,14 +633,6 @@ export function EmployeeManagement() {
                 </div>
             </CardContent>
             </Card>
-
-            {/* Alerta de empleado inactivo */}
-            {inactiveAlert && (
-                <InactiveAlert
-                    mensaje={inactiveAlert}
-                    onClose={() => setInactiveAlert(null)}
-                />
-            )}
 
             {/* Tabla */}
             {loading ? (
@@ -708,17 +736,16 @@ export function EmployeeManagement() {
                                                                     showInactiveAlert('Empleado inactivo: No puedes desactivar un empleado que ya está inactivo. Actívalo primero usando el interruptor de estado.');
                                                                     return;
                                                                 }
-                                                                setDeletingEmployee(emp);
-                                                                setShowDeleteModal(true);
+                                                                handleVerificarEliminacion(emp);
                                                             }}
-                                                            disabled={isToggling}
+                                                            disabled={isToggling || checkingDelete}
                                                             className={`border transition-colors ${
                                                                 isInactive
                                                                     ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
                                                                     : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
                                                             }`}
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            {checkingDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -754,6 +781,22 @@ export function EmployeeManagement() {
                 </Card>
             )}
 
+            {/* Alerta de empleado inactivo */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
+                />
+            )}
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
+            )}
+
             {/* ═══ MODAL — CREAR / EDITAR ═══ */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
@@ -778,6 +821,7 @@ export function EmployeeManagement() {
                             setForm={setForm}
                             errores={formErrors}
                             setErrores={setFormErrors}
+                            roles={roles}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>
@@ -863,46 +907,80 @@ export function EmployeeManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* ═══ MODAL — CONFIRMAR DESACTIVACIÓN ═══ */}
-            <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!open) { setShowDeleteModal(false); setDeletingEmployee(null); } }}>
+            {/* ═══ MODAL — CONFIRMAR DESACTIVACIÓN/ELIMINACIÓN ═══ */}
+            <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!open) { setShowDeleteModal(false); setDeletingEmployee(null); setVerificacionEliminacion(null); } }}>
                 <DialogContent className="max-w-md p-6">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-blue-900">
                             <Trash2 className="w-5 h-5" />
-                            Desactivar Empleado
+                            {verificacionEliminacion?.puedeEliminarse ? 'Eliminar Empleado' : 'Desactivar Empleado'}
                         </DialogTitle>
-                        <DialogDescription>Esta acción desactivará al empleado en el sistema.</DialogDescription>
+                        <DialogDescription>
+                            {verificacionEliminacion?.puedeEliminarse 
+                                ? 'Este empleado puede ser eliminado permanentemente del sistema.'
+                                : 'Este empleado está vinculado a otros registros y solo puede ser desactivado.'}
+                        </DialogDescription>
                     </DialogHeader>
 
-                    {deletingEmployee && (
+                    {deletingEmployee && verificacionEliminacion && (
                         <div className="mt-4 space-y-3">
                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="font-semibold text-blue-900">{deletingEmployee.nombres} {deletingEmployee.apellidos}</p>
                                 <p className="text-sm text-blue-700 mt-1">{deletingEmployee.tipoDocumento} {deletingEmployee.numeroDocumento}</p>
                                 <p className="text-sm text-blue-700">{deletingEmployee.cargo} — {deletingEmployee.area}</p>
                             </div>
-                            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
-                                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
-                                <div className="text-sm">
-                                    <p className="font-semibold">¿Estás seguro?</p>
-                                    <p className="text-amber-700 mt-0.5">El empleado quedará como <strong>inactivo</strong> en el sistema.</p>
+
+                            {verificacionEliminacion.puedeEliminarse ? (
+                                <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3">
+                                    <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">Empleado sin referencias</p>
+                                        <p className="text-blue-700 mt-0.5">Este empleado puede ser <strong>eliminado permanentemente</strong> del sistema.</p>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">Empleado vinculado a otros registros</p>
+                                        <p className="text-amber-700 mt-0.5">No se puede eliminar. Solo puede ser <strong>desactivado</strong>.</p>
+                                        <div className="mt-2 text-xs text-amber-700 bg-white bg-opacity-50 p-2 rounded">
+                                            <p className="font-semibold mb-1">Referencias encontradas:</p>
+                                            {verificacionEliminacion.referencias.novedadesRegistradas > 0 && <p>• Novedades registradas: {verificacionEliminacion.referencias.novedadesRegistradas}</p>}
+                                            {verificacionEliminacion.referencias.novedadesResponsable > 0 && <p>• Novedades como responsable: {verificacionEliminacion.referencias.novedadesResponsable}</p>}
+                                            {verificacionEliminacion.referencias.novedadesAfectado > 0 && <p>• Novedades como afectado: {verificacionEliminacion.referencias.novedadesAfectado}</p>}
+                                            {verificacionEliminacion.referencias.ordenesProduccion > 0 && <p>• Órdenes de producción: {verificacionEliminacion.referencias.ordenesProduccion}</p>}
+                                            {verificacionEliminacion.referencias.fichaTecnicaCount > 0 && <p>• Fichas técnicas: {verificacionEliminacion.referencias.fichaTecnicaCount}</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                        <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingEmployee(null); }} disabled={saving}>
+                        <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingEmployee(null); setVerificacionEliminacion(null); }} disabled={saving}>
                             Cancelar
                         </Button>
-                        <Button
-                            onClick={handleDelete}
-                            disabled={saving}
-                            className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900"
-                        >
-                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                            Sí, desactivar
-                        </Button>
+                        {verificacionEliminacion?.puedeEliminarse ? (
+                            <Button
+                                onClick={handleDeletePermanente}
+                                disabled={saving}
+                                className="bg-white hover:bg-blue-50 text-blue-600"
+                            >
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Eliminar Permanentemente
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={handleDelete}
+                                disabled={saving}
+                                className="bg-white hover:bg-blue-50 text-blue-600"
+                            >
+                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                Desactivar
+                            </Button>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

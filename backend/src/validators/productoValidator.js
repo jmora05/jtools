@@ -82,7 +82,22 @@ const validarCrearProducto = [
     body('estado')
         .optional()
         .isIn(['activo', 'inactivo']).withMessage(MSG.estadoInvalido),
+
+    body('imagenUrl')
+        .optional({ nullable: true, checkFalsy: true })
+        .custom((value) => {
+            if (!value) return true;
+            const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
+            const isHttpUrl = (() => {
+                try { const u = new URL(value); return u.protocol === 'http:' || u.protocol === 'https:'; }
+                catch { return false; }
+            })();
+            if (!isDataUrl && !isHttpUrl) throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+            return true;
+        }),
 ];
+
+// ─── Reglas para ACTUALIZAR producto ─────────────────────────────────────────
 
 // ─── Reglas para ACTUALIZAR producto ─────────────────────────────────────────
 const validarActualizarProducto = [
@@ -131,7 +146,22 @@ const validarActualizarProducto = [
     body('estado')
         .optional()
         .isIn(['activo', 'inactivo']).withMessage(MSG.estadoInvalido),
+
+    body('imagenUrl')
+        .optional({ nullable: true, checkFalsy: true })
+        .custom((value) => {
+            if (!value) return true;
+            const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
+            const isHttpUrl = (() => {
+                try { const u = new URL(value); return u.protocol === 'http:' || u.protocol === 'https:'; }
+                catch { return false; }
+            })();
+            if (!isDataUrl && !isHttpUrl) throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+            return true;
+        }),
 ];
+
+// ─── Middleware que procesa errores
 
 // ─── Middleware que procesa errores y responde con JSON claro ─────────────────
 const manejarErrores = (req, res, next) => {

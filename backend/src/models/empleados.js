@@ -10,12 +10,12 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     tipoDocumento: {
-        type: DataTypes.ENUM('CC', 'CE', 'Pasaporte'),
+        type: DataTypes.ENUM('CC', 'CE', 'PPT'),
         allowNull: false,
     },
 
     numeroDocumento: {
-        type: DataTypes.STRING(20),
+        type: DataTypes.STRING(10),
         allowNull: false,
         unique: {
             name: 'unique_numero_documento',
@@ -23,7 +23,8 @@ const Empleados = sequelize.define('Empleados', {
         },
         validate: {
             notEmpty: { msg: 'El número de documento no puede estar vacío' },
-            len: { args: [2, 20], msg: 'El número de documento debe tener entre 2 y 20 caracteres' }
+            len: { args: [8, 10], msg: 'El número de documento debe tener entre 8 y 10 dígitos' },
+            isNumeric: { msg: 'El número de documento solo puede contener dígitos' }
         }
     },
 
@@ -46,11 +47,10 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     telefono: {
-        type: DataTypes.STRING(20),
+        type: DataTypes.STRING(17),
         allowNull: false,
         validate: {
-            notEmpty: { msg: 'El teléfono no puede estar vacío' },
-            len: { args: [7, 20], msg: 'El teléfono debe tener entre 7 y 20 caracteres' }
+            notEmpty: { msg: 'El teléfono no puede estar vacío' }
         }
     },
 
@@ -70,14 +70,12 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     cargo: {
-        type: DataTypes.ENUM(
-            'Supervisor de Producción',
-            'Jefe de Área',
-            'Operario',
-            'Técnico de Calidad',
-            'Asistente'
-        ),
-        allowNull: false
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'El cargo no puede estar vacío' },
+            len: { args: [1, 100], msg: 'El cargo debe tener entre 1 y 100 caracteres' }
+        }
     },
 
     area: {

@@ -4,7 +4,7 @@ const ENDPOINT = `${getApiBaseUrl()}/novedades`;
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type EstadoNovedad = 'registrada' | 'aprobada' | 'rechazada';
+export type EstadoNovedad = 'registrada' | 'aprobada';
 
 type EmpleadoResumen = { id: number; nombres: string; apellidos: string; cargo: string };
 
@@ -14,29 +14,28 @@ export interface Novedad {
   descripcion_detallada: string;
   estado: EstadoNovedad;
   fecha_registro: string;
-  registrado_por: number;
-  empleado_responsable: number | null;
+  fecha_inicio: string;
+  fecha_finalizacion: string;
   empleado_afectado: number | null;
-  registradoPor?:       EmpleadoResumen | null;
-  empleadoResponsable?: EmpleadoResumen | null;
-  empleadoAfectado?:    EmpleadoResumen | null;
+  empleadoAfectado?: EmpleadoResumen | null;
 }
 
 export interface CreateNovedadDTO {
   titulo: string;
   descripcion_detallada: string;
-  registrado_por: number;
-  empleado_responsable?: number | null;
   empleado_afectado?: number | null;
   estado?: EstadoNovedad;
   fecha_registro?: string;
+  fecha_inicio?: string;
+  fecha_finalizacion?: string;
 }
 
 export interface UpdateNovedadDTO {
   titulo?: string;
   descripcion_detallada?: string;
-  empleado_responsable?: number | null;
   empleado_afectado?: number | null;
+  fecha_inicio?: string;
+  fecha_finalizacion?: string;
 }
 
 // ─── Servicio ─────────────────────────────────────────────────────────────────
@@ -59,14 +58,14 @@ export async function getNovedadesByEstado(estado: EstadoNovedad): Promise<Noved
   return handleResponse<Novedad[]>(res);
 }
 
-/** POST /api/novedades — el backend devuelve la novedad directamente */
+/** POST /api/novedades */
 export async function createNovedad(data: CreateNovedadDTO): Promise<Novedad> {
   const res = await fetch(ENDPOINT, {
     method:  'POST',
     headers: buildAuthHeaders(),
     body:    JSON.stringify(data),
   });
-  return handleResponse<Novedad>(res); // ← sin .novedad
+  return handleResponse<Novedad>(res);
 }
 
 /** PUT /api/novedades/:id */
@@ -76,7 +75,7 @@ export async function updateNovedad(id: number, data: UpdateNovedadDTO): Promise
     headers: buildAuthHeaders(),
     body:    JSON.stringify(data),
   });
-  return handleResponse<Novedad>(res); // ← sin .novedad
+  return handleResponse<Novedad>(res);
 }
 
 /** PATCH /api/novedades/:id/estado */
@@ -86,7 +85,7 @@ export async function cambiarEstadoNovedad(id: number, estado: EstadoNovedad): P
     headers: buildAuthHeaders(),
     body:    JSON.stringify({ estado }),
   });
-  return handleResponse<Novedad>(res); // ← sin .novedad
+  return handleResponse<Novedad>(res);
 }
 
 /** DELETE /api/novedades/:id */

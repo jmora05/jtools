@@ -1,35 +1,33 @@
-const { DataTypes } = require('sequelize'); 
-
+const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/jtools_db');
 
 const Compras = sequelize.define('Compras', {
     id: {
-        type: DataTypes.INTEGER, 
+        type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: false,
         comment: 'numero de factura de la compra',
         unique: {
             name: 'unique_numero_factura',
-            msg: 'Este número de factura ya existe'
-        }
-        // ⚠️ 
+            msg: 'Este número de factura ya existe',
+        },
     },
 
     proveedoresId: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        comment: 'ID del proveedor asociado a la compra'
+        comment: 'ID del proveedor asociado a la compra',
     },
 
     fecha: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW, 
+        defaultValue: DataTypes.NOW,
         comment: 'Fecha de la compra',
         validate: {
             isDate: { msg: 'La fecha debe ser un valor de fecha válido' },
-            notEmpty: { msg: 'La fecha no puede estar vacía' }
-        }
+            notEmpty: { msg: 'La fecha no puede estar vacía' },
+        },
     },
 
     metodoPago: {
@@ -39,23 +37,21 @@ const Compras = sequelize.define('Compras', {
         validate: {
             isIn: {
                 args: [['efectivo', 'transferencia']],
-                msg: 'El método de pago debe ser efectivo o transferencia'
+                msg: 'El método de pago debe ser efectivo o transferencia',
             },
-            notEmpty: { msg: 'El método de pago no puede estar vacío' }
-        }
+            notEmpty: { msg: 'El método de pago no puede estar vacío' },
+        },
     },
 
+    // ── 'anulada' añadido como estado terminal (soft-delete) ──────────────
     estado: {
-        type: DataTypes.ENUM('pendiente', 'en transito', 'completada'),
+        type: DataTypes.ENUM('pendiente', 'en transito', 'completada', 'anulada'),
         allowNull: false,
-        defaultValue: 'pendiente'
+        defaultValue: 'pendiente',
     },
-
 }, {
     tableName: 'compras',
-    timestamps: false
+    timestamps: false,
 });
-
-
 
 module.exports = Compras;

@@ -49,11 +49,12 @@ function validateLoginBody(body) {
 
 function validateRegisterBody(body) {
   const errors = [];
+  const TIPOS_DOCUMENTO = ['cedula', 'nit', 'cedula de extranjeria', 'pasaporte', 'rut'];
 
   errors.push(...validateEmail(body?.email));
   errors.push(...validatePassword(body?.password));
 
-  // Nombres / apellidos
+  // Nombres
   if (!body?.nombres || !String(body.nombres).trim()) {
     errors.push('El nombre es obligatorio');
   } else if (String(body.nombres).trim().length < 2) {
@@ -62,8 +63,8 @@ function validateRegisterBody(body) {
     errors.push('El nombre no puede superar los 100 caracteres');
   }
 
+  // Apellidos
   if (!body?.apellidos || !String(body.apellidos).trim()) {
-    // apellidos es opcional para empresas
     if (!body?.razon_social || !String(body.razon_social).trim()) {
       errors.push('Los apellidos son obligatorios para personas naturales');
     }
@@ -73,12 +74,20 @@ function validateRegisterBody(body) {
     errors.push('Los apellidos no pueden superar los 100 caracteres');
   }
 
-  // Razón social (empresa)
-  if (body?.razon_social !== undefined && body.razon_social !== null && String(body.razon_social).trim().length > 200) {
+  // Razón social
+  if (body?.razon_social !== undefined && body.razon_social !== null
+      && String(body.razon_social).trim().length > 200) {
     errors.push('La razón social no puede superar los 200 caracteres');
   }
 
-  // Documento
+  // Tipo de documento  ← NUEVO (antes faltaba)
+  if (!body?.tipo_documento || !String(body.tipo_documento).trim()) {
+    errors.push('El tipo de documento es obligatorio');
+  } else if (!TIPOS_DOCUMENTO.includes(String(body.tipo_documento).trim().toLowerCase())) {
+    errors.push(`Tipo de documento inválido. Use: ${TIPOS_DOCUMENTO.join(', ')}`);
+  }
+
+  // Número de documento
   if (!body?.numero_documento || !String(body.numero_documento).trim()) {
     errors.push('El número de documento es obligatorio');
   } else if (!/^[\w\-]{4,20}$/.test(String(body.numero_documento).trim())) {
@@ -99,7 +108,7 @@ function validateRegisterBody(body) {
     errors.push('La ciudad debe tener entre 2 y 100 caracteres');
   }
 
-  // Dirección (opcional pero con límite)
+  // Dirección (opcional)
   if (body?.direccion && String(body.direccion).trim().length > 200) {
     errors.push('La dirección no puede superar los 200 caracteres');
   }

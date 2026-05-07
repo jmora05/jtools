@@ -6,7 +6,6 @@ import LandingPage from '@/features/dashboard/pages/LandingPage';
 import { ConfigurationModule } from '@/features/configuration/pages/ConfigurationModule';
 import { RoleManagement } from '@/features/roles/pages/RoleManagement';
 import { UserManagement } from '@/features/users/pages/UserManagement';
-import { PermissionManagement } from '@/features/permisos/pages/PermissionManagement';
 import { EmployeeManagement } from '@/features/employed/pages/EmployeeManagement';
 import { ProductCatalog } from '@/features/products/pages/ProductCatalog';
 import { ProductCategoryManagement } from '@/features/products/pages/ProductCategoryManagement';
@@ -29,7 +28,13 @@ import {
 } from '@/shared/components/ui/dropdown-menu';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
-import { ChevronDownIcon, UserIcon, LogOutIcon, ShieldIcon, EyeIcon, ChevronRightIcon, MenuIcon, XIcon } from 'lucide-react';
+import {
+  ChevronDownIcon, UserIcon, LogOutIcon, ShieldIcon, EyeIcon,
+  ChevronRightIcon, MenuIcon, XIcon,
+  LayoutDashboard, Package, Tag, Settings, Users, Truck,
+  FlaskConical, ShoppingCart, TrendingUp, ClipboardList,
+  Newspaper, Factory, HardHat, FileText, Lock,
+} from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type AppUser = {
@@ -45,8 +50,8 @@ type AppUser = {
 };
 
 type ModuleItem =
-  | { id: string; label: string; icon: string; hasSubmenu?: false; submenu?: never }
-  | { id: string; label: string; icon: string; hasSubmenu: true; submenu: { id: string; label: string; icon: string }[] };
+  | { id: string; label: string; icon: React.ReactNode; hasSubmenu?: false; submenu?: never }
+  | { id: string; label: string; icon: React.ReactNode; hasSubmenu: true; submenu: { id: string; label: string; icon: React.ReactNode }[] };
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -62,12 +67,13 @@ export default function App() {
   const handleLogin = (userData: AppUser) => {
     setUser(userData);
     setIsLoggedIn(true);
-    setCurrentModule('dashboard');
+    // El cliente entra directo a Mis Compras; el admin al dashboard
+    setCurrentModule(userData.userType === 'client' ? 'client-purchases' : 'dashboard');
     localStorage.setItem('jrepuestos_user', JSON.stringify(userData));
   };
 
   useEffect(() => {
-    if (['users', 'roles', 'permissions'].includes(currentModule)) {
+    if (['users', 'roles'].includes(currentModule)) {
       setConfigurationExpanded(true);
     }
   }, [currentModule]);
@@ -121,7 +127,7 @@ export default function App() {
   // user está garantizado no-null a partir de aquí
   const u = user!;
 
-  if (showLandingPage || u.userType === 'client') {
+  if (showLandingPage) {
     return (
       <>
         <Toaster richColors position="top-right" />
@@ -129,63 +135,57 @@ export default function App() {
           {u.userType === 'admin' && (
             <div className="fixed top-4 right-4 z-50">
               <Button onClick={toggleLandingPage} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg">
-                {showLandingPage ? 'Ver Sistema Admin' : 'Ver Landing Page'}
+                Ver Sistema Admin
               </Button>
             </div>
           )}
           <LandingPage
-            onGoToSystem={u.userType === 'client' ? undefined : toggleLandingPage}
+            onGoToSystem={toggleLandingPage}
             userType={u.userType}
           />
         </div>
       </>
     );
   }
-
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
-      { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-      { id: 'catalog',   label: 'Productos',  icon: '📦' },
-    ];
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+  { id: 'catalog',   label: 'Productos',  icon: <Package size={18} /> },
+];
 
     if (isClientPreview) return baseModules;
 
     if (u.userType === 'admin') {
       return [
-        ...baseModules,
-        { id: 'product-categories', label: 'Categorías de productos', icon: '🏷️' },
-        {
-          id: 'configuration', label: 'Configuración', icon: '⚙️', hasSubmenu: true,
-          submenu: [
-            { id: 'users',       label: 'Usuarios', icon: '👥' },
-            { id: 'roles',       label: 'Roles',    icon: '🔒' },
-            { id: 'permissions', label: 'Permisos', icon: '🛡️' },
-          ],
-        },
-        { id: 'clients',   label: 'Clientes',            icon: '👥' },
-        { id: 'suppliers', label: 'Proveedores',          icon: '🏭' },
-        { id: 'supplies',  label: 'Insumos',              icon: '📋' },
-        { id: 'purchases', label: 'Compras de insumos',   icon: '🛒' },
-        { id: 'sales',     label: 'Ventas',               icon: '💵' },
-        { id: 'orders',    label: 'Pedidos',              icon: '📋' },
-        { id: 'news',      label: 'Novedades',            icon: '📰' },
-        {
-          id: 'production', label: 'Producción', icon: '🏭', hasSubmenu: true,
-          submenu: [
-            { id: 'production-employees',        label: 'Empleados',             icon: '👷' },
-            { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: '📋' },
-            { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: '📄' },
-          ],
-        },
-      ];
+  ...baseModules,
+  { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
+  {
+    id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true,
+    submenu: [
+      { id: 'users',       label: 'Usuarios',         icon: <Users size={16} /> },
+      { id: 'roles',       label: 'Roles y Permisos', icon: <Lock size={16} /> },
+    ],
+  },
+  { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
+  { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={18} /> },
+  { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
+  { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
+  { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
+  { id: 'orders',    label: 'Pedidos',            icon: <ClipboardList size={18} /> },
+  { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
+  { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
+  { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
+  { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
+];
     }
 
-    // Cliente registrado: dashboard + mis compras + perfil
+    // Cliente registrado: Compras (ventas filtradas) + Pedidos + Productos
     return [
-      ...baseModules,
-      { id: 'my-purchases', label: 'Mis Compras',  icon: '🛒' },
-      { id: 'my-profile',   label: 'Mi Perfil',    icon: '👤' },
-    ];
+  { id: 'dashboard',        label: 'Dashboard',   icon: <LayoutDashboard size={18} /> },
+  { id: 'catalog',          label: 'Productos',   icon: <Package size={18} /> },
+  { id: 'client-purchases', label: 'Mis Compras', icon: <ShoppingCart size={18} /> },
+  { id: 'client-orders',    label: 'Mis Pedidos', icon: <ClipboardList size={18} /> },
+];
   };
 
   const renderModule = () => {
@@ -194,12 +194,15 @@ export default function App() {
     switch (currentModule) {
       case 'dashboard':           return <Dashboard {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
       case 'catalog':             return <ProductCatalog {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
-      case 'my-purchases':        return <SalesModule clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
+      // Módulos exclusivos del cliente — sin botón eliminar (clientMode=true)
+      case 'client-purchases':    return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
+      case 'client-orders':       return <OrderModule {...({} as any)} clientMode />;
+      case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-profile':          return D();
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
       case 'users':               return !isClient ? <UserManagement /> : D();
       case 'roles':               return !isClient ? <RoleManagement /> : D();
-      case 'permissions':         return !isClient ? <PermissionManagement /> : D();
+      case 'permissions':         return D();
       case 'clients':             return !isClient ? <ClientManagement onNavigateToSales={handleNavigateToSalesWithClient as any} /> : D();
       case 'suppliers':           return !isClient ? <SupplierManagement /> : D();
       case 'supplies':            return !isClient ? <SupplyManagement /> : D();
@@ -220,8 +223,8 @@ export default function App() {
       dashboard:                      'Panel Principal',
       configuration:                  'Configuración del Sistema',
       users:                          'Gestión de Usuarios',
-      roles:                          'Gestión de Roles',
-      permissions:                    'Gestión de Permisos',
+      roles:                          'Roles y Permisos',
+      permissions:                    'Roles y Permisos',
       catalog:                        'Productos',
       clients:                        'Gestión de Clientes',
       suppliers:                      'Gestión de Proveedores',
@@ -236,6 +239,8 @@ export default function App() {
       'production-technical-sheets':  'Fichas Técnicas',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
+      'client-purchases':             'Mis Compras',
+      'client-orders':                'Mis Pedidos',
     };
     return titles[currentModule] ?? 'Panel Principal';
   };
@@ -313,7 +318,7 @@ export default function App() {
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <span className="text-lg">{item.icon}</span>
+                        {item.icon}
                         <span>{item.label}</span>
                       </div>
                       <ChevronRightIcon className={`w-4 h-4 transition-transform ${
@@ -333,7 +338,7 @@ export default function App() {
                               currentModule === sub.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                            <span className="text-base">{sub.icon}</span>
+                            {sub.icon}
                             <span>{sub.label}</span>
                           </button>
                         ))}
@@ -347,7 +352,7 @@ export default function App() {
                       currentModule === item.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    {item.icon}
                     <span>{item.label}</span>
                   </button>
                 )}

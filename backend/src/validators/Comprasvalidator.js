@@ -198,7 +198,7 @@ const validarActualizarCompra = [
     // ── body no puede estar vacío ─────────────────────────────────────────────
     body()
         .custom((body) => {
-            const camposPermitidos = ['proveedoresId', 'fecha', 'metodoPago', 'notas'];
+            const camposPermitidos = ['proveedoresId', 'fecha', 'metodoPago', 'notas', 'detalles'];
             const camposEnviados   = Object.keys(body);
             if (camposEnviados.length === 0)
                 throw new Error('El cuerpo de la petición no puede estar vacío');
@@ -207,6 +207,19 @@ const validarActualizarCompra = [
                 throw new Error(`Campos no permitidos: ${camposInvalidos.join(', ')}`);
             return true;
         }),
+
+    body('detalles')
+        .optional()
+        .isArray({ min: 1 }).withMessage('Los detalles deben ser un array con al menos un elemento'),
+
+    body('detalles.*.insumosId')
+        .isInt({ min: 1 }).withMessage('Cada detalle debe tener un insumosId válido (entero positivo)'),
+
+    body('detalles.*.cantidad')
+        .isInt({ min: 1 }).withMessage('La cantidad debe ser un entero positivo'),
+
+    body('detalles.*.precioUnitario')
+        .isFloat({ min: 0 }).withMessage('El precioUnitario debe ser un número positivo'),
 
     handleValidationErrors,
 ];

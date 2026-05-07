@@ -44,9 +44,44 @@ async function seed() {
         console.log('Usuario admin@example.com ya existe.');
     }
 
+    // 5. Crear SUPERADMIN con acceso total
+    const [rolSuper] = await Roles.findOrCreate({
+        where: { name: 'admin' },
+        defaults: { name: 'admin', description: 'Superusuario con acceso total sin restricciones' }
+    });
+    await rolSuper.setPermisos(todosLosPermisos.map(p => p.id));
+    console.log(`Rol "admin" (id: ${rolSuper.id}) con ${todosLosPermisos.length} permisos.`);
+
+    const existingSuper = await Usuarios.findOne({ where: { email: 'admin@jrepuestos.com' } });
+    if (!existingSuper) {
+        const hash = await bcrypt.hash('123456', 10);
+        await Usuarios.create({ rolesId: rolSuper.id, email: 'admin@jrepuestos.com', password: hash });
+        console.log('Superadmin creado: admin@jrepuestos.com / 123456');
+    } else {
+        console.log('Superadmin ya existe.');
+    }
+
+    // 6. Crear rol Cliente si no existe
+    const [rolCliente] = await Roles.findOrCreate({
+        where: { name: 'Cliente' },
+        defaults: { 
+            name: 'Cliente', 
+            description: 'Acceso restringido para clientes del sistema' 
+        }
+    });
+
+    // Asignar solo los permisos que el cliente necesita
+    const permisosCliente = await Permisos.findAll({
+        where: { moduleKey: ['catalog', 'orders', 'sales', 'dashboard'] }
+    });
+    await rolCliente.setPermisos(permisosCliente.map(p => p.id));
+    console.log(`Rol "Cliente" (id: ${rolCliente.id}) configurado con ${permisosCliente.length} permisos.`);
+
     console.log('Seed completado.');
     process.exit(0);
 }
+
+
 
 seed().catch((err) => {
     console.error('Error en seed:', err.message);

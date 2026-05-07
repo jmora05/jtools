@@ -38,19 +38,12 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         //    cuando alter:true intenta agregar el comentario sobre un ENUM ya existente.
     },
 
-    // Materiales, procesos, medidas e insumos se guardan como JSON
-    materiales: {
-        type: DataTypes.JSON,
-        allowNull: false,
-        defaultValue: [],
-        comment: 'Lista de materiales requeridos [{name, quantity, unit}]'
-    },
-
+    // Procesos, medidas e insumos se guardan como JSON
     procesos: {
         type: DataTypes.JSON,
         allowNull: false,
         defaultValue: [],
-        comment: 'Pasos del proceso de fabricación [{step, description, duration}]'
+        comment: 'Pasos del proceso de fabricación [{step, description, duration, responsableId}]'
     },
 
     medidas: {

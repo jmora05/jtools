@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { FichaTecnica, Productos, CategoriaProductos } = require('../models/index.js');
+const { FichaTecnica, Productos, CategoriaProductos, Empleados } = require('../models/index.js');
 const {
     middlewareCrear,
     middlewareActualizar,
@@ -102,7 +102,7 @@ const getFichasByProducto = async (req, res) => {
 // ────────────────────────────────────────────────────────────
 const createFichaTecnica = async (req, res) => {
     try {
-        const { productoId, materiales, procesos, medidas, insumos, notas } = req.body;
+        const { productoId, procesos, medidas, insumos, notas } = req.body;
 
         // 1. Verificar que el producto existe y está activo
         const producto = await Productos.findByPk(productoId);
@@ -123,14 +123,32 @@ const createFichaTecnica = async (req, res) => {
             });
         }
 
-        // 3. Generar código y crear
+        // 3. Validar que los responsables (si existen) sean empleados válidos y activos
+        if (procesos && Array.isArray(procesos)) {
+            for (const proceso of procesos) {
+                if (proceso.responsableId) {
+                    const empleado = await Empleados.findByPk(proceso.responsableId);
+                    if (!empleado) {
+                        return res.status(404).json({
+                            message: `El empleado con ID ${proceso.responsableId} no existe`
+                        });
+                    }
+                    if (empleado.estado === 'inactivo') {
+                        return res.status(400).json({
+                            message: `El empleado ${empleado.nombres} ${empleado.apellidos} está inactivo y no puede ser asignado como responsable`
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. Generar código y crear
         const codigoFicha = await generarCodigoFicha();
 
         const ficha = await FichaTecnica.create({
             codigoFicha,
             productoId,
             estado: 'Activa',
-            materiales,
             procesos: procesos.map((p, i) => ({ ...p, step: i + 1 })),
             medidas:  medidas  || [],
             insumos:  insumos  || [],
@@ -165,11 +183,11 @@ const updateFichaTecnica = async (req, res) => {
             return res.status(404).json({ message: 'Ficha técnica no encontrada' });
         }
 
-        const { materiales, procesos, medidas, insumos, notas, estado } = req.body;
+        const { procesos, medidas, insumos, notas, estado } = req.body;
 
         // 1. ✅ Bloquear edición de contenido en fichas Inactivas
         //    (solo se permite cambiar el estado para reactivarla)
-        const intentaCambiarContenido = [materiales, procesos, medidas, insumos, notas]
+        const intentaCambiarContenido = [procesos, medidas, insumos, notas]
             .some(v => v !== undefined);
 
         if (ficha.estado === 'Inactiva' && intentaCambiarContenido) {
@@ -192,11 +210,48 @@ const updateFichaTecnica = async (req, res) => {
                     message: `Ya existe una ficha activa para este producto (${otraFichaActiva.codigoFicha}). Inactívala antes de activar esta.`
                 });
             }
+
+            // Validar que todos los responsables en los procesos existan y estén activos
+            if (ficha.procesos && Array.isArray(ficha.procesos)) {
+                for (const proceso of ficha.procesos) {
+                    if (proceso.responsableId) {
+                        const empleado = await Empleados.findByPk(proceso.responsableId);
+                        if (!empleado) {
+                            return res.status(400).json({
+                                message: `No se puede activar la ficha. El empleado responsable del proceso "${proceso.description}" ya no existe en el sistema.`
+                            });
+                        }
+                        if (empleado.estado === 'inactivo') {
+                            return res.status(400).json({
+                                message: `No se puede activar la ficha. El empleado ${empleado.nombres} ${empleado.apellidos} (responsable del proceso "${proceso.description}") está inactivo.`
+                            });
+                        }
+                    }
+                }
+            }
         }
 
-        // 3. Construir objeto de actualización (solo campos enviados)
+        // 3. Validar que los responsables (si existen) sean empleados válidos y activos
+        if (procesos && Array.isArray(procesos)) {
+            for (const proceso of procesos) {
+                if (proceso.responsableId) {
+                    const empleado = await Empleados.findByPk(proceso.responsableId);
+                    if (!empleado) {
+                        return res.status(404).json({
+                            message: `El empleado con ID ${proceso.responsableId} no existe`
+                        });
+                    }
+                    if (empleado.estado === 'inactivo') {
+                        return res.status(400).json({
+                            message: `El empleado ${empleado.nombres} ${empleado.apellidos} está inactivo y no puede ser asignado como responsable`
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. Construir objeto de actualización (solo campos enviados)
         const updates = {};
-        if (materiales !== undefined) updates.materiales = materiales;
         if (procesos  !== undefined) updates.procesos  = procesos.map((p, i) => ({ ...p, step: i + 1 }));
         if (medidas   !== undefined) updates.medidas   = medidas;
         if (insumos   !== undefined) updates.insumos   = insumos;
@@ -222,7 +277,7 @@ const updateFichaTecnica = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────────────────
-//  DELETE /fichas-tecnicas/:id  —  eliminar (solo si Inactiva)
+//  DELETE /fichas-tecnicas/:id  —  eliminar (solo si Activa)
 // ────────────────────────────────────────────────────────────
 const deleteFichaTecnica = async (req, res) => {
     try {
@@ -237,9 +292,9 @@ const deleteFichaTecnica = async (req, res) => {
             return res.status(404).json({ message: 'Ficha técnica no encontrada' });
         }
 
-        if (ficha.estado === 'Activa') {
+        if (ficha.estado === 'Inactiva') {
             return res.status(400).json({
-                message: 'No se puede eliminar una ficha técnica activa. Cámbiala a Inactiva primero.'
+                message: 'No se puede eliminar una ficha técnica inactiva. Actívala primero.'
             });
         }
 
@@ -251,11 +306,71 @@ const deleteFichaTecnica = async (req, res) => {
     }
 };
 
+// ────────────────────────────────────────────────────────────
+//  GET /fichas-tecnicas/:id/puede-eliminarse  —  verificar si puede eliminarse
+// ────────────────────────────────────────────────────────────
+const puedeEliminarFichaTecnica = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const ficha = await FichaTecnica.findByPk(id);
+        if (!ficha) {
+            return res.status(404).json({ message: 'Ficha técnica no encontrada' });
+        }
+
+        // 1. Verificar si está Activa
+        if (ficha.estado !== 'Activa') {
+            return res.status(200).json({
+                puedeEliminar: false,
+                razon: 'La ficha técnica debe estar Activa para poder eliminarla',
+                estado: ficha.estado
+            });
+        }
+
+        // 2. Verificar que todos los empleados responsables existan (pueden estar inactivos)
+        const empleadosEliminados = [];
+        if (ficha.procesos && Array.isArray(ficha.procesos)) {
+            for (const proceso of ficha.procesos) {
+                if (proceso.responsableId) {
+                    const empleado = await Empleados.findByPk(proceso.responsableId);
+                    if (!empleado) {
+                        empleadosEliminados.push({
+                            paso: proceso.step,
+                            responsableId: proceso.responsableId
+                        });
+                    }
+                }
+            }
+        }
+
+        if (empleadosEliminados.length > 0) {
+            return res.status(200).json({
+                puedeEliminar: false,
+                razon: `No se puede eliminar. Los siguientes empleados responsables fueron eliminados: ${empleadosEliminados.map(e => `Paso ${e.paso}`).join(', ')}`,
+                empleadosEliminados
+            });
+        }
+
+        // 3. TODO: Verificar si la ficha está siendo usada en otros módulos
+        // Por ahora no hay referencias directas en OrdenesProduccion u otros módulos
+        // Si en el futuro se agregan, validar aquí
+
+        return res.status(200).json({
+            puedeEliminar: true,
+            razon: 'La ficha técnica puede ser eliminada'
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Error al verificar si puede eliminarse', error: error.message });
+    }
+};
+
 module.exports = {
     getFichasTecnicas,
     getFichaTecnicaById,
     getFichasByProducto,
     createFichaTecnica,
     updateFichaTecnica,
-    deleteFichaTecnica
+    deleteFichaTecnica,
+    puedeEliminarFichaTecnica
 };

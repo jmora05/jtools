@@ -15,19 +15,20 @@ import {
     ChevronLeft, ChevronRight, FileText, ArrowLeft,
     CheckCircle, XCircle, Package, List, Ruler,
     ClipboardList, Calendar, Loader2, CheckCircle2,
-    Lock, X,
+    Lock, X, User,
 } from 'lucide-react';
 import {
-    getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica,
-    type FichaTecnica, type Material, type Proceso, type Medida, type InsumoFT,
+    getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica, puedeEliminarFichaTecnica,
+    type FichaTecnica, type Proceso, type Medida, type InsumoFT,
 } from '../services/fichaTecnicaService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
+import { getInsumosDisponibles, type InsumoDisponible } from '../services/insumosService';
 import {
-    validarMaterial, validarProceso, validarMedida, validarInsumo,
-    validarMaterialCampos, validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
+    validarProceso, validarMedida,
+    validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
     validarFormCrear, validarFormEditar, validarNotasCampo,
-    filtrarNombre, filtrarUnidad, filtrarDescripcion, filtrarDuracion, filtrarParametro,
-    filtrarNotas, filtrarCantidad, contadorTexto,
+    filtrarDescripcion, filtrarDuracion, filtrarParametro,
+    filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
 
@@ -94,53 +95,33 @@ function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => v
 
 // ─── ItemsForm ────────────────────────────────────────────────────────────────
 function ItemsForm({
-    materiales, setMateriales,
     procesos, setProcesos,
     medidas, setMedidas,
     insumos, setInsumos,
+    catalogoInsumos, loadingInsumos, insumosListError,
+    empleados = [],
 }: {
-    materiales: Material[];    setMateriales: (v: Material[]) => void;
     procesos: Proceso[];       setProcesos: (v: Proceso[]) => void;
     medidas: Medida[];         setMedidas: (v: Medida[]) => void;
     insumos: InsumoFT[];       setInsumos: (v: InsumoFT[]) => void;
+    catalogoInsumos: InsumoDisponible[];
+    loadingInsumos: boolean;
+    insumosListError: string | null;
+    empleados?: any[];
 }) {
-    const [newMat, setNewMat]   = useState<Material>({ name: '', quantity: 0, unit: '' });
-    const [newProc, setNewProc] = useState<{ description: string; duration: string }>({ description: '', duration: '' });
-    const [newMed, setNewMed]   = useState<Medida>({ parameter: '', value: '' });
-    const [newIns, setNewIns]   = useState<InsumoFT>({ name: '', quantity: 0, unit: '' });
+    const [newProc, setNewProc] = useState<{ description: string; duration: string; responsableId?: number }>({ description: '', duration: '' });
+    const [newMed, setNewMed]   = useState<{ parameter: string; value: number; unit: string }>({ parameter: '', value: 0, unit: '' });
+    const [selectedInsumoId, setSelectedInsumoId] = useState<string>('');
+    const [newInsQuantity, setNewInsQuantity]      = useState<number>(0);
+    const [newInsUnit, setNewInsUnit]              = useState<string>('');
 
-    const [matErrors, setMatErrors]   = useState<ItemErrors>({});
     const [procErrors, setProcErrors] = useState<ItemErrors>({});
     const [medErrors, setMedErrors]   = useState<ItemErrors>({});
     const [insErrors, setInsErrors]   = useState<ItemErrors>({});
 
-    const [matSubmitted, setMatSubmitted]   = useState(false);
     const [procSubmitted, setProcSubmitted] = useState(false);
     const [medSubmitted, setMedSubmitted]   = useState(false);
     const [insSubmitted, setInsSubmitted]   = useState(false);
-
-    function updateMatField(campo: keyof typeof newMat, valor: string | number) {
-        let valorFiltrado: string | number = valor;
-        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
-        if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
-        if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
-
-        const nuevoMat = { ...newMat, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
-        setNewMat(nuevoMat);
-        if (matSubmitted) setMatErrors(validarMaterialCampos(nuevoMat));
-    }
-
-    const addMat = () => {
-        setMatSubmitted(true);
-        const camposErr = validarMaterialCampos(newMat);
-        setMatErrors(camposErr);
-        const { valid, errors } = validarMaterial(newMat);
-        if (!valid) { toast.error(errors[0]); return; }
-        setMateriales([...materiales, { ...newMat, name: newMat.name.trim(), unit: newMat.unit.trim() }]);
-        setNewMat({ name: '', quantity: 0, unit: '' });
-        setMatErrors({});
-        setMatSubmitted(false);
-    };
 
     function updateProcField(campo: keyof typeof newProc, valor: string) {
         let valorFiltrado = valor;
@@ -155,18 +136,40 @@ function ItemsForm({
     const addProc = () => {
         setProcSubmitted(true);
         const camposErr = validarProcesoCampos(newProc);
+        
+        // Validar que responsableId esté presente
+        if (!newProc.responsableId) {
+            setProcErrors({ ...camposErr, responsableId: 'El responsable es obligatorio' });
+            toast.error('Debes seleccionar un responsable para el proceso');
+            return;
+        }
+        
         setProcErrors(camposErr);
         const { valid, errors } = validarProceso({ ...newProc, step: procesos.length + 1 });
         if (!valid) { toast.error(errors[0]); return; }
-        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim() }]);
+        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim(), responsableId: newProc.responsableId }]);
         setNewProc({ description: '', duration: '' });
         setProcErrors({});
         setProcSubmitted(false);
     };
 
-    function updateMedField(campo: keyof typeof newMed, valor: string) {
-        const valorFiltrado = filtrarParametro(valor);
-        const nuevaMed = { ...newMed, [campo]: valorFiltrado };
+    function updateMedField(campo: 'parameter' | 'value' | 'unit', valor: string | number) {
+        let valorFiltrado: string | number = valor;
+        
+        if (campo === 'parameter') {
+            valorFiltrado = filtrarParametro(String(valor));
+        } else if (campo === 'value') {
+            // Solo permitir números y punto decimal
+            const numStr = String(valor).replace(/[^0-9.]/g, '');
+            valorFiltrado = numStr === '' ? 0 : parseFloat(numStr) || 0;
+        } else if (campo === 'unit') {
+            valorFiltrado = filtrarUnidad(String(valor));
+        }
+        
+        const nuevaMed = {
+            ...newMed,
+            [campo]: valorFiltrado
+        };
         setNewMed(nuevaMed);
         if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
     }
@@ -177,31 +180,44 @@ function ItemsForm({
         setMedErrors(camposErr);
         const { valid, errors } = validarMedida(newMed);
         if (!valid) { toast.error(errors[0]); return; }
-        setMedidas([...medidas, { parameter: newMed.parameter.trim(), value: newMed.value.trim() }]);
-        setNewMed({ parameter: '', value: '' });
+        setMedidas([...medidas, { 
+            parameter: newMed.parameter.trim(), 
+            value: newMed.value, 
+            unit: newMed.unit.trim() 
+        }]);
+        setNewMed({ parameter: '', value: 0, unit: '' });
         setMedErrors({});
         setMedSubmitted(false);
     };
 
-    function updateInsField(campo: keyof typeof newIns, valor: string | number) {
+    function updateInsField(campo: 'quantity' | 'unit', valor: string | number) {
         let valorFiltrado: string | number = valor;
-        if (campo === 'name') valorFiltrado = filtrarNombre(String(valor));
         if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
         if (campo === 'quantity') valorFiltrado = filtrarCantidad(String(valor));
 
-        const nuevoIns = { ...newIns, [campo]: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : valorFiltrado };
-        setNewIns(nuevoIns);
-        if (insSubmitted) setInsErrors(validarInsumoCampos(nuevoIns));
+        const nuevoIns = {
+            quantity: campo === 'quantity' ? parseFloat(String(valorFiltrado)) || 0 : newInsQuantity,
+            unit: campo === 'unit' ? String(valorFiltrado) : newInsUnit,
+        };
+        if (campo === 'quantity') setNewInsQuantity(nuevoIns.quantity);
+        if (campo === 'unit') setNewInsUnit(nuevoIns.unit);
+        if (insSubmitted) setInsErrors(validarInsumoCampos(nuevoIns, selectedInsumoId));
     }
 
     const addIns = () => {
         setInsSubmitted(true);
-        const camposErr = validarInsumoCampos(newIns);
+        const camposErr = validarInsumoCampos({ quantity: newInsQuantity, unit: newInsUnit }, selectedInsumoId);
         setInsErrors(camposErr);
-        const { valid, errors } = validarInsumo(newIns);
-        if (!valid) { toast.error(errors[0]); return; }
-        setInsumos([...insumos, { ...newIns, name: newIns.name.trim(), unit: newIns.unit.trim() }]);
-        setNewIns({ name: '', quantity: 0, unit: '' });
+        if (Object.keys(camposErr).length > 0) {
+            const firstError = camposErr.insumoId ?? camposErr.quantity ?? camposErr.unit ?? '';
+            toast.error(firstError);
+            return;
+        }
+        const name = catalogoInsumos.find(i => String(i.id) === selectedInsumoId)?.nombreInsumo ?? '';
+        setInsumos([...insumos, { name, quantity: newInsQuantity, unit: newInsUnit.trim() }]);
+        setSelectedInsumoId('');
+        setNewInsQuantity(0);
+        setNewInsUnit('');
         setInsErrors({});
         setInsSubmitted(false);
     };
@@ -211,64 +227,6 @@ function ItemsForm({
 
     return (
         <>
-            {/* ── Materiales ── */}
-            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                <div className="bg-blue-50 py-3 px-4">
-                    <p className="text-sm font-semibold text-blue-900">
-                        Materiales <span className="text-red-500">*</span>
-                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
-                    </p>
-                </div>
-                <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="md:col-span-2 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Nombre *</Label>
-                                <CharCounter valor={newMat.name} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: Papel filtro, Acero inoxidable" value={newMat.name}
-                                onChange={e => updateMatField('name', e.target.value)} className={inputErr(!!matErrors.name)} />
-                            <FieldError mensaje={matErrors.name} />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">Cantidad *</Label>
-                            <Input type="text" inputMode="decimal" placeholder="Ej: 2.5"
-                                value={newMat.quantity || ''}
-                                onChange={e => updateMatField('quantity', e.target.value)} className={inputErr(!!matErrors.quantity)} />
-                            <FieldError mensaje={matErrors.quantity} />
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Unidad *</Label>
-                                <CharCounter valor={newMat.unit} limite={30} />
-                            </div>
-                            <Input placeholder="kg, unidades, m²" value={newMat.unit}
-                                onChange={e => updateMatField('unit', e.target.value)} className={inputErr(!!matErrors.unit)} />
-                            <FieldError mensaje={matErrors.unit} />
-                        </div>
-                    </div>
-                    <Button type="button" variant="outline" onClick={addMat} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                        <Plus className="w-4 h-4 mr-2" />Agregar Material
-                    </Button>
-                    {materiales.length === 0 && (
-                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un material</p>
-                    )}
-                    {materiales.map((m, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span className="font-medium text-gray-700">{m.name}</span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{m.quantity} {m.unit}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setMateriales(materiales.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* ── Procesos ── */}
             <div className="border border-blue-100 rounded-lg overflow-hidden">
                 <div className="bg-blue-50 py-3 px-4">
@@ -291,36 +249,74 @@ function ItemsForm({
                         </div>
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Duración *</Label>
+                                <Label className="text-xs">Duración (min) *</Label>
                                 <CharCounter valor={newProc.duration} limite={50} />
                             </div>
-                            <Input placeholder="15 min, 2 horas" value={newProc.duration}
-                                onChange={e => updateProcField('duration', e.target.value)} className={inputErr(!!procErrors.duration)} />
+                            <Input 
+                                type="text" 
+                                inputMode="numeric"
+                                placeholder="Ej: 15, 30, 60" 
+                                value={newProc.duration}
+                                onChange={e => updateProcField('duration', e.target.value)} 
+                                className={inputErr(!!procErrors.duration)} 
+                            />
                             <FieldError mensaje={procErrors.duration} />
                         </div>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Responsable <span className="text-red-500">*</span></Label>
+                        <select
+                            className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${!newProc.responsableId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
+                            value={newProc.responsableId || ''}
+                            onChange={e => {
+                                const id = e.target.value ? parseInt(e.target.value) : undefined;
+                                setNewProc({ ...newProc, responsableId: id });
+                            }}
+                        >
+                            <option value="">Seleccionar responsable</option>
+                            {empleados.map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos}</option>
+                            ))}
+                        </select>
+                        {!newProc.responsableId && procSubmitted && (
+                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                El responsable es obligatorio
+                            </p>
+                        )}
                     </div>
                     <Button type="button" variant="outline" onClick={addProc} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
                         <Plus className="w-4 h-4 mr-2" />Agregar Proceso
                     </Button>
                     {procesos.length === 0 && (
-                        <p className="text-xs text-amber-600 text-center">⚠ Debes agregar al menos un proceso</p>
+                        <p className="text-xs text-red-500 text-center">Debes agregar al menos un proceso</p>
                     )}
-                    {procesos.map((p, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span>
-                                <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
-                                {p.description}
-                            </span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs shrink-0">{p.duration}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
+                    {procesos.map((p, i) => {
+                        const responsable = empleados.find(e => e.id === p.responsableId);
+                        return (
+                            <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                                <div className="flex-1">
+                                    <span>
+                                        <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
+                                        {p.description}
+                                    </span>
+                                    {responsable && (
+                                        <p className="text-xs text-gray-600 mt-1">
+                                            👤 {responsable.nombres} {responsable.apellidos}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Badge variant="outline" className="text-xs shrink-0">{p.duration} min</Badge>
+                                    <Button type="button" variant="ghost" size="sm"
+                                        onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
+                                        className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -333,10 +329,10 @@ function ItemsForm({
                     </p>
                 </div>
                 <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Parámetro *</Label>
+                                <Label className="text-xs">Parámetro</Label>
                                 <CharCounter valor={newMed.parameter} limite={100} />
                             </div>
                             <Input placeholder="Ej: Diámetro exterior, Longitud"
@@ -345,14 +341,35 @@ function ItemsForm({
                             <FieldError mensaje={medErrors.parameter} />
                         </div>
                         <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Valor *</Label>
-                                <CharCounter valor={newMed.value} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: 95 mm, 1.2 kg"
-                                value={newMed.value}
-                                onChange={e => updateMedField('value', e.target.value)} className={inputErr(!!medErrors.value)} />
+                            <Label className="text-xs">Valor</Label>
+                            <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                placeholder="Ej: 95, 1.2"
+                                value={newMed.value || ''}
+                                onChange={e => updateMedField('value', e.target.value)} 
+                                className={inputErr(!!medErrors.value)} />
                             <FieldError mensaje={medErrors.value} />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Unidad</Label>
+                            <select
+                                className={selectCls(!!medErrors.unit)}
+                                value={newMed.unit}
+                                onChange={e => updateMedField('unit', e.target.value)}
+                            >
+                                <option value="">Seleccionar unidad</option>
+                                <option value="cm">Centímetros (cm)</option>
+                                <option value="m">Metros (m)</option>
+                                <option value="mm">Milímetros (mm)</option>
+                                <option value="g">Gramos (g)</option>
+                                <option value="kg">Kilogramos (kg)</option>
+                                <option value="L">Litros (L)</option>
+                                <option value="ml">Mililitros (ml)</option>
+                                <option value="unidad">Unidad</option>
+                                <option value="pulgadas">Pulgadas (in)</option>
+                            </select>
+                            <FieldError mensaje={medErrors.unit} />
                         </div>
                     </div>
                     <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
@@ -362,10 +379,10 @@ function ItemsForm({
                         <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
                             <span className="text-gray-700">{m.parameter}</span>
                             <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{m.value}</Badge>
+                                <Badge variant="outline" className="text-xs">{m.value} {m.unit}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -378,34 +395,46 @@ function ItemsForm({
             <div className="border border-blue-100 rounded-lg overflow-hidden">
                 <div className="bg-blue-50 py-3 px-4">
                     <p className="text-sm font-semibold text-blue-900">
-                        Insumos Requeridos
-                        <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 50)</span>
+                        Insumos Requeridos <span className="text-red-500">*</span>
+                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
                     </p>
                 </div>
                 <div className="p-4 space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="md:col-span-2 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Nombre *</Label>
-                                <CharCounter valor={newIns.name} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: Adhesivo industrial" value={newIns.name}
-                                onChange={e => updateInsField('name', e.target.value)} className={inputErr(!!insErrors.name)} />
-                            <FieldError mensaje={insErrors.name} />
+                            <Label className="text-xs">Insumo *</Label>
+                            <select
+                                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${insErrors.insumoId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
+                                value={selectedInsumoId}
+                                disabled={loadingInsumos}
+                                onChange={e => {
+                                    const id = e.target.value;
+                                    setSelectedInsumoId(id);
+                                    const insumo = catalogoInsumos.find(i => String(i.id) === id);
+                                    setNewInsUnit(insumo ? insumo.unidadMedida : '');
+                                    if (insSubmitted) setInsErrors(validarInsumoCampos({ quantity: newInsQuantity, unit: insumo ? insumo.unidadMedida : newInsUnit }, id));
+                                }}
+                            >
+                                <option value="">{loadingInsumos ? 'Cargando insumos...' : 'Seleccionar insumo'}</option>
+                                {catalogoInsumos.map(insumo => (
+                                    <option key={insumo.id} value={String(insumo.id)}>{insumo.nombreInsumo}</option>
+                                ))}
+                            </select>
+                            <FieldError mensaje={insErrors.insumoId} />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs">Cantidad *</Label>
                             <Input type="text" inputMode="decimal" placeholder="Ej: 0.5"
-                                value={newIns.quantity || ''}
+                                value={newInsQuantity || ''}
                                 onChange={e => updateInsField('quantity', e.target.value)} className={inputErr(!!insErrors.quantity)} />
                             <FieldError mensaje={insErrors.quantity} />
                         </div>
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
                                 <Label className="text-xs">Unidad *</Label>
-                                <CharCounter valor={newIns.unit} limite={30} />
+                                <CharCounter valor={newInsUnit} limite={30} />
                             </div>
-                            <Input placeholder="litros, kg, ml" value={newIns.unit}
+                            <Input placeholder="litros, kg, ml" value={newInsUnit}
                                 onChange={e => updateInsField('unit', e.target.value)} className={inputErr(!!insErrors.unit)} />
                             <FieldError mensaje={insErrors.unit} />
                         </div>
@@ -413,6 +442,9 @@ function ItemsForm({
                     <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
                         <Plus className="w-4 h-4 mr-2" />Agregar Insumo
                     </Button>
+                    {insumosListError && (
+                        <p className="text-xs text-red-500 text-center">{insumosListError}</p>
+                    )}
                     {insumos.map((ins, i) => (
                         <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
                             <span className="font-medium text-gray-700">{ins.name}</span>
@@ -420,7 +452,7 @@ function ItemsForm({
                                 <Badge variant="outline" className="text-xs">{ins.quantity} {ins.unit}</Badge>
                                 <Button type="button" variant="ghost" size="sm"
                                     onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}
-                                    className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -438,6 +470,7 @@ function ItemsForm({
 export function TechnicalSheetModule() {
     const [fichas, setFichas]       = useState<FichaTecnica[]>([]);
     const [productos, setProductos] = useState<Producto[]>([]);
+    const [empleados, setEmpleados] = useState<any[]>([]);
     const [loading, setLoading]     = useState(false);
     const [saving, setSaving]       = useState(false);
 
@@ -447,6 +480,7 @@ export function TechnicalSheetModule() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const [selectedFicha, setSelectedFicha] = useState<FichaTecnica | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [fichaToDelete, setFichaToDelete] = useState<FichaTecnica | null>(null);
 
     const [createForm, setCreateForm] = useState<FormInfo>(EMPTY_FORM);
@@ -455,17 +489,18 @@ export function TechnicalSheetModule() {
     const [createInfoErrors, setCreateInfoErrors] = useState<{ productoId?: string; notas?: string }>({});
     const [editInfoErrors, setEditInfoErrors]     = useState<{ notas?: string }>({});
 
-    const [cMateriales, setCMateriales] = useState<Material[]>([]);
     const [cProcesos, setCProcesos]     = useState<Proceso[]>([]);
     const [cMedidas, setCMedidas]       = useState<Medida[]>([]);
     const [cInsumos, setCInsumos]       = useState<InsumoFT[]>([]);
 
-    const [eMateriales, setEMateriales] = useState<Material[]>([]);
     const [eProcesos, setEProcesos]     = useState<Proceso[]>([]);
     const [eMedidas, setEMedidas]       = useState<Medida[]>([]);
     const [eInsumos, setEInsumos]       = useState<InsumoFT[]>([]);
 
-    // IDs de productos que ya tienen ficha activa (para bloquear en el selector)
+    const [catalogoInsumos, setCatalogoInsumos] = useState<InsumoDisponible[]>([]);
+    const [loadingInsumos, setLoadingInsumos]   = useState(false);
+    const [errorInsumos, setErrorInsumos]       = useState<string | null>(null);
+
     const productosConFichaActiva = new Set(
         fichas.filter(f => f.estado === 'Activa').map(f => f.productoId)
     );
@@ -503,7 +538,31 @@ export function TechnicalSheetModule() {
         } catch { /* silencioso */ }
     }, []);
 
-    useEffect(() => { fetchFichas(); fetchProductos(); }, [fetchFichas, fetchProductos]);
+    const fetchInsumosDisponibles = useCallback(async () => {
+        setLoadingInsumos(true);
+        setErrorInsumos(null);
+        try {
+            const data = await getInsumosDisponibles();
+            setCatalogoInsumos(data);
+        } catch (err: any) {
+            setErrorInsumos('No se pudo cargar el catálogo de insumos. Intenta de nuevo.');
+            setCatalogoInsumos([]);
+        } finally {
+            setLoadingInsumos(false);
+        }
+    }, []);
+
+    const fetchEmpleados = useCallback(async () => {
+        try {
+            const BASE = getApiBaseUrl();
+            const res = await fetch(`${BASE}/empleados`, { headers: buildAuthHeaders() });
+            const data = await handleResponse<any[]>(res);
+            // Filtrar solo empleados activos
+            setEmpleados(data.filter(e => e.estado === 'activo'));
+        } catch { /* silencioso */ }
+    }, []);
+
+    useEffect(() => { fetchFichas(); fetchProductos(); fetchEmpleados(); }, [fetchFichas, fetchProductos, fetchEmpleados]);
 
     const filtered = fichas.filter(f => {
         const codigo   = (f.codigoFicha ?? '').toLowerCase();
@@ -535,8 +594,9 @@ export function TechnicalSheetModule() {
 
     const resetCreate = () => {
         setCreateForm(EMPTY_FORM);
-        setCMateriales([]); setCProcesos([]); setCMedidas([]); setCInsumos([]);
+        setCProcesos([]); setCMedidas([]); setCInsumos([]);
         setCreateInfoErrors({});
+        fetchInsumosDisponibles();
     };
 
     function updateCreateNotas(valor: string) {
@@ -571,14 +631,13 @@ export function TechnicalSheetModule() {
             toast.error(`Este producto ya tiene la ficha activa ${codigo}. Inactívala primero.`);
             return;
         }
-        const { valid, errors } = validarFormCrear(createForm, cMateriales, cProcesos, cMedidas, cInsumos);
+        const { valid, errors } = validarFormCrear(createForm, cProcesos, cMedidas, cInsumos);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             const res = await createFichaTecnica({
                 productoId: parseInt(createForm.productoId),
-                materiales: cMateriales,
                 procesos:   cProcesos,
                 medidas:    cMedidas,
                 insumos:    cInsumos,
@@ -599,24 +658,23 @@ export function TechnicalSheetModule() {
     const openEdit = (f: FichaTecnica) => {
         setSelectedFicha(f);
         setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
-        setEMateriales(f.materiales ?? []);
         setEProcesos(f.procesos ?? []);
         setEMedidas(f.medidas ?? []);
         setEInsumos(f.insumos ?? []);
         setEditInfoErrors({});
+        fetchInsumosDisponibles();
         setShowEditModal(true);
     };
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedFicha?.id) return;
-        const { valid, errors } = validarFormEditar(eMateriales, eProcesos, eMedidas, eInsumos, editForm.notas);
+        const { valid, errors } = validarFormEditar(eProcesos, eMedidas, eInsumos, editForm.notas);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             await updateFichaTecnica(selectedFicha.id, {
-                materiales: eMateriales,
                 procesos:   eProcesos,
                 medidas:    eMedidas,
                 insumos:    eInsumos,
@@ -654,14 +712,6 @@ export function TechnicalSheetModule() {
 
     return (
         <div className="p-6 space-y-6">
-
-            {/* Feedback Banner */}
-            {feedbackMsg && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span className="text-sm font-medium">{feedbackMsg}</span>
-                </div>
-            )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -709,14 +759,6 @@ export function TechnicalSheetModule() {
               </CardContent>
             </Card>
 
-            {/* Alerta de ficha inactiva */}
-            {inactiveAlert && (
-                <InactiveAlert
-                    mensaje={inactiveAlert}
-                    onClose={() => setInactiveAlert(null)}
-                />
-            )}
-
             {/* Tabla */}
             {loading ? (
                 <div className="flex justify-center items-center py-16">
@@ -758,17 +800,12 @@ export function TechnicalSheetModule() {
                                                     <p className={`font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.producto?.nombreProducto ?? '—'}</p>
                                                 </td>
 
-                                                {/* ── Columna Estado: Switch + texto ── */}
+                                                {/* ── Columna Estado: Switch solo ── */}
                                                 <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <Switch
-                                                            checked={ficha.estado === 'Activa'}
-                                                            onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
-                                                        />
-                                                        <span className={`text-sm ${isInactiva ? 'text-gray-400' : 'text-gray-700'}`}>
-                                                            {ficha.estado === 'Activa' ? 'Activa' : 'Inactiva'}
-                                                        </span>
-                                                    </div>
+                                                    <Switch
+                                                        checked={ficha.estado === 'Activa'}
+                                                        onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
+                                                    />
                                                 </td>
 
                                                 <td className="py-4 px-6">
@@ -795,18 +832,29 @@ export function TechnicalSheetModule() {
                                                             }`}>
                                                             <Edit className="w-4 h-4" />
                                                         </Button>
-                                                        {/* Eliminar: solo si inactiva */}
+                                                        {/* Eliminar: solo si activa */}
                                                         <Button size="sm"
-                                                            onClick={() => {
-                                                                if (ficha.estado === 'Activa') {
-                                                                    showInactiveAlert('Ficha activa: No puedes eliminar una ficha activa. Cámbiala a Inactiva primero usando el interruptor de estado.');
+                                                            onClick={async () => {
+                                                                if (ficha.estado === 'Inactiva') {
+                                                                    showInactiveAlert('Ficha inactiva: No puedes eliminar una ficha inactiva. Actívala primero usando el interruptor de estado.');
                                                                     return;
                                                                 }
-                                                                setFichaToDelete(ficha);
-                                                                setShowDeleteDialog(true);
+                                                                // Verificar si puede eliminarse
+                                                                try {
+                                                                    const resultado = await puedeEliminarFichaTecnica(ficha.id!);
+                                                                    setFichaToDelete(ficha);
+                                                                    if (!resultado.puedeEliminar) {
+                                                                        setDeleteError(resultado.razon);
+                                                                    } else {
+                                                                        setDeleteError(null);
+                                                                    }
+                                                                    setShowDeleteDialog(true);
+                                                                } catch (err: any) {
+                                                                    toast.error('Error al verificar: ' + (err?.message ?? 'Error desconocido'));
+                                                                }
                                                             }}
                                                             className={`border transition-colors ${
-                                                                ficha.estado === 'Activa'
+                                                                ficha.estado === 'Inactiva'
                                                                     ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
                                                                     : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
                                                             }`}>
@@ -843,6 +891,22 @@ export function TechnicalSheetModule() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Alerta de ficha inactiva */}
+            {inactiveAlert && (
+                <InactiveAlert
+                    mensaje={inactiveAlert}
+                    onClose={() => setInactiveAlert(null)}
+                />
+            )}
+
+            {/* Feedback Banner */}
+            {feedbackMsg && (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span className="text-sm font-medium">{feedbackMsg}</span>
+                </div>
             )}
 
             {/* MODAL — CREAR */}
@@ -912,18 +976,28 @@ export function TechnicalSheetModule() {
                             </div>
 
                             <ItemsForm
-                                materiales={cMateriales} setMateriales={setCMateriales}
                                 procesos={cProcesos}     setProcesos={setCProcesos}
                                 medidas={cMedidas}       setMedidas={setCMedidas}
                                 insumos={cInsumos}       setInsumos={setCInsumos}
+                                catalogoInsumos={catalogoInsumos}
+                                loadingInsumos={loadingInsumos}
+                                insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
+                                empleados={empleados}
                             />
+
+                            {errorInsumos && (
+                                <p className="text-red-500 text-sm flex items-center gap-1">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    {errorInsumos}
+                                </p>
+                            )}
 
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <Button type="button" variant="outline"
                                     onClick={() => { resetCreate(); setShowCreateModal(false); }}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || !!errorInsumos}>
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                     {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
                                 </Button>
@@ -978,22 +1052,6 @@ export function TechnicalSheetModule() {
                                     )}
                                 </div>
 
-                                {/* Materiales */}
-                                <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                    <div className="bg-blue-50 py-3 px-4">
-                                        <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                            <Package className="w-4 h-4" />Materiales ({(selectedFicha.materiales ?? []).length})
-                                        </p>
-                                    </div>
-                                    <div className="p-4 space-y-2">
-                                        {(selectedFicha.materiales ?? []).map((m, i) => (
-                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                <span>{m.name}</span><Badge variant="outline">{m.quantity} {m.unit}</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
                                 {/* Procesos */}
                                 <div className="border border-blue-100 rounded-lg overflow-hidden">
                                     <div className="bg-blue-50 py-3 px-4">
@@ -1002,12 +1060,23 @@ export function TechnicalSheetModule() {
                                         </p>
                                     </div>
                                     <div className="p-4 space-y-2">
-                                        {(selectedFicha.procesos ?? []).map((p, i) => (
-                                            <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
-                                                <Badge variant="outline">{p.duration}</Badge>
-                                            </div>
-                                        ))}
+                                        {(selectedFicha.procesos ?? []).map((p, i) => {
+                                            const responsable = empleados.find(e => e.id === p.responsableId);
+                                            return (
+                                                <div key={i} className="bg-gray-50 rounded p-3 border text-sm space-y-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
+                                                        <Badge variant="outline">{p.duration} min</Badge>
+                                                    </div>
+                                                    {responsable && (
+                                                        <p className="text-xs text-gray-600 flex items-center gap-1">
+                                                            <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                                            <span className="font-medium">{responsable.nombres} {responsable.apellidos}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -1021,7 +1090,7 @@ export function TechnicalSheetModule() {
                                         <div className="p-4 space-y-2">
                                             {(selectedFicha.medidas ?? []).map((m, i) => (
                                                 <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value}</Badge>
+                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value} {m.unit}</Badge>
                                                 </div>
                                             ))}
                                         </div>
@@ -1111,18 +1180,28 @@ export function TechnicalSheetModule() {
                             </div>
 
                             <ItemsForm
-                                materiales={eMateriales} setMateriales={setEMateriales}
                                 procesos={eProcesos}     setProcesos={setEProcesos}
                                 medidas={eMedidas}       setMedidas={setEMedidas}
                                 insumos={eInsumos}       setInsumos={setEInsumos}
+                                catalogoInsumos={catalogoInsumos}
+                                loadingInsumos={loadingInsumos}
+                                insumosListError={eInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
+                                empleados={empleados}
                             />
+
+                            {errorInsumos && (
+                                <p className="text-red-500 text-sm flex items-center gap-1">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    {errorInsumos}
+                                </p>
+                            )}
 
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <Button type="button" variant="outline"
                                     onClick={() => { setShowEditModal(false); setSelectedFicha(null); }}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || !!errorInsumos}>
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                     {saving ? 'Guardando...' : 'Guardar Cambios'}
                                 </Button>
@@ -1133,40 +1212,58 @@ export function TechnicalSheetModule() {
             </Dialog>
 
             {/* MODAL — ELIMINAR */}
-            <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); } }}>
-                <DialogContent className="max-w-md p-0">
-                    <div className="p-6">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-blue-600">
-                                <AlertTriangle className="w-5 h-5" />
-                                Eliminar Ficha Técnica
-                            </DialogTitle>
-                            <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
-                        </DialogHeader>
+            <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); } }}>
+                <DialogContent className="max-w-md p-6">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-blue-900">
+                            <Trash2 className="w-5 h-5" />
+                            Eliminar Ficha Técnica
+                        </DialogTitle>
+                        <DialogDescription>
+                            Esta acción no se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                        {fichaToDelete && (
-                            <div className="mt-4 space-y-3">
-                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1 text-sm">
-                                    <p><span className="text-gray-500">Código: </span><span className="font-semibold">{fichaToDelete.codigoFicha}</span></p>
-                                    <p><span className="text-gray-500">Producto: </span>{fichaToDelete.producto?.nombreProducto}</p>
-                                    <p className="flex items-center gap-1"><span className="text-gray-500">Estado: </span><StatusBadge estado={fichaToDelete.estado ?? 'Activa'} /></p>
-                                </div>
+                    {fichaToDelete && (
+                        <div className="mt-4 space-y-3">
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="font-semibold text-blue-900">{fichaToDelete.codigoFicha}</p>
+                                <p className="text-sm text-blue-700 mt-1">{fichaToDelete.producto?.nombreProducto}</p>
+                                <p className="text-sm text-blue-700">{fichaToDelete.producto?.referencia}</p>
                             </div>
-                        )}
 
-                        <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); }} disabled={saving}>
-                                Cancelar
-                            </Button>
-                            <Button
-                                onClick={handleDelete}
-                                disabled={saving}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                {saving ? 'Eliminando...' : 'Eliminar'}
-                            </Button>
+                            {deleteError ? (
+                                <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">No se puede eliminar</p>
+                                        <p className="text-red-700 mt-0.5">{deleteError}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3">
+                                    <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
+                                    <div className="text-sm">
+                                        <p className="font-semibold">Ficha técnica sin referencias</p>
+                                        <p className="text-blue-700 mt-0.5">Esta ficha técnica puede ser <strong>eliminada permanentemente</strong> del sistema.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                        <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); }} disabled={saving}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleDelete}
+                            disabled={saving || !!deleteError}
+                            className="bg-white hover:bg-blue-50 text-blue-600"
+                        >
+                            {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                            {saving ? 'Eliminando...' : 'Eliminar'}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -1,5 +1,6 @@
 import { getApiBaseUrl, handleResponse, buildAuthHeaders } from '@/services/http';
 
+// Tipo de permiso — solo permisos del sistema (uno por módulo)
 export type Permiso = {
   id: number;
   name: string;
@@ -10,43 +11,16 @@ export type Permiso = {
   updatedAt?: string;
 };
 
+// GET /api/permisos — lista los permisos del sistema para los checkboxes de roles
 export async function getPermisos() {
-  const response = await fetch(`${getApiBaseUrl()}/permisos`, {
-    headers: buildAuthHeaders(),
-  });
+  const response = await fetch(`${getApiBaseUrl()}/permisos`, { headers: buildAuthHeaders() });
   return handleResponse<Permiso[]>(response);
 }
 
-export async function createPermiso(payload: { name: string; description?: string | null }) {
-  const response = await fetch(`${getApiBaseUrl()}/permisos`, {
-    method: 'POST',
-    headers: buildAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return handleResponse<{ message: string; permiso: Permiso }>(response);
-}
-
-export async function updatePermiso(id: number, payload: { name?: string; description?: string | null }) {
-  const response = await fetch(`${getApiBaseUrl()}/permisos/${id}`, {
-    method: 'PUT',
-    headers: buildAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return handleResponse<{ message: string; permiso: Permiso }>(response);
-}
-
-export async function deletePermiso(id: number) {
-  const response = await fetch(`${getApiBaseUrl()}/permisos/${id}`, {
-    method: 'DELETE',
-    headers: buildAuthHeaders(),
-  });
-  return handleResponse<{ message: string }>(response);
-}
-
+// POST /api/permisos/sync-modules — sincroniza módulos del sistema como permisos
 export async function syncSystemModules() {
   const response = await fetch(`${getApiBaseUrl()}/permisos/sync-modules`, {
-    method: 'POST',
-    headers: buildAuthHeaders(),
+    method: 'POST', headers: buildAuthHeaders(),
   });
   return handleResponse<{ message: string; created: string[]; updated: string[] }>(response);
 }

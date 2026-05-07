@@ -6,7 +6,8 @@ const {
     getFichasByProducto,
     createFichaTecnica,
     updateFichaTecnica,
-    deleteFichaTecnica
+    deleteFichaTecnica,
+    puedeEliminarFichaTecnica
 } = require('../controllers/fichaTecnicaController.js');
 const {
     middlewareCrear,
@@ -15,6 +16,7 @@ const {
 
 router.get('/', getFichasTecnicas);
 router.get('/producto/:productoId', getFichasByProducto);
+router.get('/:id/puede-eliminarse', puedeEliminarFichaTecnica);
 router.get('/:id', getFichaTecnicaById);
 router.post('/', middlewareCrear, createFichaTecnica);
 router.put('/:id', middlewareActualizar, updateFichaTecnica);

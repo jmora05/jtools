@@ -1,14 +1,14 @@
 const { Novedades, Empleados } = require('../models/index.js');
 
+// Include base reutilizable con el empleado asociado
+const INCLUDE_EMPLEADOS = [
+    { model: Empleados, as: 'empleadoAfectado', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
+];
+
 // GET - listar todas las novedades
 const getNovedades = async (req, res) => {
     try {
-        const novedades = await Novedades.findAll({
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
+        const novedades = await Novedades.findAll({ include: INCLUDE_EMPLEADOS });
         res.status(200).json(novedades);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener las novedades', error: error.message });
@@ -19,12 +19,7 @@ const getNovedades = async (req, res) => {
 const getNovedadById = async (req, res) => {
     try {
         const { id } = req.params;
-        const novedad = await Novedades.findByPk(id, {
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
+        const novedad = await Novedades.findByPk(id, { include: INCLUDE_EMPLEADOS });
 
         if (!novedad) {
             return res.status(404).json({ message: 'Novedad no encontrada' });
@@ -40,20 +35,13 @@ const getNovedadById = async (req, res) => {
 const getNovedadesByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['registrada', 'aprobada', 'rechazada'];
+        const estadosValidos = ['registrada', 'aprobada'];
 
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada o rechazada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
         }
 
-        const novedades = await Novedades.findAll({
-            where: { estado },
-            include: [
-                { model: Empleados, as: 'registradoPor', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-                { model: Empleados, as: 'empleadoResponsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
-            ]
-        });
-
+        const novedades = await Novedades.findAll({ where: { estado }, include: INCLUDE_EMPLEADOS });
         res.status(200).json(novedades);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener las novedades por estado', error: error.message });
@@ -68,27 +56,19 @@ const createNovedad = async (req, res) => {
             descripcion_detallada,
             estado,
             fecha_registro,
-            registrado_por,
-            empleado_responsable
+            fecha_inicio,
+            fecha_finalizacion,
+            empleado_afectado
         } = req.body;
 
-        // verificar que el empleado que registra existe y está activo
-        const empleadoRegistra = await Empleados.findByPk(registrado_por);
-        if (!empleadoRegistra) {
-            return res.status(404).json({ message: 'El empleado que registra la novedad no existe' });
-        }
-        if (empleadoRegistra.estado === 'inactivo') {
-            return res.status(400).json({ message: 'El empleado que registra está inactivo' });
-        }
-
-        // verificar que el empleado responsable existe si se especificó
-        if (empleado_responsable) {
-            const empleadoResp = await Empleados.findByPk(empleado_responsable);
-            if (!empleadoResp) {
-                return res.status(404).json({ message: 'El empleado responsable no existe' });
+        // verificar que el empleado afectado existe si se especificó
+        if (empleado_afectado) {
+            const empleadoAf = await Empleados.findByPk(empleado_afectado);
+            if (!empleadoAf) {
+                return res.status(404).json({ message: 'El empleado afectado no existe' });
             }
-            if (empleadoResp.estado === 'inactivo') {
-                return res.status(400).json({ message: 'El empleado responsable está inactivo' });
+            if (empleadoAf.estado === 'inactivo') {
+                return res.status(400).json({ message: 'El empleado afectado está inactivo' });
             }
         }
 
@@ -97,11 +77,14 @@ const createNovedad = async (req, res) => {
             descripcion_detallada,
             estado,
             fecha_registro,
-            registrado_por,
-            empleado_responsable
+            fecha_inicio,
+            fecha_finalizacion,
+            empleado_afectado
         });
 
-        res.status(201).json({ message: 'Novedad creada correctamente', novedad });
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(201).json(novedad);
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
             const mensajes = error.errors.map(e => e.message);
@@ -111,7 +94,7 @@ const createNovedad = async (req, res) => {
     }
 };
 
-// PUT - actualizar novedad
+// PUT - actualizar novedad (solo campos editables, no el estado)
 const updateNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -121,28 +104,37 @@ const updateNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        // no permitir editar novedades ya aprobadas o rechazadas
-        if (novedad.estado !== 'registrada') {
-            return res.status(400).json({ message: `No se puede editar una novedad que ya fue ${novedad.estado}` });
+        if (novedad.estado === 'aprobada') {
+            return res.status(400).json({ message: 'No se puede editar una novedad que ya fue aprobada' });
         }
 
         const {
             titulo,
             descripcion_detallada,
-            empleado_responsable
+            fecha_inicio,
+            fecha_finalizacion,
+            empleado_afectado
         } = req.body;
 
-        // verificar que el empleado responsable existe si se está actualizando
-        if (empleado_responsable) {
-            const empleadoResp = await Empleados.findByPk(empleado_responsable);
-            if (!empleadoResp) {
-                return res.status(404).json({ message: 'El empleado responsable no existe' });
+        // verificar que el empleado afectado existe si se actualizó
+        if (empleado_afectado) {
+            const empleadoAf = await Empleados.findByPk(empleado_afectado);
+            if (!empleadoAf) {
+                return res.status(404).json({ message: 'El empleado afectado no existe' });
             }
         }
 
-        await novedad.update({ titulo, descripcion_detallada, empleado_responsable });
+        await novedad.update({
+            titulo,
+            descripcion_detallada,
+            fecha_inicio,
+            fecha_finalizacion,
+            empleado_afectado
+        });
 
-        res.status(200).json({ message: 'Novedad actualizada correctamente', novedad });
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(200).json(novedad);
     } catch (error) {
         if (error.name === 'SequelizeValidationError') {
             const mensajes = error.errors.map(e => e.message);
@@ -152,7 +144,7 @@ const updateNovedad = async (req, res) => {
     }
 };
 
-// PATCH - cambiar estado de la novedad (aprobar o rechazar)
+// PATCH - cambiar estado de la novedad (registrada <-> aprobada)
 const cambiarEstadoNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -163,18 +155,16 @@ const cambiarEstadoNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        const estadosValidos = ['registrada', 'aprobada', 'rechazada'];
+        const estadosValidos = ['registrada', 'aprobada'];
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada o rechazada' });
-        }
-
-        // no permitir volver a registrada si ya fue aprobada o rechazada
-        if (novedad.estado !== 'registrada' && estado === 'registrada') {
-            return res.status(400).json({ message: 'No se puede volver al estado registrada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
         }
 
         await novedad.update({ estado });
-        res.status(200).json({ message: `Novedad ${estado} correctamente`, novedad });
+
+        await novedad.reload({ include: INCLUDE_EMPLEADOS });
+
+        res.status(200).json(novedad);
     } catch (error) {
         res.status(500).json({ message: 'Error al cambiar el estado de la novedad', error: error.message });
     }
@@ -190,9 +180,9 @@ const deleteNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        // solo se puede eliminar si aún no ha sido procesada
-        if (novedad.estado !== 'registrada') {
-            return res.status(400).json({ message: `No se puede eliminar una novedad que ya fue ${novedad.estado}` });
+        // solo se puede eliminar si no fue aprobada
+        if (novedad.estado === 'aprobada') {
+            return res.status(400).json({ message: 'No se puede eliminar una novedad que ya fue aprobada' });
         }
 
         await novedad.destroy();

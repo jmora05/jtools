@@ -1,11 +1,9 @@
-
 // src/features/clients/ClientManagement.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import {
@@ -17,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import {
     Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight,
-    AlertTriangle, Upload, User, X, Search, Loader2,
+    AlertTriangle, User, X, Search, Loader2,
     CheckCircle2, Info, Lock,
 } from 'lucide-react';
 import {
@@ -50,8 +48,6 @@ interface Cliente {
     direccion: string;
     ciudad: string;
     estado: 'activo' | 'inactivo';
-    foto?: string | null;
-    photoPreview?: string | null;
     clientType?: 'Persona natural' | 'Empresa';
     contacto?: string | null;
 }
@@ -68,8 +64,6 @@ interface FormData {
     ciudad: string;
     clientType: 'Persona natural' | 'Empresa';
     estado: 'activo' | 'inactivo';
-    foto: File | null;
-    photoPreview: string | null;
     contacto: string;
 }
 
@@ -218,7 +212,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         tipo_documento: 'cedula', numero_documento: '',
         telefono: '', email: '', direccion: '', ciudad: '',
         clientType: 'Persona natural', estado: 'activo',
-        foto: null, photoPreview: null, contacto: '',
+        contacto: '',
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -234,8 +228,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             const data = await getClientes();
             const enriched = data.map((c: Cliente) => ({
                 ...c,
-                clientType:   c.nombres === 'N/A' ? 'Empresa' : 'Persona natural',
-                photoPreview: c.foto || null,
+                clientType: c.nombres === 'N/A' ? 'Empresa' : 'Persona natural',
             }));
             setClients(enriched);
         } catch (error: any) {
@@ -376,8 +369,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             ciudad:           client.ciudad || '',
             clientType:       isEmpresa ? 'Empresa' : 'Persona natural',
             estado:           client.estado ?? 'activo',
-            foto:             null,
-            photoPreview:     client.foto || null,
             contacto:         client.contacto || '',
         });
         setFormErrors({});
@@ -392,7 +383,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: nuevoEstado } : c));
         setTogglingIds(prev => new Set(prev).add(client.id));
         try {
-            await updateCliente(client.id, { ...client, estado: nuevoEstado });
+            await updateCliente(client.id, { estado: nuevoEstado });
             toast.success(`Cliente ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} exitosamente`);
         } catch (error: any) {
             setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: client.estado } : c));
@@ -401,22 +392,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             setTogglingIds(prev => { const next = new Set(prev); next.delete(client.id); return next; });
         }
     };
-
-    // ── Foto ──────────────────────────────────────────────────────────────────
-    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (file.size > 2 * 1024 * 1024) {
-            toast.error('La foto no puede superar los 2MB');
-            return;
-        }
-        const reader = new FileReader();
-        reader.onloadend = () =>
-            setFormData(prev => ({ ...prev, foto: file, photoPreview: reader.result as string }));
-        reader.readAsDataURL(file);
-    };
-
-    const removePhoto = () => setFormData(prev => ({ ...prev, foto: null, photoPreview: null }));
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
     const handleDelete = (client: Cliente) => {
@@ -515,7 +490,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                 <CardContent className="p-4">
                     <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
 
-                        {/* 🔍 Búsqueda — ocupa mucho más espacio */}
+                        {/* 🔍 Búsqueda */}
                         <div className="relative w-full sm:flex-[3]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                             <Input
@@ -526,7 +501,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                             />
                         </div>
 
-                        {/* ⚙️ Filtro — más pequeño */}
+                        {/* ⚙️ Filtro */}
                         <select
                             value={statusFilter}
                             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
@@ -539,7 +514,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
                     </div>
                 </CardContent>
-                </Card>
+            </Card>
 
             {/* ── Tabla ───────────────────────────────────────────────────── */}
             {loading ? (
@@ -584,7 +559,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-3">
                                                             <Avatar className="w-9 h-9">
-                                                                <AvatarImage src={client.photoPreview || undefined} alt={displayName} />
                                                                 <AvatarFallback className={`text-sm ${isInactive ? 'bg-gray-200 text-gray-400' : 'bg-blue-100 text-blue-600'}`}>
                                                                     {getInitials(displayName)}
                                                                 </AvatarFallback>
@@ -937,36 +911,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <FieldError msg={formErrors.direccion} />
                             </div>
 
-                            {/* Foto */}
-                            <div className="border-t border-gray-200 pt-4">
-                                <label className="block text-sm text-gray-700 mb-3">Foto del Cliente</label>
-                                <div className="flex items-start gap-6">
-                                    <div className="w-28 h-28 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden shrink-0">
-                                        {formData.photoPreview ? (
-                                            <div className="relative w-full h-full">
-                                                <img src={formData.photoPreview} alt="Vista previa" className="w-full h-full object-cover" />
-                                                <button type="button" onClick={removePhoto}
-                                                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700">
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <User className="w-10 h-10 text-gray-400" />
-                                        )}
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Input id="photo" type="file" accept="image/jpeg,image/png,image/webp"
-                                            onChange={handlePhotoUpload} className="hidden" />
-                                        <Label htmlFor="photo"
-                                            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            {formData.photoPreview ? 'Cambiar foto' : 'Subir foto'}
-                                        </Label>
-                                        <p className="text-xs text-gray-500">JPG, PNG, WEBP. Máx 2MB</p>
-                                    </div>
-                                </div>
-                            </div>
-
                             {/* Estado — solo al editar */}
                             {editingClient && (
                                 <div className="border-t border-gray-200 pt-4">
@@ -1009,7 +953,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
                                     <div className="col-span-2 flex items-center gap-4">
                                         <Avatar className="w-16 h-16">
-                                            <AvatarImage src={viewingClient.photoPreview || undefined} />
                                             <AvatarFallback className="bg-blue-100 text-blue-600 text-xl">
                                                 {getInitials(getDisplayName(viewingClient))}
                                             </AvatarFallback>

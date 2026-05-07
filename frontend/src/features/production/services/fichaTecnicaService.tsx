@@ -2,9 +2,8 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-export type Material   = { name: string; quantity: number; unit: string };
-export type Proceso    = { step: number; description: string; duration: string };
-export type Medida     = { parameter: string; value: string };
+export type Proceso    = { step: number; description: string; duration: string; responsableId?: number };
+export type Medida     = { parameter: string; value: number; unit: string };
 export type InsumoFT   = { name: string; quantity: number; unit: string };
 
 export type FichaTecnica = {
@@ -12,7 +11,6 @@ export type FichaTecnica = {
   codigoFicha?: string;
   productoId: number;
   estado?: 'Activa' | 'Inactiva';
-  materiales: Material[];
   procesos: Proceso[];
   medidas?: Medida[];
   insumos?: InsumoFT[];
@@ -31,7 +29,6 @@ export type FichaTecnica = {
 
 export type CreateFichaPayload = {
   productoId: number;
-  materiales: Material[];
   procesos: Omit<Proceso, 'step'>[];
   medidas?: Medida[];
   insumos?: InsumoFT[];
@@ -39,7 +36,6 @@ export type CreateFichaPayload = {
 };
 
 export type UpdateFichaPayload = Partial<{
-  materiales: Material[];
   procesos: Omit<Proceso, 'step'>[];
   medidas: Medida[];
   insumos: InsumoFT[];
@@ -94,5 +90,10 @@ export async function deleteFichaTecnica(id: number): Promise<{ message: string 
     method: 'DELETE',
     headers: buildAuthHeaders(),
   });
+  return handleResponse(res);
+}
+
+export async function puedeEliminarFichaTecnica(id: number): Promise<{ puedeEliminar: boolean; razon: string; estado?: string }> {
+  const res = await fetch(`${BASE}/fichas-tecnicas/${id}/puede-eliminarse`, { headers: buildAuthHeaders() });
   return handleResponse(res);
 }

@@ -1,17 +1,15 @@
 // Novedades empleados - Gestión de incidencias, mejoras y novedades del equipo
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Badge } from '@/shared/components/ui/badge';
+import { Switch } from '@/shared/components/ui/switch';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/shared/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/shared/components/ui/select';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -22,6 +20,7 @@ import {
 import {
   PlusIcon, EditIcon, TrashIcon, CalendarIcon, AlertCircleIcon,
   ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon, XIcon, Lock, X,
+  SearchIcon, CheckIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,21 +29,18 @@ import {
   type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO,
 } from '../services/novedadesService';
 
-// ─── ID del empleado autenticado ──────────────────────────────────────────────
-const EMPLEADO_ACTUAL_ID = 1;
+import { getEmpleados, desactivarEmpleado } from '../services/empleadosService';
 
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_COLORS: Record<string, string> = {
   registrada: 'bg-blue-100 text-blue-900 border-blue-200',
   aprobada:   'bg-blue-100 text-blue-900 border-blue-200',
-  rechazada:  'bg-gray-100 text-gray-900 border-gray-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
   registrada: 'Registrada',
   aprobada:   'Aprobada',
-  rechazada:  'Rechazada',
 };
 
 const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
@@ -53,49 +49,63 @@ const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
 const formatFecha = (fecha?: string) =>
   fecha ? fecha.split('T')[0] : '—';
 
+// ─── Helpers de fecha ─────────────────────────────────────────────────────────
+
+const getTodayString = () => new Date().toISOString().split('T')[0];
+
+const getMinFechaFin = (fechaInicio: string) => {
+  if (!fechaInicio) return getTodayString();
+  const d = new Date(fechaInicio + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+};
+
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
 const canEdit   = (n: Novedad) => n.estado === 'registrada';
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
-const editBlockReason = (n: Novedad): string | null =>
-  n.estado !== 'registrada'
-    ? `No se puede editar: la novedad ya fue ${n.estado}`
-    : null;
-
-const deleteBlockReason = (n: Novedad): string | null =>
-  n.estado !== 'registrada'
-    ? `No se puede eliminar: la novedad ya fue ${n.estado}`
-    : null;
+const editBlockReason   = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede editar: la novedad ya fue aprobada' : null;
+const deleteBlockReason = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede eliminar: la novedad ya fue aprobada' : null;
 
 // ─── Tipos del formulario ─────────────────────────────────────────────────────
+
+interface EmpleadoSeleccionado {
+  id: number;
+  nombres: string;
+  apellidos: string;
+  cargo: string;
+}
 
 interface FormValues {
   titulo: string;
   descripcion_detallada: string;
-  empleado_responsable: string;
-  empleado_afectado: string;
-  estado: 'registrada' | 'aprobada' | 'rechazada';
+  fecha_inicio: string;
+  fecha_finalizacion: string;
+  empleado_afectado: EmpleadoSeleccionado | null;
+  estado: 'registrada' | 'aprobada';
 }
 
 interface FormErrors {
   titulo?: string;
   descripcion_detallada?: string;
-  empleado_responsable?: string;
   empleado_afectado?: string;
+  fecha_inicio?: string;
+  fecha_finalizacion?: string;
 }
 
 const emptyForm: FormValues = {
   titulo: '',
   descripcion_detallada: '',
-  empleado_responsable: '',
-  empleado_afectado: '',
+  fecha_inicio: '',
+  fecha_finalizacion: '',
+  empleado_afectado: null,
   estado: 'registrada',
 };
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 
-function validateForm(values: FormValues): FormErrors {
+function validateForm(values: FormValues, isEdit = false): FormErrors {
   const errors: FormErrors = {};
 
   const titulo = values.titulo.trim();
@@ -114,19 +124,20 @@ function validateForm(values: FormValues): FormErrors {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
 
-  const resp = values.empleado_responsable.trim();
-  if (resp !== '') {
-    const num = Number(resp);
-    if (!Number.isInteger(num) || num <= 0) {
-      errors.empleado_responsable = 'Debe ser un número entero positivo';
+  if (!isEdit && values.fecha_inicio) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const inicio = new Date(values.fecha_inicio + 'T00:00:00');
+    if (inicio < today) {
+      errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al día de hoy';
     }
   }
 
-  const afec = values.empleado_afectado.trim();
-  if (afec !== '') {
-    const num = Number(afec);
-    if (!Number.isInteger(num) || num <= 0) {
-      errors.empleado_afectado = 'Debe ser un número entero positivo';
+  if (values.fecha_finalizacion && values.fecha_inicio) {
+    const inicio = new Date(values.fecha_inicio + 'T00:00:00');
+    const fin    = new Date(values.fecha_finalizacion + 'T00:00:00');
+    if (fin <= inicio) {
+      errors.fecha_finalizacion = 'La fecha de finalización debe ser posterior a la fecha de inicio';
     }
   }
 
@@ -160,6 +171,151 @@ function Field({ label, required, error, hint, children }: FieldProps) {
   );
 }
 
+// ─── Componente Autocomplete de Empleados ─────────────────────────────────────
+
+interface EmpleadoAutocompleteProps {
+  label: string;
+  value: EmpleadoSeleccionado | null;
+  onChange: (emp: EmpleadoSeleccionado | null) => void;
+  allEmpleados: EmpleadoSeleccionado[];
+  loadingEmpleados: boolean;
+  error?: string;
+  hint?: string;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+function EmpleadoAutocomplete({
+  label, value, onChange, allEmpleados, loadingEmpleados,
+  error, hint, disabled, placeholder = 'Buscar empleado por nombre...',
+}: EmpleadoAutocompleteProps) {
+  const [query, setQuery]     = useState('');
+  const [open, setOpen]       = useState(false);
+  const [focused, setFocused] = useState(false);
+  const wrapperRef            = useRef<HTMLDivElement>(null);
+  const prevValueIdRef        = useRef<number | null | undefined>(undefined);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocused(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    const prevId = prevValueIdRef.current;
+    const currId = value?.id ?? null;
+    if (prevId !== currId) {
+      prevValueIdRef.current = currId;
+      if (value) setQuery(nombreCompleto(value));
+      else setQuery('');
+    }
+  }, [value]);
+
+  const filtered = query.trim().length === 0
+    ? allEmpleados.slice(0, 8)
+    : allEmpleados.filter(e =>
+        `${e.nombres} ${e.apellidos}`.toLowerCase().includes(query.toLowerCase()) ||
+        e.cargo?.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8);
+
+  const handleSelect = (emp: EmpleadoSeleccionado) => {
+    onChange(emp);
+    setQuery(nombreCompleto(emp));
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange(null);
+    setQuery('');
+    setOpen(false);
+  };
+
+  return (
+    <Field label={label} error={error} hint={hint}>
+      <div ref={wrapperRef} className="relative">
+        <div className={`relative flex items-center border rounded-md transition-colors ${
+          error
+            ? 'border-red-400 focus-within:ring-1 focus-within:ring-red-400'
+            : focused
+              ? 'border-blue-500 ring-1 ring-blue-500'
+              : 'border-gray-300'
+        } ${disabled ? 'bg-gray-100 opacity-70' : 'bg-white'}`}>
+          <SearchIcon className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
+          <input
+            type="text"
+            value={query}
+            disabled={disabled}
+            placeholder={disabled ? '' : placeholder}
+            className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
+            onChange={e => {
+              setQuery(e.target.value);
+              onChange(null);
+              setOpen(true);
+            }}
+            onFocus={() => { setFocused(true); setOpen(true); }}
+          />
+          {value && !disabled && (
+            <button type="button" onClick={handleClear} className="p-2 text-gray-400 hover:text-gray-600">
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {value && (
+            <CheckIcon className="w-4 h-4 text-green-500 mr-2 shrink-0" />
+          )}
+        </div>
+
+        {open && !disabled && (
+          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+            {loadingEmpleados ? (
+              <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500">
+                <Loader2Icon className="w-4 h-4 animate-spin" />
+                Cargando empleados...
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
+                <UserIcon className="w-4 h-4" />
+                No se encontraron empleados
+              </div>
+            ) : (
+              <ul className="max-h-52 overflow-y-auto divide-y divide-gray-100">
+                {filtered.map(emp => (
+                  <li key={emp.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(emp)}
+                      className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center gap-3 ${
+                        value?.id === emp.id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-semibold text-blue-700">
+                          {emp.nombres[0]}{emp.apellidos[0]}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{emp.nombres} {emp.apellidos}</p>
+                        {emp.cargo && <p className="text-xs text-gray-500">{emp.cargo}</p>}
+                      </div>
+                      {value?.id === emp.id && (
+                        <CheckIcon className="w-4 h-4 text-blue-600 ml-auto" />
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Field>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function NewsModule() {
@@ -167,6 +323,9 @@ export function NewsModule() {
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const [allEmpleados, setAllEmpleados]         = useState<EmpleadoSeleccionado[]>([]);
+  const [loadingEmpleados, setLoadingEmpleados] = useState(false);
 
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -182,19 +341,29 @@ export function NewsModule() {
   const [form, setForm]       = useState<FormValues>(emptyForm);
   const [errors, setErrors]   = useState<FormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
+  const [isEditMode, setIsEditMode] = useState(false);
 
-  // ─── Estado del banner inline ─────────────────────────────────────────────
-  const [bannerNovedadId,  setBannerNovedadId]  = useState<number | null>(null);
-  const [bannerAction,     setBannerAction]     = useState<'edit' | 'delete' | null>(null);
+  const [bannerNovedadId, setBannerNovedadId] = useState<number | null>(null);
+  const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | null>(null);
+  const [togglingIds,     setTogglingIds]     = useState<Set<number>>(new Set());
 
-  const showRowBanner = (novedadId: number, action: 'edit' | 'delete') => {
-    setBannerNovedadId(novedadId);
-    setBannerAction(action);
-  };
+  const showRowBanner = (id: number, action: 'edit' | 'delete') => { setBannerNovedadId(id); setBannerAction(action); };
+  const closeBanner   = () => { setBannerNovedadId(null); setBannerAction(null); };
 
-  const closeBanner = () => {
-    setBannerNovedadId(null);
-    setBannerAction(null);
+  const handleToggleEstado = async (novedad: Novedad) => {
+    const nuevoEstado: 'registrada' | 'aprobada' = novedad.estado === 'aprobada' ? 'registrada' : 'aprobada';
+    setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: nuevoEstado } : n));
+    setTogglingIds(prev => new Set(prev).add(novedad.id));
+    try {
+      const updated = await cambiarEstadoNovedad(novedad.id, nuevoEstado);
+      setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      toast.success(`Novedad ${nuevoEstado === 'aprobada' ? 'aprobada' : 'registrada'} exitosamente`);
+    } catch (err: any) {
+      setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: novedad.estado } : n));
+      toast.error(err.message ?? 'Error al cambiar el estado');
+    } finally {
+      setTogglingIds(prev => { const next = new Set(prev); next.delete(novedad.id); return next; });
+    }
   };
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
@@ -210,16 +379,33 @@ export function NewsModule() {
     }
   }, []);
 
-  useEffect(() => { fetchNovedades(); }, [fetchNovedades]);
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
-
-  useEffect(() => {
-    if (Object.keys(touched).length > 0) {
-      setErrors(validateForm(form));
+  const fetchEmpleados = useCallback(async () => {
+    setLoadingEmpleados(true);
+    try {
+      const data = await getEmpleados();
+      const activos = data.filter((e: any) => e.estado !== 'inactivo');
+      setAllEmpleados(
+        activos.map((e: any) => ({
+          id:        e.id,
+          nombres:   e.nombres,
+          apellidos: e.apellidos,
+          cargo:     e.cargo ?? '',
+        }))
+      );
+    } catch (err: any) {
+      toast.error('No se pudo cargar la lista de empleados');
+    } finally {
+      setLoadingEmpleados(false);
     }
-  }, [form, touched]);
+  }, []);
 
-  // ── Handlers de campo ─────────────────────────────────────────────────────
+  useEffect(() => { fetchNovedades(); fetchEmpleados(); }, [fetchNovedades, fetchEmpleados]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
+  useEffect(() => {
+    if (Object.keys(touched).length > 0) setErrors(validateForm(form, isEditMode));
+  }, [form, touched, isEditMode]);
+
+  // ── Helpers de form ────────────────────────────────────────────────────────
   const handleChange = (field: keyof FormValues) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -227,27 +413,19 @@ export function NewsModule() {
 
   const handleBlur = (field: keyof FormValues) => () => {
     setTouched(prev => ({ ...prev, [field]: true }));
-    setErrors(validateForm(form));
+    setErrors(validateForm(form, isEditMode));
   };
 
   const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
-    if (form.titulo.length >= 50 && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-    }
-  };
-
-  const handleNumericKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
-    if (!/^\d$/.test(e.key) && !allowedKeys.includes(e.key) && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-    }
+    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+    if (form.titulo.length >= 50 && !allowed.includes(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
   };
 
   const resetForm = () => {
     setForm(emptyForm);
     setErrors({});
     setTouched({});
+    setIsEditMode(false);
   };
 
   // ── Filtrado ───────────────────────────────────────────────────────────────
@@ -256,25 +434,20 @@ export function NewsModule() {
     const matchSearch =
       n.titulo.toLowerCase().includes(q) ||
       n.descripcion_detallada.toLowerCase().includes(q) ||
-      nombreCompleto(n.registradoPor).toLowerCase().includes(q) ||
-      nombreCompleto(n.empleadoResponsable).toLowerCase().includes(q) ||
       nombreCompleto(n.empleadoAfectado).toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || n.estado === statusFilter;
     return matchSearch && matchStatus;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated  = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
+  const paginated  = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true, empleado_afectado: true });
-    const validationErrors = validateForm(form);
+    setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
+    const validationErrors = validateForm(form, false);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
@@ -283,12 +456,18 @@ export function NewsModule() {
       const dto: CreateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
-        registrado_por:        EMPLEADO_ACTUAL_ID,
-        empleado_responsable:  form.empleado_responsable !== '' ? Number(form.empleado_responsable) : null,
-        empleado_afectado:     form.empleado_afectado !== '' ? Number(form.empleado_afectado) : null,
+        fecha_inicio:          form.fecha_inicio,
+        fecha_finalizacion:    form.fecha_finalizacion,
+        empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
+
+      if (dto.empleado_afectado) {
+        await desactivarEmpleado(dto.empleado_afectado);
+        setAllEmpleados(prev => prev.filter(e => e.id !== dto.empleado_afectado));
+      }
+
       resetForm();
       setIsNewDialogOpen(false);
       toast.success('Novedad registrada exitosamente');
@@ -302,8 +481,8 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true, empleado_responsable: true, empleado_afectado: true });
-    const validationErrors = validateForm(form);
+    setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
+    const validationErrors = validateForm(form, true);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
 
@@ -312,8 +491,9 @@ export function NewsModule() {
       const dto: UpdateNovedadDTO = {
         titulo:                form.titulo.trim(),
         descripcion_detallada: form.descripcion_detallada.trim(),
-        empleado_responsable:  form.empleado_responsable !== '' ? Number(form.empleado_responsable) : null,
-        empleado_afectado:     form.empleado_afectado !== '' ? Number(form.empleado_afectado) : null,
+        fecha_inicio:          form.fecha_inicio,
+        fecha_finalizacion:    form.fecha_finalizacion,
+        empleado_afectado:     form.empleado_afectado?.id ?? null,
       };
       let updated = await updateNovedad(selectedNovedad.id, dto);
 
@@ -322,8 +502,9 @@ export function NewsModule() {
       }
 
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
+      setSelectedNovedad(updated);
+
       setIsEditDialogOpen(false);
-      setSelectedNovedad(null);
       resetForm();
       toast.success('Novedad actualizada exitosamente');
     } catch (err: any) {
@@ -354,22 +535,52 @@ export function NewsModule() {
   const openView = (n: Novedad) => { setSelectedNovedad(n); setIsViewDialogOpen(true); };
 
   const openEdit = (n: Novedad) => {
+    setIsEditMode(true);
+
+    const resolveEmpleado = (
+      idFK: number | null | undefined,
+      nested: { id: number; nombres: string; apellidos: string; cargo: string } | null | undefined
+    ): EmpleadoSeleccionado | null => {
+      if (!idFK && !nested) return null;
+      const fromList = allEmpleados.find(e => e.id === (idFK ?? nested?.id));
+      if (fromList) return fromList;
+      if (nested) return { id: nested.id, nombres: nested.nombres, apellidos: nested.apellidos, cargo: nested.cargo ?? '' };
+      return null;
+    };
+
     setSelectedNovedad(n);
     resetForm();
+
     setForm({
       titulo:                n.titulo,
       descripcion_detallada: n.descripcion_detallada,
-      empleado_responsable:  n.empleado_responsable?.toString() ?? '',
-      empleado_afectado:     n.empleado_afectado?.toString() ?? '',
+      fecha_inicio:          n.fecha_inicio      ? n.fecha_inicio.split('T')[0]      : '',
+      fecha_finalizacion:    n.fecha_finalizacion ? n.fecha_finalizacion.split('T')[0] : '',
+      empleado_afectado:     resolveEmpleado(n.empleado_afectado, n.empleadoAfectado),
       estado:                n.estado,
     });
+
+    setIsEditMode(true);
     setIsEditDialogOpen(true);
   };
 
   const openDelete = (n: Novedad) => { setSelectedNovedad(n); setIsDeleteDialogOpen(true); };
 
+  const handleOpenNew = (open: boolean) => {
+    setIsNewDialogOpen(open);
+    if (open) {
+      resetForm();
+    } else {
+      resetForm();
+    }
+  };
+
   // ── Render del formulario ──────────────────────────────────────────────────
-  const renderForm = (onSubmit: (e: React.FormEvent) => void, submitLabel: string, isEdit = false) => (
+  const renderForm = (
+    onSubmit: (e: React.FormEvent) => void,
+    submitLabel: string,
+    isEdit = false
+  ) => (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
 
       <Field
@@ -405,58 +616,69 @@ export function NewsModule() {
         />
       </Field>
 
-      <Field
-        label="ID Empleado Responsable"
-        error={touched.empleado_responsable ? errors.empleado_responsable : undefined}
-        hint={!errors.empleado_responsable ? 'Opcional — solo números enteros positivos' : undefined}
-      >
-        <Input
-          type="text"
-          inputMode="numeric"
-          value={form.empleado_responsable}
-          onChange={handleChange('empleado_responsable')}
-          onBlur={handleBlur('empleado_responsable')}
-          onKeyDown={handleNumericKeyDown}
-          placeholder="Ej: 3"
-          className={touched.empleado_responsable && errors.empleado_responsable ? 'border-red-400 focus-visible:ring-red-400' : ''}
-        />
-      </Field>
+      {/* ── Fechas ─────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-4">
 
-      <Field
-        label="ID Empleado Afectado"
-        error={touched.empleado_afectado ? errors.empleado_afectado : undefined}
-        hint={!errors.empleado_afectado ? 'Opcional — solo números enteros positivos' : undefined}
-      >
-        <Input
-          type="text"
-          inputMode="numeric"
-          value={form.empleado_afectado}
-          onChange={handleChange('empleado_afectado')}
-          onBlur={handleBlur('empleado_afectado')}
-          onKeyDown={handleNumericKeyDown}
-          placeholder="Ej: 5"
-          className={touched.empleado_afectado && errors.empleado_afectado ? 'border-red-400 focus-visible:ring-red-400' : ''}
-        />
-      </Field>
+        <Field
+          label="Fecha de inicio"
+          required
+          error={touched.fecha_inicio ? errors.fecha_inicio : undefined}
+        >
+          <Input
+            type="date"
+            value={form.fecha_inicio}
+            min={isEdit ? undefined : getTodayString()}
+            onChange={handleChange('fecha_inicio')}
+            onBlur={handleBlur('fecha_inicio')}
+            className={touched.fecha_inicio && errors.fecha_inicio ? 'border-red-400 focus-visible:ring-red-400' : ''}
+          />
+        </Field>
+
+        <Field
+          label="Fecha de finalización"
+          required
+          error={touched.fecha_finalizacion ? errors.fecha_finalizacion : undefined}
+        >
+          <Input
+            type="date"
+            value={form.fecha_finalizacion}
+            min={getMinFechaFin(form.fecha_inicio)}
+            onChange={e => {
+              handleChange('fecha_finalizacion')(e);
+              setTouched(prev => ({ ...prev, fecha_finalizacion: true }));
+            }}
+            onBlur={handleBlur('fecha_finalizacion')}
+            className={touched.fecha_finalizacion && errors.fecha_finalizacion ? 'border-red-400 focus-visible:ring-red-400' : ''}
+          />
+        </Field>
+
+      </div>
+
+      {/* ── Empleado Afectado ─────────────────────────────────────────────── */}
+      <EmpleadoAutocomplete
+        label="Empleado Afectado"
+        value={form.empleado_afectado}
+        onChange={emp => setForm(prev => ({ ...prev, empleado_afectado: emp }))}
+        allEmpleados={allEmpleados}
+        loadingEmpleados={loadingEmpleados}
+        hint="Opcional — busca por nombre o cargo"
+        placeholder="Buscar empleado afectado..."
+      />
 
       {isEdit && (
-        <Field label="Estado">
-          <Select
-            value={form.estado}
-            onValueChange={(value: 'registrada' | 'aprobada' | 'rechazada') =>
-              setForm(prev => ({ ...prev, estado: value }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="registrada">Registrada</SelectItem>
-              <SelectItem value="aprobada">Aprobada</SelectItem>
-              <SelectItem value="rechazada">Rechazada</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={form.estado === 'aprobada'}
+              onCheckedChange={(checked: boolean) =>
+                setForm(prev => ({ ...prev, estado: checked ? 'aprobada' : 'registrada' }))
+              }
+            />
+            <span className="text-sm text-gray-600">
+              Estado: <strong>{form.estado === 'aprobada' ? 'Aprobada' : 'Registrada'}</strong>
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="flex gap-4 pt-2">
@@ -469,11 +691,7 @@ export function NewsModule() {
           }}>
           Cancelar
         </Button>
-        <Button
-          type="submit"
-          disabled={submitting}
-          className="flex-1 bg-blue-600 hover:bg-blue-700"
-        >
+        <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
           {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
           {submitLabel}
         </Button>
@@ -498,10 +716,7 @@ export function NewsModule() {
             </p>
           </div>
 
-          <Dialog open={isNewDialogOpen} onOpenChange={open => {
-            setIsNewDialogOpen(open);
-            if (!open) resetForm();
-          }}>
+          <Dialog open={isNewDialogOpen} onOpenChange={handleOpenNew}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
                 <PlusIcon className="w-4 h-4 mr-2" />
@@ -515,38 +730,38 @@ export function NewsModule() {
                   Completa el formulario para registrar una nueva novedad o incidencia.
                 </DialogDescription>
               </DialogHeader>
-              {renderForm(handleCreate, 'Registrar Novedad')}
+              {renderForm(handleCreate, 'Registrar Novedad', false)}
             </DialogContent>
           </Dialog>
         </div>
 
         {/* Filtros */}
-        <Card className="shadow-lg border border-gray-100 p-6">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por título, responsable, afectado o descripción..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+
+              <div className="relative w-full sm:flex-[3]">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <Input
+                  placeholder="Buscar por título, responsable, afectado o descripción..."
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  className="pl-10 w-full"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-1/4 sm:w-40 sm:flex-[1]"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="registrada">Registrada</option>
+                <option value="aprobada">Aprobada</option>
+              </select>
+
             </div>
-            <div className="w-full sm:w-52">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="registrada">Registrada</SelectItem>
-                  <SelectItem value="aprobada">Aprobada</SelectItem>
-                  <SelectItem value="rechazada">Rechazada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <span className="text-sm text-gray-600 whitespace-nowrap">
-              {filtered.length} novedad(es)
-            </span>
-          </div>
+          </CardContent>
         </Card>
 
         {/* Tabla */}
@@ -556,17 +771,16 @@ export function NewsModule() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Título</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>                 
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Responsable</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Afectado</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3 text-gray-400">
                         <Loader2Icon className="w-8 h-8 animate-spin" />
                         <p>Cargando novedades...</p>
@@ -575,7 +789,7 @@ export function NewsModule() {
                   </tr>
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center text-gray-500">
                         <AlertCircleIcon className="w-12 h-12 mb-3 text-gray-300" />
                         <p className="text-gray-900">No se encontraron novedades</p>
@@ -588,47 +802,34 @@ export function NewsModule() {
                     <React.Fragment key={novedad.id}>
                       <tr className="hover:bg-gray-50 transition-colors">
 
-                        {/* Título */}
                         <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
-                            {novedad.titulo}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Por: {nombreCompleto(novedad.registradoPor)}
-                          </div>
+                          <div className="text-sm font-medium text-gray-900 max-w-xs truncate">{novedad.titulo}</div>
                         </td>
 
-                        {/* Estado */}
+                        <td className="px-6 py-4 text-sm text-gray-900">{nombreCompleto(novedad.empleadoAfectado)}</td>
+                        
+                        <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>
+                        
                         <td className="px-6 py-4">
-                          <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
-                            {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={novedad.estado === 'aprobada'}
+                              onCheckedChange={() => handleToggleEstado(novedad)}
+                              disabled={togglingIds.has(novedad.id)}
+                            />
+                            <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
+                              {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
+                            </Badge>
+                            {togglingIds.has(novedad.id) && <Loader2Icon className="w-3 h-3 animate-spin text-gray-400" />}
+                          </div>
                         </td>
 
-                        {/* Fecha */}
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatFecha(novedad.fecha_registro)}
-                        </td>
-
-                        {/* Responsable */}
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {nombreCompleto(novedad.empleadoResponsable)}
-                        </td>
-
-                        {/* Afectado */}
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {nombreCompleto(novedad.empleadoAfectado)}
-                        </td>
-
-                        {/* Acciones */}
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
 
-                            {/* Ver — siempre activo */}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="outline" size="sm"
-                                  onClick={() => openView(novedad)}
+                                <Button variant="outline" size="sm" onClick={() => openView(novedad)}
                                   className="text-blue-900 border-blue-900 hover:bg-blue-50">
                                   <EyeIcon className="w-4 h-4 text-blue-900" />
                                 </Button>
@@ -636,70 +837,41 @@ export function NewsModule() {
                               <TooltipContent><p>Ver detalles</p></TooltipContent>
                             </Tooltip>
 
-                            {/* Editar */}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
+                                <Button variant="outline" size="sm"
                                   onClick={() => {
-                                    if (!canEdit(novedad)) {
-                                      showRowBanner(novedad.id, 'edit');
-                                      return;
-                                    }
-                                    closeBanner();
-                                    openEdit(novedad);
+                                    if (!canEdit(novedad)) { showRowBanner(novedad.id, 'edit'); return; }
+                                    closeBanner(); openEdit(novedad);
                                   }}
-                                  className={`border-blue-900 transition-opacity ${
-                                    canEdit(novedad)
-                                      ? 'text-blue-900 hover:bg-blue-50'
-                                      : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'
-                                  }`}
-                                >
+                                  className={`border-blue-900 transition-opacity ${canEdit(novedad) ? 'text-blue-900 hover:bg-blue-50' : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'}`}>
                                   <EditIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{canEdit(novedad) ? 'Editar novedad' : editBlockReason(novedad)}</p>
-                              </TooltipContent>
+                              <TooltipContent><p>{canEdit(novedad) ? 'Editar novedad' : editBlockReason(novedad)}</p></TooltipContent>
                             </Tooltip>
 
-                            {/* Eliminar */}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
+                                <Button variant="outline" size="sm"
                                   onClick={() => {
-                                    if (!canDelete(novedad)) {
-                                      showRowBanner(novedad.id, 'delete');
-                                      return;
-                                    }
-                                    closeBanner();
-                                    openDelete(novedad);
+                                    if (!canDelete(novedad)) { showRowBanner(novedad.id, 'delete'); return; }
+                                    closeBanner(); openDelete(novedad);
                                   }}
-                                  className={`border-blue-900 transition-opacity ${
-                                    canDelete(novedad)
-                                      ? 'text-blue-900 hover:bg-blue-50'
-                                      : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'
-                                  }`}
-                                >
+                                  className={`border-blue-900 transition-opacity ${canDelete(novedad) ? 'text-blue-900 hover:bg-blue-50' : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'}`}>
                                   <TrashIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{canDelete(novedad) ? 'Eliminar novedad' : deleteBlockReason(novedad)}</p>
-                              </TooltipContent>
+                              <TooltipContent><p>{canDelete(novedad) ? 'Eliminar novedad' : deleteBlockReason(novedad)}</p></TooltipContent>
                             </Tooltip>
 
                           </div>
                         </td>
                       </tr>
 
-                      {/* ── Banner inline por fila ── */}
                       {bannerNovedadId === novedad.id && (
                         <tr className="border-b border-amber-100">
-                          <td colSpan={6} className="px-6 py-0">
+                          <td colSpan={5} className="px-6 py-0">
                             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
                               <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                               <span>
@@ -708,10 +880,7 @@ export function NewsModule() {
                                   ? `No puedes editar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`
                                   : `No puedes eliminar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`}
                               </span>
-                              <button
-                                onClick={closeBanner}
-                                className="ml-auto opacity-60 hover:opacity-100"
-                              >
+                              <button onClick={closeBanner} className="ml-auto opacity-60 hover:opacity-100">
                                 <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -725,27 +894,20 @@ export function NewsModule() {
             </table>
           </div>
 
-          {/* Paginación */}
           {!loading && filtered.length > ITEMS_PER_PAGE && (
             <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm"
-                onClick={() => setCurrentPage(p => p - 1)}
-                disabled={currentPage === 1}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}
                 className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
                 <ChevronLeftIcon className="w-4 h-4" />
               </Button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                 <Button key={page} variant={currentPage === page ? 'default' : 'ghost'} size="sm"
                   onClick={() => setCurrentPage(page)}
-                  className={currentPage === page
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]'
-                    : 'min-w-[32px]'}>
+                  className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]' : 'min-w-[32px]'}>
                   {currentPage === page ? page : '•'}
                 </Button>
               ))}
-              <Button variant="outline" size="sm"
-                onClick={() => setCurrentPage(p => p + 1)}
-                disabled={currentPage === totalPages}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}
                 className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
                 <ChevronRightIcon className="w-4 h-4" />
               </Button>
@@ -753,120 +915,113 @@ export function NewsModule() {
           )}
         </div>
 
-        {/* Diálogo Ver */}
-       {/* Diálogo Ver */}
-<Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-  <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-    <div className="overflow-y-auto max-h-[90vh] p-6">
-      <DialogHeader>
-        <DialogTitle>Detalles de la Novedad</DialogTitle>
-        <DialogDescription>Información completa de la novedad registrada</DialogDescription>
-      </DialogHeader>
+        {/* ── Diálogo Ver detalle ─────────────────────────────────────────── */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+            <div className="overflow-y-auto max-h-[90vh] p-6">
+              <DialogHeader>
+                <DialogTitle>Detalles de la Novedad</DialogTitle>
+                <DialogDescription>Información completa de la novedad registrada</DialogDescription>
+              </DialogHeader>
+              {selectedNovedad && (
+                <div className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
 
-      {selectedNovedad && (
-        <div className="space-y-4 mt-4">
+                    {/* Cabecera */}
+                    <div className="col-span-2 flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <AlertCircleIcon className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-blue-900 text-lg leading-tight">{selectedNovedad.titulo}</p>
+                        <Badge className={`mt-1 ${ESTADO_COLORS[selectedNovedad.estado]}`}>
+                          {ESTADO_LABELS[selectedNovedad.estado]}
+                        </Badge>
+                      </div>
+                    </div>
 
-          {/* Bloque principal */}
-          <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                    {/* Fecha de registro */}
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de registro</p>
+                      <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                        <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                        {formatFecha(selectedNovedad.fecha_registro)}
+                      </p>
+                    </div>
 
-            {/* Título + estado */}
-            <div className="col-span-2 flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                <AlertCircleIcon className="w-8 h-8 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-blue-900 text-lg leading-tight">
-                  {selectedNovedad.titulo}
-                </p>
-                <Badge className={`mt-1 ${ESTADO_COLORS[selectedNovedad.estado]}`}>
-                  {ESTADO_LABELS[selectedNovedad.estado]}
-                </Badge>
-              </div>
+                    {/* Fecha inicio */}
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de inicio</p>
+                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_inicio)}</p>
+                    </div>
+
+                    {/* Fecha fin */}
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de finalización</p>
+                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
+                    </div>
+
+                    {/* Afectado */}
+                    <div>
+                      <p className="text-xs text-gray-500">Empleado afectado</p>
+                      <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                        <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                        {nombreCompleto(selectedNovedad.empleadoAfectado)}
+                      </p>
+                    </div>
+
+                    {/* Descripción */}
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-500">Descripción detallada</p>
+                      <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
+                        {selectedNovedad.descripcion_detallada}
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Cerrar</Button>
+                    {canEdit(selectedNovedad) && (
+                      <Button
+                        onClick={() => {
+                          const fresco = novedades.find(n => n.id === selectedNovedad.id) ?? selectedNovedad;
+                          setIsViewDialogOpen(false);
+                          openEdit(fresco);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        Editar Novedad
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          </DialogContent>
+        </Dialog>
 
-            {/* Registrado por */}
-            <div>
-              <p className="text-xs text-gray-500">Registrado por</p>
-              <p className="font-semibold text-sm mt-0.5">
-                {nombreCompleto(selectedNovedad.registradoPor)}
-              </p>
-            </div>
-
-            {/* Fecha */}
-            <div>
-              <p className="text-xs text-gray-500">Fecha de registro</p>
-              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
-                {formatFecha(selectedNovedad.fecha_registro)}
-              </p>
-            </div>
-
-            {/* Responsable */}
-            <div>
-              <p className="text-xs text-gray-500">Empleado responsable</p>
-              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                {nombreCompleto(selectedNovedad.empleadoResponsable)}
-              </p>
-            </div>
-
-            {/* Afectado */}
-            <div>
-              <p className="text-xs text-gray-500">Empleado afectado</p>
-              <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                {nombreCompleto(selectedNovedad.empleadoAfectado)}
-              </p>
-            </div>
-
-            {/* Descripción — ancho completo */}
-            <div className="col-span-2">
-              <p className="text-xs text-gray-500">Descripción detallada</p>
-              <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
-                {selectedNovedad.descripcion_detallada}
-              </p>
-            </div>
-
-          </div>
-
-          {/* Acciones */}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-              Cerrar
-            </Button>
-            {selectedNovedad.estado === 'registrada' && (
-              <Button
-                onClick={() => { openEdit(selectedNovedad); setIsViewDialogOpen(false); }}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Editar Novedad
-              </Button>
-            )}
-          </div>
-
-        </div>
-      )}
-    </div>
-  </DialogContent>
-</Dialog>
-
-        {/* Diálogo Editar */}
-        <Dialog open={isEditDialogOpen} onOpenChange={open => {
-          setIsEditDialogOpen(open);
-          if (!open) { resetForm(); setSelectedNovedad(null); }
-        }}>
+        {/* ── Diálogo Editar ──────────────────────────────────────────────── */}
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={open => {
+            if (!open) {
+              setIsEditDialogOpen(false);
+              resetForm();
+              setSelectedNovedad(null);
+            }
+          }}
+        >
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Novedad</DialogTitle>
-              <DialogDescription>
-                Modifica los datos de la novedad y cambia su estado si es necesario.
-              </DialogDescription>
+              <DialogDescription>Modifica los datos de la novedad y cambia su estado si es necesario.</DialogDescription>
             </DialogHeader>
             {renderForm(handleUpdate, 'Actualizar Novedad', true)}
           </DialogContent>
         </Dialog>
 
-        {/* Diálogo Eliminar */}
+        {/* ── Diálogo Eliminar ────────────────────────────────────────────── */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -875,23 +1030,15 @@ export function NewsModule() {
                 Esta acción no se puede deshacer. La novedad será eliminada permanentemente.
                 {selectedNovedad && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-900">
-                      <strong>Título:</strong> {selectedNovedad.titulo}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      <strong>Responsable:</strong> {nombreCompleto(selectedNovedad.empleadoResponsable)}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      <strong>Afectado:</strong> {nombreCompleto(selectedNovedad.empleadoAfectado)}
-                    </p>
+                    <p className="text-sm text-gray-900"><strong>Título:</strong> {selectedNovedad.titulo}</p>
+                    <p className="text-sm text-gray-600 mt-1"><strong>Afectado:</strong> {nombreCompleto(selectedNovedad.empleadoAfectado)}</p>
                   </div>
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => setSelectedNovedad(null)}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} disabled={submitting}
-                className="bg-blue-600 hover:bg-blue-700">
+              <AlertDialogAction onClick={handleDelete} disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
                 {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
                 Eliminar
               </AlertDialogAction>

@@ -2,6 +2,12 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '@/services/http
 
 const BASE_URL = getApiBaseUrl();
 
+export interface DetalleCompraInput {
+    insumosId: number;
+    cantidad: number;
+    precioUnitario: number;
+}
+
 export const getCompras = async () => {
     const response = await fetch(`${BASE_URL}/compras`, {
         headers: buildAuthHeaders(),
@@ -29,19 +35,25 @@ export const createCompra = async (compraData: {
     fecha: string;
     metodoPago: 'efectivo' | 'transferencia';
     estado: 'pendiente' | 'en transito' | 'completada';
+    detalles?: DetalleCompraInput[];
 }) => {
     const response = await fetch(`${BASE_URL}/compras`, {
         method: 'POST',
         headers: buildAuthHeaders(),
         body: JSON.stringify(compraData),
     });
-    return handleResponse(response);
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData; // lanza el objeto completo, no solo el message
+    }
+    return response.json();
 };
 
 export const updateCompra = async (id: number, compraData: {
     proveedoresId?: number;
     fecha?: string;
     metodoPago?: string;
+    detalles?: DetalleCompraInput[];
 }) => {
     const response = await fetch(`${BASE_URL}/compras/${id}`, {
         method: 'PUT',
@@ -65,9 +77,12 @@ export const deleteCompra = async (id: number) => {
         method: 'DELETE',
         headers: buildAuthHeaders(),
     });
-    return handleResponse(response);
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData;
+    }
+    return response.json();
 };
-
 export const getProveedores = async () => {
     const response = await fetch(`${BASE_URL}/proveedores`, {
         headers: buildAuthHeaders(),

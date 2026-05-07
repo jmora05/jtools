@@ -2,18 +2,37 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 
 export type Empleado = {
   id?: number;
-  tipoDocumento: 'CC' | 'CE' | 'Pasaporte';
+  tipoDocumento: 'CC' | 'CE' | 'PPT';
   numeroDocumento: string;
   nombres: string;
   apellidos: string;
   telefono: string;
   email: string;
-  cargo: 'Supervisor de Producción' | 'Jefe de Área' | 'Operario' | 'Técnico de Calidad' | 'Asistente';
+  cargo: string;
   area: 'Producción' | 'Calidad' | 'Logística' | 'Mantenimiento' | 'Administración';
   direccion?: string;
   ciudad?: string;
   fechaIngreso: string;
   estado: 'activo' | 'inactivo';
+};
+
+export type Rol = {
+  id: number;
+  name: string;
+  description?: string;
+};
+
+export type VerificacionEliminacion = {
+  puedeEliminarse: boolean;
+  referencias: {
+    novedadesRegistradas: number;
+    novedadesResponsable: number;
+    novedadesAfectado: number;
+    ordenesProduccion: number;
+    fichaTecnicaCount: number;
+    total: number;
+  };
+  mensaje: string;
 };
 
 const BASE = getApiBaseUrl();
@@ -23,6 +42,13 @@ export async function getEmpleados(): Promise<Empleado[]> {
     headers: buildAuthHeaders(),
   });
   return handleResponse<Empleado[]>(res);
+}
+
+export async function getRoles(): Promise<Rol[]> {
+  const res = await fetch(`${BASE}/roles`, {
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<Rol[]>(res);
 }
 
 export async function getEmpleadoById(id: number): Promise<Empleado> {
@@ -46,6 +72,21 @@ export async function updateEmpleado(id: number, data: Partial<Empleado>): Promi
     method: 'PUT',
     headers: buildAuthHeaders(),
     body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function verificarPuedeEliminarse(id: number): Promise<VerificacionEliminacion> {
+  const res = await fetch(`${BASE}/empleados/${id}/puede-eliminarse`, {
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse<VerificacionEliminacion>(res);
+}
+
+export async function desactivarEmpleado(id: number): Promise<{ message: string }> {
+  const res = await fetch(`${BASE}/empleados/${id}/desactivar`, {
+    method: 'PUT',
+    headers: buildAuthHeaders(),
   });
   return handleResponse(res);
 }

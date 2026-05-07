@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const {sequelize} = require('../config/jtools_db');
+const { sequelize } = require('../config/jtools_db');
 
 const Proveedores = sequelize.define('Proveedores', {
     id: {
@@ -22,8 +22,9 @@ const Proveedores = sequelize.define('Proveedores', {
         }
     },
 
+    // FIX #5: ENUM ampliado para incluir todos los tipos que el frontend expone
     tipoDocumento: {
-        type: DataTypes.ENUM('CC', 'NIT', 'RUN'),
+        type: DataTypes.ENUM('CC', 'CE', 'PA', 'RUNT', 'NIT', 'RUN'),
         allowNull: false
     },
 
@@ -42,11 +43,8 @@ const Proveedores = sequelize.define('Proveedores', {
 
     personaContacto: {
         type: DataTypes.STRING(100),
-        allowNull: false,
-        validate: {
-            notEmpty: { msg: 'El nombre de la persona de contacto no puede estar vacío' },
-            len: { args: [2, 100], msg: 'El nombre de la persona de contacto debe tener entre 2 y 100 caracteres' }
-        }
+        allowNull: true,
+        defaultValue: null,
     },
 
     telefono: {
@@ -74,15 +72,16 @@ const Proveedores = sequelize.define('Proveedores', {
         }
     },
 
+    // FIX #8: STRING(200) consistente con validador y frontend
     direccion: {
         type: DataTypes.STRING(200),
-        allowNull: true,  // campo opcional
+        allowNull: true,
         defaultValue: null
     },
 
     ciudad: {
         type: DataTypes.STRING(50),
-        allowNull: true,  // campo opcional
+        allowNull: true,
         defaultValue: null
     },
 
@@ -92,12 +91,12 @@ const Proveedores = sequelize.define('Proveedores', {
         defaultValue: 'activo'
     }
 
+    // FIX #6: campo "foto" eliminado — no pertenece a este modelo
 },
 {
     tableName: 'proveedores',
     timestamps: true,
     comment: 'Tabla que almacena los proveedores de la empresa'
-
 });
 
 module.exports = Proveedores;

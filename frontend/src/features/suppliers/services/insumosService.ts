@@ -10,17 +10,23 @@ export interface InsumoBackend {
   descripcion:    string | null;
   precioUnitario: number | string;
   unidadMedida:   string;
+  cantidad:       number | null;
+  proveedoresId:  number | null;
+  proveedor?:     { id: number; nombreEmpresa: string } | null;
+  proveedores?:   { id: number; nombreEmpresa: string }[];
   estado:         EstadoInsumo;
   createdAt?:     string;
   updatedAt?:     string;
 }
 
 export interface CreateInsumoDTO {
-  nombreInsumo:   string;
-  descripcion?:   string;
-  precioUnitario: number;
-  unidadMedida:   string;
-  estado?:        EstadoInsumo;
+  nombreInsumo:    string;
+  descripcion?:    string;
+  precioUnitario:  number;
+  unidadMedida:    string;
+  cantidad?:       number | null;
+  proveedoresIds?: number[];
+  estado?:         EstadoInsumo;
 }
 
 export type UpdateInsumoDTO = Partial<CreateInsumoDTO>;
@@ -76,40 +82,72 @@ export async function cambiarEstadoInsumo(
   return handleResponse<{ message: string; insumo: InsumoBackend }>(res);
 }
 
-export async function deleteInsumo(id: number): Promise<{ message: string }> {
-  const res = await fetch(insumosUrl(`/${id}`), {
-    method:  'DELETE',
+// ─── Dependencias ─────────────────────────────────────────────────────────────
+
+export interface InsumosDependencias {
+  enUso:          boolean;
+  compras:        { id: number; fecha: string; estado: string }[];
+  productos:      { id: number; nombreProducto: string }[];
+  fichasTecnicas: { id: number; codigoFicha: string; estado: string }[];
+}
+
+export async function getInsumosDependencias(id: number): Promise<InsumosDependencias> {
+  const res = await fetch(insumosUrl(`/${id}/dependencias`), {
     headers: buildAuthHeaders(),
   });
+  return handleResponse<InsumosDependencias>(res);
+}
+
+export async function deleteInsumo(id: number): Promise<{ message: string }> {
+  const res = await fetch(insumosUrl(`/${id}/force`),  // ← /force para eliminar físicamente
+    {
+      method:  'DELETE',
+      headers: buildAuthHeaders(),
+    });
   return handleResponse<{ message: string }>(res);
 }
 
 // ─── Mapeos frontend ↔ backend ────────────────────────────────────────────────
 
 export function mapInsumoToSupply(i: InsumoBackend) {
+  // Preferir many-to-many; si aún no tiene entradas en la junction table,
+  // caer al FK legado para mostrar el proveedor existente
+  let proveedores = (i.proveedores ?? []).map(p => ({ id: p.id, nombre: p.nombreEmpresa }));
+  if (proveedores.length === 0 && i.proveedor) {
+    proveedores = [{ id: i.proveedor.id, nombre: i.proveedor.nombreEmpresa }];
+  }
   return {
-    id:           i.id,
-    name:         i.nombreInsumo,
-    description:  i.descripcion  ?? '',
-    price:        Number(i.precioUnitario),
-    unit:         i.unidadMedida,
-    status:       i.estado === 'disponible',
-    stockCurrent: 0,   // el backend no expone stock directo
+    id:            i.id,
+    name:          i.nombreInsumo,
+    description:   i.descripcion  ?? '',
+    price:         Number(i.precioUnitario),
+    unit:          i.unidadMedida,
+    cantidad:      i.cantidad     ?? null,
+    proveedores,
+    proveedoresIds: proveedores.map(p => p.id),
+    proveedorNombre: proveedores.length > 0
+      ? proveedores.map(p => p.nombre).join(', ')
+      : null,
+    status:        i.estado === 'disponible',
   };
 }
 
 export function mapSupplyToDTO(form: {
-  name:        string;
-  description: string;
-  price:       string;
-  unit:        string;
-  status:      boolean;
+  name:           string;
+  description:    string;
+  price:          string;
+  unit:           string;
+  cantidad:       string;
+  proveedoresIds: number[];
+  status:         boolean;
 }): CreateInsumoDTO {
   return {
     nombreInsumo:   form.name,
     descripcion:    form.description || undefined,
     precioUnitario: parseFloat(form.price),
     unidadMedida:   form.unit,
+    cantidad:       form.cantidad !== '' ? parseInt(form.cantidad, 10) : null,
+    proveedoresIds: form.proveedoresIds.length > 0 ? form.proveedoresIds : undefined,
     estado:         form.status ? 'disponible' : 'agotado',
   };
 }

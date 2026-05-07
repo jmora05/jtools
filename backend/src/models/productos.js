@@ -127,7 +127,28 @@ const Productos = sequelize.define('Productos', {
             },
         },
     },
+
+    imagenUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+    validate: {
+        esUrlODataUrl(value) {
+            if (!value) return;
+            const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
+            const isHttpUrl = (() => {
+                try { const u = new URL(value); return u.protocol === 'http:' || u.protocol === 'https:'; }
+                catch { return false; }
+            })();
+            if (!isDataUrl && !isHttpUrl) {
+                throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+            }
+        }
+    }
 },
+},
+
+
 {
     tableName: 'productos',
     timestamps: false,

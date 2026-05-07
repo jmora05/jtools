@@ -3,7 +3,7 @@
 //  JRepuestos Medellín
 // ============================================================
 
-import type { Material, Proceso, Medida, InsumoFT } from '../services/fichaTecnicaService';
+import type { Proceso, Medida, InsumoFT } from '../services/fichaTecnicaService';
 
 // ─── Tipos de resultado ───────────────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ export type ValidationResult = {
   errors: string[];
 };
 
-// Errores por campo para un item de formulario (material, proceso, medida, insumo)
+// Errores por campo para un item de formulario (proceso, medida, insumo)
 export type ItemErrors = {
   name?: string;
   quantity?: string;
@@ -21,31 +21,27 @@ export type ItemErrors = {
   duration?: string;
   parameter?: string;
   value?: string;
+  insumoId?: string;
+  responsableId?: string;
 };
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const MAX_NOMBRE    = 100;
-const MAX_UNIDAD    = 30;
 const MAX_DESC      = 300;
 const MAX_DURACION  = 50;
 const MAX_PARAMETRO = 100;
 const MAX_VALOR     = 100;
 const MAX_NOTAS     = 1000;
+const MAX_NOMBRE    = 100;
+const MAX_UNIDAD    = 30;
 
 // ─── Expresiones regulares ────────────────────────────────────────────────────
-
-// Nombres: letras, números, tildes, ñ, espacios, guion, coma, punto
-const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 \-.,()]*$/;
-
-// Unidades: letras, números, /, ., espacio, símbolos de medida
-const REGEX_UNIDAD = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9 /.²³µ°]*$/;
 
 // Descripciones: texto libre sin caracteres de inyección
 const REGEX_DESCRIPCION = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()\\/°%&'"!?¿¡]*$/;
 
-// Duración: alfanumérico + separadores de tiempo
-const REGEX_DURACION = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9 :.,\-/]*$/;
+// Duración: solo números enteros positivos (minutos)
+const REGEX_DURACION = /^[0-9]*$/;
 
 // Parámetro / valor de medida
 const REGEX_PARAMETRO = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()°²³µ%/]*$/;
@@ -53,30 +49,18 @@ const REGEX_PARAMETRO = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëï�
 // Notas: texto libre amplio, permite saltos de línea
 const REGEX_NOTAS = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,;:\-()\\/°%&'"!?¿¡\n\r\t]*$/;
 
-// Caracteres prohibidos (para filtrado en tiempo real)
-const CHARS_PROHIBIDOS_NOMBRE      = /[<>{}|\\^`[\]@#$!?¿¡'"+=%&*]/g;
-const CHARS_PROHIBIDOS_UNIDAD      = /[<>{}|\\^`[\]@#$!?¿¡'"+=&*\-,;:()]/g;
+// Nombre de insumo: letras, números, espacios, guion, coma y punto
+const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 .,\-]*$/;
+
+// Unidad de medida: letras, números, /, . y °
+const REGEX_UNIDAD = /^[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 /°.]*$/;
+
 const CHARS_PROHIBIDOS_DESCRIPCION = /[<>{}|^`[\]@#$]/g;
-const CHARS_PROHIBIDOS_DURACION    = /[<>{}|\\^`[\]@#$!?¿¡'"+=&*;()]/g;
+const CHARS_PROHIBIDOS_DURACION    = /[^0-9]/g;  // Solo permite números
 const CHARS_PROHIBIDOS_PARAMETRO   = /[<>{}|\\^`[\]@#$!?¿¡'"+&*]/g;
 const CHARS_PROHIBIDOS_NOTAS       = /[<>{}|\\^`[\]]/g;
 
 // ─── Helpers de filtrado en tiempo real ──────────────────────────────────────
-
-/**
- * Filtra caracteres no permitidos de un nombre de material/insumo.
- * Úsalo en el onChange del input.
- */
-export function filtrarNombre(valor: string): string {
-  return valor.replace(CHARS_PROHIBIDOS_NOMBRE, '');
-}
-
-/**
- * Filtra caracteres no permitidos de una unidad de medida.
- */
-export function filtrarUnidad(valor: string): string {
-  return valor.replace(CHARS_PROHIBIDOS_UNIDAD, '');
-}
 
 /**
  * Filtra caracteres no permitidos de una descripción de proceso.
@@ -86,7 +70,7 @@ export function filtrarDescripcion(valor: string): string {
 }
 
 /**
- * Filtra caracteres no permitidos de una duración.
+ * Filtra caracteres no permitidos de una duración (solo números).
  */
 export function filtrarDuracion(valor: string): string {
   return valor.replace(CHARS_PROHIBIDOS_DURACION, '');
@@ -114,69 +98,16 @@ export function filtrarCantidad(valor: string): string {
   return valor.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
 }
 
+/**
+ * Filtra caracteres no permitidos de una unidad de medida.
+ * Permite: letras, números, espacios, /, . y °
+ */
+export function filtrarUnidad(valor: string): string {
+  // Permite letras, números, espacios, /, . y °
+  return valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜñÑ0-9 /°.]/g, '');
+}
+
 // ─── Validadores de items individuales ───────────────────────────────────────
-
-/**
- * Valida un único material.
- */
-export function validarMaterial(mat: Partial<Material>): ValidationResult {
-  const errors: string[] = [];
-
-  if (!mat.name || mat.name.trim() === '') {
-    errors.push('El nombre del material es obligatorio');
-  } else if (mat.name.trim().length > MAX_NOMBRE) {
-    errors.push(`El nombre no puede superar ${MAX_NOMBRE} caracteres (${mat.name.trim().length}/${MAX_NOMBRE})`);
-  } else if (!REGEX_NOMBRE.test(mat.name.trim())) {
-    errors.push('El nombre solo permite letras, números, espacios, guion, coma y punto');
-  }
-
-  if (mat.quantity === undefined || mat.quantity === null || isNaN(mat.quantity)) {
-    errors.push('La cantidad debe ser un número');
-  } else if (mat.quantity <= 0) {
-    errors.push('La cantidad debe ser mayor a 0');
-  }
-
-  if (!mat.unit || mat.unit.trim() === '') {
-    errors.push('La unidad es obligatoria (ej: kg, unidades, litros)');
-  } else if (mat.unit.trim().length > MAX_UNIDAD) {
-    errors.push(`La unidad no puede superar ${MAX_UNIDAD} caracteres`);
-  } else if (!REGEX_UNIDAD.test(mat.unit.trim())) {
-    errors.push('La unidad solo permite letras, números, /, . y °');
-  }
-
-  return { valid: errors.length === 0, errors };
-}
-
-/**
- * Valida errores campo por campo de un material (para tiempo real).
- */
-export function validarMaterialCampos(mat: Partial<Material>): ItemErrors {
-  const e: ItemErrors = {};
-
-  if (!mat.name || mat.name.trim() === '') {
-    e.name = 'El nombre es obligatorio';
-  } else if (mat.name.trim().length > MAX_NOMBRE) {
-    e.name = `Máximo ${MAX_NOMBRE} caracteres (${mat.name.trim().length}/${MAX_NOMBRE})`;
-  } else if (!REGEX_NOMBRE.test(mat.name.trim())) {
-    e.name = 'Solo letras, números, espacios, guion, coma y punto';
-  }
-
-  if (mat.quantity === undefined || mat.quantity === null || isNaN(mat.quantity)) {
-    e.quantity = 'Debe ser un número';
-  } else if (mat.quantity <= 0) {
-    e.quantity = 'Debe ser mayor a 0';
-  }
-
-  if (!mat.unit || mat.unit.trim() === '') {
-    e.unit = 'La unidad es obligatoria';
-  } else if (mat.unit.trim().length > MAX_UNIDAD) {
-    e.unit = `Máximo ${MAX_UNIDAD} caracteres`;
-  } else if (!REGEX_UNIDAD.test(mat.unit.trim())) {
-    e.unit = 'Solo letras, números, /, . y °';
-  }
-
-  return e;
-}
 
 /**
  * Valida un único proceso.
@@ -222,7 +153,9 @@ export function validarProcesoCampos(proc: { description: string; duration: stri
   } else if (proc.duration.trim().length > MAX_DURACION) {
     e.duration = `Máximo ${MAX_DURACION} caracteres`;
   } else if (!REGEX_DURACION.test(proc.duration.trim())) {
-    e.duration = 'Solo letras, números, espacios, :, ., , y -';
+    e.duration = 'Solo se permiten números enteros';
+  } else if (parseInt(proc.duration.trim()) <= 0) {
+    e.duration = 'La duración debe ser mayor a 0';
   }
 
   return e;
@@ -242,12 +175,18 @@ export function validarMedida(med: Partial<Medida>): ValidationResult {
     errors.push('El parámetro contiene caracteres no permitidos');
   }
 
-  if (!med.value || med.value.trim() === '') {
-    errors.push('El valor de la medida es obligatorio');
-  } else if (med.value.trim().length > MAX_VALOR) {
-    errors.push(`El valor no puede superar ${MAX_VALOR} caracteres`);
-  } else if (!REGEX_PARAMETRO.test(med.value.trim())) {
-    errors.push('El valor contiene caracteres no permitidos');
+  if (med.value === undefined || med.value === null || isNaN(med.value)) {
+    errors.push('El valor debe ser un número');
+  } else if (med.value <= 0) {
+    errors.push('El valor debe ser mayor a 0');
+  }
+
+  if (!med.unit || med.unit.trim() === '') {
+    errors.push('La unidad es obligatoria');
+  } else if (med.unit.trim().length > MAX_UNIDAD) {
+    errors.push(`La unidad no puede superar ${MAX_UNIDAD} caracteres`);
+  } else if (!REGEX_UNIDAD.test(med.unit.trim())) {
+    errors.push('La unidad solo permite letras, números, /, . y °');
   }
 
   return { valid: errors.length === 0, errors };
@@ -267,12 +206,18 @@ export function validarMedidaCampos(med: Partial<Medida>): ItemErrors {
     e.parameter = 'Contiene caracteres no permitidos';
   }
 
-  if (!med.value || med.value.trim() === '') {
-    e.value = 'El valor es obligatorio';
-  } else if (med.value.trim().length > MAX_VALOR) {
-    e.value = `Máximo ${MAX_VALOR} caracteres`;
-  } else if (!REGEX_PARAMETRO.test(med.value.trim())) {
-    e.value = 'Contiene caracteres no permitidos';
+  if (med.value === undefined || med.value === null || isNaN(med.value)) {
+    e.value = 'Debe ser un número';
+  } else if (med.value <= 0) {
+    e.value = 'Debe ser mayor a 0';
+  }
+
+  if (!med.unit || med.unit.trim() === '') {
+    e.unit = 'La unidad es obligatoria';
+  } else if (med.unit.trim().length > MAX_UNIDAD) {
+    e.unit = `Máximo ${MAX_UNIDAD} caracteres`;
+  } else if (!REGEX_UNIDAD.test(med.unit.trim())) {
+    e.unit = 'Solo letras, números, /, . y °';
   }
 
   return e;
@@ -311,16 +256,14 @@ export function validarInsumo(ins: Partial<InsumoFT>): ValidationResult {
 
 /**
  * Valida errores campo por campo de un insumo (para tiempo real).
+ * @param ins - Campos del insumo (quantity, unit)
+ * @param selectedInsumoId - ID del insumo seleccionado en el selector del catálogo
  */
-export function validarInsumoCampos(ins: Partial<InsumoFT>): ItemErrors {
+export function validarInsumoCampos(ins: Partial<InsumoFT>, selectedInsumoId?: string): ItemErrors {
   const e: ItemErrors = {};
 
-  if (!ins.name || ins.name.trim() === '') {
-    e.name = 'El nombre es obligatorio';
-  } else if (ins.name.trim().length > MAX_NOMBRE) {
-    e.name = `Máximo ${MAX_NOMBRE} caracteres (${ins.name.trim().length}/${MAX_NOMBRE})`;
-  } else if (!REGEX_NOMBRE.test(ins.name.trim())) {
-    e.name = 'Solo letras, números, espacios, guion, coma y punto';
+  if (!selectedInsumoId || selectedInsumoId.trim() === '') {
+    e.insumoId = 'Debes seleccionar un insumo';
   }
 
   if (ins.quantity === undefined || ins.quantity === null || isNaN(ins.quantity)) {
@@ -364,7 +307,6 @@ export function validarNotasCampo(notas: string): string | undefined {
  */
 export function validarFormCrear(
   form: FormFichaTecnica,
-  materiales: Material[],
   procesos: Proceso[],
   medidas: Medida[],
   insumos: InsumoFT[]
@@ -373,15 +315,6 @@ export function validarFormCrear(
 
   if (!form.productoId || form.productoId.trim() === '') {
     errors.push('Debes seleccionar un producto');
-  }
-
-  if (materiales.length === 0) {
-    errors.push('Debes agregar al menos un material');
-  } else {
-    materiales.forEach((m, i) => {
-      const r = validarMaterial(m);
-      r.errors.forEach(e => errors.push(`Material [${i + 1}]: ${e}`));
-    });
   }
 
   if (procesos.length === 0) {
@@ -398,10 +331,14 @@ export function validarFormCrear(
     r.errors.forEach(e => errors.push(`Medida [${i + 1}]: ${e}`));
   });
 
-  insumos.forEach((ins, i) => {
-    const r = validarInsumo(ins);
-    r.errors.forEach(e => errors.push(`Insumo [${i + 1}]: ${e}`));
-  });
+  if (insumos.length === 0) {
+    errors.push('Debes agregar al menos un insumo');
+  } else {
+    insumos.forEach((ins, i) => {
+      const r = validarInsumo(ins);
+      r.errors.forEach(e => errors.push(`Insumo [${i + 1}]: ${e}`));
+    });
+  }
 
   const errNotas = validarNotasCampo(form.notas);
   if (errNotas) errors.push(errNotas);
@@ -413,22 +350,12 @@ export function validarFormCrear(
  * Valida el formulario completo para EDITAR una ficha técnica.
  */
 export function validarFormEditar(
-  materiales: Material[],
   procesos: Proceso[],
   medidas: Medida[],
   insumos: InsumoFT[],
   notas: string
 ): ValidationResult {
   const errors: string[] = [];
-
-  if (materiales.length === 0) {
-    errors.push('Debes mantener al menos un material');
-  } else {
-    materiales.forEach((m, i) => {
-      const r = validarMaterial(m);
-      r.errors.forEach(e => errors.push(`Material [${i + 1}]: ${e}`));
-    });
-  }
 
   if (procesos.length === 0) {
     errors.push('Debes mantener al menos un proceso de fabricación');
@@ -444,10 +371,14 @@ export function validarFormEditar(
     r.errors.forEach(e => errors.push(`Medida [${i + 1}]: ${e}`));
   });
 
-  insumos.forEach((ins, i) => {
-    const r = validarInsumo(ins);
-    r.errors.forEach(e => errors.push(`Insumo [${i + 1}]: ${e}`));
-  });
+  if (insumos.length === 0) {
+    errors.push('Debes mantener al menos un insumo');
+  } else {
+    insumos.forEach((ins, i) => {
+      const r = validarInsumo(ins);
+      r.errors.forEach(e => errors.push(`Insumo [${i + 1}]: ${e}`));
+    });
+  }
 
   const errNotas = validarNotasCampo(notas);
   if (errNotas) errors.push(errNotas);

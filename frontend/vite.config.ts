@@ -2,6 +2,7 @@
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
+  /// <reference types="vitest" />
 
 // para manejar rutas en el proyecto se esta usando el @ este tiene en cuenta desde la carpeta src, teniendo en cuenta esto se debe revisar siempre que el archivo tsconfig.json exista par auqe las rutas no salgan con error ya que aqui es donde se definen y configura para que el @ funcione correctamente y sea tomado como src que en la logica seria la raiz del proyecto para las rutas.
 
@@ -58,5 +59,9 @@
     server: {
       port: 3000,
       open: true,
+    },
+    test: {
+      globals: true,
+      environment: 'node',
     },
   });
