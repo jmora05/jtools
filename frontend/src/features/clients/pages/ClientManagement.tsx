@@ -702,8 +702,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
             {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
+                <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+                    <div className="overflow-y-auto flex-1 p-6">
                         <DialogHeader>
                             <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
                             <DialogDescription>

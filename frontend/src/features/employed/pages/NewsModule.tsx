@@ -723,7 +723,8 @@ export function NewsModule() {
                 Nueva Novedad
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+              <div className="overflow-y-auto flex-1 p-6">
               <DialogHeader>
                 <DialogTitle>Registrar Nueva Novedad</DialogTitle>
                 <DialogDescription>
@@ -731,6 +732,7 @@ export function NewsModule() {
                 </DialogDescription>
               </DialogHeader>
               {renderForm(handleCreate, 'Registrar Novedad', false)}
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -1012,12 +1014,14 @@ export function NewsModule() {
             }
           }}
         >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="overflow-y-auto flex-1 p-6">
             <DialogHeader>
               <DialogTitle>Editar Novedad</DialogTitle>
               <DialogDescription>Modifica los datos de la novedad y cambia su estado si es necesario.</DialogDescription>
             </DialogHeader>
             {renderForm(handleUpdate, 'Actualizar Novedad', true)}
+            </div>
           </DialogContent>
         </Dialog>
 

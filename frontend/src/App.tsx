@@ -18,6 +18,7 @@ import { SupplierManagement } from '@/features/suppliers/pages/SupplierManagemen
 import { SupplyManagement } from '@/features/suppliers/pages/SupplyManagement';
 import { TechnicalSheetModule } from '@/features/production/pages/TechnicalSheetModule';
 import { NewsModule } from '@/features/employed/pages/NewsModule';
+import { PayrollModule } from '@/features/nomina/pages/nomina';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +34,7 @@ import {
   ChevronRightIcon, MenuIcon, XIcon,
   LayoutDashboard, Package, Tag, Settings, Users, Truck,
   FlaskConical, ShoppingCart, TrendingUp, ClipboardList,
-  Newspaper, Factory, HardHat, FileText, Lock,
+  Newspaper, Factory, HardHat, FileText, Lock, DollarSign,
 } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ export default function App() {
   { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
   { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
   { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
+  { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
 ];
     }
 
@@ -214,6 +216,7 @@ export default function App() {
       case 'production-employees':        return !isClient ? <EmployeeManagement /> : D();
       case 'production-orders-sub':       return !isClient ? <ProductionOrderModule /> : D();
       case 'production-technical-sheets': return !isClient ? <TechnicalSheetModule /> : D();
+      case 'nomina':                       return !isClient ? <PayrollModule /> : D();
       default: return D();
     }
   };
@@ -237,6 +240,7 @@ export default function App() {
       'production-employees':         'Empleados de Producción',
       'production-orders-sub':        'Órdenes de Producción',
       'production-technical-sheets':  'Fichas Técnicas',
+      nomina:                         'Nómina',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
       'client-purchases':             'Mis Compras',
