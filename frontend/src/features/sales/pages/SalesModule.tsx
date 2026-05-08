@@ -36,6 +36,14 @@ import {
   MinusIcon,
   UserIcon,
   RotateCcwIcon,
+  Info,
+  Loader2,
+  Banknote,
+  ArrowLeftRight,
+  CreditCard,
+  Wallet,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 import {
@@ -347,290 +355,335 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
               </Button>
             </DialogTrigger>
 
-            <DialogContent className="max-w-full w-screen h-screen m-0 p-0 rounded-none flex flex-col">
-              <DialogHeader className="border-b border-gray-200 pb-5 px-8 pt-8 flex-shrink-0">
-                <DialogTitle className="text-3xl text-center text-gray-900">Registrar Nueva Venta</DialogTitle>
-                <DialogDescription className="text-center">
-                  Selecciona un cliente y agrega productos para completar la venta.
-                </DialogDescription>
-              </DialogHeader>
+            <DialogContent
+              className="p-0 gap-0 overflow-hidden"
+              style={{
+                width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh',
+                display: 'flex', flexDirection: 'column',
+              }}
+            >
+              {/* ════ HEADER ════ */}
+              <header style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                flexShrink: 0, background: '#fff',
+              }}>
+                <div style={{
+                  width: 40, height: 40, background: '#1d4ed8',
+                  borderRadius: 8, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <ShoppingCartIcon style={{ width: 20, height: 20, color: '#fff' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+                  <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
+                    Registrar Nueva Venta
+                  </DialogTitle>
+                  <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                    Selecciona un cliente y agrega productos para completar la venta.
+                  </DialogDescription>
+                </div>
+              </header>
 
-              <form onSubmit={handleCreateSale} className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto px-8 py-8">
-                  <div className="space-y-8 max-w-7xl mx-auto">
+              <form onSubmit={handleCreateSale} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                {/* ════ BODY (2 COLUMNAS) ════ */}
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
 
-                    {/* ── Información del Cliente ──────────────────────────── */}
-                    <Card className="shadow-lg border-2 border-gray-100">
-                      <CardHeader className="pb-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                        <CardTitle className="text-xl text-gray-900">👤 Seleccionar Cliente</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-8 px-10 pb-10 space-y-5">
+                  {/* ── SIDEBAR IZQUIERDO ── */}
+                  <aside style={{
+                    width: 320, flexShrink: 0,
+                    borderRight: '1px solid #e5e7eb', background: '#f9fafb',
+                    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                  }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+
+                      {/* Cliente */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, display: 'block' }}>
+                          Cliente <span style={{ color: '#f87171' }}>*</span>
+                        </label>
                         {!saleForm.clientId ? (
-                          <>
-                            <div className="space-y-2">
-                              <Label className="text-base">Buscar Cliente <span className="text-red-500 ml-1">*</span></Label>
-                              <div className="relative">
-                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                <Input
-                                  placeholder="Buscar por nombre o documento..."
-                                  value={clientSearch}
-                                  onChange={(e) => setClientSearch(e.target.value)}
-                                  className="pl-12 h-12 text-base"
-                                />
-                              </div>
+                          <div>
+                            <div style={{ position: 'relative' }}>
+                              <SearchIcon style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', width: 14, height: 14, pointerEvents: 'none' }} />
+                              <Input
+                                placeholder="Buscar por nombre o documento..."
+                                value={clientSearch}
+                                onChange={(e) => setClientSearch(e.target.value)}
+                                style={{ paddingLeft: 36, height: 40, fontSize: 14, background: '#fff' }}
+                              />
                             </div>
-
                             {clientSearch && (
-                              <div className="border rounded-xl overflow-hidden shadow-sm">
+                              <div style={{
+                                marginTop: 4, background: '#fff', border: '1px solid #e5e7eb',
+                                borderRadius: 6, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                                maxHeight: 200, overflowY: 'auto',
+                              }}>
                                 {filteredClients.length === 0 ? (
-                                  <div className="px-4 py-6 text-center">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-2">
-                                      <SearchIcon className="w-5 h-5 text-gray-400" />
+                                  <div style={{ padding: '16px', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>
+                                    <SearchIcon style={{ width: 20, height: 20, margin: '0 auto 4px', opacity: 0.4 }} />
+                                    <p style={{ margin: 0 }}>Sin resultados para "{clientSearch}"</p>
+                                  </div>
+                                ) : filteredClients.map(client => (
+                                  <button
+                                    key={client.id} type="button"
+                                    onClick={() => handleSelectClient(client)}
+                                    style={{
+                                      width: '100%', textAlign: 'left', padding: '8px 12px',
+                                      fontSize: 13, border: 'none', cursor: 'pointer', background: '#fff',
+                                      borderBottom: '1px solid #f3f4f6',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#eff6ff'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8' }}>
+                                          {(client.name?.[0] ?? '?').toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.name}</p>
+                                        <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {client.document || ''}{client.phone ? ` · ${client.phone}` : ''}
+                                        </p>
+                                      </div>
                                     </div>
-                                    <p className="text-sm text-gray-500">No se encontraron clientes para</p>
-                                    <p className="text-sm font-semibold text-gray-700 mt-0.5">"{clientSearch}"</p>
-                                  </div>
-                                ) : (
-                                  <div className="max-h-64 overflow-y-auto">
-                                    {filteredClients.map(client => (
-                                      <button
-                                        key={client.id}
-                                        type="button"
-                                        onClick={() => handleSelectClient(client)}
-                                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-0 transition-colors group"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
-                                            <span className="text-xs font-bold text-blue-700">
-                                              {(client.name?.[0] ?? '?').toUpperCase()}
-                                            </span>
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
-                                            <p className="text-xs text-gray-500 truncate mt-0.5">
-                                              {client.document && <span className="mr-3">🪪 {client.document}</span>}
-                                              {client.phone && <span>📞 {client.phone}</span>}
-                                            </p>
-                                          </div>
-                                          <PlusIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
+                                  </button>
+                                ))}
                               </div>
                             )}
-                          </>
+                          </div>
                         ) : (
-                          <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-5 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-blue-700 text-sm font-semibold">
-                                ✅ Cliente seleccionado
-                              </div>
-                              <button
-                                type="button"
+                          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8' }}>Cliente seleccionado</span>
+                              <button type="button"
                                 onClick={() => setSaleForm({ ...saleForm, clientId: '', clientName: '', clientDocument: '' })}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                title="Cambiar cliente"
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
                               >
-                                <XIcon className="w-4 h-4" />
+                                <XIcon style={{ width: 14, height: 14 }} />
                               </button>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <p className="text-xs text-gray-500">Nombre completo</p>
-                                <p className="font-medium text-gray-800">{saleForm.clientName}</p>
-                              </div>
-                              {saleForm.clientDocument && (
-                                <div>
-                                  <p className="text-xs text-gray-500">Documento</p>
-                                  <p className="font-medium text-gray-800">{saleForm.clientDocument}</p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-xs text-gray-500">ID</p>
-                                <p className="font-medium text-gray-800">{saleForm.clientId}</p>
-                              </div>
-                            </div>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#111827' }}>{saleForm.clientName}</p>
+                            {saleForm.clientDocument && <p style={{ margin: 0, fontSize: 12, color: '#6b7280', marginTop: 2 }}>{saleForm.clientDocument}</p>}
                           </div>
                         )}
+                      </div>
 
-                        {/* Método de pago */}
-                        <div className="space-y-2">
-                          <Label className="text-base">Método de Pago <span className="text-red-500 ml-1">*</span></Label>
-                          <Select
-                            value={saleForm.paymentMethod}
-                            onValueChange={(value) => setSaleForm({ ...saleForm, paymentMethod: value })}
-                          >
-                            <SelectTrigger className="h-12">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Efectivo">Efectivo</SelectItem>
-                              <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                              <SelectItem value="Transferencia">Transferencia</SelectItem>
-                              <SelectItem value="Crédito">Crédito</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      {/* Método de pago */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, display: 'block' }}>
+                          Método de pago <span style={{ color: '#f87171' }}>*</span>
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          {[
+                            { value: 'Efectivo',      label: 'Efectivo',      Icon: Banknote },
+                            { value: 'Transferencia', label: 'Transferencia', Icon: ArrowLeftRight },
+                            { value: 'Tarjeta',       label: 'Tarjeta',       Icon: CreditCard },
+                            { value: 'Crédito',       label: 'Crédito',       Icon: Wallet },
+                          ].map(({ value, label, Icon }) => {
+                            const selected = saleForm.paymentMethod === value;
+                            return (
+                              <button key={value} type="button"
+                                onClick={() => setSaleForm({ ...saleForm, paymentMethod: value })}
+                                style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  gap: 6, padding: '10px 8px', borderRadius: 8,
+                                  border: `1px solid ${selected ? '#1d4ed8' : '#e5e7eb'}`,
+                                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                                  background: selected ? '#1d4ed8' : '#fff',
+                                  color: selected ? '#fff' : '#4b5563',
+                                  whiteSpace: 'nowrap', transition: 'all 0.15s',
+                                }}
+                              >
+                                <Icon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                                {label}
+                              </button>
+                            );
+                          })}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
+                  </aside>
 
-                    {/* ── Carrito ─────────────────────────────────────────── */}
-                    <Card className="shadow-2xl border-2 border-blue-100">
-                      <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg border-b-2 border-blue-300 py-6 px-8">
-                        <CardTitle className="text-2xl flex items-center text-blue-900">
-                          <ShoppingCartIcon className="w-5 h-5 mr-2" />
+                  {/* ── PANEL DERECHO (carrito) ── */}
+                  <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+
+                    {/* Header del panel */}
+                    <div style={{
+                      padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                      gap: 16, flexShrink: 0,
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 style={{ fontWeight: 700, color: '#111827', fontSize: 16, lineHeight: 1.2, margin: 0 }}>
                           Carrito de Venta
                           {saleForm.items.length > 0 && (
-                            <Badge className="ml-2 bg-blue-600 text-white">
+                            <span style={{ marginLeft: 8, fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
                               {saleForm.items.reduce((s, i) => s + i.quantity, 0)} items
-                            </Badge>
+                            </span>
                           )}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <div className="space-y-6">
+                        </h3>
+                        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 2, margin: 0 }}>
+                          Agrega productos para completar la venta.
+                        </p>
+                      </div>
+                    </div>
 
-                          {/* Búsqueda de productos */}
-                          <div className="p-8 border-b border-gray-200">
-                            <div className="space-y-5">
-                              <div className="space-y-2">
-                                <Label className="text-base">🔍 Buscar Productos</Label>
-                                <div className="relative">
-                                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                  <Input
-                                    placeholder="Buscar por nombre o código..."
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                    className="pl-12 h-12 text-base"
-                                  />
-                                </div>
+                    {/* Buscador de productos */}
+                    <div style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb', padding: '12px 24px', flexShrink: 0 }}>
+                      <div style={{ position: 'relative' }}>
+                        <SearchIcon style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', width: 14, height: 14 }} />
+                        <Input
+                          placeholder="Buscar producto por nombre o código..."
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                          style={{ paddingLeft: 36, height: 36, fontSize: 14 }}
+                        />
+                      </div>
+                      {productSearch && (
+                        <div style={{ marginTop: 8, overflowY: 'auto', maxHeight: 180 }}>
+                          {filteredProducts.length === 0 ? (
+                            <p style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: 12 }}>No se encontraron productos</p>
+                          ) : filteredProducts.map(product => (
+                            <div key={product.id} style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              padding: '8px 12px', marginBottom: 4, borderRadius: 8,
+                              border: `1px solid ${saleForm.items.some(i => i.id === product.id) ? '#93c5fd' : '#f3f4f6'}`,
+                              background: '#fff',
+                            }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 12, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+                                  {product.name}
+                                </p>
+                                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                                  {product.code} · ${product.price.toLocaleString()} · Stock: {product.stock}
+                                </p>
                               </div>
-
-                              {productSearch && (
-                                <div className="grid grid-cols-1 gap-3 border rounded-lg p-4 bg-gray-50">
-                                  {filteredProducts.length === 0 ? (
-                                    <p className="text-sm text-gray-500 text-center py-4">No se encontraron productos</p>
-                                  ) : filteredProducts.map(product => (
-                                    <Card key={product.id} className="border-gray-200 bg-white hover:border-blue-400 hover:shadow-lg transition-all">
-                                      <CardContent className="p-5">
-                                        <div className="space-y-3">
-                                          <div className="flex justify-between items-start">
-                                            <div className="space-y-1 flex-1">
-                                              <h4 className="text-base text-gray-900">{product.name}</h4>
-                                              <p className="text-sm text-gray-500">{product.code}</p>
-                                              <Badge variant="outline" className="text-xs">{product.category}</Badge>
-                                            </div>
-                                            <div className="text-right ml-3">
-                                              <Badge variant="secondary" className="text-blue-600 mb-2 text-sm px-3 py-1">
-                                                ${product.price.toLocaleString()}
-                                              </Badge>
-                                              <p className="text-sm text-gray-500">Stock: {product.stock}</p>
-                                            </div>
-                                          </div>
-                                          <Button
-                                            type="button" size="default" variant="outline"
-                                            onClick={() => handleAddProduct(product)}
-                                            className="w-full text-blue-600 border-blue-200 hover:bg-blue-50 h-10"
-                                          >
-                                            <PlusIcon className="w-4 h-4 mr-2" />Agregar
-                                          </Button>
-                                        </div>
-                                      </CardContent>
-                                    </Card>
-                                  ))}
-                                </div>
-                              )}
+                              <Button type="button" size="sm"
+                                onClick={() => handleAddProduct(product)}
+                                style={{ marginLeft: 12, flexShrink: 0, height: 28, fontSize: 11, padding: '0 10px', background: '#2563eb', color: '#fff' }}
+                              >
+                                <PlusIcon style={{ width: 12, height: 12, marginRight: 4 }} />
+                                Agregar
+                              </Button>
                             </div>
-                          </div>
-
-                          {/* Items en carrito */}
-                          <div className="space-y-3 p-8 border-b border-gray-200 bg-gray-50">
-                            {saleForm.items.length === 0 ? (
-                              <div className="text-center py-8 text-gray-500">
-                                <ShoppingCartIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                                <p>No hay productos en el carrito</p>
-                                <p className="text-sm">Busca y agrega productos arriba</p>
-                              </div>
-                            ) : saleForm.items.map(item => (
-                              <div key={item.id} className="bg-white rounded-lg p-3 border">
-                                <div className="flex justify-between items-start mb-2">
-                                  <div className="flex-1">
-                                    <h4 className="text-sm text-gray-900">{item.name}</h4>
-                                    <p className="text-xs text-gray-500">{item.code}</p>
-                                  </div>
-                                  <Button
-                                    type="button" size="sm" variant="outline"
-                                    onClick={() => handleRemoveProduct(item.id)}
-                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 w-8 h-8 p-0"
-                                  >
-                                    <XIcon className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2">
-                                    <Button type="button" size="sm" variant="outline"
-                                      onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                                      className="w-8 h-8 p-0">
-                                      <MinusIcon className="w-3 h-3" />
-                                    </Button>
-                                    <span className="text-sm w-10 text-center bg-white px-2 py-1 border rounded">{item.quantity}</span>
-                                    <Button type="button" size="sm" variant="outline"
-                                      onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                                      className="w-8 h-8 p-0">
-                                      <PlusIcon className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-xs text-gray-500">${item.price.toLocaleString()} c/u</p>
-                                    <p className="text-sm text-gray-900">${(item.quantity * item.price).toLocaleString()}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Resumen de totales */}
-                          {saleForm.items.length > 0 && (
-                            <div className="px-8 pb-8">
-                              <div className="bg-blue-50 rounded-lg p-6 border-2 border-blue-200 space-y-3">
-                                <div className="flex justify-between text-base">
-                                  <span className="text-gray-700">Subtotal:</span>
-                                  <span>${subtotal.toLocaleString()}</span>
-                                </div>
-                                <div className="border-t-2 border-blue-300 pt-3 flex justify-between text-xl">
-                                  <span>Total:</span>
-                                  <span className="text-blue-600">${subtotal.toLocaleString()}</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          ))}
                         </div>
-                      </CardContent>
-                    </Card>
+                      )}
+                    </div>
 
+                    {/* Items del carrito */}
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                      {saleForm.items.length === 0 ? (
+                        <div style={{
+                          margin: 24, display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center',
+                          padding: '64px 0', borderRadius: 12,
+                          border: '2px dashed #e5e7eb', color: '#9ca3af',
+                        }}>
+                          <ShoppingCartIcon style={{ width: 48, height: 48, marginBottom: 12, opacity: 0.25 }} />
+                          <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>Sin productos aún</p>
+                          <p style={{ fontSize: 12, marginTop: 4, margin: 0 }}>Busca y agrega productos arriba</p>
+                        </div>
+                      ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producto</th>
+                              <th style={{ textAlign: 'center', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 120 }}>Cantidad</th>
+                              <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 120 }}>Subtotal</th>
+                              <th style={{ width: 40 }} />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {saleForm.items.map(item => (
+                              <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '12px 24px' }}>
+                                  <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
+                                  <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString()} c/u</p>
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', background: '#fff', width: 'fit-content', margin: '0 auto' }}>
+                                    <button type="button"
+                                      onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                      disabled={item.quantity <= 1}
+                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer', opacity: item.quantity <= 1 ? 0.3 : 1 }}
+                                    >−</button>
+                                    <span style={{ width: 36, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>{item.quantity}</span>
+                                    <button type="button"
+                                      onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: 'pointer' }}
+                                    >+</button>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '12px 24px', textAlign: 'right' }}>
+                                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                    ${(item.quantity * item.price).toLocaleString()}
+                                  </span>
+                                </td>
+                                <td style={{ paddingRight: 12 }}>
+                                  <button type="button"
+                                    onClick={() => handleRemoveProduct(item.id)}
+                                    style={{ color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+                                  >
+                                    <XIcon style={{ width: 16, height: 16 }} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+
+                    {/* Totales */}
+                    {saleForm.items.length > 0 && (
+                      <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px 24px', flexShrink: 0, background: '#fff' }}>
+                        <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
+                            <span style={{ fontWeight: 700, color: '#111827' }}>Total</span>
+                            <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>
+                              ${subtotal.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                {/* ════ FOOTER ════ */}
+                <footer style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: 16, padding: '12px 24px',
+                  borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
+                }}>
+                  <p style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                    <Info style={{ width: 14, height: 14, flexShrink: 0 }} />
+                    Todos los precios están en COP
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <Button
+                      type="button" variant="outline" disabled={submitting}
+                      onClick={() => { resetSaleForm(); setShowNewSaleModal(false); if (onClearClientFilter) onClearClientFilter(); }}
+                      style={{ height: 36, padding: '0 16px' }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={!saleForm.clientId || saleForm.items.length === 0 || submitting}
+                      style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                    >
+                      {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
+                      Registrar Venta
+                    </Button>
                   </div>
-                </div>
-
-                {/* Footer botones */}
-                <div className="flex-shrink-0 flex gap-6 border-t border-gray-200 bg-white px-8 py-6 shadow-lg">
-                  <Button
-                    type="button" variant="outline" disabled={submitting}
-                    onClick={() => { resetSaleForm(); setShowNewSaleModal(false); if (onClearClientFilter) onClearClientFilter(); }}
-                    className="flex-1 h-14 text-base"
-                  >
-                    <RotateCcwIcon className="w-5 h-5 mr-2" />Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 h-14 bg-blue-600 hover:bg-blue-700 text-lg"
-                    disabled={!saleForm.clientId || saleForm.items.length === 0 || submitting}
-                  >
-                    <ShoppingCartIcon className="w-5 h-5 mr-2" />
-                    {submitting ? 'Registrando...' : 'Registrar Venta'}
-                  </Button>
-                </div>
+                </footer>
               </form>
             </DialogContent>
           </Dialog>

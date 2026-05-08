@@ -120,6 +120,14 @@ function FieldError({ msg }: { msg?: string }) {
     );
 }
 
+const Sf = {
+    label: {
+        fontSize: 11, fontWeight: 600, color: '#6b7280',
+        textTransform: 'uppercase' as const, letterSpacing: '0.05em',
+        marginBottom: 6, display: 'block',
+    },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 export function SupplyManagement() {
     const [supplies, setSupplies]       = useState<Supply[]>([]);
@@ -614,89 +622,104 @@ export function SupplyManagement() {
 
             {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>{editingSupply ? 'Editar Insumo' : 'Nuevo Insumo'}</DialogTitle>
-                            <DialogDescription>
-                                {editingSupply
-                                    ? 'Modifica los datos del insumo.'
-                                    : 'Completa el formulario para registrar un nuevo insumo.'}
+                <DialogContent
+                    className="p-0 gap-0 overflow-hidden"
+                    style={{
+                        width: '96vw', maxWidth: 680, height: '92vh', maxHeight: '92vh',
+                        display: 'flex', flexDirection: 'column',
+                    }}
+                >
+                    {/* HEADER */}
+                    <header style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                        flexShrink: 0, background: '#fff',
+                    }}>
+                        <div style={{
+                            width: 40, height: 40, background: '#1d4ed8',
+                            borderRadius: 8, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                        }}>
+                            <Package style={{ width: 20, height: 20, color: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+                            <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
+                                {editingSupply ? 'Editar Insumo' : 'Nuevo Insumo'}
+                            </DialogTitle>
+                            <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                                {editingSupply ? 'Modifica los datos del insumo.' : 'Completa el formulario para registrar un nuevo insumo.'}
                             </DialogDescription>
-                        </DialogHeader>
+                        </div>
+                    </header>
 
-                        <form onSubmit={handleSubmit} noValidate className="space-y-5 mt-4">
+                    {/* BODY */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f9fafb' }}>
+                        <form id="supply-form" onSubmit={handleSubmit} noValidate>
 
                             {/* Nombre */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
-                                    Nombre del insumo <span className="text-red-500">*</span>
-                                    <span className="ml-1 text-xs text-gray-400">(2–50 caracteres)</span>
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
+                                    Nombre del insumo <span style={{ color: '#f87171' }}>*</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–50 caracteres)</span>
                                 </label>
                                 <Input
                                     value={formData.name}
-                                    onChange={(e) =>
-                                        setFormData(prev => ({ ...prev, name: e.target.value }))
-                                    }
-                                    maxLength={50}
-                                    placeholder="Ej: Aceite Motor 5W-30"
+                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                    maxLength={50} placeholder="Ej: Aceite Motor 5W-30"
                                     className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
                                 <FieldError msg={formErrors.name} />
                             </div>
 
                             {/* Descripción */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
                                     Descripción
-                                    <span className="ml-1 text-xs text-gray-400">(máx. 255 caracteres)</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(máx. 255 caracteres)</span>
                                 </label>
                                 <textarea
                                     value={formData.description}
-                                    onChange={(e) =>
-                                        setFormData(prev => ({ ...prev, description: e.target.value }))
-                                    }
-                                    maxLength={255}
-                                    rows={3}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                    maxLength={255} rows={3}
                                     placeholder="Descripción detallada del insumo"
-                                    className={`w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-                                        formErrors.description
-                                            ? 'border-red-400 focus:ring-red-300'
-                                            : 'border-gray-200'
-                                    }`}
+                                    style={{
+                                        width: '100%', border: `1px solid ${formErrors.description ? '#f87171' : '#e5e7eb'}`,
+                                        borderRadius: 6, padding: '8px 12px', fontSize: 14, resize: 'none',
+                                        background: '#fff', outline: 'none',
+                                    }}
                                 />
-                                <div className="flex justify-between items-center mt-1">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                                     <FieldError msg={formErrors.description} />
-                                    <span className={`text-xs ml-auto ${formData.description.length > 230 ? 'text-amber-500' : 'text-gray-400'}`}>
+                                    <span style={{ fontSize: 11, marginLeft: 'auto', color: formData.description.length > 230 ? '#f59e0b' : '#9ca3af' }}>
                                         {formData.description.length}/255
                                     </span>
                                 </div>
                             </div>
 
                             {/* Proveedores (multi-select) */}
-                            <div className="relative">
-                                <label className="block text-sm text-gray-700 mb-2">
+                            <div style={{ marginBottom: 18, position: 'relative' }}>
+                                <label style={Sf.label}>
                                     Proveedores
-                                    <span className="ml-1 text-xs text-gray-400">(opcional — puedes agregar varios)</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional — puedes agregar varios)</span>
                                 </label>
 
-                                {/* Chips de proveedores seleccionados */}
                                 {formData.proveedoresIds.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-2">
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                         {formData.proveedoresIds.map(id => {
                                             const p = proveedores.find(pr => pr.id === id);
                                             return p ? (
-                                                <span key={id} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full">
+                                                <span key={id} style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                    background: '#dbeafe', color: '#1e40af', fontSize: 12,
+                                                    fontWeight: 500, padding: '3px 10px', borderRadius: 99,
+                                                }}>
                                                     {p.nombre}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setFormData(prev => ({
-                                                            ...prev,
-                                                            proveedoresIds: prev.proveedoresIds.filter(i => i !== id),
-                                                        }))}
-                                                        className="ml-0.5 hover:text-blue-600"
+                                                    <button type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, proveedoresIds: prev.proveedoresIds.filter(i => i !== id) }))}
+                                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', padding: 0, lineHeight: 0 }}
                                                     >
-                                                        <X className="w-3 h-3" />
+                                                        <X style={{ width: 12, height: 12 }} />
                                                     </button>
                                                 </span>
                                             ) : null;
@@ -704,94 +727,82 @@ export function SupplyManagement() {
                                     </div>
                                 )}
 
-                                {/* Autocomplete */}
-                                <div className="relative flex items-center border rounded-md border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
-                                    <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
+                                <div style={{
+                                    display: 'flex', alignItems: 'center',
+                                    border: '1px solid #e5e7eb', borderRadius: 6,
+                                    background: '#fff', overflow: 'visible',
+                                }}>
+                                    <Search style={{ width: 14, height: 14, color: '#9ca3af', marginLeft: 12, flexShrink: 0 }} />
                                     <input
-                                        type="text"
-                                        value={proveedorQuery}
+                                        type="text" value={proveedorQuery}
                                         placeholder="Buscar proveedor por nombre..."
-                                        className="flex-1 px-2 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400"
+                                        style={{ flex: 1, padding: '0 10px', height: 40, fontSize: 14, background: 'transparent', border: 'none', outline: 'none' }}
                                         onChange={e => { setProveedorQuery(e.target.value); setProveedorOpen(true); }}
                                         onFocus={() => setProveedorOpen(true)}
                                     />
                                     {proveedorQuery && (
-                                        <button type="button" className="p-2 text-gray-400 hover:text-gray-600"
-                                            onClick={() => { setProveedorQuery(''); setProveedorOpen(false); }}>
-                                            <X className="w-3.5 h-3.5" />
+                                        <button type="button" onClick={() => { setProveedorQuery(''); setProveedorOpen(false); }}
+                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 10px', color: '#9ca3af' }}>
+                                            <X style={{ width: 14, height: 14 }} />
                                         </button>
                                     )}
                                 </div>
 
                                 {proveedorOpen && proveedorQuery && (
-                                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                                    <div style={{
+                                        position: 'absolute', zIndex: 9999, width: '100%', marginTop: 4,
+                                        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6,
+                                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', maxHeight: 180, overflowY: 'auto',
+                                    }}>
                                         {(() => {
                                             const filtrados = proveedores
-                                                .filter(p =>
-                                                    p.nombre.toLowerCase().includes(proveedorQuery.toLowerCase()) &&
-                                                    !formData.proveedoresIds.includes(p.id)
-                                                )
+                                                .filter(p => p.nombre.toLowerCase().includes(proveedorQuery.toLowerCase()) && !formData.proveedoresIds.includes(p.id))
                                                 .slice(0, 8);
                                             return filtrados.length === 0 ? (
-                                                <p className="px-4 py-3 text-sm text-gray-500">No se encontraron proveedores</p>
-                                            ) : (
-                                                <ul className="max-h-48 overflow-y-auto divide-y divide-gray-100">
-                                                    {filtrados.map(p => (
-                                                        <li key={p.id}>
-                                                            <button
-                                                                type="button"
-                                                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors"
-                                                                onClick={() => {
-                                                                    setFormData(prev => ({
-                                                                        ...prev,
-                                                                        proveedoresIds: [...prev.proveedoresIds, p.id],
-                                                                    }));
-                                                                    setProveedorQuery('');
-                                                                    setProveedorOpen(false);
-                                                                }}
-                                                            >
-                                                                {p.nombre}
-                                                            </button>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            );
+                                                <p style={{ padding: '12px 16px', fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>No se encontraron proveedores</p>
+                                            ) : filtrados.map(p => (
+                                                <button key={p.id} type="button"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setFormData(prev => ({ ...prev, proveedoresIds: [...prev.proveedoresIds, p.id] }));
+                                                        setProveedorQuery(''); setProveedorOpen(false);
+                                                    }}
+                                                    style={{
+                                                        width: '100%', textAlign: 'left', padding: '8px 16px',
+                                                        fontSize: 14, border: 'none', cursor: 'pointer', background: '#fff',
+                                                        color: '#1f2937',
+                                                    }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = '#eff6ff'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+                                                >
+                                                    {p.nombre}
+                                                </button>
+                                            ));
                                         })()}
                                     </div>
                                 )}
                             </div>
 
                             {/* Precio + Unidad */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Precio unitario <span className="text-red-500">*</span>
-                                        <span className="ml-1 text-xs text-gray-400">(≥ 0)</span>
+                                    <label style={Sf.label}>
+                                        Precio unitario <span style={{ color: '#f87171' }}>*</span>
+                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(≥ 0)</span>
                                     </label>
                                     <Input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={formData.price}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({ ...prev, price: e.target.value }))
-                                        }
+                                        type="number" step="0.01" min="0" value={formData.price}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                                         placeholder="45000"
                                         className={formErrors.price ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
                                     <FieldError msg={formErrors.price} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Unidad de medida <span className="text-red-500">*</span>
-                                    </label>
-                                    <Select
-                                        value={formData.unit}
-                                        onValueChange={(value) =>
-                                            setFormData(prev => ({ ...prev, unit: value }))
-                                        }
-                                    >
-                                        <SelectTrigger className={formErrors.unit ? 'border-red-400' : ''}>
+                                    <label style={Sf.label}>Unidad de medida <span style={{ color: '#f87171' }}>*</span></label>
+                                    <Select value={formData.unit} onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}>
+                                        <SelectTrigger className={formErrors.unit ? 'border-red-400' : ''} style={{ height: 40, background: '#fff', fontSize: 14 }}>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -806,51 +817,55 @@ export function SupplyManagement() {
                             </div>
 
                             {/* Cantidad */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
                                     Cantidad
-                                    <span className="ml-1 text-xs text-gray-400">(opcional, ≥ 0)</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional, ≥ 0)</span>
                                 </label>
                                 <Input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={formData.cantidad}
+                                    type="number" min="0" step="1" value={formData.cantidad}
                                     onChange={e => setFormData(prev => ({ ...prev, cantidad: e.target.value }))}
                                     placeholder="0"
                                     className={formErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
                                 <FieldError msg={formErrors.cantidad} />
                             </div>
 
                             {/* Estado — solo al editar */}
                             {editingSupply && (
-                                <div className="border-t border-gray-200 pt-4">
-                                    <div className="flex items-center space-x-3">
+                                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                         <Switch
                                             checked={formData.status}
-                                            onCheckedChange={(checked) =>
-                                                setFormData(prev => ({ ...prev, status: checked }))
-                                            }
+                                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, status: checked }))}
                                         />
-                                        <label className="text-sm text-gray-600">
+                                        <label style={{ fontSize: 13, color: '#4b5563' }}>
                                             {formData.status ? 'Disponible' : 'Agotado'}
                                         </label>
                                     </div>
                                 </div>
                             )}
-
-                            <div className="flex justify-end gap-2 pt-4 border-t">
-                                <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
-                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    {editingSupply ? 'Actualizar Insumo' : 'Crear Insumo'}
-                                </Button>
-                            </div>
                         </form>
                     </div>
+
+                    {/* FOOTER */}
+                    <footer style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                        gap: 8, padding: '12px 24px',
+                        borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
+                    }}>
+                        <Button variant="outline" onClick={resetForm} disabled={saving} style={{ height: 36, padding: '0 16px' }}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            form="supply-form" type="submit" disabled={saving}
+                            style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                        >
+                            {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
+                            {editingSupply ? 'Actualizar Insumo' : 'Crear Insumo'}
+                        </Button>
+                    </footer>
                 </DialogContent>
             </Dialog>
 

@@ -159,6 +159,14 @@ const onlyDoc     = (v: string, tipo: string) => {
     return v;
 };
 
+const Sf = {
+    label: {
+        fontSize: 11, fontWeight: 600, color: '#6b7280',
+        textTransform: 'uppercase' as const, letterSpacing: '0.05em',
+        marginBottom: 6, display: 'block',
+    },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 export function SupplierManagement() {
     const [suppliers, setSuppliers]     = useState<Supplier[]>([]);
@@ -663,26 +671,45 @@ export function SupplierManagement() {
 
             {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Nuevo Proveedor'}</DialogTitle>
-                            <DialogDescription>
-                                {editingSupplier
-                                    ? 'Modifica la información del proveedor.'
-                                    : 'Completa el formulario para registrar un nuevo proveedor.'}
+                <DialogContent
+                    className="p-0 gap-0 overflow-hidden"
+                    style={{
+                        width: '96vw', maxWidth: 680, height: '92vh', maxHeight: '92vh',
+                        display: 'flex', flexDirection: 'column',
+                    }}
+                >
+                    {/* HEADER */}
+                    <header style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                        flexShrink: 0, background: '#fff',
+                    }}>
+                        <div style={{
+                            width: 40, height: 40, background: '#1d4ed8',
+                            borderRadius: 8, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0,
+                        }}>
+                            <Building2 style={{ width: 20, height: 20, color: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+                            <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
+                                {editingSupplier ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+                            </DialogTitle>
+                            <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                                {editingSupplier ? 'Modifica la información del proveedor.' : 'Completa el formulario para registrar un nuevo proveedor.'}
                             </DialogDescription>
-                        </DialogHeader>
+                        </div>
+                    </header>
 
-                        <form onSubmit={handleSubmit} noValidate className="space-y-5 mt-4">
+                    {/* BODY */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f9fafb' }}>
+                        <form id="supplier-form" onSubmit={handleSubmit} noValidate>
 
                             {/* Tipo de proveedor */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
-                                    Tipo de proveedor <span className="text-red-500">*</span>
-                                </label>
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>Tipo de proveedor <span style={{ color: '#f87171' }}>*</span></label>
                                 <Select value={formData.type} onValueChange={handleTypeChange}>
-                                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger style={{ height: 40, background: '#fff', fontSize: 14 }}><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="persona">Persona Natural</SelectItem>
                                         <SelectItem value="empresa">Empresa</SelectItem>
@@ -691,18 +718,16 @@ export function SupplierManagement() {
                             </div>
 
                             {/* Tipo + Número de documento */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Tipo de documento <span className="text-red-500">*</span>
-                                    </label>
+                                    <label style={Sf.label}>Tipo de documento <span style={{ color: '#f87171' }}>*</span></label>
                                     <Select
                                         value={formData.documentType}
                                         onValueChange={(value) =>
                                             setFormData(prev => ({ ...prev, documentType: value, documentNumber: '' }))
                                         }
                                     >
-                                        <SelectTrigger className={formErrors.documentType ? 'border-red-400' : ''}>
+                                        <SelectTrigger className={formErrors.documentType ? 'border-red-400' : ''} style={{ height: 40, background: '#fff', fontSize: 14 }}>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -724,9 +749,7 @@ export function SupplierManagement() {
                                     <FieldError msg={formErrors.documentType} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Número de documento <span className="text-red-500">*</span>
-                                    </label>
+                                    <label style={Sf.label}>Número de documento <span style={{ color: '#f87171' }}>*</span></label>
                                     <Input
                                         value={formData.documentNumber}
                                         onChange={(e) =>
@@ -738,6 +761,7 @@ export function SupplierManagement() {
                                         maxLength={20}
                                         placeholder={formData.documentType === 'NIT' ? '900123456-7' : '123456789'}
                                         className={formErrors.documentNumber ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
                                     <FieldError msg={formErrors.documentNumber} />
                                 </div>
@@ -745,68 +769,54 @@ export function SupplierManagement() {
 
                             {/* Nombre / Razón social */}
                             {formData.type === 'persona' ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
-                                            Nombre <span className="text-red-500">*</span>
-                                        </label>
+                                        <label style={Sf.label}>Nombre <span style={{ color: '#f87171' }}>*</span></label>
                                         <Input
                                             value={formData.firstName}
-                                            onChange={(e) =>
-                                                setFormData(prev => ({ ...prev, firstName: onlyLetters(e.target.value) }))
-                                            }
-                                            maxLength={100}
-                                            placeholder="Juan"
+                                            onChange={(e) => setFormData(prev => ({ ...prev, firstName: onlyLetters(e.target.value) }))}
+                                            maxLength={100} placeholder="Juan"
                                             className={formErrors.firstName ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                            style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
                                         <FieldError msg={formErrors.firstName} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
-                                            Apellido <span className="text-red-500">*</span>
-                                        </label>
+                                        <label style={Sf.label}>Apellido <span style={{ color: '#f87171' }}>*</span></label>
                                         <Input
                                             value={formData.lastName}
-                                            onChange={(e) =>
-                                                setFormData(prev => ({ ...prev, lastName: onlyLetters(e.target.value) }))
-                                            }
-                                            maxLength={100}
-                                            placeholder="Pérez"
+                                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: onlyLetters(e.target.value) }))}
+                                            maxLength={100} placeholder="Pérez"
                                             className={formErrors.lastName ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                            style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
                                         <FieldError msg={formErrors.lastName} />
                                     </div>
                                 </div>
                             ) : (
                                 <>
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
-                                            Nombre de la empresa <span className="text-red-500">*</span>
-                                            <span className="ml-1 text-xs text-gray-400">(2–100 caracteres)</span>
+                                    <div style={{ marginBottom: 18 }}>
+                                        <label style={Sf.label}>
+                                            Nombre de la empresa <span style={{ color: '#f87171' }}>*</span>
+                                            <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–100 caracteres)</span>
                                         </label>
                                         <Input
                                             value={formData.name}
-                                            onChange={(e) =>
-                                                setFormData(prev => ({ ...prev, name: e.target.value }))
-                                            }
-                                            maxLength={100}
-                                            placeholder="AutoPartes Central S.A.S."
+                                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            maxLength={100} placeholder="AutoPartes Central S.A.S."
                                             className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                            style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
                                         <FieldError msg={formErrors.name} />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
-                                            Representante Legal <span className="text-red-500">*</span>
-                                        </label>
+                                    <div style={{ marginBottom: 18 }}>
+                                        <label style={Sf.label}>Representante Legal <span style={{ color: '#f87171' }}>*</span></label>
                                         <Input
                                             value={formData.legalRepresentative}
-                                            onChange={(e) =>
-                                                setFormData(prev => ({ ...prev, legalRepresentative: onlyLetters(e.target.value) }))
-                                            }
-                                            maxLength={100}
-                                            placeholder="Juan Pérez"
+                                            onChange={(e) => setFormData(prev => ({ ...prev, legalRepresentative: onlyLetters(e.target.value) }))}
+                                            maxLength={100} placeholder="Juan Pérez"
                                             className={formErrors.legalRepresentative ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                            style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
                                         <FieldError msg={formErrors.legalRepresentative} />
                                     </div>
@@ -814,107 +824,103 @@ export function SupplierManagement() {
                             )}
 
                             {/* Correo */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
-                                    Correo electrónico <span className="text-red-500">*</span>
-                                    <span className="ml-1 text-xs text-gray-400">(máx. 50 caracteres)</span>
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
+                                    Correo electrónico <span style={{ color: '#f87171' }}>*</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(máx. 50 caracteres)</span>
                                 </label>
                                 <Input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) =>
-                                        setFormData(prev => ({ ...prev, email: e.target.value.replace(/\s/g, '') }))
-                                    }
-                                    maxLength={50}
-                                    placeholder="ventas@proveedor.com"
+                                    type="email" value={formData.email}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value.replace(/\s/g, '') }))}
+                                    maxLength={50} placeholder="ventas@proveedor.com"
                                     className={formErrors.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
                                 <FieldError msg={formErrors.email} />
                             </div>
 
                             {/* Teléfono + Ciudad */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Teléfono <span className="text-red-500">*</span>
-                                        <span className="ml-1 text-xs text-gray-400">(máx. 10 caracteres)</span>
+                                    <label style={Sf.label}>
+                                        Teléfono <span style={{ color: '#f87171' }}>*</span>
+                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(máx. 10)</span>
                                     </label>
                                     <Input
-                                        type="tel"
-                                        value={formData.phone}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))
-                                        }
-                                        maxLength={10}
-                                        placeholder="3001234567"
+                                        type="tel" value={formData.phone}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))}
+                                        maxLength={10} placeholder="3001234567"
                                         className={formErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
                                     <FieldError msg={formErrors.phone} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
+                                    <label style={Sf.label}>
                                         Ciudad
-                                        <span className="ml-1 text-xs text-gray-400">(opcional)</span>
+                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional)</span>
                                     </label>
                                     <Input
                                         value={formData.city}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({ ...prev, city: onlyLetters(e.target.value) }))
-                                        }
-                                        maxLength={50}
-                                        placeholder="Medellín"
+                                        onChange={(e) => setFormData(prev => ({ ...prev, city: onlyLetters(e.target.value) }))}
+                                        maxLength={50} placeholder="Medellín"
                                         className={formErrors.city ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
                                     <FieldError msg={formErrors.city} />
                                 </div>
                             </div>
 
                             {/* Dirección */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
                                     Dirección
-                                    <span className="ml-1 text-xs text-gray-400">(opcional)</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional)</span>
                                 </label>
                                 <Input
                                     value={formData.address}
-                                    onChange={(e) =>
-                                        setFormData(prev => ({ ...prev, address: e.target.value }))
-                                    }
-                                    maxLength={200}
-                                    placeholder="Calle 45 #23-67"
+                                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                                    maxLength={200} placeholder="Calle 45 #23-67"
                                     className={formErrors.address ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
                                 <FieldError msg={formErrors.address} />
                             </div>
 
                             {/* Estado — solo al editar */}
                             {editingSupplier && (
-                                <div className="border-t border-gray-200 pt-4">
-                                    <div className="flex items-center space-x-3">
+                                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                         <Switch
                                             checked={formData.isActive}
-                                            onCheckedChange={(checked) =>
-                                                setFormData(prev => ({ ...prev, isActive: checked }))
-                                            }
+                                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
                                         />
-                                        <label className="text-sm text-gray-600">
+                                        <label style={{ fontSize: 13, color: '#4b5563' }}>
                                             {formData.isActive ? 'Proveedor activo' : 'Proveedor inactivo'}
                                         </label>
                                     </div>
                                 </div>
                             )}
-
-                            <div className="flex justify-end gap-2 pt-4 border-t">
-                                <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
-                                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    {editingSupplier ? 'Actualizar Proveedor' : 'Crear Proveedor'}
-                                </Button>
-                            </div>
                         </form>
                     </div>
+
+                    {/* FOOTER */}
+                    <footer style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                        gap: 8, padding: '12px 24px',
+                        borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
+                    }}>
+                        <Button variant="outline" onClick={resetForm} disabled={saving} style={{ height: 36, padding: '0 16px' }}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            form="supplier-form" type="submit" disabled={saving}
+                            style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                        >
+                            {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
+                            {editingSupplier ? 'Actualizar Proveedor' : 'Crear Proveedor'}
+                        </Button>
+                    </footer>
                 </DialogContent>
             </Dialog>
 
