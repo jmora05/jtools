@@ -53,13 +53,6 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
         comment: 'Identificador del empleado responsable'
     },
 
-    pedidoId: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: { model: 'pedidos', key: 'id' },
-        comment: 'Identificador del pedido asociado (solo si tipoOrden es Pedido)'
-    },
-
     // ⚠️ Se usa STRING en lugar de ENUM para evitar que Sequelize alter:true
     //    genere SQL inválido en PostgreSQL al intentar cambiar el tipo.
     tipoOrden: {

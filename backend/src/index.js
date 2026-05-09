@@ -34,12 +34,10 @@ const ordenesProduccionRoutes      = require('./routes/ordenesProduccionRoutes.j
 const ventasRoutes                 = require('./routes/ventasRoutes.js');
 const proveedoresRoutes            = require('./routes/proveedoresRoutes.js');
 const productosRoutes              = require('./routes/productosRoutes.js');
-const pedidosRoutes                = require('./routes/pedidosRoutes.js');
 const novedadesRoutes              = require('./routes/novedadesRoutes.js');
 const insumosRoutes                = require('./routes/insumosRoutes.js');
 const insumoProductoRoutes         = require('./routes/insumoProductoRoutes.js');
 const detalleVentasRoutes          = require('./routes/detalleVentasRoutes.js');
-const detallePedidosRoutes         = require('./routes/detallePedidosRoutes.js');
 const detalleOrdenRoutes           = require('./routes/detalleOrdenRoutes.js');
 const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes.js');
 const comprasRoutes                = require('./routes/comprasRoutes.js');
@@ -50,6 +48,8 @@ const permisosRoutes               = require('./routes/permisosRoutes.js');
 const rolesRoutes                  = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
+const horasExtraRoutes             = require('./routes/horasExtraRoutes.js');
+const nominaRoutes                 = require('./routes/nominaRoutes.js');
 const { verifyToken, requireAdmin }              = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
@@ -61,7 +61,6 @@ app.use('/api/auth',                               authRoutes);
 
 // ── Rutas PROTEGIDAS (cualquier usuario autenticado) ──
 app.use('/api/productos',               verifyToken, productosRoutes);
-app.use('/api/pedidos',                 verifyToken, pedidosRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
 app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
 
@@ -79,9 +78,10 @@ app.use('/api/fichas-tecnicas',         verifyToken, requireAdmin, fichaTecnicaR
 app.use('/api/novedades',               verifyToken, novedadesRoutes);
 app.use('/api/insumo-producto',         verifyToken, requireAdmin, insumoProductoRoutes);
 app.use('/api/detalle-ventas',          verifyToken, detalleVentasRoutes);
-app.use('/api/detalle-pedidos',         verifyToken, detallePedidosRoutes);
 app.use('/api/detalle-orden',           verifyToken, requireAdmin, detalleOrdenRoutes);
 app.use('/api/detalle-compra-insumo',   verifyToken, requireAdmin, detalleCompraInsumoRoutes);
+app.use('/api/horas-extra',             verifyToken, requireAdmin, horasExtraRoutes);
+app.use('/api/nomina',                  verifyToken, requireAdmin, nominaRoutes);
 
 // ================= CONEXIÓN + SINCRONIZACIÓN =================
 testConnection()

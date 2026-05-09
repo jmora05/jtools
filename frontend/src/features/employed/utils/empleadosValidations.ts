@@ -15,6 +15,7 @@ export type FormState = {
   direccion: string;
   ciudad: string;
   fechaIngreso: string;
+  salario: string;
   estado: 'activo' | 'inactivo';
 };
 
@@ -157,6 +158,14 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       return '';
     }
 
+    case 'salario': {
+      if (!v) return 'El salario base es obligatorio';
+      const sal = parseFloat(v);
+      if (isNaN(sal) || sal < 1423500)
+        return 'El salario no puede ser menor al SMMLV ($1.423.500)';
+      return '';
+    }
+
     case 'ciudad':
       if (v && v.length > 50)       return 'Máximo 50 caracteres';
       if (v && !SOLO_LETRAS.test(v)) return 'Solo letras, espacios y guiones';
@@ -178,7 +187,7 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
 export function validarFormEmpleado(form: FormState): FormErrors {
   const campos: (keyof FormState)[] = [
     'nombres', 'apellidos', 'numeroDocumento', 'email',
-    'telefono', 'cargo', 'area', 'fechaIngreso', 'ciudad', 'direccion',
+    'telefono', 'cargo', 'area', 'fechaIngreso', 'salario', 'ciudad', 'direccion',
   ];
   const errores: FormErrors = {};
   for (const campo of campos) {

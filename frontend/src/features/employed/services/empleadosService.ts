@@ -13,6 +13,7 @@ export type Empleado = {
   direccion?: string;
   ciudad?: string;
   fechaIngreso: string;
+  salario: number;
   estado: 'activo' | 'inactivo';
 };
 
@@ -85,6 +86,14 @@ export async function verificarPuedeEliminarse(id: number): Promise<Verificacion
 
 export async function desactivarEmpleado(id: number): Promise<{ message: string }> {
   const res = await fetch(`${BASE}/empleados/${id}/desactivar`, {
+    method: 'PUT',
+    headers: buildAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function reactivarEmpleado(id: number): Promise<{ message: string }> {
+  const res = await fetch(`${BASE}/empleados/${id}/reactivar`, {
     method: 'PUT',
     headers: buildAuthHeaders(),
   });

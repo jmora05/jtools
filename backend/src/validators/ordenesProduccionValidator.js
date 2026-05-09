@@ -4,7 +4,7 @@
 // ============================================================
 
 const ESTADOS_VALIDOS = ['Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada'];
-const TIPOS_VALIDOS   = ['Pedido', 'Venta'];
+const TIPOS_VALIDOS   = ['Venta'];
 
 // Transiciones de estado permitidas (máquina de estados)
 const TRANSICIONES_PERMITIDAS = {
@@ -69,10 +69,10 @@ function validarNota(nota, errores) {
  */
 function validarCrearOrden(data) {
   const errores = [];
-  const { productoId, cantidad, responsableId, tipoOrden, fechaEntrega, nota, pedidoId } = data;
+  const { productoId, cantidad, responsableId, tipoOrden, fechaEntrega, nota } = data;
 
   // ── 1. Campos obligatorios ─────────────────────────────────────────────────
-  if (!tipoOrden)                                                    errores.push('El tipo de orden es obligatorio (Pedido o Venta)');
+  if (!tipoOrden)                                                    errores.push('El tipo de orden es obligatorio');
   if (!productoId && productoId !== 0)                               errores.push('El producto es obligatorio');
   if (cantidad === undefined || cantidad === null || cantidad === '') errores.push('La cantidad es obligatoria');
   if (!responsableId && responsableId !== 0)                         errores.push('El responsable es obligatorio');
@@ -103,14 +103,7 @@ function validarCrearOrden(data) {
     errores.push('El responsableId debe ser un número entero positivo');
   }
 
-  // ── 6. pedidoId — opcional en ambos tipos de orden ────────────────────────
-  if (pedidoId !== undefined && pedidoId !== null && pedidoId !== '') {
-    if (!esEnteroPositivo(pedidoId)) {
-      errores.push('El pedidoId debe ser un número entero positivo');
-    }
-  }
-
-  // ── 7. Fecha de entrega ────────────────────────────────────────────────────
+  // ── 6. Fecha de entrega ────────────────────────────────────────────────────
   validarFechaEntrega(fechaEntrega, errores);
 
   // ── 8. Nota (opcional) ─────────────────────────────────────────────────────

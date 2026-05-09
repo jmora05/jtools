@@ -1,7 +1,7 @@
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
 
 export type EstadoOrden = 'Pendiente' | 'En Proceso' | 'Pausada' | 'Finalizada' | 'Anulada';
-export type TipoOrden   = 'Pedido' | 'Venta';
+export type TipoOrden   = 'Venta';
 
 export type OrdenProduccion = {
   id?: number;
@@ -9,7 +9,6 @@ export type OrdenProduccion = {
   productoId: number;
   cantidad: number;
   responsableId: number;
-  pedidoId?: number | null;
   tipoOrden?: TipoOrden;
   estado?: EstadoOrden;
   fechaEntrega: string;
@@ -21,7 +20,6 @@ export type OrdenProduccion = {
   updatedAt?: string;
   producto?: { id: number; nombreProducto: string; referencia: string };
   responsable?: { id: number; nombres: string; apellidos: string; cargo: string };
-  pedido?: { id: number; fecha_pedido: string; total: number; ciudad: string } | null;
 };
 
 export type CreateOrdenPayload = {

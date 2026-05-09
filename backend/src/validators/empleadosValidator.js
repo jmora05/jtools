@@ -43,6 +43,7 @@ function validarEmpleado(data, esActualizacion = false) {
     estado,
     direccion,
     ciudad,
+    salario,
   } = data;
 
   // ── 1. Campos obligatorios (solo en creación) ──────────────────────────────
@@ -57,6 +58,7 @@ function validarEmpleado(data, esActualizacion = false) {
       cargo,
       area,
       fechaIngreso,
+      salario,
     };
     for (const [campo, valor] of Object.entries(requeridos)) {
       if (!valor || String(valor).trim() === '') {
@@ -165,14 +167,22 @@ function validarEmpleado(data, esActualizacion = false) {
     }
   }
 
-  // ── 11. Estado ─────────────────────────────────────────────────────────────
+  // ── 11. Salario ────────────────────────────────────────────────────────────
+  if (salario !== undefined && salario !== null && salario !== '') {
+    const sal = parseFloat(salario);
+    if (isNaN(sal) || sal < 1423500) {
+      errores.push('El salario no puede ser menor al SMMLV ($1.423.500)');
+    }
+  }
+
+  // ── 12. Estado ─────────────────────────────────────────────────────────────
   if (estado !== undefined && estado !== null && estado !== '') {
     if (!['activo', 'inactivo'].includes(estado)) {
       errores.push('El estado solo puede ser "activo" o "inactivo"');
     }
   }
 
-  // ── 12. Dirección (opcional) ───────────────────────────────────────────────
+  // ── 13. Dirección (opcional) ───────────────────────────────────────────────
   if (direccion !== undefined && direccion !== null && String(direccion).trim() !== '') {
     const dir = String(direccion).trim();
     if (dir.length > 200) {
@@ -180,7 +190,7 @@ function validarEmpleado(data, esActualizacion = false) {
     }
   }
 
-  // ── 13. Ciudad (opcional) ──────────────────────────────────────────────────
+  // ── 14. Ciudad (opcional) ──────────────────────────────────────────────────
   if (ciudad !== undefined && ciudad !== null && String(ciudad).trim() !== '') {
     const ciu = String(ciudad).trim();
     if (ciu.length < 2 || ciu.length > 50) {

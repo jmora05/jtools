@@ -60,6 +60,7 @@ const createEmpleado = async (req, res) => {
       ciudad,
       fechaIngreso,
       estado,
+      salario,
     } = req.body;
 
     const docNorm   = numeroDocumento.trim();
@@ -100,6 +101,7 @@ const createEmpleado = async (req, res) => {
       direccion:        direccion?.trim()  || null,
       ciudad:           ciudad?.trim()     || null,
       fechaIngreso,
+      salario:          parseFloat(salario),
       estado:           estado             || 'activo',
     });
 
@@ -152,6 +154,7 @@ const updateEmpleado = async (req, res) => {
       ciudad,
       fechaIngreso,
       estado,
+      salario,
     } = req.body;
 
     // 2. Verificar que el nuevo documento no pertenezca a otro empleado (activo o inactivo)
@@ -201,6 +204,7 @@ const updateEmpleado = async (req, res) => {
       direccion:       direccion?.trim()  || null,
       ciudad:          ciudad?.trim()     || null,
       fechaIngreso,
+      salario:         salario !== undefined ? parseFloat(salario) : undefined,
       estado,
     });
 
@@ -237,18 +241,8 @@ const puedeEliminarse = async (req, res) => {
     console.log('Empleado encontrado:', empleado.nombres);
 
     // Verificar referencias en Novedades
-    let novedadesRegistradas = 0;
     let novedadesResponsable = 0;
     let novedadesAfectado = 0;
-    
-    try {
-      novedadesRegistradas = await Novedades.count({
-        where: { registrado_por: id }
-      });
-      console.log('novedadesRegistradas:', novedadesRegistradas);
-    } catch (err) {
-      console.error('Error contando novedadesRegistradas:', err.message);
-    }
 
     try {
       novedadesResponsable = await Novedades.count({
@@ -301,10 +295,10 @@ const puedeEliminarse = async (req, res) => {
       // Continuar sin contar fichas técnicas si hay error
     }
 
-    const totalReferencias = novedadesRegistradas + novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
+    const totalReferencias = novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
 
     const referencias = {
-      novedadesRegistradas,
+      novedadesRegistradas: 0,
       novedadesResponsable,
       novedadesAfectado,
       ordenesProduccion,
@@ -345,10 +339,6 @@ const deleteEmpleadoPermanente = async (req, res) => {
     }
 
     // Verificar que no tenga referencias
-    const novedadesRegistradas = await Novedades.count({
-      where: { registrado_por: id }
-    });
-
     const novedadesResponsable = await Novedades.count({
       where: { empleado_responsable: id }
     });
@@ -374,14 +364,14 @@ const deleteEmpleadoPermanente = async (req, res) => {
       }
     }
 
-    const totalReferencias = novedadesRegistradas + novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
+    const totalReferencias = novedadesResponsable + novedadesAfectado + ordenesProduccion + fichaTecnicaCount;
 
     if (totalReferencias > 0) {
       return res.status(409).json({
         message: 'No se puede eliminar el empleado',
         razon: 'El empleado está vinculado a otros registros en el sistema (incluyendo fichas técnicas inactivas)',
         referencias: {
-          novedadesRegistradas,
+          novedadesRegistradas: 0,
           novedadesResponsable,
           novedadesAfectado,
           ordenesProduccion,
@@ -456,6 +446,34 @@ const deleteEmpleado = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────────────────
+//  PUT /empleados/:id/reactivar  —  reactivar empleado
+// ────────────────────────────────────────────────────────────
+const reactivarEmpleado = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: 'El ID proporcionado no es válido' });
+    }
+
+    const empleado = await Empleados.findByPk(id);
+    if (!empleado) {
+      return res.status(404).json({ message: 'Empleado no encontrado' });
+    }
+
+    if (empleado.estado === 'activo') {
+      return res.status(400).json({ message: 'El empleado ya se encuentra activo' });
+    }
+
+    await empleado.update({ estado: 'activo' });
+    res.status(200).json({ message: 'Empleado reactivado correctamente' });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Error al reactivar el empleado', error: error.message });
+  }
+};
+
 module.exports = {
   getEmpleados,
   getEmpleadoById,
@@ -463,6 +481,7 @@ module.exports = {
   updateEmpleado,
   deleteEmpleado,
   desactivarEmpleado,
+  reactivarEmpleado,
   puedeEliminarse,
   deleteEmpleadoPermanente,
 };

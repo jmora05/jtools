@@ -1,24 +1,11 @@
 const { Op } = require('sequelize');
-const { OrdenesProduccion, Productos, Empleados, Pedidos } = require('../models/index.js');
+const { OrdenesProduccion, Productos, Empleados } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
-const FichaTecnica = require('../models/fichaTecnica');
-const DetalleOrden = require('../models/detalleOrden');
-const Insumos = require('../models/insumos');
 const {
   validarCrearOrden,
   validarActualizarOrden,
   validarAnularOrden,
 } = require('../validators/ordenesProduccionValidator');
-
-// ── Calcula el estado del pedido según el conjunto de estados de sus órdenes ──
-function calcularEstadoPedido(estadosOrdenes) {
-  if (estadosOrdenes.some(e => e === 'En Proceso')) return 'En Proceso';
-  if (estadosOrdenes.some(e => e === 'Pausada'))    return 'Pausada';
-  if (estadosOrdenes.every(e => e === 'Anulada'))   return 'Anulada';
-  if (estadosOrdenes.every(e => e === 'Finalizada' || e === 'Anulada'))
-    return 'Finalizada';
-  return 'Pendiente';
-}
 
 // ── Generador de código único tipo OP-2025-001 ───────────────────────────────
 const generarCodigoOrden = async () => {
@@ -39,7 +26,6 @@ const generarCodigoOrden = async () => {
 const includeRelaciones = [
   { model: Productos,  as: 'producto',    attributes: ['id', 'nombreProducto', 'referencia'] },
   { model: Empleados,  as: 'responsable', attributes: ['id', 'nombres', 'apellidos', 'cargo'] },
-  { model: Pedidos,    as: 'pedido',      attributes: ['id', 'fecha_pedido', 'total', 'ciudad'] },
 ];
 
 // ────────────────────────────────────────────────────────────
@@ -92,7 +78,7 @@ const createOrdenProduccion = async (req, res) => {
       return res.status(400).json({ message: 'Error de validación', errores });
     }
 
-    const { productoId, cantidad, responsableId, pedidoId, tipoOrden, fechaEntrega, nota } = req.body;
+    const { productoId, cantidad, responsableId, tipoOrden, fechaEntrega, nota } = req.body;
 
     // 2. Verificar que el producto existe y está activo
     const producto = await Productos.findByPk(productoId);
@@ -116,44 +102,7 @@ const createOrdenProduccion = async (req, res) => {
       return res.status(400).json({ message: 'El empleado responsable está inactivo y no puede ser asignado' });
     }
 
-    // 4. Si viene pedidoId, verificar que el pedido existe
-    if (pedidoId) {
-      const pedido = await Pedidos.findByPk(pedidoId);
-      if (!pedido) {
-        await transaction.rollback();
-        return res.status(404).json({ message: 'El pedido especificado no existe' });
-      }
-    }
-
-    // 5. Buscar ficha técnica activa del producto
-    const fichaTecnica = await FichaTecnica.findOne({
-      where: { productoId, estado: 'Activa' },
-      transaction
-    });
-
-    if (!fichaTecnica) {
-      await transaction.rollback();
-      return res.status(400).json({ 
-        message: 'No se puede crear la orden: el producto no tiene una ficha técnica activa' 
-      });
-    }
-
-    // 6. Validar que la ficha técnica tiene procesos
-    if (!fichaTecnica.procesos || fichaTecnica.procesos.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ 
-        message: 'No se puede crear la orden: la ficha técnica no tiene procesos de fabricación definidos' 
-      });
-    }
-
-    // 7. Calcular insumos según cantidad
-    const insumosCalculados = (fichaTecnica.insumos || []).map(insumo => ({
-      name: insumo.name,
-      unit: insumo.unit,
-      quantity: parseFloat((insumo.quantity * cantidad).toFixed(2))
-    }));
-
-    // 8. Generar código y crear orden
+    // 4. Generar código y crear orden
     const codigoOrden = await generarCodigoOrden();
 
     const orden = await OrdenesProduccion.create({
@@ -161,39 +110,17 @@ const createOrdenProduccion = async (req, res) => {
       productoId:    Number(productoId),
       cantidad:      Number(cantidad),
       responsableId: Number(responsableId),
-      pedidoId:      pedidoId ? Number(pedidoId) : null,
       tipoOrden,
       fechaEntrega,
       nota:          nota?.trim() || null,
       estado:        'Pendiente',
-      insumosCalculados
+      insumosCalculados: [],
     }, { transaction });
-
-    // 9. Crear detalle_orden con los procesos de la ficha técnica
-    const detalleOrdenRecords = fichaTecnica.procesos.map(proceso => ({
-      ordenProduccionId: orden.id,
-      productosId: productoId,
-      step: proceso.step,
-      description: proceso.description,
-      duration: proceso.duration,
-      responsableId: proceso.responsableId
-    }));
-
-    await DetalleOrden.bulkCreate(detalleOrdenRecords, { transaction });
 
     await transaction.commit();
 
-    // 10. Obtener orden completa con relaciones
+    // 5. Obtener orden completa con relaciones
     const ordenCompleta = await OrdenesProduccion.findByPk(orden.id, { include: includeRelaciones });
-    
-    console.info('Production order created from ficha técnica', {
-      codigoOrden,
-      productoId,
-      cantidad,
-      procesosCreados: detalleOrdenRecords.length,
-      insumosCalculados: insumosCalculados.length,
-      timestamp: new Date().toISOString()
-    });
 
     res.status(201).json({ message: 'Orden de producción creada correctamente', orden: ordenCompleta });
 
@@ -296,70 +223,7 @@ const updateOrdenProduccion = async (req, res) => {
       }
     }
 
-    // 6. Descontar insumos al cambiar de "Pendiente" a "En Proceso"
-    if (orden.estado === 'Pendiente' && estado === 'En Proceso') {
-      const insumosCalculados = orden.insumosCalculados || [];
-      
-      if (insumosCalculados.length > 0) {
-        console.info('Descounting insumos for production order', {
-          codigoOrden: orden.codigoOrden,
-          insumosCount: insumosCalculados.length,
-          timestamp: new Date().toISOString()
-        });
-
-        for (const insumoCalc of insumosCalculados) {
-          // Buscar el insumo por nombre
-          const insumo = await Insumos.findOne({
-            where: { nombreInsumo: insumoCalc.name },
-            transaction
-          });
-
-          if (insumo) {
-            const nuevaCantidad = insumo.cantidad - insumoCalc.quantity;
-            
-            if (nuevaCantidad < 0) {
-              await transaction.rollback();
-              return res.status(400).json({
-                message: `Stock insuficiente para el insumo "${insumoCalc.name}". Stock actual: ${insumo.cantidad}, requerido: ${insumoCalc.quantity}`
-              });
-            }
-
-            await insumo.update({ cantidad: nuevaCantidad }, { transaction });
-            
-            console.info('Insumo stock updated', {
-              insumo: insumoCalc.name,
-              cantidadDescontada: insumoCalc.quantity,
-              stockAnterior: insumo.cantidad,
-              stockNuevo: nuevaCantidad,
-              timestamp: new Date().toISOString()
-            });
-          } else {
-            console.warn('Insumo not found in database', {
-              insumo: insumoCalc.name,
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
-      }
-    }
-
     await orden.update(updates, { transaction });
-
-    // Sincronizar estado del pedido asociado cuando cambia el estado de la orden
-    if (estado && orden.pedidoId) {
-      const todasOrdenes = await OrdenesProduccion.findAll({
-        where: { pedidoId: orden.pedidoId },
-        transaction,
-      });
-      const estadosActuales = todasOrdenes.map(o =>
-        o.id === Number(id) ? updates.estado : o.estado
-      );
-      const nuevoPedidoEstado = calcularEstadoPedido(estadosActuales);
-      await Pedidos.update(
-        { estado: nuevoPedidoEstado },
-        { where: { id: orden.pedidoId }, transaction }
-      );
-    }
 
     await transaction.commit();
 
@@ -405,18 +269,6 @@ const anularOrdenProduccion = async (req, res) => {
 
     const { motivoAnulacion } = req.body;
     await orden.update({ estado: 'Anulada', motivoAnulacion: motivoAnulacion.trim() });
-
-    // Sincronizar estado del pedido asociado
-    if (orden.pedidoId) {
-      const todasOrdenes = await OrdenesProduccion.findAll({
-        where: { pedidoId: orden.pedidoId },
-      });
-      const estadosActuales = todasOrdenes.map(o =>
-        o.id === Number(id) ? 'Anulada' : o.estado
-      );
-      const nuevoPedidoEstado = calcularEstadoPedido(estadosActuales);
-      await Pedidos.update({ estado: nuevoPedidoEstado }, { where: { id: orden.pedidoId } });
-    }
 
     res.status(200).json({ message: 'Orden anulada correctamente', orden });
 

@@ -42,6 +42,7 @@ type FormState = {
     direccion: string;
     ciudad: string;
     fechaIngreso: string;
+    salario: string;
     estado: 'activo' | 'inactivo';
 };
 
@@ -57,6 +58,7 @@ const EMPTY_FORM: FormState = {
     direccion: '',
     ciudad: '',
     fechaIngreso: new Date().toISOString().split('T')[0],
+    salario: '',
     estado: 'activo',
 };
 
@@ -299,6 +301,19 @@ function FormFields({
                             <FieldError mensaje={errores.fechaIngreso} />
                         </div>
                         <div>
+                            <label className="block text-sm text-gray-700 mb-2">Salario base mensual <span className="text-red-500">*</span></label>
+                            <Input
+                                type="number"
+                                placeholder="1423500"
+                                value={form.salario}
+                                min={1423500}
+                                onChange={e => update('salario', e.target.value)}
+                                onBlur={() => blur('salario')}
+                                className={errores.salario ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                            />
+                            <FieldError mensaje={errores.salario} />
+                        </div>
+                        <div>
                             <label className="block text-sm text-gray-700 mb-2">Estado</label>
                             <div className="flex items-center space-x-2 pt-2">
                                 <Switch
@@ -418,6 +433,7 @@ export function EmployeeManagement() {
                 direccion:       form.direccion || undefined,
                 ciudad:          form.ciudad   || undefined,
                 fechaIngreso:    form.fechaIngreso,
+                salario:         parseFloat(form.salario),
                 estado:          form.estado,
             });
             showFeedback('✓ Empleado registrado exitosamente');
@@ -466,6 +482,7 @@ export function EmployeeManagement() {
                 direccion:       form.direccion || undefined,
                 ciudad:          form.ciudad   || undefined,
                 fechaIngreso:    form.fechaIngreso,
+                salario:         parseFloat(form.salario),
                 estado:          form.estado,
             });
             showFeedback('✓ Empleado actualizado correctamente');
@@ -522,6 +539,7 @@ export function EmployeeManagement() {
             direccion:       emp.direccion ?? '',
             ciudad:          emp.ciudad    ?? '',
             fechaIngreso:    emp.fechaIngreso,
+            salario:         emp.salario?.toString() ?? '',
             estado:          emp.estado,
         });
         setShowModal(true);
@@ -651,6 +669,7 @@ export function EmployeeManagement() {
                                         <th className="text-left py-4 px-6 text-black font-semibold">Teléfono</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Correo</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Cargo / Área</th>
+                                        <th className="text-right py-4 px-6 text-black font-semibold">Salario base</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                                     </tr>
@@ -658,7 +677,7 @@ export function EmployeeManagement() {
                                 <tbody>
                                     {paginated.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="text-center py-12 text-gray-500">
+                                            <td colSpan={7} className="text-center py-12 text-gray-500">
                                                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                                 <p>No se encontraron empleados</p>
                                             </td>
@@ -688,6 +707,13 @@ export function EmployeeManagement() {
                                                 <td className="py-4 px-6">
                                                     <p className={`font-semibold text-sm ${isInactive ? 'text-gray-400' : 'text-gray-900'}`}>{emp.cargo}</p>
                                                     <Badge variant="secondary" className={`mt-1 text-xs ${isInactive ? 'opacity-50' : ''}`}>{emp.area}</Badge>
+                                                </td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <span className={`text-sm font-semibold ${isInactive ? 'text-gray-400' : 'text-gray-800'}`}>
+                                                        {emp.salario
+                                                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(parseFloat(String(emp.salario)))
+                                                            : '—'}
+                                                    </span>
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-2">
@@ -836,7 +862,7 @@ export function EmployeeManagement() {
 
             {/* ═══ MODAL — VER DETALLE ═══ */}
             <Dialog open={showDetailModal} onOpenChange={(open) => { if (!open) setShowDetailModal(false); }}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-8">
                     <DialogHeader>
                         <DialogTitle>Detalle del Empleado</DialogTitle>
                         <DialogDescription>Información completa del empleado seleccionado.</DialogDescription>
@@ -889,6 +915,14 @@ export function EmployeeManagement() {
                                 <div>
                                     <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" /> Fecha de Ingreso</p>
                                     <p className="font-semibold text-sm">{viewingEmployee.fechaIngreso}</p>
+                                </div>
+                                <div className="col-span-2 border-t border-blue-100 pt-3 mt-1">
+                                    <p className="text-xs text-gray-500 uppercase">Salario base mensual</p>
+                                    <p className="font-bold text-blue-700 text-xl mt-0.5">
+                                        {viewingEmployee.salario
+                                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(parseFloat(String(viewingEmployee.salario)))
+                                            : '—'}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2">
@@ -966,7 +1000,7 @@ export function EmployeeManagement() {
                             <Button
                                 onClick={handleDeletePermanente}
                                 disabled={saving}
-                                className="bg-white hover:bg-blue-50 text-blue-600"
+                                className="bg-red-600 hover:bg-red-700 text-white"
                             >
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 Eliminar Permanentemente
@@ -975,7 +1009,7 @@ export function EmployeeManagement() {
                             <Button
                                 onClick={handleDelete}
                                 disabled={saving}
-                                className="bg-white hover:bg-blue-50 text-blue-600"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 Desactivar

@@ -11,12 +11,11 @@ import { ProductCatalog } from '@/features/products/pages/ProductCatalog';
 import { ProductCategoryManagement } from '@/features/products/pages/ProductCategoryManagement';
 import { ClientManagement } from '@/features/clients/pages/ClientManagement';
 import { SalesModule } from '@/features/sales/pages/SalesModule';
-import { OrderModule } from '@/features/orders/pages/OrderModule';
-import { ProductionOrderModule } from '@/features/orders/pages/ProductionOrderModule';
 import { PurchaseModule } from '@/features/suppliers/pages/PurchaseModule';
 import { SupplierManagement } from '@/features/suppliers/pages/SupplierManagement';
 import { SupplyManagement } from '@/features/suppliers/pages/SupplyManagement';
 import { TechnicalSheetModule } from '@/features/production/pages/TechnicalSheetModule';
+import { ProductionModule } from '@/features/production/pages/ProductionModule';
 import { NewsModule } from '@/features/employed/pages/NewsModule';
 import { PayrollModule } from '@/features/nomina/pages/nomina';
 import {
@@ -33,7 +32,7 @@ import {
   ChevronDownIcon, UserIcon, LogOutIcon, ShieldIcon, EyeIcon,
   ChevronRightIcon, MenuIcon, XIcon,
   LayoutDashboard, Package, Tag, Settings, Users, Truck,
-  FlaskConical, ShoppingCart, TrendingUp, ClipboardList,
+  FlaskConical, ShoppingCart, TrendingUp,
   Newspaper, Factory, HardHat, FileText, Lock, DollarSign,
 } from 'lucide-react';
 
@@ -172,7 +171,6 @@ export default function App() {
   { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
   { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
   { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
-  { id: 'orders',    label: 'Pedidos',            icon: <ClipboardList size={18} /> },
   { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
   { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
   { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
@@ -186,7 +184,6 @@ export default function App() {
   { id: 'dashboard',        label: 'Dashboard',   icon: <LayoutDashboard size={18} /> },
   { id: 'catalog',          label: 'Productos',   icon: <Package size={18} /> },
   { id: 'client-purchases', label: 'Mis Compras', icon: <ShoppingCart size={18} /> },
-  { id: 'client-orders',    label: 'Mis Pedidos', icon: <ClipboardList size={18} /> },
 ];
   };
 
@@ -198,7 +195,6 @@ export default function App() {
       case 'catalog':             return <ProductCatalog {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
       // Módulos exclusivos del cliente — sin botón eliminar (clientMode=true)
       case 'client-purchases':    return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
-      case 'client-orders':       return <OrderModule {...({} as any)} clientMode />;
       case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-profile':          return D();
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
@@ -210,11 +206,10 @@ export default function App() {
       case 'supplies':            return !isClient ? <SupplyManagement /> : D();
       case 'product-categories':  return !isClient ? <ProductCategoryManagement /> : D();
       case 'sales':               return !isClient ? <SalesModule clientFilter={salesClientFilter} onClearClientFilter={() => setSalesClientFilter(null)} /> : D();
-      case 'orders':              return !isClient ? <OrderModule /> : D();
       case 'purchases':           return !isClient ? <PurchaseModule /> : D();
       case 'news':                return !isClient ? <NewsModule /> : D();
       case 'production-employees':        return !isClient ? <EmployeeManagement /> : D();
-      case 'production-orders-sub':       return !isClient ? <ProductionOrderModule /> : D();
+      case 'production-orders-sub':       return !isClient ? <ProductionModule /> : D();
       case 'production-technical-sheets': return !isClient ? <TechnicalSheetModule /> : D();
       case 'nomina':                       return !isClient ? <PayrollModule /> : D();
       default: return D();
@@ -235,7 +230,6 @@ export default function App() {
       'product-categories':           'Categorías de productos',
       purchases:                      'Módulo de Compras de insumos',
       sales:                          'Módulo de Ventas',
-      orders:                         'Módulo de Pedidos',
       news:                           'Novedades y Comunicados',
       'production-employees':         'Empleados de Producción',
       'production-orders-sub':        'Órdenes de Producción',
@@ -244,7 +238,6 @@ export default function App() {
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
       'client-purchases':             'Mis Compras',
-      'client-orders':                'Mis Pedidos',
     };
     return titles[currentModule] ?? 'Panel Principal';
   };

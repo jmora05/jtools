@@ -116,6 +116,16 @@ const Empleados = sequelize.define('Empleados', {
         }
     },
 
+    salario: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        validate: {
+            notNull: { msg: 'El salario base es obligatorio' },
+            isNumeric: { msg: 'El salario debe ser un número válido' },
+            min: { args: [1423500], msg: 'El salario no puede ser menor al SMMLV ($1.423.500)' }
+        }
+    },
+
     estado: {
         type: DataTypes.ENUM('activo', 'inactivo'),
         allowNull: false,

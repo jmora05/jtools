@@ -5,16 +5,16 @@ const Clientes              = require('./clientes');
 const Compras               = require('./compras');
 const DetalleCompraInsumo   = require('./detalleCompraInsumo');
 const DetalleOrden          = require('./detalleOrden');
-const DetallePedidos        = require('./detallePedidos');
 const DetalleVentas         = require('./detalleVentas');
 const Empleados             = require('./empleados');
 const FichaTecnica          = require('./fichaTecnica');
 const InsumoProducto        = require('./insumoProducto');
 const InsumoProveedores     = require('./insumoProveedores');
 const Insumos               = require('./insumos');
+const HorasExtra            = require('./horasExtra');
 const Novedades             = require('./novedades');
+const Nomina                 = require('./nomina');
 const OrdenesProduccion     = require('./ordenesProduccion');
-const Pedidos               = require('./pedidos');
 const PasswordResetOtp      = require('./passwordResetOtp');
 const Permisos              = require('./permisos');
 const Productos             = require('./productos');
@@ -45,9 +45,7 @@ DetalleOrden.belongsTo(OrdenesProduccion, { foreignKey: 'ordenProduccionId', as:
 DetalleOrden.belongsTo(Productos,         { foreignKey: 'productosId',       as: 'producto' });
 
 
-// DetallePedidos
-DetallePedidos.belongsTo(Pedidos,   { foreignKey: 'pedidosId' });
-DetallePedidos.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
+
 
 
 // DetalleVentas
@@ -84,6 +82,11 @@ Proveedores.belongsToMany(Insumos, {
 });
 
 
+// HorasExtra
+HorasExtra.belongsTo(Empleados, { foreignKey: 'empleadoId', as: 'empleado' });
+Empleados.hasMany(HorasExtra,   { foreignKey: 'empleadoId', as: 'horasExtra' });
+
+
 // Novedades
 Novedades.belongsTo(Empleados, { foreignKey: 'empleado_responsable', as: 'empleadoResponsable' });
 Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado',    as: 'empleadoAfectado' });
@@ -92,13 +95,8 @@ Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado',    as: 'emplea
 // OrdenesProduccion
 OrdenesProduccion.belongsTo(Productos, { foreignKey: 'productoId',    as: 'producto' });
 OrdenesProduccion.belongsTo(Empleados, { foreignKey: 'responsableId', as: 'responsable' });
-OrdenesProduccion.belongsTo(Pedidos,   { foreignKey: 'pedidoId',      as: 'pedido' });
 
 
-// Pedidos
-Pedidos.belongsTo(Clientes,        { foreignKey: 'clienteId',  as: 'cliente' });
-Pedidos.hasMany(DetallePedidos,    { foreignKey: 'pedidosId',  as: 'detalles' });
-Pedidos.hasMany(OrdenesProduccion, { foreignKey: 'pedidoId',   as: 'ordenes' });
 
 
 // Productos
@@ -124,7 +122,6 @@ Clientes.belongsTo(Usuarios, { foreignKey: 'email', targetKey: 'email', as: 'usu
 // Ventas
 Ventas.belongsTo(Clientes,         { foreignKey: 'clientesId',  as: 'cliente' });
 Clientes.hasMany(Ventas,           { foreignKey: 'clientesId',  as: 'ventas' });
-Clientes.hasMany(Pedidos,          { foreignKey: 'clienteId',   as: 'pedidos' });
 Ventas.hasMany(DetalleVentas,      { foreignKey: 'ventasId',    as: 'detalles' });
 DetalleVentas.belongsTo(Ventas,    { foreignKey: 'ventasId' });
 DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' });
@@ -134,6 +131,13 @@ DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' }
 PasswordResetOtp.belongsTo(Usuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 Usuarios.hasMany(PasswordResetOtp,   { foreignKey: 'usuarioId', as: 'otps' });
 
+//nomina
+Nomina.belongsTo(Empleados, { foreignKey: 'empleado_id', as: 'empleado' });
+Empleados.hasMany(Nomina, { foreignKey: 'empleado_id', as: 'nominas' });
+
+Nomina.belongsTo(Novedades, { foreignKey: 'novedades_id', as: 'novedades' });
+Novedades.hasMany(Nomina, { foreignKey: 'novedades_id', as: 'nominas' });
+
 // ================= EXPORTACIÓN =================
 
 module.exports = {
@@ -142,17 +146,17 @@ module.exports = {
     Compras,
     DetalleCompraInsumo,
     DetalleOrden,
-    DetallePedidos,
     DetalleVentas,
     Empleados,
     FichaTecnica,
+    HorasExtra,
     InsumoProducto,
     InsumoProveedores,
     Insumos,
     Novedades,
+    Nomina,
     OrdenesProduccion,
     PasswordResetOtp,
-    Pedidos,
     Permisos,
     Productos,
     Proveedores,
