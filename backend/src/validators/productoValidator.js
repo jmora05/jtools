@@ -1,186 +1,129 @@
 const { body, validationResult } = require('express-validator');
 
-// ─── Regex reutilizables ──────────────────────────────────────────────────────
-const SOLO_TEXTO       = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/;
-const SOLO_REFERENCIA  = /^[a-zA-Z0-9\-_./]+$/;
-const SOLO_DESCRIPCION = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]+$/;
-
-// ─── Mensajes de error ────────────────────────────────────────────────────────
-const MSG = {
-    nombreReq:    'El nombre del producto es obligatorio.',
-    nombreCarEsp: 'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.',
-    nombreMin:    'El nombre debe tener al menos 2 caracteres.',
-    nombreMax:    'El nombre no puede superar los 100 caracteres.',
-
-    refReq:       'La referencia es obligatoria.',
-    refCarEsp:    'La referencia solo puede contener letras, números, guiones (-), guión bajo (_), punto (.) y barra (/).',
-    refMin:       'La referencia debe tener al menos 2 caracteres.',
-    refMax:       'La referencia no puede superar los 50 caracteres.',
-
-    catReq:       'Debes seleccionar una categoría.',
-    catInt:       'El ID de categoría debe ser un número entero válido.',
-    catPos:       'El ID de categoría debe ser mayor a 0.',
-
-    descCarEsp:   'La descripción contiene caracteres no permitidos (como $, %, @, #, &, *, etc.).',
-    descMax:      'La descripción no puede superar los 255 caracteres.',
-
-    precioReq:    'El precio es obligatorio.',
-    precioNum:    'El precio debe ser un número válido.',
-    precioPos:    'El precio debe ser mayor a 0.',
-    precioMax:    'El precio no puede superar 999,999,999.99.',
-
-    stockReq:     'El stock es obligatorio.',
-    stockInt:     'El stock debe ser un número entero válido.',
-    stockMin:     'El stock no puede ser negativo.',
-    stockMax:     'El stock no puede superar 999,999 unidades.',
-
-    estadoInvalido: 'El estado solo puede ser "activo" o "inactivo".',
-};
-
-// ─── Reglas para CREAR producto ───────────────────────────────────────────────
-const validarCrearProducto = [
-    body('nombreProducto')
-        .trim()
-        .notEmpty().withMessage(MSG.nombreReq)
-        .isLength({ min: 2 }).withMessage(MSG.nombreMin)
-        .isLength({ max: 100 }).withMessage(MSG.nombreMax)
-        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp),
-
-    body('referencia')
-        .trim()
-        .notEmpty().withMessage(MSG.refReq)
-        .isLength({ min: 2 }).withMessage(MSG.refMin)
-        .isLength({ max: 50 }).withMessage(MSG.refMax)
-        .matches(SOLO_REFERENCIA).withMessage(MSG.refCarEsp),
-
-    body('categoriaProductoId')
-        .notEmpty().withMessage(MSG.catReq)
-        .isInt().withMessage(MSG.catInt)
-        .toInt()
-        .custom((val) => val > 0).withMessage(MSG.catPos),
-
-    body('descripcion')
-        .optional({ nullable: true, checkFalsy: true })
-        .trim()
-        .isLength({ max: 255 }).withMessage(MSG.descMax)
-        .matches(SOLO_DESCRIPCION).withMessage(MSG.descCarEsp),
-
-    body('precio')
-        .notEmpty().withMessage(MSG.precioReq)
-        .isNumeric().withMessage(MSG.precioNum)
-        .toFloat()
-        .custom((val) => val > 0).withMessage(MSG.precioPos)
-        .custom((val) => val <= 999999999.99).withMessage(MSG.precioMax),
-
-    body('stock')
-        .notEmpty().withMessage(MSG.stockReq)
-        .isInt().withMessage(MSG.stockInt)
-        .toInt()
-        .custom((val) => val >= 0).withMessage(MSG.stockMin)
-        .custom((val) => val <= 999999).withMessage(MSG.stockMax),
-
-    body('estado')
-        .optional()
-        .isIn(['activo', 'inactivo']).withMessage(MSG.estadoInvalido),
-
-    body('imagenUrl')
-        .optional({ nullable: true, checkFalsy: true })
-        .custom((value) => {
-            if (!value) return true;
-            const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
-            const isHttpUrl = (() => {
-                try { const u = new URL(value); return u.protocol === 'http:' || u.protocol === 'https:'; }
-                catch { return false; }
-            })();
-            if (!isDataUrl && !isHttpUrl) throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
-            return true;
-        }),
-];
-
-// ─── Reglas para ACTUALIZAR producto ─────────────────────────────────────────
-
-// ─── Reglas para ACTUALIZAR producto ─────────────────────────────────────────
-const validarActualizarProducto = [
-    body('nombreProducto')
-        .optional()
-        .trim()
-        .notEmpty().withMessage(MSG.nombreReq)
-        .isLength({ min: 2 }).withMessage(MSG.nombreMin)
-        .isLength({ max: 100 }).withMessage(MSG.nombreMax)
-        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp),
-
-    body('referencia')
-        .optional()
-        .trim()
-        .notEmpty().withMessage(MSG.refReq)
-        .isLength({ min: 2 }).withMessage(MSG.refMin)
-        .isLength({ max: 50 }).withMessage(MSG.refMax)
-        .matches(SOLO_REFERENCIA).withMessage(MSG.refCarEsp),
-
-    body('categoriaProductoId')
-        .optional()
-        .isInt().withMessage(MSG.catInt)
-        .toInt()
-        .custom((val) => val > 0).withMessage(MSG.catPos),
-
-    body('descripcion')
-        .optional({ nullable: true, checkFalsy: true })
-        .trim()
-        .isLength({ max: 255 }).withMessage(MSG.descMax)
-        .matches(SOLO_DESCRIPCION).withMessage(MSG.descCarEsp),
-
-    body('precio')
-        .optional()
-        .isDecimal({ decimal_digits: '0,2' }).withMessage(MSG.precioNum)
-        .toFloat()
-        .custom((val) => val > 0).withMessage(MSG.precioPos)
-        .custom((val) => val <= 999999999.99).withMessage(MSG.precioMax),
-
-    body('stock')
-        .optional()
-        .isInt().withMessage(MSG.stockInt)
-        .toInt()
-        .custom((val) => val >= 0).withMessage(MSG.stockMin)
-        .custom((val) => val <= 999999).withMessage(MSG.stockMax),
-
-    body('estado')
-        .optional()
-        .isIn(['activo', 'inactivo']).withMessage(MSG.estadoInvalido),
-
-    body('imagenUrl')
-        .optional({ nullable: true, checkFalsy: true })
-        .custom((value) => {
-            if (!value) return true;
-            const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
-            const isHttpUrl = (() => {
-                try { const u = new URL(value); return u.protocol === 'http:' || u.protocol === 'https:'; }
-                catch { return false; }
-            })();
-            if (!isDataUrl && !isHttpUrl) throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
-            return true;
-        }),
-];
-
-// ─── Middleware que procesa errores
-
-// ─── Middleware que procesa errores y responde con JSON claro ─────────────────
+// ─── Manejador de errores ─────────────────────────────────────────────────────
 const manejarErrores = (req, res, next) => {
-    const errores = validationResult(req);
-    if (!errores.isEmpty()) {
-        const lista = errores.array().map((e) => ({
-            campo: e.path,
-            mensaje: e.msg,
-        }));
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
         return res.status(400).json({
-            message: 'Hay errores en los datos enviados. Por favor corrígelos e intenta de nuevo.',
-            errores: lista,
+            message: 'Error de validación',
+            errores: errors.array().map(e => ({ campo: e.path ?? e.param, mensaje: e.msg })),
         });
     }
     next();
 };
 
-module.exports = {
-    validarCrearProducto,
-    validarActualizarProducto,
-    manejarErrores,
-};
+// ─── Validador de imagen (URL o data URL) ─────────────────────────────────────
+const validarImagen = body('imagenUrl')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+        if (!value) return true;
+        const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
+        const isHttpUrl = (() => {
+            try {
+                const u = new URL(value);
+                return u.protocol === 'http:' || u.protocol === 'https:';
+            } catch { return false; }
+        })();
+        if (!isDataUrl && !isHttpUrl) {
+            throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+        }
+        return true;
+    });
+
+// ─── Crear producto ───────────────────────────────────────────────────────────
+const validarCrearProducto = [
+    body('nombreProducto')
+        .trim()
+        .notEmpty().withMessage('El nombre es obligatorio.')
+        .isLength({ min: 2, max: 100 }).withMessage('El nombre debe tener entre 2 y 100 caracteres.')
+        .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
+        .withMessage('El nombre no puede contener caracteres especiales.'),
+
+    body('referencia')
+        .trim()
+        .notEmpty().withMessage('La referencia es obligatoria.')
+        .isLength({ min: 2, max: 50 }).withMessage('La referencia debe tener entre 2 y 50 caracteres.')
+        .matches(/^[a-zA-Z0-9\-_./]+$/)
+        .withMessage('La referencia solo puede contener letras, números, guiones, _, . y /.'),
+
+    body('categoriaProductoId')
+        .notEmpty().withMessage('La categoría es obligatoria.')
+        .isInt({ min: 1 }).withMessage('El ID de categoría debe ser un entero mayor a 0.')
+        .toInt(),
+
+    body('descripcion')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isLength({ max: 255 }).withMessage('La descripción no puede superar 255 caracteres.')
+        .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]*$/)
+        .withMessage('La descripción contiene caracteres no permitidos.'),
+
+    body('precio')
+        .notEmpty().withMessage('El precio es obligatorio.')
+        .isFloat({ min: 0.01, max: 99999999.99 })
+        .withMessage('El precio debe ser un número entre 0.01 y 99,999,999.99.')
+        .toFloat(),
+
+    body('stock')
+        .notEmpty().withMessage('El stock es obligatorio.')
+        .isInt({ min: 0, max: 999999 })
+        .withMessage('El stock debe ser un entero entre 0 y 999,999.')
+        .toInt(),
+
+    body('estado')
+        .optional()
+        .isIn(['activo', 'inactivo'])
+        .withMessage('El estado solo puede ser "activo" o "inactivo".'),
+
+    validarImagen,
+];
+
+// ─── Actualizar producto ──────────────────────────────────────────────────────
+const validarActualizarProducto = [
+    body('nombreProducto')
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 100 }).withMessage('El nombre debe tener entre 2 y 100 caracteres.')
+        .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
+        .withMessage('El nombre no puede contener caracteres especiales.'),
+
+    body('referencia')
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 50 }).withMessage('La referencia debe tener entre 2 y 50 caracteres.')
+        .matches(/^[a-zA-Z0-9\-_./]+$/)
+        .withMessage('La referencia solo puede contener letras, números, guiones, _, . y /.'),
+
+    body('categoriaProductoId')
+        .optional()
+        .isInt({ min: 1 }).withMessage('El ID de categoría debe ser un entero mayor a 0.')
+        .toInt(),
+
+    body('descripcion')
+        .optional({ nullable: true, checkFalsy: true })
+        .trim()
+        .isLength({ max: 255 }).withMessage('La descripción no puede superar 255 caracteres.')
+        .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]*$/)
+        .withMessage('La descripción contiene caracteres no permitidos.'),
+
+    body('precio')
+        .optional()
+        .isFloat({ min: 0.01, max: 99999999.99 })
+        .withMessage('El precio debe ser un número entre 0.01 y 99,999,999.99.')
+        .toFloat(),
+
+    body('stock')
+        .optional()
+        .isInt({ min: 0, max: 999999 })
+        .withMessage('El stock debe ser un entero entre 0 y 999,999.')
+        .toInt(),
+
+    body('estado')
+        .optional()
+        .isIn(['activo', 'inactivo'])
+        .withMessage('El estado solo puede ser "activo" o "inactivo".'),
+
+    validarImagen,
+];
+
+module.exports = { validarCrearProducto, validarActualizarProducto, manejarErrores };
