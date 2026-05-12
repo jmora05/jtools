@@ -1,11 +1,12 @@
 const { Nomina, Empleados } = require('../models/index.js');
+const { Op } = require('sequelize');
 const { validarNomina } = require('../validators/nominaValidator');
 
 // ── GET /nomina ───────────────────────────────────────────────
 const getNominas = async (req, res) => {
     try {
         const nominas = await Nomina.findAll({
-            include: [{ model: Empleados, as: 'empleado', attributes: ['id', 'nombres', 'apellidos', 'cargo', 'area'] }],
+            include: [{ model: Empleados, as: 'empleado', attributes: ['id', 'nombres', 'apellidos', 'cargo', 'area', 'tipoDocumento', 'numeroDocumento'] }],
             order: [['fecha_pago', 'DESC']],
         });
         res.status(200).json(nominas);
@@ -67,6 +68,11 @@ const createNomina = async (req, res) => {
         const empleado = await Empleados.findByPk(empleado_id);
         if (!empleado) return res.status(404).json({ message: 'Empleado no encontrado' });
 
+        const duplicado = await Nomina.findOne({ where: { empleado_id, fecha_fin_periodo } });
+        if (duplicado) {
+            return res.status(400).json({ message: 'Ya existe una nómina para este empleado en esa fecha de corte' });
+        }
+
         const nomina = await Nomina.create({
             empleado_id:          parseInt(empleado_id),
             fecha_inicio_periodo,
@@ -113,6 +119,14 @@ const updateNomina = async (req, res) => {
             novedades_id,
             observaciones,
         } = req.body;
+
+        const fechaFinEfectiva = fecha_fin_periodo ?? nomina.fecha_fin_periodo;
+        const duplicado = await Nomina.findOne({
+            where: { empleado_id: nomina.empleado_id, fecha_fin_periodo: fechaFinEfectiva, id: { [Op.ne]: id } }
+        });
+        if (duplicado) {
+            return res.status(400).json({ message: 'Ya existe una nómina para este empleado en esa fecha de corte' });
+        }
 
         await nomina.update({
             fecha_inicio_periodo,

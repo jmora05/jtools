@@ -35,10 +35,10 @@ const getNovedadById = async (req, res) => {
 const getNovedadesByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['registrada', 'aprobada'];
+        const estadosValidos = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'];
 
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada_remunera, aprobada_sin_remuneracion o rechazada' });
         }
 
         const novedades = await Novedades.findAll({ where: { estado }, include: INCLUDE_EMPLEADOS });
@@ -58,7 +58,8 @@ const createNovedad = async (req, res) => {
             fecha_registro,
             fecha_inicio,
             fecha_finalizacion,
-            empleado_afectado
+            empleado_afectado,
+            horas_ausencia
         } = req.body;
 
         // verificar que el empleado afectado existe si se especificó
@@ -79,7 +80,8 @@ const createNovedad = async (req, res) => {
             fecha_registro,
             fecha_inicio,
             fecha_finalizacion,
-            empleado_afectado
+            empleado_afectado,
+            horas_ausencia: horas_ausencia ?? null
         });
 
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
@@ -104,8 +106,8 @@ const updateNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        if (novedad.estado === 'aprobada') {
-            return res.status(400).json({ message: 'No se puede editar una novedad que ya fue aprobada' });
+        if (novedad.estado !== 'registrada') {
+            return res.status(400).json({ message: 'No se puede editar una novedad que no está en estado registrada' });
         }
 
         const {
@@ -113,7 +115,8 @@ const updateNovedad = async (req, res) => {
             descripcion_detallada,
             fecha_inicio,
             fecha_finalizacion,
-            empleado_afectado
+            empleado_afectado,
+            horas_ausencia
         } = req.body;
 
         // verificar que el empleado afectado existe si se actualizó
@@ -129,7 +132,8 @@ const updateNovedad = async (req, res) => {
             descripcion_detallada,
             fecha_inicio,
             fecha_finalizacion,
-            empleado_afectado
+            empleado_afectado,
+            horas_ausencia: horas_ausencia !== undefined ? horas_ausencia : novedad.horas_ausencia
         });
 
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
@@ -155,9 +159,9 @@ const cambiarEstadoNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        const estadosValidos = ['registrada', 'aprobada'];
+        const estadosValidos = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'];
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada o aprobada' });
+            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada_remunera, aprobada_sin_remuneracion o rechazada' });
         }
 
         await novedad.update({ estado });
@@ -180,9 +184,9 @@ const deleteNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        // solo se puede eliminar si no fue aprobada
-        if (novedad.estado === 'aprobada') {
-            return res.status(400).json({ message: 'No se puede eliminar una novedad que ya fue aprobada' });
+        // solo se puede eliminar si está en estado registrada
+        if (novedad.estado !== 'registrada') {
+            return res.status(400).json({ message: 'No se puede eliminar una novedad que no está en estado registrada' });
         }
 
         await novedad.destroy();

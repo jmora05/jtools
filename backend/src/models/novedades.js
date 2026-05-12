@@ -20,15 +20,21 @@ const Novedades = sequelize.define('Novedades', {
     },
 
     estado: {
-        type: DataTypes.ENUM('registrada', 'aprobada'),
+        type: DataTypes.ENUM('registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'),
         allowNull: false,
         defaultValue: 'registrada',
         validate: {
             isIn: {
-                args: [['registrada', 'aprobada']],
+                args: [['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada']],
                 msg: 'El estado debe ser uno de los valores permitidos'
             }
         }
+    },
+
+    horas_ausencia: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        comment: 'Horas de ausencia registradas en la novedad'
     },
 
     fecha_registro: {

@@ -59,6 +59,10 @@ app.use('/api/auth/forgot-password',  otpLimiter,  authRoutes);
 app.use('/api/auth/resend-code',      otpLimiter,  authRoutes);
 app.use('/api/auth',                               authRoutes);
 
+// ── Ruta pública de productos (para el landing, sin autenticación) ──
+const { getProductos: getPublicProductos } = require('./controllers/productosController');
+app.get('/api/public/productos', getPublicProductos);
+
 // ── Rutas PROTEGIDAS (cualquier usuario autenticado) ──
 app.use('/api/productos',               verifyToken, productosRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
