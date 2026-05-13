@@ -6,6 +6,36 @@ export type Proceso    = { step: number; description: string; duration: string; 
 export type Medida     = { parameter: string; value: number; unit: string };
 export type InsumoFT   = { name: string; quantity: number; unit: string };
 
+export type ParametrosMaquina = {
+  unidadInyeccion: {
+    tolva:            { velocidad: number; presion: number };
+    inyeccion:        { velocidad: number; presion: number };
+    segundaInyeccion: { velocidad: number; presion: number };
+    carga:            { velocidad: number; presion: number; contrapresion: number };
+    decompresion:     { velocidad: number; presion: number };
+  };
+  prensa: {
+    abrir:       { velocidad: number; presion: number };
+    cerrar:      { velocidad: number; presion: number };
+    seguroMolde: { velocidad: number; presion: number };
+    botador:     { velocidad: number; presion: number; numSalidas: number };
+  };
+  temperaturas: {
+    boquilla: number;
+    z1: number;
+    z2: number;
+    z3: number;
+  };
+  tiempos: {
+    enfriamiento: number;
+    pausa: number;
+    retardoInyeccion: number;
+    inyeccion: number;
+    segundaInyeccion: number;
+    descompresion: number;
+  };
+};
+
 export type FichaTecnica = {
   id?: number;
   codigoFicha?: string;
@@ -15,6 +45,9 @@ export type FichaTecnica = {
   medidas?: Medida[];
   insumos?: InsumoFT[];
   notas?: string;
+  numeroMolde?: number | null;
+  parametrosMaquina?: ParametrosMaquina | null;
+  responsableId?: number | null;
   createdAt?: string;
   updatedAt?: string;
   // Relaciones
@@ -33,6 +66,9 @@ export type CreateFichaPayload = {
   medidas?: Medida[];
   insumos?: InsumoFT[];
   notas?: string;
+  numeroMolde?: number;
+  parametrosMaquina?: ParametrosMaquina;
+  responsableId?: number;
 };
 
 export type UpdateFichaPayload = Partial<{
@@ -41,6 +77,9 @@ export type UpdateFichaPayload = Partial<{
   insumos: InsumoFT[];
   notas: string;
   estado: 'Activa' | 'Inactiva';
+  numeroMolde: number | null;
+  parametrosMaquina: ParametrosMaquina | null;
+  responsableId: number | null;
 }>;
 
 // ─── Servicio ─────────────────────────────────────────────────────────────────

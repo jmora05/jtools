@@ -102,7 +102,7 @@ const getFichasByProducto = async (req, res) => {
 // ────────────────────────────────────────────────────────────
 const createFichaTecnica = async (req, res) => {
     try {
-        const { productoId, procesos, medidas, insumos, notas } = req.body;
+        const { productoId, procesos, medidas, insumos, notas, numeroMolde, parametrosMaquina, responsableId } = req.body;
 
         // 1. Verificar que el producto existe y está activo
         const producto = await Productos.findByPk(productoId);
@@ -149,10 +149,13 @@ const createFichaTecnica = async (req, res) => {
             codigoFicha,
             productoId,
             estado: 'Activa',
-            procesos: procesos.map((p, i) => ({ ...p, step: i + 1 })),
+            procesos: Array.isArray(procesos) ? procesos.map((p, i) => ({ ...p, step: i + 1 })) : [],
             medidas:  medidas  || [],
             insumos:  insumos  || [],
-            notas:    notas    || null
+            notas:    notas    || null,
+            numeroMolde:       numeroMolde       || null,
+            parametrosMaquina: parametrosMaquina || null,
+            responsableId:     responsableId     || null,
         });
 
         const fichaCompleta = await FichaTecnica.findByPk(ficha.id, { include: includeRelaciones });
@@ -183,11 +186,11 @@ const updateFichaTecnica = async (req, res) => {
             return res.status(404).json({ message: 'Ficha técnica no encontrada' });
         }
 
-        const { procesos, medidas, insumos, notas, estado } = req.body;
+        const { procesos, medidas, insumos, notas, estado, numeroMolde, parametrosMaquina, responsableId } = req.body;
 
         // 1. ✅ Bloquear edición de contenido en fichas Inactivas
         //    (solo se permite cambiar el estado para reactivarla)
-        const intentaCambiarContenido = [procesos, medidas, insumos, notas]
+        const intentaCambiarContenido = [procesos, medidas, insumos, notas, numeroMolde, parametrosMaquina, responsableId]
             .some(v => v !== undefined);
 
         if (ficha.estado === 'Inactiva' && intentaCambiarContenido) {
@@ -252,11 +255,14 @@ const updateFichaTecnica = async (req, res) => {
 
         // 4. Construir objeto de actualización (solo campos enviados)
         const updates = {};
-        if (procesos  !== undefined) updates.procesos  = procesos.map((p, i) => ({ ...p, step: i + 1 }));
-        if (medidas   !== undefined) updates.medidas   = medidas;
-        if (insumos   !== undefined) updates.insumos   = insumos;
-        if (notas     !== undefined) updates.notas     = notas;
-        if (estado    !== undefined) updates.estado    = estado;
+        if (procesos           !== undefined) updates.procesos           = procesos.map((p, i) => ({ ...p, step: i + 1 }));
+        if (medidas            !== undefined) updates.medidas            = medidas;
+        if (insumos            !== undefined) updates.insumos            = insumos;
+        if (notas              !== undefined) updates.notas              = notas;
+        if (estado             !== undefined) updates.estado             = estado;
+        if (numeroMolde        !== undefined) updates.numeroMolde        = numeroMolde;
+        if (parametrosMaquina  !== undefined) updates.parametrosMaquina  = parametrosMaquina;
+        if (responsableId      !== undefined) updates.responsableId      = responsableId;
 
         if (Object.keys(updates).length === 0) {
             return res.status(400).json({ message: 'Debe enviar al menos un campo para actualizar' });

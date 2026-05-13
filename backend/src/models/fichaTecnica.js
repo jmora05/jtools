@@ -64,6 +64,26 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: 'Notas o instrucciones adicionales'
+    },
+
+    numeroMolde: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Número de molde de la pieza'
+    },
+
+    parametrosMaquina: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Parámetros de la máquina inyectora: unidad de inyección y prensa'
+    },
+
+    responsableId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'empleados', key: 'id' },
+        comment: 'Empleado responsable de la ficha técnica'
     }
 
 }, {

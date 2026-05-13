@@ -196,8 +196,10 @@ function validarCrearFichaTecnica(data) {
         errores.push('El productoId debe ser un número entero positivo');
     }
 
-    // ── 2. Procesos (obligatorio) ──────────────────────────────────────────────
-    validarProcesos(procesos, errores, true);
+    // ── 2. Procesos (opcional) ────────────────────────────────────────────────
+    if (procesos !== undefined && procesos !== null) {
+        validarProcesos(procesos, errores, false);
+    }
 
     // ── 3. Medidas (opcional) ──────────────────────────────────────────────────
     if (medidas !== undefined && medidas !== null) {

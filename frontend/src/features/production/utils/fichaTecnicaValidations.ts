@@ -307,7 +307,6 @@ export function validarNotasCampo(notas: string): string | undefined {
  */
 export function validarFormCrear(
   form: FormFichaTecnica,
-  procesos: Proceso[],
   medidas: Medida[],
   insumos: InsumoFT[]
 ): ValidationResult {
@@ -315,15 +314,6 @@ export function validarFormCrear(
 
   if (!form.productoId || form.productoId.trim() === '') {
     errors.push('Debes seleccionar un producto');
-  }
-
-  if (procesos.length === 0) {
-    errors.push('Debes agregar al menos un proceso de fabricación');
-  } else {
-    procesos.forEach((p, i) => {
-      const r = validarProceso(p);
-      r.errors.forEach(e => errors.push(`Proceso [${i + 1}]: ${e}`));
-    });
   }
 
   medidas.forEach((m, i) => {
@@ -350,21 +340,11 @@ export function validarFormCrear(
  * Valida el formulario completo para EDITAR una ficha técnica.
  */
 export function validarFormEditar(
-  procesos: Proceso[],
   medidas: Medida[],
   insumos: InsumoFT[],
   notas: string
 ): ValidationResult {
   const errors: string[] = [];
-
-  if (procesos.length === 0) {
-    errors.push('Debes mantener al menos un proceso de fabricación');
-  } else {
-    procesos.forEach((p, i) => {
-      const r = validarProceso(p);
-      r.errors.forEach(e => errors.push(`Proceso [${i + 1}]: ${e}`));
-    });
-  }
 
   medidas.forEach((m, i) => {
     const r = validarMedida(m);

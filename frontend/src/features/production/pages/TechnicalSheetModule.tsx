@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Switch } from '@/shared/components/ui/switch';
 import {
@@ -12,48 +12,112 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { toast } from 'sonner';
 import {
     Plus, Search, Eye, Edit, Trash2, AlertTriangle,
-    ChevronLeft, ChevronRight, FileText, ArrowLeft,
-    CheckCircle, XCircle, Package, List, Ruler,
-    ClipboardList, Calendar, Loader2, CheckCircle2,
+    ChevronLeft, ChevronRight, FileText,
+    CheckCircle, XCircle, List, Ruler,
+    Calendar, Loader2, CheckCircle2,
     Lock, X, User,
 } from 'lucide-react';
 import {
     getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica, puedeEliminarFichaTecnica,
-    type FichaTecnica, type Proceso, type Medida, type InsumoFT,
+    type FichaTecnica, type Medida, type InsumoFT,
 } from '../services/fichaTecnicaService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
 import { getInsumosDisponibles, type InsumoDisponible } from '../services/insumosService';
 import {
-    validarProceso, validarMedida,
-    validarProcesoCampos, validarMedidaCampos, validarInsumoCampos,
+    validarMedida, validarMedidaCampos, validarInsumoCampos,
     validarFormCrear, validarFormEditar, validarNotasCampo,
-    filtrarDescripcion, filtrarDuracion, filtrarParametro,
-    filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
+    filtrarParametro, filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 type Producto = {
-    id: number;
-    nombreProducto: string;
-    referencia: string;
-    estado: string;
-    categoria?: { id: number; nombreCategoria: string };
+    id: number; nombreProducto: string; referencia: string;
+    estado: string; categoria?: { id: number; nombreCategoria: string };
 };
-
-type FormInfo = {
-    productoId: string;
-    notas: string;
-    estado: 'Activa' | 'Inactiva';
-};
-
+type FormInfo = { productoId: string; notas: string; estado: 'Activa' | 'Inactiva' };
 const EMPTY_FORM: FormInfo = { productoId: '', notas: '', estado: 'Activa' };
 
+// ─── Machine params ───────────────────────────────────────────────────────────
+type MR  = { velocidad: string; presion: string };
+type MRX = { velocidad: string; presion: string; extra: string };
+const EMPTY_MAQUINA = {
+    tolva:            { velocidad: '', presion: '' }  as MR,
+    inyeccion:        { velocidad: '', presion: '' }  as MR,
+    segundaInyeccion: { velocidad: '', presion: '' }  as MR,
+    carga:            { velocidad: '', presion: '', extra: '' } as MRX,
+    decompresion:     { velocidad: '', presion: '' }  as MR,
+    abrir:            { velocidad: '', presion: '' }  as MR,
+    cerrar:           { velocidad: '', presion: '' }  as MR,
+    seguroMolde:      { velocidad: '', presion: '' }  as MR,
+    botador:          { velocidad: '', presion: '', extra: '' } as MRX,
+    temperaturas:     { boquilla: '', z1: '', z2: '', z3: '' },
+    tiempos:          { enfriamiento: '', pausa: '', retardoInyeccion: '', inyeccion: '', segundaInyeccion: '', descompresion: '' },
+};
+type MaquinaFormState = typeof EMPTY_MAQUINA;
+
+function toMaquinaPayload(m: MaquinaFormState) {
+    const n = (s: string) => (s ? parseInt(s) || 0 : 0);
+    const f = (s: string) => (s ? parseFloat(s) || 0 : 0);
+    return {
+        unidadInyeccion: {
+            tolva:            { velocidad: n(m.tolva.velocidad),            presion: n(m.tolva.presion) },
+            inyeccion:        { velocidad: n(m.inyeccion.velocidad),        presion: n(m.inyeccion.presion) },
+            segundaInyeccion: { velocidad: n(m.segundaInyeccion.velocidad), presion: n(m.segundaInyeccion.presion) },
+            carga:            { velocidad: n(m.carga.velocidad),            presion: n(m.carga.presion), contrapresion: n(m.carga.extra) },
+            decompresion:     { velocidad: n(m.decompresion.velocidad),     presion: n(m.decompresion.presion) },
+        },
+        prensa: {
+            abrir:       { velocidad: n(m.abrir.velocidad),       presion: n(m.abrir.presion) },
+            cerrar:      { velocidad: n(m.cerrar.velocidad),      presion: n(m.cerrar.presion) },
+            seguroMolde: { velocidad: n(m.seguroMolde.velocidad), presion: n(m.seguroMolde.presion) },
+            botador:     { velocidad: n(m.botador.velocidad),     presion: n(m.botador.presion), numSalidas: n(m.botador.extra) },
+        },
+        temperaturas: {
+            boquilla: f(m.temperaturas.boquilla),
+            z1:       f(m.temperaturas.z1),
+            z2:       f(m.temperaturas.z2),
+            z3:       f(m.temperaturas.z3),
+        },
+        tiempos: {
+            enfriamiento:     f(m.tiempos.enfriamiento),
+            pausa:            f(m.tiempos.pausa),
+            retardoInyeccion: f(m.tiempos.retardoInyeccion),
+            inyeccion:        f(m.tiempos.inyeccion),
+            segundaInyeccion: f(m.tiempos.segundaInyeccion),
+            descompresion:    f(m.tiempos.descompresion),
+        },
+    };
+}
+
+function fromMaquinaPayload(pm: any): MaquinaFormState {
+    if (!pm) return { ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador }, temperaturas: { ...EMPTY_MAQUINA.temperaturas }, tiempos: { ...EMPTY_MAQUINA.tiempos } };
+    const s = (v: any) => (v != null ? String(v) : '');
+    const ui = pm.unidadInyeccion ?? {};
+    const pr = pm.prensa ?? {};
+    const tm = pm.temperaturas ?? {};
+    const ti = pm.tiempos ?? {};
+    return {
+        tolva:            { velocidad: s(ui.tolva?.velocidad),            presion: s(ui.tolva?.presion) },
+        inyeccion:        { velocidad: s(ui.inyeccion?.velocidad),        presion: s(ui.inyeccion?.presion) },
+        segundaInyeccion: { velocidad: s(ui.segundaInyeccion?.velocidad), presion: s(ui.segundaInyeccion?.presion) },
+        carga:            { velocidad: s(ui.carga?.velocidad),            presion: s(ui.carga?.presion), extra: s(ui.carga?.contrapresion) },
+        decompresion:     { velocidad: s(ui.decompresion?.velocidad),     presion: s(ui.decompresion?.presion) },
+        abrir:            { velocidad: s(pr.abrir?.velocidad),            presion: s(pr.abrir?.presion) },
+        cerrar:           { velocidad: s(pr.cerrar?.velocidad),           presion: s(pr.cerrar?.presion) },
+        seguroMolde:      { velocidad: s(pr.seguroMolde?.velocidad),      presion: s(pr.seguroMolde?.presion) },
+        botador:          { velocidad: s(pr.botador?.velocidad),          presion: s(pr.botador?.presion), extra: s(pr.botador?.numSalidas) },
+        temperaturas:     { boquilla: s(tm.boquilla), z1: s(tm.z1), z2: s(tm.z2), z3: s(tm.z3) },
+        tiempos:          { enfriamiento: s(ti.enfriamiento), pausa: s(ti.pausa), retardoInyeccion: s(ti.retardoInyeccion), inyeccion: s(ti.inyeccion), segundaInyeccion: s(ti.segundaInyeccion), descompresion: s(ti.descompresion) },
+    };
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 const selectCls = (hasError?: boolean) =>
     `w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${
         hasError ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'
     }`;
 
-// ─── Helpers visuales ─────────────────────────────────────────────────────────
 function StatusBadge({ estado }: { estado: string }) {
     return estado === 'Activa'
         ? <Badge className="bg-blue-100 text-blue-900 border-blue-200"><CheckCircle className="w-3 h-3 mr-1" />Activa</Badge>
@@ -80,7 +144,6 @@ function CharCounter({ valor, limite }: { valor: string; limite: number }) {
     );
 }
 
-// ─── InactiveAlert ────────────────────────────────────────────────────────────
 function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => void }) {
     return (
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg px-4 py-3">
@@ -93,102 +156,19 @@ function InactiveAlert({ mensaje, onClose }: { mensaje: string; onClose: () => v
     );
 }
 
-// ─── ItemsForm ────────────────────────────────────────────────────────────────
-function ItemsForm({
-    procesos, setProcesos,
-    medidas, setMedidas,
-    insumos, setInsumos,
-    catalogoInsumos, loadingInsumos, insumosListError,
-    empleados = [],
-}: {
-    procesos: Proceso[];       setProcesos: (v: Proceso[]) => void;
-    medidas: Medida[];         setMedidas: (v: Medida[]) => void;
-    insumos: InsumoFT[];       setInsumos: (v: InsumoFT[]) => void;
+// ─── InsumosSection ──────────────────────────────────────────────────────────
+function InsumosSection({ insumos, setInsumos, catalogoInsumos, loadingInsumos, insumosListError }: {
+    insumos: InsumoFT[];
+    setInsumos: (v: InsumoFT[]) => void;
     catalogoInsumos: InsumoDisponible[];
     loadingInsumos: boolean;
     insumosListError: string | null;
-    empleados?: any[];
 }) {
-    const [newProc, setNewProc] = useState<{ description: string; duration: string; responsableId?: number }>({ description: '', duration: '' });
-    const [newMed, setNewMed]   = useState<{ parameter: string; value: number; unit: string }>({ parameter: '', value: 0, unit: '' });
     const [selectedInsumoId, setSelectedInsumoId] = useState<string>('');
-    const [newInsQuantity, setNewInsQuantity]      = useState<number>(0);
-    const [newInsUnit, setNewInsUnit]              = useState<string>('');
-
-    const [procErrors, setProcErrors] = useState<ItemErrors>({});
-    const [medErrors, setMedErrors]   = useState<ItemErrors>({});
-    const [insErrors, setInsErrors]   = useState<ItemErrors>({});
-
-    const [procSubmitted, setProcSubmitted] = useState(false);
-    const [medSubmitted, setMedSubmitted]   = useState(false);
-    const [insSubmitted, setInsSubmitted]   = useState(false);
-
-    function updateProcField(campo: keyof typeof newProc, valor: string) {
-        let valorFiltrado = valor;
-        if (campo === 'description') valorFiltrado = filtrarDescripcion(valor);
-        if (campo === 'duration')    valorFiltrado = filtrarDuracion(valor);
-
-        const nuevoProc = { ...newProc, [campo]: valorFiltrado };
-        setNewProc(nuevoProc);
-        if (procSubmitted) setProcErrors(validarProcesoCampos(nuevoProc));
-    }
-
-    const addProc = () => {
-        setProcSubmitted(true);
-        const camposErr = validarProcesoCampos(newProc);
-        
-        // Validar que responsableId esté presente
-        if (!newProc.responsableId) {
-            setProcErrors({ ...camposErr, responsableId: 'El responsable es obligatorio' });
-            toast.error('Debes seleccionar un responsable para el proceso');
-            return;
-        }
-        
-        setProcErrors(camposErr);
-        const { valid, errors } = validarProceso({ ...newProc, step: procesos.length + 1 });
-        if (!valid) { toast.error(errors[0]); return; }
-        setProcesos([...procesos, { step: procesos.length + 1, description: newProc.description.trim(), duration: newProc.duration.trim(), responsableId: newProc.responsableId }]);
-        setNewProc({ description: '', duration: '' });
-        setProcErrors({});
-        setProcSubmitted(false);
-    };
-
-    function updateMedField(campo: 'parameter' | 'value' | 'unit', valor: string | number) {
-        let valorFiltrado: string | number = valor;
-        
-        if (campo === 'parameter') {
-            valorFiltrado = filtrarParametro(String(valor));
-        } else if (campo === 'value') {
-            // Solo permitir números y punto decimal
-            const numStr = String(valor).replace(/[^0-9.]/g, '');
-            valorFiltrado = numStr === '' ? 0 : parseFloat(numStr) || 0;
-        } else if (campo === 'unit') {
-            valorFiltrado = filtrarUnidad(String(valor));
-        }
-        
-        const nuevaMed = {
-            ...newMed,
-            [campo]: valorFiltrado
-        };
-        setNewMed(nuevaMed);
-        if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
-    }
-
-    const addMed = () => {
-        setMedSubmitted(true);
-        const camposErr = validarMedidaCampos(newMed);
-        setMedErrors(camposErr);
-        const { valid, errors } = validarMedida(newMed);
-        if (!valid) { toast.error(errors[0]); return; }
-        setMedidas([...medidas, { 
-            parameter: newMed.parameter.trim(), 
-            value: newMed.value, 
-            unit: newMed.unit.trim() 
-        }]);
-        setNewMed({ parameter: '', value: 0, unit: '' });
-        setMedErrors({});
-        setMedSubmitted(false);
-    };
+    const [newInsQuantity, setNewInsQuantity] = useState<number>(0);
+    const [newInsUnit, setNewInsUnit] = useState<string>('');
+    const [insErrors, setInsErrors] = useState<ItemErrors>({});
+    const [insSubmitted, setInsSubmitted] = useState(false);
 
     function updateInsField(campo: 'quantity' | 'unit', valor: string | number) {
         let valorFiltrado: string | number = valor;
@@ -209,8 +189,7 @@ function ItemsForm({
         const camposErr = validarInsumoCampos({ quantity: newInsQuantity, unit: newInsUnit }, selectedInsumoId);
         setInsErrors(camposErr);
         if (Object.keys(camposErr).length > 0) {
-            const firstError = camposErr.insumoId ?? camposErr.quantity ?? camposErr.unit ?? '';
-            toast.error(firstError);
+            toast.error(camposErr.insumoId ?? camposErr.quantity ?? camposErr.unit ?? '');
             return;
         }
         const name = catalogoInsumos.find(i => String(i.id) === selectedInsumoId)?.nombreInsumo ?? '';
@@ -222,245 +201,316 @@ function ItemsForm({
         setInsSubmitted(false);
     };
 
-    const inputErr = (hasErr: boolean) =>
-        hasErr ? 'border-red-400 focus-visible:ring-red-300' : '';
+    const inputErr = (hasErr: boolean) => hasErr ? 'border-red-400 focus-visible:ring-red-300' : '';
+
+    const inpStyle: React.CSSProperties = {
+        width: '100%', height: 34, padding: '0 8px',
+        border: '1px solid #d1d5db', borderRadius: 6,
+        fontSize: 14, background: '#fff',
+        boxSizing: 'border-box', outline: 'none', display: 'block',
+    };
+    const inpErrStyle: React.CSSProperties = { ...inpStyle, borderColor: '#f87171' };
+    const selStyle = (hasErr: boolean): React.CSSProperties => ({
+        ...inpStyle, height: 36, borderColor: hasErr ? '#f87171' : '#d1d5db',
+    });
+    const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' };
 
     return (
-        <>
-            {/* ── Procesos ── */}
-            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                <div className="bg-blue-50 py-3 px-4">
-                    <p className="text-sm font-semibold text-blue-900">
-                        Procesos de Fabricación <span className="text-red-500">*</span>
-                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 30)</span>
-                    </p>
-                </div>
-                <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="md:col-span-2 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Descripción *</Label>
-                                <CharCounter valor={newProc.description} limite={300} />
-                            </div>
-                            <Input placeholder="Ej: Preparación de materiales, Corte de piezas"
-                                value={newProc.description}
-                                onChange={e => updateProcField('description', e.target.value)} className={inputErr(!!procErrors.description)} />
-                            <FieldError mensaje={procErrors.description} />
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Duración (min) *</Label>
-                                <CharCounter valor={newProc.duration} limite={50} />
-                            </div>
-                            <Input 
-                                type="text" 
-                                inputMode="numeric"
-                                placeholder="Ej: 15, 30, 60" 
-                                value={newProc.duration}
-                                onChange={e => updateProcField('duration', e.target.value)} 
-                                className={inputErr(!!procErrors.duration)} 
-                            />
-                            <FieldError mensaje={procErrors.duration} />
-                        </div>
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">Responsable <span className="text-red-500">*</span></Label>
+        <div style={blockWrap}>
+            <div style={blockHdr}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a', margin: 0 }}>
+                    Insumos Requeridos <span style={{ color: '#ef4444' }}>*</span>
+                    <span style={{ color: '#9ca3af', fontSize: 11, fontWeight: 400, marginLeft: 4 }}>(mínimo 1, máx. 50)</span>
+                </p>
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Fila de campos */}
+                <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 2, minWidth: 0 }}>
+                        <label style={lbl}>Insumo *</label>
                         <select
-                            className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${!newProc.responsableId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
-                            value={newProc.responsableId || ''}
+                            style={selStyle(!!insErrors.insumoId)}
+                            value={selectedInsumoId}
+                            disabled={loadingInsumos}
                             onChange={e => {
-                                const id = e.target.value ? parseInt(e.target.value) : undefined;
-                                setNewProc({ ...newProc, responsableId: id });
+                                const id = e.target.value;
+                                setSelectedInsumoId(id);
+                                const insumo = catalogoInsumos.find(i => String(i.id) === id);
+                                setNewInsUnit(insumo ? insumo.unidadMedida : '');
+                                if (insSubmitted) setInsErrors(validarInsumoCampos({ quantity: newInsQuantity, unit: insumo ? insumo.unidadMedida : newInsUnit }, id));
                             }}
                         >
-                            <option value="">Seleccionar responsable</option>
-                            {empleados.map(emp => (
-                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos}</option>
+                            <option value="">{loadingInsumos ? 'Cargando...' : 'Seleccionar insumo'}</option>
+                            {catalogoInsumos.map(insumo => (
+                                <option key={insumo.id} value={String(insumo.id)}>{insumo.nombreInsumo}</option>
                             ))}
                         </select>
-                        {!newProc.responsableId && procSubmitted && (
-                            <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                                El responsable es obligatorio
-                            </p>
-                        )}
+                        <FieldError mensaje={insErrors.insumoId} />
                     </div>
-                    <Button type="button" variant="outline" onClick={addProc} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                        <Plus className="w-4 h-4 mr-2" />Agregar Proceso
-                    </Button>
-                    {procesos.length === 0 && (
-                        <p className="text-xs text-red-500 text-center">Debes agregar al menos un proceso</p>
-                    )}
-                    {procesos.map((p, i) => {
-                        const responsable = empleados.find(e => e.id === p.responsableId);
-                        return (
-                            <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                                <div className="flex-1">
-                                    <span>
-                                        <span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>
-                                        {p.description}
-                                    </span>
-                                    {responsable && (
-                                        <p className="text-xs text-gray-600 mt-1">
-                                            👤 {responsable.nombres} {responsable.apellidos}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="text-xs shrink-0">{p.duration} min</Badge>
-                                    <Button type="button" variant="ghost" size="sm"
-                                        onClick={() => setProcesos(procesos.filter((_, j) => j !== i))}
-                                        className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <label style={lbl}>Cantidad *</label>
+                        <input type="text" inputMode="decimal" placeholder="Ej: 0.5"
+                            value={newInsQuantity || ''}
+                            onChange={e => updateInsField('quantity', e.target.value)}
+                            style={insErrors.quantity ? inpErrStyle : inpStyle}
+                        />
+                        <FieldError mensaje={insErrors.quantity} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <label style={{ ...lbl, marginBottom: 0 }}>Unidad *</label>
+                            <CharCounter valor={newInsUnit} limite={30} />
+                        </div>
+                        <input placeholder="litros, kg, ml" value={newInsUnit}
+                            onChange={e => updateInsField('unit', e.target.value)}
+                            style={insErrors.unit ? inpErrStyle : inpStyle}
+                        />
+                        <FieldError mensaje={insErrors.unit} />
+                    </div>
                 </div>
+                <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                    <Plus className="w-4 h-4 mr-2" />Agregar Insumo
+                </Button>
+                {insumosListError && <p className="text-xs text-red-500 text-center">{insumosListError}</p>}
+                {insumos.map((ins, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                        <span className="font-medium text-gray-700">{ins.name}</span>
+                        <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="text-xs">{ins.quantity} {ins.unit}</Badge>
+                            <Button type="button" variant="ghost" size="sm"
+                                onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}
+                                className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
+                                <Trash2 className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </div>
+                ))}
             </div>
+        </div>
+    );
+}
 
-            {/* ── Medidas ── */}
-            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                <div className="bg-blue-50 py-3 px-4">
-                    <p className="text-sm font-semibold text-blue-900">
-                        Medidas y Especificaciones
-                        <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 30)</span>
-                    </p>
+// ─── MedidasSection ───────────────────────────────────────────────────────────
+function MedidasSection({ medidas, setMedidas }: { medidas: Medida[]; setMedidas: (v: Medida[]) => void }) {
+    const [newMed, setNewMed] = useState<{ parameter: string; value: number; unit: string }>({ parameter: '', value: 0, unit: '' });
+    const [medErrors, setMedErrors] = useState<ItemErrors>({});
+    const [medSubmitted, setMedSubmitted] = useState(false);
+
+    function updateMedField(campo: 'parameter' | 'value' | 'unit', valor: string | number) {
+        let valorFiltrado: string | number = valor;
+        if (campo === 'parameter') valorFiltrado = filtrarParametro(String(valor));
+        else if (campo === 'value') { const numStr = String(valor).replace(/[^0-9.]/g, ''); valorFiltrado = numStr === '' ? 0 : parseFloat(numStr) || 0; }
+        else if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
+
+        const nuevaMed = { ...newMed, [campo]: valorFiltrado };
+        setNewMed(nuevaMed);
+        if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
+    }
+
+    const addMed = () => {
+        setMedSubmitted(true);
+        const camposErr = validarMedidaCampos(newMed);
+        setMedErrors(camposErr);
+        const { valid, errors } = validarMedida(newMed);
+        if (!valid) { toast.error(errors[0]); return; }
+        setMedidas([...medidas, { parameter: newMed.parameter.trim(), value: newMed.value, unit: newMed.unit.trim() }]);
+        setNewMed({ parameter: '', value: 0, unit: '' });
+        setMedErrors({});
+        setMedSubmitted(false);
+    };
+
+    const inputErr = (hasErr: boolean) => hasErr ? 'border-red-400 focus-visible:ring-red-300' : '';
+
+    return (
+        <div className="border border-blue-100 rounded-lg overflow-hidden">
+            <div className="bg-blue-50 py-3 px-4">
+                <p className="text-sm font-semibold text-blue-900">
+                    Medidas y Especificaciones
+                    <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 30)</span>
+                </p>
+            </div>
+            <div className="p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Parámetro</Label>
+                        <Input placeholder="Ej: Diámetro exterior"
+                            value={newMed.parameter}
+                            onChange={e => updateMedField('parameter', e.target.value)} className={inputErr(!!medErrors.parameter)} />
+                        <FieldError mensaje={medErrors.parameter} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Valor</Label>
+                        <Input type="text" inputMode="decimal" placeholder="Ej: 95"
+                            value={newMed.value || ''}
+                            onChange={e => updateMedField('value', e.target.value)} className={inputErr(!!medErrors.value)} />
+                        <FieldError mensaje={medErrors.value} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Unidad</Label>
+                        <select className={selectCls(!!medErrors.unit)} value={newMed.unit}
+                            onChange={e => updateMedField('unit', e.target.value)}>
+                            <option value="">Seleccionar unidad</option>
+                            <option value="cm">Centímetros (cm)</option>
+                            <option value="m">Metros (m)</option>
+                            <option value="mm">Milímetros (mm)</option>
+                            <option value="g">Gramos (g)</option>
+                            <option value="kg">Kilogramos (kg)</option>
+                            <option value="L">Litros (L)</option>
+                            <option value="ml">Mililitros (ml)</option>
+                            <option value="unidad">Unidad</option>
+                            <option value="pulgadas">Pulgadas (in)</option>
+                        </select>
+                        <FieldError mensaje={medErrors.unit} />
+                    </div>
                 </div>
-                <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Parámetro</Label>
-                                <CharCounter valor={newMed.parameter} limite={100} />
-                            </div>
-                            <Input placeholder="Ej: Diámetro exterior, Longitud"
-                                value={newMed.parameter}
-                                onChange={e => updateMedField('parameter', e.target.value)} className={inputErr(!!medErrors.parameter)} />
-                            <FieldError mensaje={medErrors.parameter} />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">Valor</Label>
-                            <Input 
-                                type="text" 
-                                inputMode="decimal"
-                                placeholder="Ej: 95, 1.2"
-                                value={newMed.value || ''}
-                                onChange={e => updateMedField('value', e.target.value)} 
-                                className={inputErr(!!medErrors.value)} />
-                            <FieldError mensaje={medErrors.value} />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">Unidad</Label>
-                            <select
-                                className={selectCls(!!medErrors.unit)}
-                                value={newMed.unit}
-                                onChange={e => updateMedField('unit', e.target.value)}
-                            >
-                                <option value="">Seleccionar unidad</option>
-                                <option value="cm">Centímetros (cm)</option>
-                                <option value="m">Metros (m)</option>
-                                <option value="mm">Milímetros (mm)</option>
-                                <option value="g">Gramos (g)</option>
-                                <option value="kg">Kilogramos (kg)</option>
-                                <option value="L">Litros (L)</option>
-                                <option value="ml">Mililitros (ml)</option>
-                                <option value="unidad">Unidad</option>
-                                <option value="pulgadas">Pulgadas (in)</option>
-                            </select>
-                            <FieldError mensaje={medErrors.unit} />
+                <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
+                    <Plus className="w-4 h-4 mr-2" />Agregar Medida
+                </Button>
+                {medidas.map((m, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
+                        <span className="text-gray-700">{m.parameter}</span>
+                        <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="text-xs">{m.value} {m.unit}</Badge>
+                            <Button type="button" variant="ghost" size="sm"
+                                onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
+                                className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
+                                <Trash2 className="w-4 h-4" />
+                            </Button>
                         </div>
                     </div>
-                    <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                        <Plus className="w-4 h-4 mr-2" />Agregar Medida
-                    </Button>
-                    {medidas.map((m, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span className="text-gray-700">{m.parameter}</span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{m.value} {m.unit}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
-                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── Machine param block ──────────────────────────────────────────────────────
+const inputBase: React.CSSProperties = {
+    width: '100%', height: 34, textAlign: 'center',
+    padding: '0 8px', border: '1px solid #d1d5db',
+    borderRadius: 6, fontSize: 14, background: '#fff',
+    boxSizing: 'border-box', outline: 'none', display: 'block',
+};
+const blockHdr: React.CSSProperties = { background: '#eff6ff', padding: '10px 16px', borderBottom: '1px solid #dbeafe', borderRadius: '8px 8px 0 0' };
+const blockWrap: React.CSSProperties = { border: '1px solid #dbeafe', borderRadius: 8 };
+const colH: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#6b7280', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1, paddingBottom: 4 };
+const rowLabel: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: '#374151' };
+
+function NI({ val, set }: { val: string; set: (v: string) => void }) {
+    return (
+        <input type="text" inputMode="numeric" placeholder="0" value={val}
+            onChange={e => set(e.target.value.replace(/[^0-9]/g, ''))}
+            style={inputBase}
+        />
+    );
+}
+
+function ND({ val, set }: { val: string; set: (v: string) => void }) {
+    return (
+        <input type="text" inputMode="decimal" placeholder="0.0" value={val}
+            onChange={e => set(e.target.value.replace(/[^0-9.]/g, ''))}
+            style={inputBase}
+        />
+    );
+}
+
+function MachineBlock({ titulo, maquina, setter, uiRows }: {
+    titulo: string;
+    maquina: MaquinaFormState;
+    setter: (key: keyof MaquinaFormState, campo: string, val: string) => void;
+    uiRows: { key: keyof MaquinaFormState; label: string; hasExtra?: boolean }[];
+}) {
+    const extraColLabel = titulo === 'Unidad de Inyección' ? 'Contrapresión' : 'Nro. Salidas';
+    const hasAnyExtra = uiRows.some(r => r.hasExtra);
+    return (
+        <div style={blockWrap}>
+            <div style={blockHdr}><p style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a', margin: 0 }}>{titulo}</p></div>
+            <div style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 130, flexShrink: 0 }} />
+                    <div style={{ flex: 1, ...colH }}>Velocidad</div>
+                    <div style={{ flex: 1, ...colH }}>Presión</div>
+                    <div style={{ width: 82, flexShrink: 0, ...colH }}>{hasAnyExtra ? extraColLabel : ''}</div>
+                </div>
+                {uiRows.map(row => {
+                    const d = maquina[row.key] as any;
+                    return (
+                        <div key={String(row.key)} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <div style={{ width: 130, flexShrink: 0, ...rowLabel }}>{row.label}</div>
+                            <div style={{ flex: 1 }}><NI val={d.velocidad} set={v => setter(row.key, 'velocidad', v)} /></div>
+                            <div style={{ flex: 1 }}><NI val={d.presion}   set={v => setter(row.key, 'presion',   v)} /></div>
+                            <div style={{ width: 82, flexShrink: 0 }}>
+                                {row.hasExtra && <NI val={d.extra ?? ''} set={v => setter(row.key, 'extra', v)} />}
                             </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function TemperaturasBlock({ temps, onSet }: {
+    temps: MaquinaFormState['temperaturas'];
+    onSet: (campo: string, val: string) => void;
+}) {
+    const zonas = [
+        { key: 'boquilla', label: 'Boquilla' },
+        { key: 'z1',       label: 'Z1' },
+        { key: 'z2',       label: 'Z2' },
+        { key: 'z3',       label: 'Z3' },
+    ] as const;
+    return (
+        <div style={blockWrap}>
+            <div style={blockHdr}><p style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a', margin: 0 }}>Temperaturas</p></div>
+            <div style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 90, flexShrink: 0 }} />
+                    {zonas.map(z => <div key={z.key} style={{ flex: 1, ...colH }}>{z.label}</div>)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 90, flexShrink: 0, ...rowLabel }}>Set point</div>
+                    {zonas.map(z => (
+                        <div key={z.key} style={{ flex: 1 }}>
+                            <ND val={temps[z.key]} set={v => onSet(z.key, v)} />
                         </div>
                     ))}
                 </div>
             </div>
+        </div>
+    );
+}
 
-            {/* ── Insumos ── */}
-            <div className="border border-blue-100 rounded-lg overflow-hidden">
-                <div className="bg-blue-50 py-3 px-4">
-                    <p className="text-sm font-semibold text-blue-900">
-                        Insumos Requeridos <span className="text-red-500">*</span>
-                        <span className="text-gray-400 text-xs font-normal ml-1">(mínimo 1, máx. 50)</span>
-                    </p>
+function TiemposBlock({ tiempos, onSet }: {
+    tiempos: MaquinaFormState['tiempos'];
+    onSet: (campo: string, val: string) => void;
+}) {
+    const filas = [
+        { key: 'enfriamiento',     label: 'Enfriamiento' },
+        { key: 'pausa',            label: 'Pausa' },
+        { key: 'retardoInyeccion', label: 'Retardo de inyección' },
+        { key: 'inyeccion',        label: 'Inyección' },
+        { key: 'segundaInyeccion', label: '2a Inyección' },
+        { key: 'descompresion',    label: 'Descompresión' },
+    ] as const;
+    return (
+        <div style={blockWrap}>
+            <div style={blockHdr}><p style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a', margin: 0 }}>Tiempos</p></div>
+            <div style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                    <div style={{ flex: 1 }} />
+                    <div style={{ width: 120, flexShrink: 0, ...colH }}>Consigna (s)</div>
                 </div>
-                <div className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="md:col-span-2 space-y-1">
-                            <Label className="text-xs">Insumo *</Label>
-                            <select
-                                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#f3f3f5] h-9 ${insErrors.insumoId ? 'border-red-400' : 'border-gray-200 hover:border-gray-300'}`}
-                                value={selectedInsumoId}
-                                disabled={loadingInsumos}
-                                onChange={e => {
-                                    const id = e.target.value;
-                                    setSelectedInsumoId(id);
-                                    const insumo = catalogoInsumos.find(i => String(i.id) === id);
-                                    setNewInsUnit(insumo ? insumo.unidadMedida : '');
-                                    if (insSubmitted) setInsErrors(validarInsumoCampos({ quantity: newInsQuantity, unit: insumo ? insumo.unidadMedida : newInsUnit }, id));
-                                }}
-                            >
-                                <option value="">{loadingInsumos ? 'Cargando insumos...' : 'Seleccionar insumo'}</option>
-                                {catalogoInsumos.map(insumo => (
-                                    <option key={insumo.id} value={String(insumo.id)}>{insumo.nombreInsumo}</option>
-                                ))}
-                            </select>
-                            <FieldError mensaje={insErrors.insumoId} />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">Cantidad *</Label>
-                            <Input type="text" inputMode="decimal" placeholder="Ej: 0.5"
-                                value={newInsQuantity || ''}
-                                onChange={e => updateInsField('quantity', e.target.value)} className={inputErr(!!insErrors.quantity)} />
-                            <FieldError mensaje={insErrors.quantity} />
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs">Unidad *</Label>
-                                <CharCounter valor={newInsUnit} limite={30} />
-                            </div>
-                            <Input placeholder="litros, kg, ml" value={newInsUnit}
-                                onChange={e => updateInsField('unit', e.target.value)} className={inputErr(!!insErrors.unit)} />
-                            <FieldError mensaje={insErrors.unit} />
+                {filas.map(fila => (
+                    <div key={fila.key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{ flex: 1, ...rowLabel }}>{fila.label}</div>
+                        <div style={{ width: 120, flexShrink: 0 }}>
+                            <ND val={tiempos[fila.key]} set={v => onSet(fila.key, v)} />
                         </div>
                     </div>
-                    <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                        <Plus className="w-4 h-4 mr-2" />Agregar Insumo
-                    </Button>
-                    {insumosListError && (
-                        <p className="text-xs text-red-500 text-center">{insumosListError}</p>
-                    )}
-                    {insumos.map((ins, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                            <span className="font-medium text-gray-700">{ins.name}</span>
-                            <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-xs">{ins.quantity} {ins.unit}</Badge>
-                                <Button type="button" variant="ghost" size="sm"
-                                    onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}
-                                    className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                ))}
             </div>
-        </>
+        </div>
     );
 }
 
@@ -480,7 +530,7 @@ export function TechnicalSheetModule() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const [selectedFicha, setSelectedFicha] = useState<FichaTecnica | null>(null);
-    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [deleteError, setDeleteError]     = useState<string | null>(null);
     const [fichaToDelete, setFichaToDelete] = useState<FichaTecnica | null>(null);
 
     const [createForm, setCreateForm] = useState<FormInfo>(EMPTY_FORM);
@@ -489,14 +539,21 @@ export function TechnicalSheetModule() {
     const [createInfoErrors, setCreateInfoErrors] = useState<{ productoId?: string; notas?: string }>({});
     const [editInfoErrors, setEditInfoErrors]     = useState<{ notas?: string }>({});
 
-    const [cProcesos, setCProcesos]     = useState<Proceso[]>([]);
-    const [cMedidas, setCMedidas]       = useState<Medida[]>([]);
-    const [cInsumos, setCInsumos]       = useState<InsumoFT[]>([]);
+    // Medidas & Insumos
+    const [cMedidas, setCMedidas] = useState<Medida[]>([]);
+    const [cInsumos, setCInsumos] = useState<InsumoFT[]>([]);
+    const [eMedidas, setEMedidas] = useState<Medida[]>([]);
+    const [eInsumos, setEInsumos] = useState<InsumoFT[]>([]);
 
-    const [eProcesos, setEProcesos]     = useState<Proceso[]>([]);
-    const [eMedidas, setEMedidas]       = useState<Medida[]>([]);
-    const [eInsumos, setEInsumos]       = useState<InsumoFT[]>([]);
+    // Nuevos campos
+    const [cNumeroMolde, setCNumeroMolde]       = useState('');
+    const [cResponsableId, setCResponsableId]   = useState('');
+    const [cMaquina, setCMaquina]               = useState<MaquinaFormState>({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
+    const [eNumeroMolde, setENumeroMolde]       = useState('');
+    const [eResponsableId, setEResponsableId]   = useState('');
+    const [eMaquina, setEMaquina]               = useState<MaquinaFormState>({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
 
+    // Catálogo de insumos
     const [catalogoInsumos, setCatalogoInsumos] = useState<InsumoDisponible[]>([]);
     const [loadingInsumos, setLoadingInsumos]   = useState(false);
     const [errorInsumos, setErrorInsumos]       = useState<string | null>(null);
@@ -505,9 +562,9 @@ export function TechnicalSheetModule() {
         fichas.filter(f => f.estado === 'Activa').map(f => f.productoId)
     );
 
-    const [searchTerm, setSearchTerm]   = useState('');
+    const [searchTerm, setSearchTerm]     = useState('');
     const [filterEstado, setFilterEstado] = useState('all');
-    const [currentPage, setCurrentPage]  = useState(1);
+    const [currentPage, setCurrentPage]   = useState(1);
     const itemsPerPage = 5;
 
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
@@ -522,6 +579,7 @@ export function TechnicalSheetModule() {
         setTimeout(() => setInactiveAlert(null), 5000);
     };
 
+    // ── Fetch ───────────────────────────────────────────────────────────────
     const fetchFichas = useCallback(async () => {
         setLoading(true);
         try { setFichas(await getFichasTecnicas()); }
@@ -541,15 +599,9 @@ export function TechnicalSheetModule() {
     const fetchInsumosDisponibles = useCallback(async () => {
         setLoadingInsumos(true);
         setErrorInsumos(null);
-        try {
-            const data = await getInsumosDisponibles();
-            setCatalogoInsumos(data);
-        } catch (err: any) {
-            setErrorInsumos('No se pudo cargar el catálogo de insumos. Intenta de nuevo.');
-            setCatalogoInsumos([]);
-        } finally {
-            setLoadingInsumos(false);
-        }
+        try { setCatalogoInsumos(await getInsumosDisponibles()); }
+        catch { setErrorInsumos('No se pudo cargar el catálogo de insumos.'); setCatalogoInsumos([]); }
+        finally { setLoadingInsumos(false); }
     }, []);
 
     const fetchEmpleados = useCallback(async () => {
@@ -557,19 +609,19 @@ export function TechnicalSheetModule() {
             const BASE = getApiBaseUrl();
             const res = await fetch(`${BASE}/empleados`, { headers: buildAuthHeaders() });
             const data = await handleResponse<any[]>(res);
-            // Filtrar solo empleados activos
             setEmpleados(data.filter(e => e.estado === 'activo'));
         } catch { /* silencioso */ }
     }, []);
 
     useEffect(() => { fetchFichas(); fetchProductos(); fetchEmpleados(); }, [fetchFichas, fetchProductos, fetchEmpleados]);
 
+    // ── Filtrado y paginación ───────────────────────────────────────────────
     const filtered = fichas.filter(f => {
-        const codigo   = (f.codigoFicha ?? '').toLowerCase();
-        const producto = (f.producto?.nombreProducto ?? '').toLowerCase();
-        const ref      = (f.producto?.referencia ?? '').toLowerCase();
-        const search   = searchTerm.toLowerCase();
-        const matchSearch = codigo.includes(search) || producto.includes(search) || ref.includes(search);
+        const search = searchTerm.toLowerCase();
+        const matchSearch =
+            (f.codigoFicha ?? '').toLowerCase().includes(search) ||
+            (f.producto?.nombreProducto ?? '').toLowerCase().includes(search) ||
+            (f.producto?.referencia ?? '').toLowerCase().includes(search);
         const matchEstado = filterEstado === 'all' || f.estado === filterEstado;
         return matchSearch && matchEstado;
     });
@@ -581,6 +633,7 @@ export function TechnicalSheetModule() {
     const totalPages = Math.ceil(sorted.length / itemsPerPage);
     const paginated  = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    // ── Estado rápido ───────────────────────────────────────────────────────
     const handleQuickEstadoChange = async (ficha: FichaTecnica, nuevoEstado: string) => {
         setInactiveAlert(null);
         try {
@@ -592,9 +645,12 @@ export function TechnicalSheetModule() {
         }
     };
 
+    // ── Reset ───────────────────────────────────────────────────────────────
     const resetCreate = () => {
         setCreateForm(EMPTY_FORM);
-        setCProcesos([]); setCMedidas([]); setCInsumos([]);
+        setCMedidas([]); setCInsumos([]);
+        setCNumeroMolde(''); setCResponsableId('');
+        setCMaquina({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
         setCreateInfoErrors({});
         fetchInsumosDisponibles();
     };
@@ -613,16 +669,15 @@ export function TechnicalSheetModule() {
         setEditInfoErrors(prev => ({ ...prev, notas: err }));
     }
 
+    // ── Crear ───────────────────────────────────────────────────────────────
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!createForm.productoId) {
             setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
+            return;
         }
-        // Validación previa: el producto ya tiene una ficha activa
         if (createForm.productoId && productosConFichaActiva.has(parseInt(createForm.productoId))) {
-            const fichaExistente = fichas.find(
-                f => f.productoId === parseInt(createForm.productoId) && f.estado === 'Activa'
-            );
+            const fichaExistente = fichas.find(f => f.productoId === parseInt(createForm.productoId) && f.estado === 'Activa');
             const codigo = fichaExistente?.codigoFicha ?? '';
             setCreateInfoErrors(prev => ({
                 ...prev,
@@ -631,17 +686,20 @@ export function TechnicalSheetModule() {
             toast.error(`Este producto ya tiene la ficha activa ${codigo}. Inactívala primero.`);
             return;
         }
-        const { valid, errors } = validarFormCrear(createForm, cProcesos, cMedidas, cInsumos);
+        const { valid, errors } = validarFormCrear(createForm, cMedidas, cInsumos);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             const res = await createFichaTecnica({
-                productoId: parseInt(createForm.productoId),
-                procesos:   cProcesos,
-                medidas:    cMedidas,
-                insumos:    cInsumos,
-                notas:      createForm.notas || undefined,
+                productoId:        parseInt(createForm.productoId),
+                procesos:          [],
+                medidas:           cMedidas,
+                insumos:           cInsumos,
+                notas:             createForm.notas || undefined,
+                numeroMolde:       cNumeroMolde ? parseInt(cNumeroMolde) : undefined,
+                parametrosMaquina: toMaquinaPayload(cMaquina),
+                responsableId:     cResponsableId ? parseInt(cResponsableId) : undefined,
             });
             showFeedback(`✓ Ficha ${res.ficha.codigoFicha} creada exitosamente`);
             toast.success(`Ficha ${res.ficha.codigoFicha} creada exitosamente`);
@@ -655,31 +713,37 @@ export function TechnicalSheetModule() {
         }
     };
 
+    // ── Abrir edición ───────────────────────────────────────────────────────
     const openEdit = (f: FichaTecnica) => {
         setSelectedFicha(f);
         setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
-        setEProcesos(f.procesos ?? []);
         setEMedidas(f.medidas ?? []);
         setEInsumos(f.insumos ?? []);
+        setENumeroMolde(f.numeroMolde != null ? String(f.numeroMolde) : '');
+        setEResponsableId(f.responsableId != null ? String(f.responsableId) : '');
+        setEMaquina(fromMaquinaPayload(f.parametrosMaquina));
         setEditInfoErrors({});
         fetchInsumosDisponibles();
         setShowEditModal(true);
     };
 
+    // ── Actualizar ──────────────────────────────────────────────────────────
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedFicha?.id) return;
-        const { valid, errors } = validarFormEditar(eProcesos, eMedidas, eInsumos, editForm.notas);
+        const { valid, errors } = validarFormEditar(eMedidas, eInsumos, editForm.notas);
         if (!valid) { toast.error(errors[0]); return; }
 
         setSaving(true);
         try {
             await updateFichaTecnica(selectedFicha.id, {
-                procesos:   eProcesos,
-                medidas:    eMedidas,
-                insumos:    eInsumos,
-                notas:      editForm.notas || undefined,
-                estado:     editForm.estado,
+                medidas:           eMedidas,
+                insumos:           eInsumos,
+                notas:             editForm.notas || undefined,
+                estado:            editForm.estado,
+                numeroMolde:       eNumeroMolde ? parseInt(eNumeroMolde) : null,
+                parametrosMaquina: toMaquinaPayload(eMaquina),
+                responsableId:     eResponsableId ? parseInt(eResponsableId) : null,
             });
             showFeedback('✓ Ficha técnica actualizada correctamente');
             toast.success('Ficha técnica actualizada correctamente');
@@ -693,6 +757,7 @@ export function TechnicalSheetModule() {
         }
     };
 
+    // ── Eliminar ────────────────────────────────────────────────────────────
     const handleDelete = async () => {
         if (!fichaToDelete?.id) return;
         setSaving(true);
@@ -710,6 +775,16 @@ export function TechnicalSheetModule() {
         }
     };
 
+    // ── Helper: setter de maquina state ────────────────────────────────────
+    const setC = (key: keyof MaquinaFormState, campo: string, val: string) =>
+        setCMaquina(prev => ({ ...prev, [key]: { ...prev[key], [campo]: val } }));
+    const setE = (key: keyof MaquinaFormState, campo: string, val: string) =>
+        setEMaquina(prev => ({ ...prev, [key]: { ...prev[key], [campo]: val } }));
+
+
+    // ══════════════════════════════════════════════════════════════════
+    //  RENDER
+    // ══════════════════════════════════════════════════════════════════
     return (
         <div className="p-6 space-y-6">
 
@@ -719,44 +794,31 @@ export function TechnicalSheetModule() {
                     <h1 className="text-2xl text-blue-900 font-bold mb-2">Fichas Técnicas</h1>
                     <p className="text-blue-800">Especificaciones técnicas de productos</p>
                 </div>
-                <Button
-                    onClick={() => { resetCreate(); setShowCreateModal(true); }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
+                <Button onClick={() => { resetCreate(); setShowCreateModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white">
                     <Plus className="w-4 h-4 mr-2" />Registrar Ficha Técnica
                 </Button>
             </div>
 
             {/* Filtros */}
             <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      placeholder="Buscar por código, producto, referencia..."
-                      value={searchTerm}
-                      onChange={e => {
-                        setSearchTerm(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="pl-10 w-full"
-                    />
-                  </div>
-                  <select
-                    value={filterEstado}
-                    onChange={e => {
-                      setFilterEstado(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-40"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="Activa">Activa</option>
-                    <option value="Inactiva">Inactiva</option>
-                  </select>
-                </div>
-              </CardContent>
+                <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                            <Input placeholder="Buscar por código, producto, referencia..."
+                                value={searchTerm}
+                                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="pl-10 w-full" />
+                        </div>
+                        <select value={filterEstado}
+                            onChange={e => { setFilterEstado(e.target.value); setCurrentPage(1); }}
+                            className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-40">
+                            <option value="all">Todos</option>
+                            <option value="Activa">Activa</option>
+                            <option value="Inactiva">Inactiva</option>
+                        </select>
+                    </div>
+                </CardContent>
             </Card>
 
             {/* Tabla */}
@@ -799,65 +861,40 @@ export function TechnicalSheetModule() {
                                                 <td className="py-4 px-6">
                                                     <p className={`font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.producto?.nombreProducto ?? '—'}</p>
                                                 </td>
-
-                                                {/* ── Columna Estado: Switch solo ── */}
                                                 <td className="py-4 px-6">
                                                     <Switch
                                                         checked={ficha.estado === 'Activa'}
                                                         onCheckedChange={() => handleQuickEstadoChange(ficha, ficha.estado === 'Activa' ? 'Inactiva' : 'Activa')}
                                                     />
                                                 </td>
-
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center space-x-2">
-                                                        {/* Ver detalle: siempre activo */}
                                                         <Button size="sm"
                                                             onClick={() => { setSelectedFicha(ficha); setShowDetailModal(true); }}
                                                             className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
                                                             <Eye className="w-4 h-4" />
                                                         </Button>
-                                                        {/* Editar: bloqueado si inactiva */}
                                                         <Button size="sm"
                                                             onClick={() => {
-                                                                if (isInactiva) {
-                                                                    showInactiveAlert('Ficha inactiva: No puedes editar una ficha inactiva. Actívala primero usando el interruptor de estado.');
-                                                                    return;
-                                                                }
+                                                                if (isInactiva) { showInactiveAlert('Ficha inactiva: Actívala primero para editar.'); return; }
                                                                 openEdit(ficha);
                                                             }}
-                                                            className={`border transition-colors ${
-                                                                isInactiva
-                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
-                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                            }`}>
+                                                            className={`border transition-colors ${isInactiva ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
                                                             <Edit className="w-4 h-4" />
                                                         </Button>
-                                                        {/* Eliminar: solo si activa */}
                                                         <Button size="sm"
                                                             onClick={async () => {
-                                                                if (ficha.estado === 'Inactiva') {
-                                                                    showInactiveAlert('Ficha inactiva: No puedes eliminar una ficha inactiva. Actívala primero usando el interruptor de estado.');
-                                                                    return;
-                                                                }
-                                                                // Verificar si puede eliminarse
+                                                                if (isInactiva) { showInactiveAlert('Ficha inactiva: Actívala primero para eliminar.'); return; }
                                                                 try {
                                                                     const resultado = await puedeEliminarFichaTecnica(ficha.id!);
                                                                     setFichaToDelete(ficha);
-                                                                    if (!resultado.puedeEliminar) {
-                                                                        setDeleteError(resultado.razon);
-                                                                    } else {
-                                                                        setDeleteError(null);
-                                                                    }
+                                                                    setDeleteError(resultado.puedeEliminar ? null : resultado.razon);
                                                                     setShowDeleteDialog(true);
                                                                 } catch (err: any) {
-                                                                    toast.error('Error al verificar: ' + (err?.message ?? 'Error desconocido'));
+                                                                    toast.error('Error al verificar: ' + (err?.message ?? 'Error'));
                                                                 }
                                                             }}
-                                                            className={`border transition-colors ${
-                                                                ficha.estado === 'Inactiva'
-                                                                    ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white'
-                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                            }`}>
+                                                            className={`border transition-colors ${isInactiva ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed hover:bg-white' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}>
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
                                                     </div>
@@ -868,12 +905,9 @@ export function TechnicalSheetModule() {
                                 </tbody>
                             </table>
                         </div>
-
                         {totalPages > 1 && (
                             <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
-                                <Button variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
                                     <ChevronLeft className="w-4 h-4" />
                                 </Button>
                                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
@@ -882,9 +916,7 @@ export function TechnicalSheetModule() {
                                         {page}
                                     </Button>
                                 ))}
-                                <Button variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                                     <ChevronRight className="w-4 h-4" />
                                 </Button>
                             </div>
@@ -893,15 +925,7 @@ export function TechnicalSheetModule() {
                 </Card>
             )}
 
-            {/* Alerta de ficha inactiva */}
-            {inactiveAlert && (
-                <InactiveAlert
-                    mensaje={inactiveAlert}
-                    onClose={() => setInactiveAlert(null)}
-                />
-            )}
-
-            {/* Feedback Banner */}
+            {inactiveAlert && <InactiveAlert mensaje={inactiveAlert} onClose={() => setInactiveAlert(null)} />}
             {feedbackMsg && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-5 py-3 shadow-sm">
                     <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" />
@@ -909,59 +933,56 @@ export function TechnicalSheetModule() {
                 </div>
             )}
 
-            {/* MODAL — CREAR */}
+            {/* ═══ MODAL — CREAR ═══ */}
             <Dialog open={showCreateModal} onOpenChange={(open) => { if (!open) { resetCreate(); setShowCreateModal(false); } }}>
                 <DialogContent
                     className="p-0 gap-0 overflow-hidden"
-                    style={{
-                        width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh',
-                        display: 'flex', flexDirection: 'column', padding: 0, gap: 0,
-                    }}
+                    style={{ width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
                 >
-                    {/* ── HEADER ── */}
-                    <header style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
-                        flexShrink: 0, background: '#fff',
-                    }}>
-                        <div style={{
-                            width: 40, height: 40, background: '#1d4ed8',
-                            borderRadius: 8, display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', flexShrink: 0,
-                        }}>
+                    {/* Header */}
+                    <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid #e5e7eb', flexShrink: 0, background: '#fff' }}>
+                        <div style={{ width: 40, height: 40, background: '#1d4ed8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <FileText style={{ width: 20, height: 20, color: '#fff' }} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
-                            <DialogTitle style={{
-                                fontSize: 18, fontWeight: 700, color: '#111827',
-                                lineHeight: 1.2, margin: 0,
-                            }}>
+                            <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>
                                 Registrar Nueva Ficha Técnica
                             </DialogTitle>
-                            <DialogDescription style={{
-                                fontSize: 12, color: '#6b7280', marginTop: 2, margin: 0,
-                            }}>
+                            <p style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
                                 Completa los campos obligatorios (*) para crear la ficha.
-                            </DialogDescription>
+                            </p>
                         </div>
                     </header>
 
-                    {/* ── BODY (2 COLUMNAS) ── */}
-                    <form
-                        id="create-ficha-form"
-                        onSubmit={handleCreate}
-                        style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}
-                    >
-                        {/* ── SIDEBAR IZQUIERDO ── */}
-                        <aside style={{
-                            width: 320, flexShrink: 0,
-                            borderRight: '1px solid #e5e7eb', background: '#f9fafb',
-                            display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                        }}>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+                    {/* Body 2 columnas */}
+                    <form id="create-ficha-form" onSubmit={handleCreate} style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+                        {/* Sidebar */}
+                        <aside style={{ width: 320, flexShrink: 0, borderRight: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                {/* Empleado responsable — primer campo */}
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                                        Empleado responsable
+                                    </label>
+                                    <select
+                                        className={selectCls()}
+                                        value={cResponsableId}
+                                        onChange={e => setCResponsableId(e.target.value)}
+                                        style={{ background: '#fff' }}
+                                    >
+                                        <option value="">Seleccionar empleado</option>
+                                        {empleados.map(emp => (
+                                            <option key={emp.id} value={emp.id}>
+                                                {emp.nombres} {emp.apellidos} — {emp.cargo}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
                                 {/* Producto */}
-                                <div style={{ marginBottom: 20 }}>
+                                <div>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
                                         Producto <span style={{ color: '#f87171' }}>*</span>
                                     </label>
@@ -974,13 +995,8 @@ export function TechnicalSheetModule() {
                                             if (!val) {
                                                 setCreateInfoErrors(prev => ({ ...prev, productoId: 'Debes seleccionar un producto' }));
                                             } else if (productosConFichaActiva.has(parseInt(val))) {
-                                                const fichaExistente = fichas.find(
-                                                    f => f.productoId === parseInt(val) && f.estado === 'Activa'
-                                                );
-                                                setCreateInfoErrors(prev => ({
-                                                    ...prev,
-                                                    productoId: `Este producto ya tiene la ficha activa ${fichaExistente?.codigoFicha ?? ''}. Inactívala antes de crear una nueva.`,
-                                                }));
+                                                const fichaEx = fichas.find(f => f.productoId === parseInt(val) && f.estado === 'Activa');
+                                                setCreateInfoErrors(prev => ({ ...prev, productoId: `Ya tiene la ficha activa ${fichaEx?.codigoFicha ?? ''}. Inactívala primero.` }));
                                             } else {
                                                 setCreateInfoErrors(prev => ({ ...prev, productoId: undefined }));
                                             }
@@ -992,7 +1008,7 @@ export function TechnicalSheetModule() {
                                             const tieneActiva = productosConFichaActiva.has(p.id);
                                             return (
                                                 <option key={p.id} value={p.id} disabled={tieneActiva}>
-                                                    {tieneActiva ? '⚠ ' : ''}{p.nombreProducto} — {p.referencia}{p.categoria ? ` (${p.categoria.nombreCategoria})` : ''}{tieneActiva ? ' [ya tiene ficha activa]' : ''}
+                                                    {tieneActiva ? '⚠ ' : ''}{p.nombreProducto} — {p.referencia}{tieneActiva ? ' [ya tiene ficha activa]' : ''}
                                                 </option>
                                             );
                                         })}
@@ -1000,8 +1016,22 @@ export function TechnicalSheetModule() {
                                     <FieldError mensaje={createInfoErrors.productoId} />
                                 </div>
 
+                                {/* Número de Molde */}
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                                        Número de Molde
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="Ej: 1234"
+                                        value={cNumeroMolde}
+                                        onChange={e => setCNumeroMolde(e.target.value.replace(/[^0-9]/g, ''))}
+                                    />
+                                </div>
+
                                 {/* Notas */}
-                                <div style={{ marginBottom: 20 }}>
+                                <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                         <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
                                             Notas <span style={{ color: '#9ca3af', fontWeight: 400 }}>(opcional)</span>
@@ -1009,23 +1039,17 @@ export function TechnicalSheetModule() {
                                         <CharCounter valor={createForm.notas} limite={1000} />
                                     </div>
                                     <Textarea
-                                        placeholder="Notas adicionales sobre la ficha técnica..."
+                                        placeholder="Notas adicionales..."
                                         value={createForm.notas}
                                         rows={5}
                                         onChange={e => updateCreateNotas(e.target.value)}
-                                        style={{ fontSize: 14, background: '#fff', resize: 'none',
-                                            borderColor: createInfoErrors.notas ? '#f87171' : undefined }}
+                                        style={{ fontSize: 14, background: '#fff', resize: 'none', borderColor: createInfoErrors.notas ? '#f87171' : undefined }}
                                     />
                                     <FieldError mensaje={createInfoErrors.notas} />
                                 </div>
 
                                 {errorInsumos && (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: 8,
-                                        padding: '10px 12px', borderRadius: 8,
-                                        background: '#fef2f2', border: '1px solid #fecaca',
-                                        fontSize: 13, color: '#dc2626',
-                                    }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 13, color: '#dc2626' }}>
                                         <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0 }} />
                                         {errorInsumos}
                                     </div>
@@ -1033,47 +1057,60 @@ export function TechnicalSheetModule() {
                             </div>
                         </aside>
 
-                        {/* ── PANEL DERECHO ── */}
-                        <section style={{
-                            flex: 1, minWidth: 0,
-                            display: 'flex', flexDirection: 'column',
-                            overflow: 'hidden', background: '#fff',
-                        }}>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-                                <ItemsForm
-                                    procesos={cProcesos}     setProcesos={setCProcesos}
-                                    medidas={cMedidas}       setMedidas={setCMedidas}
-                                    insumos={cInsumos}       setInsumos={setCInsumos}
+                        {/* Panel derecho */}
+                        <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                {/* 1. Insumos — primero */}
+                                <InsumosSection
+                                    insumos={cInsumos}
+                                    setInsumos={setCInsumos}
                                     catalogoInsumos={catalogoInsumos}
                                     loadingInsumos={loadingInsumos}
                                     insumosListError={cInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
-                                    empleados={empleados}
                                 />
+
+                                {/* 2. Unidad de Inyección */}
+                                <MachineBlock titulo="Unidad de Inyección" maquina={cMaquina} setter={setC} uiRows={[
+                                    { key: 'tolva',            label: 'Tolva' },
+                                    { key: 'inyeccion',        label: 'Inyección' },
+                                    { key: 'segundaInyeccion', label: '2a Inyección' },
+                                    { key: 'carga',            label: 'Carga',        hasExtra: true },
+                                    { key: 'decompresion',     label: 'Descompresión' },
+                                ]} />
+
+                                {/* 3. Prensa */}
+                                <MachineBlock titulo="Prensa" maquina={cMaquina} setter={setC} uiRows={[
+                                    { key: 'abrir',       label: 'Abrir' },
+                                    { key: 'cerrar',      label: 'Cerrar' },
+                                    { key: 'seguroMolde', label: 'Seguro de Molde' },
+                                    { key: 'botador',     label: 'Botador',          hasExtra: true },
+                                ]} />
+
+                                {/* 4. Temperaturas */}
+                                <TemperaturasBlock
+                                    temps={cMaquina.temperaturas}
+                                    onSet={(campo, val) => setC('temperaturas', campo, val)}
+                                />
+
+                                {/* 5. Tiempos */}
+                                <TiemposBlock
+                                    tiempos={cMaquina.tiempos}
+                                    onSet={(campo, val) => setC('tiempos', campo, val)}
+                                />
+
+                                {/* 6. Medidas */}
+                                <MedidasSection medidas={cMedidas} setMedidas={setCMedidas} />
                             </div>
                         </section>
                     </form>
 
-                    {/* ── FOOTER ── */}
-                    <footer style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                        gap: 8, padding: '12px 24px',
-                        borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
-                    }}>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => { resetCreate(); setShowCreateModal(false); }}
-                            disabled={saving}
-                            style={{ height: 36, padding: '0 16px' }}
-                        >
+                    {/* Footer */}
+                    <footer style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '12px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+                        <Button type="button" variant="outline" onClick={() => { resetCreate(); setShowCreateModal(false); }} disabled={saving} style={{ height: 36 }}>
                             Cancelar
                         </Button>
-                        <Button
-                            type="submit"
-                            form="create-ficha-form"
-                            disabled={saving || !!errorInsumos}
-                            style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
-                        >
+                        <Button type="submit" form="create-ficha-form" disabled={saving || !!errorInsumos} style={{ background: '#1d4ed8', color: '#fff', height: 36 }}>
                             {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
                             {saving ? 'Guardando...' : 'Registrar Ficha Técnica'}
                         </Button>
@@ -1081,13 +1118,13 @@ export function TechnicalSheetModule() {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL — VER DETALLE */}
+            {/* ═══ MODAL — VER DETALLE ═══ */}
             <Dialog open={showDetailModal} onOpenChange={(open) => { if (!open) setShowDetailModal(false); }}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-visible p-0">
                     <div className="overflow-y-auto max-h-[90vh] p-6">
                         <DialogHeader>
                             <DialogTitle>Detalle de Ficha Técnica</DialogTitle>
-                            <DialogDescription>Información completa — {selectedFicha?.codigoFicha}</DialogDescription>
+                            <p className="text-sm text-gray-500 mt-1">Información completa — {selectedFicha?.codigoFicha}</p>
                         </DialogHeader>
                         {selectedFicha && (
                             <div className="space-y-4 mt-4">
@@ -1108,10 +1145,18 @@ export function TechnicalSheetModule() {
                                         <p className="text-xs text-gray-500 uppercase">Referencia</p>
                                         <p className="font-semibold text-sm mt-1">{selectedFicha.producto?.referencia ?? '—'}</p>
                                     </div>
-                                    {selectedFicha.producto?.categoria && (
+                                    {selectedFicha.numeroMolde != null && (
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase">Categoría</p>
-                                            <Badge variant="secondary" className="mt-1">{selectedFicha.producto.categoria.nombreCategoria}</Badge>
+                                            <p className="text-xs text-gray-500 uppercase">Número de Molde</p>
+                                            <p className="font-semibold text-sm mt-1">{selectedFicha.numeroMolde}</p>
+                                        </div>
+                                    )}
+                                    {selectedFicha.responsableId != null && (
+                                        <div>
+                                            <p className="text-xs text-gray-500 uppercase">Empleado responsable</p>
+                                            <p className="font-semibold text-sm mt-1">
+                                                {(() => { const e = empleados.find(x => x.id === selectedFicha.responsableId); return e ? `${e.nombres} ${e.apellidos} — ${e.cargo}` : `ID ${selectedFicha.responsableId}`; })()}
+                                            </p>
                                         </div>
                                     )}
                                     <div>
@@ -1126,50 +1171,102 @@ export function TechnicalSheetModule() {
                                     )}
                                 </div>
 
-                                {/* Procesos */}
-                                <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                    <div className="bg-blue-50 py-3 px-4">
-                                        <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                            <ClipboardList className="w-4 h-4" />Procesos de Fabricación ({(selectedFicha.procesos ?? []).length})
-                                        </p>
-                                    </div>
-                                    <div className="p-4 space-y-2">
-                                        {(selectedFicha.procesos ?? []).map((p, i) => {
-                                            const responsable = empleados.find(e => e.id === p.responsableId);
-                                            return (
-                                                <div key={i} className="bg-gray-50 rounded p-3 border text-sm space-y-1">
-                                                    <div className="flex justify-between items-start">
-                                                        <span><span className="font-medium text-blue-700 mr-2">Paso {i + 1}:</span>{p.description}</span>
-                                                        <Badge variant="outline">{p.duration} min</Badge>
+                                {/* Parámetros de máquina */}
+                                {selectedFicha.parametrosMaquina && (() => {
+                                    const pm = selectedFicha.parametrosMaquina as any;
+                                    const ui = pm.unidadInyeccion ?? {};
+                                    const pr = pm.prensa ?? {};
+                                    const tm = pm.temperaturas ?? {};
+                                    const ti = pm.tiempos ?? {};
+                                    const vBadge = (v: any) => (
+                                        <span style={{ display: 'inline-block', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 10px', fontSize: 13, textAlign: 'center', minWidth: 40 }}>{v ?? 0}</span>
+                                    );
+                                    const secHdr: React.CSSProperties = { fontWeight: 700, fontSize: 13, color: '#1e3a8a', margin: 0 };
+                                    const secRow = (label: string, cols: React.ReactNode[]) => (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                            <div style={{ width: 140, flexShrink: 0, fontSize: 13, fontWeight: 500, color: '#374151' }}>{label}</div>
+                                            {cols.map((c, i) => <div key={i} style={{ flex: 1 }}>{c}</div>)}
+                                        </div>
+                                    );
+                                    return (
+                                        <>
+                                            {/* Unidad de Inyección */}
+                                            <div style={blockWrap}>
+                                                <div style={blockHdr}><p style={secHdr}>Unidad de Inyección</p></div>
+                                                <div style={{ padding: '12px 16px' }}>
+                                                    <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                                        <div style={{ width: 140, flexShrink: 0 }} />
+                                                        <div style={{ flex: 1, ...colH }}>Velocidad</div>
+                                                        <div style={{ flex: 1, ...colH }}>Presión</div>
+                                                        <div style={{ flex: 1, ...colH }}>Contrapresión</div>
                                                     </div>
-                                                    {responsable && (
-                                                        <p className="text-xs text-gray-600 flex items-center gap-1">
-                                                            <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                                            <span className="font-medium">{responsable.nombres} {responsable.apellidos}</span>
-                                                        </p>
-                                                    )}
+                                                    {secRow('Tolva',           [vBadge(ui.tolva?.velocidad),            vBadge(ui.tolva?.presion),            <div />])}
+                                                    {secRow('Inyección',       [vBadge(ui.inyeccion?.velocidad),        vBadge(ui.inyeccion?.presion),        <div />])}
+                                                    {secRow('2a Inyección',    [vBadge(ui.segundaInyeccion?.velocidad), vBadge(ui.segundaInyeccion?.presion), <div />])}
+                                                    {secRow('Carga',           [vBadge(ui.carga?.velocidad),            vBadge(ui.carga?.presion),            vBadge(ui.carga?.contrapresion)])}
+                                                    {secRow('Descompresión',   [vBadge(ui.decompresion?.velocidad),     vBadge(ui.decompresion?.presion),     <div />])}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {(selectedFicha.medidas ?? []).length > 0 && (
-                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                        <div className="bg-blue-50 py-3 px-4">
-                                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                                <Ruler className="w-4 h-4" />Medidas y Especificaciones
-                                            </p>
-                                        </div>
-                                        <div className="p-4 space-y-2">
-                                            {(selectedFicha.medidas ?? []).map((m, i) => (
-                                                <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                    <span>{m.parameter}</span><Badge variant="outline">{m.value} {m.unit}</Badge>
+                                            </div>
+                                            {/* Prensa */}
+                                            <div style={blockWrap}>
+                                                <div style={blockHdr}><p style={secHdr}>Prensa</p></div>
+                                                <div style={{ padding: '12px 16px' }}>
+                                                    <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                                        <div style={{ width: 140, flexShrink: 0 }} />
+                                                        <div style={{ flex: 1, ...colH }}>Velocidad</div>
+                                                        <div style={{ flex: 1, ...colH }}>Presión</div>
+                                                        <div style={{ flex: 1, ...colH }}>Nro. Salidas</div>
+                                                    </div>
+                                                    {secRow('Abrir',          [vBadge(pr.abrir?.velocidad),       vBadge(pr.abrir?.presion),       <div />])}
+                                                    {secRow('Cerrar',         [vBadge(pr.cerrar?.velocidad),      vBadge(pr.cerrar?.presion),      <div />])}
+                                                    {secRow('Seguro de Molde',[vBadge(pr.seguroMolde?.velocidad), vBadge(pr.seguroMolde?.presion), <div />])}
+                                                    {secRow('Botador',        [vBadge(pr.botador?.velocidad),     vBadge(pr.botador?.presion),     vBadge(pr.botador?.numSalidas)])}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                            </div>
+                                            {/* Temperaturas */}
+                                            {(tm.boquilla || tm.z1 || tm.z2 || tm.z3) && (
+                                                <div style={blockWrap}>
+                                                    <div style={blockHdr}><p style={secHdr}>Temperaturas</p></div>
+                                                    <div style={{ padding: '12px 16px' }}>
+                                                        <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                                            <div style={{ width: 90, flexShrink: 0 }} />
+                                                            {['Boquilla', 'Z1', 'Z2', 'Z3'].map(z => <div key={z} style={{ flex: 1, ...colH }}>{z}</div>)}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <div style={{ width: 90, flexShrink: 0, fontSize: 13, fontWeight: 500, color: '#374151' }}>Set point</div>
+                                                            {[tm.boquilla, tm.z1, tm.z2, tm.z3].map((v, i) => <div key={i} style={{ flex: 1 }}>{vBadge(v)}</div>)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Tiempos */}
+                                            {(ti.enfriamiento || ti.pausa || ti.retardoInyeccion || ti.inyeccion || ti.segundaInyeccion || ti.descompresion) && (
+                                                <div style={blockWrap}>
+                                                    <div style={blockHdr}><p style={secHdr}>Tiempos</p></div>
+                                                    <div style={{ padding: '12px 16px' }}>
+                                                        <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                                            <div style={{ flex: 1 }} />
+                                                            <div style={{ width: 120, flexShrink: 0, ...colH }}>Consigna (s)</div>
+                                                        </div>
+                                                        {[
+                                                            { label: 'Enfriamiento',          val: ti.enfriamiento },
+                                                            { label: 'Pausa',                 val: ti.pausa },
+                                                            { label: 'Retardo de inyección',  val: ti.retardoInyeccion },
+                                                            { label: 'Inyección',             val: ti.inyeccion },
+                                                            { label: '2a Inyección',          val: ti.segundaInyeccion },
+                                                            { label: 'Descompresión',         val: ti.descompresion },
+                                                        ].map(f => (
+                                                            <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#374151' }}>{f.label}</div>
+                                                                <div style={{ width: 120, flexShrink: 0 }}>{vBadge(f.val)}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
 
                                 {(selectedFicha.insumos ?? []).length > 0 && (
                                     <div className="border border-blue-100 rounded-lg overflow-hidden">
@@ -1181,7 +1278,26 @@ export function TechnicalSheetModule() {
                                         <div className="p-4 space-y-2">
                                             {(selectedFicha.insumos ?? []).map((ins, i) => (
                                                 <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                    <span>{ins.name}</span><Badge variant="outline">{ins.quantity} {ins.unit}</Badge>
+                                                    <span>{ins.name}</span>
+                                                    <Badge variant="outline">{ins.quantity} {ins.unit}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(selectedFicha.medidas ?? []).length > 0 && (
+                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                        <div className="bg-blue-50 py-3 px-4">
+                                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                                <Ruler className="w-4 h-4" />Medidas y Especificaciones
+                                            </p>
+                                        </div>
+                                        <div className="p-4 space-y-2">
+                                            {(selectedFicha.medidas ?? []).map((m, i) => (
+                                                <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
+                                                    <span>{m.parameter}</span>
+                                                    <Badge variant="outline">{m.value} {m.unit}</Badge>
                                                 </div>
                                             ))}
                                         </div>
@@ -1191,10 +1307,7 @@ export function TechnicalSheetModule() {
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
                                     {selectedFicha.estado === 'Activa' && (
-                                        <Button
-                                            onClick={() => { setShowDetailModal(false); openEdit(selectedFicha); }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                        >
+                                        <Button onClick={() => { setShowDetailModal(false); openEdit(selectedFicha); }} className="bg-blue-600 hover:bg-blue-700 text-white">
                                             <Edit className="w-4 h-4 mr-2" />Editar Ficha
                                         </Button>
                                     )}
@@ -1205,35 +1318,53 @@ export function TechnicalSheetModule() {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL — EDITAR */}
+            {/* ═══ MODAL — EDITAR ═══ */}
             <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) { setShowEditModal(false); setSelectedFicha(null); } }}>
                 <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible p-0">
                     <div className="overflow-y-auto max-h-[90vh] p-6">
                         <DialogHeader>
                             <DialogTitle>Editar Ficha Técnica</DialogTitle>
-                            <DialogDescription>Ficha: {selectedFicha?.codigoFicha}</DialogDescription>
+                            <p className="text-sm text-gray-500 mt-1">Ficha: {selectedFicha?.codigoFicha}</p>
                         </DialogHeader>
                         <form onSubmit={handleUpdate} className="mt-4 space-y-4">
+
+                            {/* Info general */}
                             <div className="border border-blue-100 rounded-lg overflow-hidden">
                                 <div className="bg-blue-50 py-3 px-4">
                                     <p className="text-sm font-semibold text-blue-900">Información General</p>
                                 </div>
                                 <div className="p-4 space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Empleado responsable — primer campo */}
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">Empleado responsable</label>
+                                        <select className={selectCls()} value={eResponsableId}
+                                            onChange={e => setEResponsableId(e.target.value)}>
+                                            <option value="">Seleccionar empleado</option>
+                                            {empleados.map(emp => (
+                                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos} — {emp.cargo}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <label className="block text-sm text-gray-700 mb-2">Producto (no editable)</label>
                                             <Input value={selectedFicha?.producto?.nombreProducto ?? ''} disabled className="bg-gray-50" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm text-gray-700 mb-2">Estado <span className="text-red-500">*</span></label>
-                                            <select
-                                                className={selectCls()}
-                                                value={editForm.estado}
-                                                onChange={e => setEditForm({ ...editForm, estado: e.target.value as 'Activa' | 'Inactiva' })}
-                                            >
+                                            <label className="block text-sm text-gray-700 mb-2">Estado</label>
+                                            <select className={selectCls()} value={editForm.estado}
+                                                onChange={e => setEditForm({ ...editForm, estado: e.target.value as 'Activa' | 'Inactiva' })}>
                                                 <option value="Activa">Activa</option>
                                                 <option value="Inactiva">Inactiva</option>
                                             </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-2">Número de Molde</label>
+                                            <Input
+                                                type="text" inputMode="numeric" placeholder="Ej: 1234"
+                                                value={eNumeroMolde}
+                                                onChange={e => setENumeroMolde(e.target.value.replace(/[^0-9]/g, ''))}
+                                            />
                                         </div>
                                     </div>
                                     <div>
@@ -1241,32 +1372,58 @@ export function TechnicalSheetModule() {
                                             <label className="block text-sm text-gray-700">Notas <span className="text-gray-400">(opcional)</span></label>
                                             <CharCounter valor={editForm.notas} limite={1000} />
                                         </div>
-                                        <Textarea
-                                            value={editForm.notas}
-                                            rows={2}
+                                        <Textarea value={editForm.notas} rows={2}
                                             onChange={e => updateEditNotas(e.target.value)}
                                             placeholder="Notas adicionales..."
-                                            className={editInfoErrors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        />
+                                            className={editInfoErrors.notas ? 'border-red-400 focus-visible:ring-red-300' : ''} />
                                         <FieldError mensaje={editInfoErrors.notas} />
                                     </div>
                                 </div>
                             </div>
-
-                            <ItemsForm
-                                procesos={eProcesos}     setProcesos={setEProcesos}
-                                medidas={eMedidas}       setMedidas={setEMedidas}
-                                insumos={eInsumos}       setInsumos={setEInsumos}
+                            {/* Insumos */}
+                            <InsumosSection
+                                insumos={eInsumos}
+                                setInsumos={setEInsumos}
                                 catalogoInsumos={catalogoInsumos}
                                 loadingInsumos={loadingInsumos}
-                                insumosListError={eInsumos.length === 0 ? 'Debes agregar al menos un insumo' : null}
-                                empleados={empleados}
+                                insumosListError={eInsumos.length === 0 ? 'Debes mantener al menos un insumo' : null}
                             />
+
+                            {/* Unidad de Inyección */}
+                            <MachineBlock titulo="Unidad de Inyección" maquina={eMaquina} setter={setE} uiRows={[
+                                { key: 'tolva',            label: 'Tolva' },
+                                { key: 'inyeccion',        label: 'Inyección' },
+                                { key: 'segundaInyeccion', label: '2a Inyección' },
+                                { key: 'carga',            label: 'Carga',        hasExtra: true },
+                                { key: 'decompresion',     label: 'Descompresión' },
+                            ]} />
+
+                            {/* Prensa */}
+                            <MachineBlock titulo="Prensa" maquina={eMaquina} setter={setE} uiRows={[
+                                { key: 'abrir',       label: 'Abrir' },
+                                { key: 'cerrar',      label: 'Cerrar' },
+                                { key: 'seguroMolde', label: 'Seguro de Molde' },
+                                { key: 'botador',     label: 'Botador',          hasExtra: true },
+                            ]} />
+
+                            {/* Temperaturas */}
+                            <TemperaturasBlock
+                                temps={eMaquina.temperaturas}
+                                onSet={(campo, val) => setE('temperaturas', campo, val)}
+                            />
+
+                            {/* Tiempos */}
+                            <TiemposBlock
+                                tiempos={eMaquina.tiempos}
+                                onSet={(campo, val) => setE('tiempos', campo, val)}
+                            />
+
+                            {/* Medidas */}
+                            <MedidasSection medidas={eMedidas} setMedidas={setEMedidas} />
 
                             {errorInsumos && (
                                 <p className="text-red-500 text-sm flex items-center gap-1">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    {errorInsumos}
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />{errorInsumos}
                                 </p>
                             )}
 
@@ -1285,56 +1442,39 @@ export function TechnicalSheetModule() {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL — ELIMINAR */}
+            {/* ═══ MODAL — ELIMINAR ═══ */}
             <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); } }}>
                 <DialogContent className="max-w-md p-6">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-blue-900">
-                            <Trash2 className="w-5 h-5" />
-                            Eliminar Ficha Técnica
+                            <Trash2 className="w-5 h-5" />Eliminar Ficha Técnica
                         </DialogTitle>
-                        <DialogDescription>
-                            Esta acción no se puede deshacer.
-                        </DialogDescription>
+                        <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
                     </DialogHeader>
-
                     {fichaToDelete && (
                         <div className="mt-4 space-y-3">
                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="font-semibold text-blue-900">{fichaToDelete.codigoFicha}</p>
                                 <p className="text-sm text-blue-700 mt-1">{fichaToDelete.producto?.nombreProducto}</p>
-                                <p className="text-sm text-blue-700">{fichaToDelete.producto?.referencia}</p>
                             </div>
-
                             {deleteError ? (
                                 <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3">
                                     <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
-                                    <div className="text-sm">
-                                        <p className="font-semibold">No se puede eliminar</p>
-                                        <p className="text-red-700 mt-0.5">{deleteError}</p>
-                                    </div>
+                                    <div className="text-sm"><p className="font-semibold">No se puede eliminar</p><p className="text-red-700 mt-0.5">{deleteError}</p></div>
                                 </div>
                             ) : (
                                 <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3">
                                     <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
-                                    <div className="text-sm">
-                                        <p className="font-semibold">Ficha técnica sin referencias</p>
-                                        <p className="text-blue-700 mt-0.5">Esta ficha técnica puede ser <strong>eliminada permanentemente</strong> del sistema.</p>
-                                    </div>
+                                    <div className="text-sm"><p className="font-semibold">Ficha sin referencias</p><p className="text-blue-700 mt-0.5">Puede ser eliminada permanentemente.</p></div>
                                 </div>
                             )}
                         </div>
                     )}
-
                     <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                         <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setFichaToDelete(null); setDeleteError(null); }} disabled={saving}>
                             Cancelar
                         </Button>
-                        <Button
-                            onClick={handleDelete}
-                            disabled={saving || !!deleteError}
-                            className="bg-white hover:bg-blue-50 text-blue-600"
-                        >
+                        <Button onClick={handleDelete} disabled={saving || !!deleteError} className="bg-white hover:bg-blue-50 text-blue-600">
                             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                             {saving ? 'Eliminando...' : 'Eliminar'}
                         </Button>

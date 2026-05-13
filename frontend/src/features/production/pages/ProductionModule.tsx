@@ -21,6 +21,7 @@ import {
   XCircleIcon,
   CheckCircleIcon,
   Loader2,
+  Info,
 } from 'lucide-react';
 import {
   getOrdenesProduccion,
@@ -80,11 +81,11 @@ type OrdenFormErrors = {
   productoId?: string;
   cantidad?: string;
   responsableId?: string;
-  fechaEntrega?: string;
+  fechaInicio?: string;
   nota?: string;
 };
 
-type OrdenFormData = { productoId: string; cantidad: string; responsableId: string; fechaEntrega: string; nota: string };
+type OrdenFormData = { productoId: string; cantidad: string; responsableId: string; fechaInicio: string; nota: string };
 
 function validateOrdenForm(form: OrdenFormData): OrdenFormErrors {
   const errors: OrdenFormErrors = {};
@@ -101,18 +102,18 @@ function validateOrdenForm(form: OrdenFormData): OrdenFormErrors {
 
   if (!form.responsableId) errors.responsableId = 'El responsable es obligatorio.';
 
-  if (!form.fechaEntrega) {
-    errors.fechaEntrega = 'La fecha de entrega es obligatoria.';
+  if (!form.fechaInicio) {
+    errors.fechaInicio = 'La fecha de inicio es obligatoria.';
   } else {
-    const fecha = new Date(form.fechaEntrega + 'T12:00:00');
+    const fecha = new Date(form.fechaInicio + 'T12:00:00');
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     if (isNaN(fecha.getTime())) {
-      errors.fechaEntrega = 'Fecha inválida.';
+      errors.fechaInicio = 'Fecha inválida.';
     } else if (fecha < hoy) {
-      errors.fechaEntrega = 'La fecha no puede ser una fecha pasada.';
+      errors.fechaInicio = 'La fecha no puede ser una fecha pasada.';
     } else {
       const max = new Date(); max.setFullYear(max.getFullYear() + 5);
-      if (fecha > max) errors.fechaEntrega = 'La fecha no puede superar los 5 años.';
+      if (fecha > max) errors.fechaInicio = 'La fecha no puede superar los 5 años.';
     }
   }
 
@@ -146,7 +147,8 @@ function ProductionOrdersSubmodule() {
   const [selected, setSelected] = useState<OrdenProduccion | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const emptyForm: OrdenFormData = { productoId: '', cantidad: '', responsableId: '', fechaEntrega: '', nota: '' };
+  const todayStr = new Date().toISOString().split('T')[0];
+  const emptyForm: OrdenFormData = { productoId: '', cantidad: '', responsableId: '', fechaInicio: todayStr, nota: '' };
   const [form, setForm] = useState<OrdenFormData>(emptyForm);
   const [formErrors, setFormErrors] = useState<OrdenFormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof OrdenFormData, boolean>>>({});
@@ -154,8 +156,6 @@ function ProductionOrdersSubmodule() {
   const [newEstado, setNewEstado] = useState('');
   const [motivo, setMotivo] = useState('');
   const [motivoTouched, setMotivoTouched] = useState(false);
-
-  const todayStr = new Date().toISOString().split('T')[0];
 
   const loadOrders = async () => {
     try {
@@ -178,6 +178,27 @@ function ProductionOrdersSubmodule() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (empleados.length === 0) return;
+    try {
+      const stored = localStorage.getItem('jrepuestos_user');
+      if (!stored) return;
+      const u = JSON.parse(stored);
+      const emp = empleados.find((e: any) => e.email === u.email);
+      if (emp) setForm(prev => ({ ...prev, responsableId: String(emp.id) }));
+    } catch {}
+  }, [empleados]);
+
+  const getAutoResponsableId = () => {
+    try {
+      const stored = localStorage.getItem('jrepuestos_user');
+      if (!stored) return '';
+      const u = JSON.parse(stored);
+      const emp = empleados.find((e: any) => e.email === u.email);
+      return emp ? String(emp.id) : '';
+    } catch { return ''; }
+  };
+
   const handleFormChange = (field: keyof OrdenFormData, value: string) => {
     const next = { ...form, [field]: value };
     setForm(next);
@@ -190,7 +211,7 @@ function ProductionOrdersSubmodule() {
   };
 
   const resetCreateForm = () => {
-    setForm(emptyForm);
+    setForm({ ...emptyForm, responsableId: getAutoResponsableId(), fechaInicio: new Date().toISOString().split('T')[0] });
     setFormErrors({});
     setTouched({});
     setSubmitAttempted(false);
@@ -226,7 +247,7 @@ function ProductionOrdersSubmodule() {
         cantidad: Number(form.cantidad),
         responsableId: Number(form.responsableId),
         tipoOrden: 'Venta',
-        fechaEntrega: form.fechaEntrega,
+        fechaEntrega: form.fechaInicio + 'T12:00:00',
         nota: form.nota.trim() || undefined,
       });
       toast.success('Orden de producción creada correctamente');
@@ -254,6 +275,17 @@ function ProductionOrdersSubmodule() {
       toast.error(err.message || 'Error al actualizar el estado');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleInlineStatus = async (order: OrdenProduccion, nuevoEstado: string) => {
+    if (!nuevoEstado || nuevoEstado === order.estado) return;
+    try {
+      await updateOrdenProduccion(order.id!, { estado: nuevoEstado as any });
+      toast.success('Estado actualizado correctamente');
+      loadOrders();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al actualizar el estado');
     }
   };
 
@@ -302,12 +334,12 @@ function ProductionOrdersSubmodule() {
 
   const estadoColor = (estado: string) => {
     switch (estado) {
-      case 'Pendiente':   return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+      case 'Pendiente':   return 'bg-blue-50 text-blue-600 border-blue-200';
       case 'En Proceso':  return 'bg-blue-100 text-blue-700 border-blue-300';
-      case 'Pausada':     return 'bg-orange-100 text-orange-700 border-orange-300';
-      case 'Finalizada':  return 'bg-green-100 text-green-700 border-green-300';
-      case 'Anulada':     return 'bg-red-100 text-red-700 border-red-300';
-      default:            return 'bg-gray-100 text-gray-700 border-gray-300';
+      case 'Pausada':     return 'bg-blue-200 text-blue-800 border-blue-400';
+      case 'Finalizada':  return 'bg-blue-700 text-white border-blue-700';
+      case 'Anulada':     return 'bg-gray-100 text-gray-500 border-gray-300';
+      default:            return 'bg-gray-100 text-gray-500 border-gray-300';
     }
   };
 
@@ -330,39 +362,15 @@ function ProductionOrdersSubmodule() {
 
   return (
     <div className="space-y-6">
-      {/* Búsqueda y Filtros */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 relative">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Buscar por código, producto o responsable..."
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
-              <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="Pendiente">Pendiente</SelectItem>
-                <SelectItem value="En Proceso">En Proceso</SelectItem>
-                <SelectItem value="Pausada">Pausada</SelectItem>
-                <SelectItem value="Finalizada">Finalizada</SelectItem>
-                <SelectItem value="Anulada">Anulada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Botón Registrar */}
-      <div className="flex justify-end">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl text-blue-900 font-bold mb-2">Órdenes de Producción</h1>
+          <p className="text-blue-800">Gestión y seguimiento de órdenes de producción</p>
+        </div>
         <Dialog open={isCreateOpen} onOpenChange={(o) => { if (!o) { setIsCreateOpen(false); resetCreateForm(); } else setIsCreateOpen(true); }}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
               <PlusIcon className="w-4 h-4 mr-2" />
               Registrar Nueva Orden
             </Button>
@@ -370,13 +378,16 @@ function ProductionOrdersSubmodule() {
 
           <DialogContent
             className="p-0 gap-0 overflow-hidden"
-            style={{ width: '90vw', maxWidth: 680, borderRadius: 12 }}
+            style={{
+              width: '90vw', maxWidth: 720, borderRadius: 12,
+              display: 'flex', flexDirection: 'column',
+            }}
           >
             {/* Header */}
             <header style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
-              background: '#fff',
+              background: '#fff', flexShrink: 0,
             }}>
               <div style={{
                 width: 40, height: 40, background: '#1d4ed8',
@@ -401,17 +412,17 @@ function ProductionOrdersSubmodule() {
             {submitAttempted && totalFormErrors > 0 && (
               <div style={{
                 padding: '8px 24px', background: '#fffbeb',
-                borderBottom: '1px solid #fde68a',
-                display: 'flex', alignItems: 'center', gap: 10,
+                borderBottom: '1px solid #fde68a', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 12,
                 fontSize: 12, color: '#92400e',
               }}>
-                <FileTextIcon style={{ width: 15, height: 15, color: '#f59e0b', flexShrink: 0 }} />
-                {totalFormErrors} campo(s) requieren atención.
+                <Info style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0 }} />
+                <span>{totalFormErrors} campo(s) requieren atención.</span>
               </div>
             )}
 
             {/* Body */}
-            <div style={{ padding: '24px', background: '#f9fafb', overflowY: 'auto', maxHeight: '65vh' }}>
+            <div style={{ padding: '24px', background: '#f9fafb', overflowY: 'auto', flex: 1, minHeight: 0 }}>
               <form id="orden-form" onSubmit={handleCreate}>
                 {/* Producto */}
                 <div style={SO.fieldGroup}>
@@ -439,78 +450,68 @@ function ProductionOrdersSubmodule() {
                   <OPFieldError message={touched.productoId ? formErrors.productoId : undefined} />
                 </div>
 
-                {/* Cantidad + Responsable */}
+                {/* Responsable + Fecha de Inicio */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
                   <div>
-                    <label style={SO.label}>Cantidad <span style={{ color: '#f87171' }}>*</span></label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={CANTIDAD_MAX_OP}
-                      step={1}
-                      placeholder="Ej: 10"
-                      value={form.cantidad}
-                      onKeyDown={blockNonIntegerOP}
-                      onChange={(e) => handleFormChange('cantidad', e.target.value)}
-                      onBlur={() => handleBlurField('cantidad')}
-                      style={{
+                    <label style={SO.label}>Responsable <span style={{ color: '#f87171' }}>*</span></label>
+                    <Select
+                      value={form.responsableId}
+                      onValueChange={(v) => { handleFormChange('responsableId', v); setTouched(p => ({ ...p, responsableId: true })); }}
+                    >
+                      <SelectTrigger style={{
                         height: 40, fontSize: 14, background: '#fff',
-                        borderColor: touched.cantidad && formErrors.cantidad ? '#f87171' : undefined,
-                      }}
-                    />
-                    <OPFieldError message={touched.cantidad ? formErrors.cantidad : undefined} />
+                        borderColor: touched.responsableId && formErrors.responsableId ? '#f87171' : undefined,
+                      }}>
+                        <SelectValue placeholder="Seleccionar empleado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empleados.length === 0
+                          ? <SelectItem value="__none" disabled>Sin empleados activos</SelectItem>
+                          : empleados.map((e: any) => (
+                            <SelectItem key={e.id} value={String(e.id)}>
+                              {e.nombres} {e.apellidos} — {e.cargo}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <OPFieldError message={touched.responsableId ? formErrors.responsableId : undefined} />
                   </div>
                   <div>
-                    <label style={SO.label}>Tipo de Orden</label>
+                    <label style={SO.label}>Fecha de Inicio <span style={{ color: '#f87171' }}>*</span></label>
                     <Input
-                      value="Venta"
-                      disabled
-                      style={{ height: 40, fontSize: 14, background: '#f3f4f6', color: '#6b7280' }}
+                      type="date"
+                      min={todayStr}
+                      value={form.fechaInicio}
+                      onChange={(e) => handleFormChange('fechaInicio', e.target.value)}
+                      onBlur={() => handleBlurField('fechaInicio')}
+                      style={{
+                        height: 40, fontSize: 14, background: '#fff',
+                        borderColor: touched.fechaInicio && formErrors.fechaInicio ? '#f87171' : undefined,
+                      }}
                     />
+                    <OPFieldError message={touched.fechaInicio ? formErrors.fechaInicio : undefined} />
                   </div>
                 </div>
 
-                {/* Responsable */}
+                {/* Cantidad */}
                 <div style={SO.fieldGroup}>
-                  <label style={SO.label}>Responsable <span style={{ color: '#f87171' }}>*</span></label>
-                  <Select
-                    value={form.responsableId}
-                    onValueChange={(v) => { handleFormChange('responsableId', v); setTouched(p => ({ ...p, responsableId: true })); }}
-                  >
-                    <SelectTrigger style={{
-                      height: 40, fontSize: 14, background: '#fff',
-                      borderColor: touched.responsableId && formErrors.responsableId ? '#f87171' : undefined,
-                    }}>
-                      <SelectValue placeholder="Seleccionar empleado activo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {empleados.length === 0
-                        ? <SelectItem value="__none" disabled>Sin empleados activos</SelectItem>
-                        : empleados.map((e: any) => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.nombres} {e.apellidos} — {e.cargo}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <OPFieldError message={touched.responsableId ? formErrors.responsableId : undefined} />
-                </div>
-
-                {/* Fecha de Entrega */}
-                <div style={SO.fieldGroup}>
-                  <label style={SO.label}>Fecha de Entrega <span style={{ color: '#f87171' }}>*</span></label>
+                  <label style={SO.label}>Cantidad <span style={{ color: '#f87171' }}>*</span></label>
                   <Input
-                    type="date"
-                    min={todayStr}
-                    value={form.fechaEntrega}
-                    onChange={(e) => handleFormChange('fechaEntrega', e.target.value)}
-                    onBlur={() => handleBlurField('fechaEntrega')}
+                    type="number"
+                    min={1}
+                    max={CANTIDAD_MAX_OP}
+                    step={1}
+                    placeholder="Ej: 10"
+                    value={form.cantidad}
+                    onKeyDown={blockNonIntegerOP}
+                    onChange={(e) => handleFormChange('cantidad', e.target.value)}
+                    onBlur={() => handleBlurField('cantidad')}
                     style={{
                       height: 40, fontSize: 14, background: '#fff',
-                      borderColor: touched.fechaEntrega && formErrors.fechaEntrega ? '#f87171' : undefined,
+                      borderColor: touched.cantidad && formErrors.cantidad ? '#f87171' : undefined,
                     }}
                   />
-                  <OPFieldError message={touched.fechaEntrega ? formErrors.fechaEntrega : undefined} />
+                  <OPFieldError message={touched.cantidad ? formErrors.cantidad : undefined} />
                 </div>
 
                 {/* Notas */}
@@ -544,10 +545,18 @@ function ProductionOrdersSubmodule() {
 
             {/* Footer */}
             <footer style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-              gap: 8, padding: '12px 24px',
-              borderTop: '1px solid #e5e7eb', background: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 16, padding: '12px 24px',
+              borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
             }}>
+              <p style={{
+                fontSize: 12, color: '#9ca3af',
+                display: 'flex', alignItems: 'center', gap: 6, margin: 0,
+              }}>
+                <Info style={{ width: 14, height: 14, flexShrink: 0 }} />
+                Los campos con * son obligatorios
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="outline" onClick={() => { setIsCreateOpen(false); resetCreateForm(); }} disabled={submitting} style={{ height: 36, padding: '0 16px' }}>
                 Cancelar
               </Button>
@@ -560,34 +569,58 @@ function ProductionOrdersSubmodule() {
                 {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
                 Crear Orden
               </Button>
+              </div>
             </footer>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Búsqueda y Filtros */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Buscar por código o producto..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+              <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="Pendiente">Pendiente</SelectItem>
+                <SelectItem value="En Proceso">En Proceso</SelectItem>
+                <SelectItem value="Pausada">Pausada</SelectItem>
+                <SelectItem value="Finalizada">Finalizada</SelectItem>
+                <SelectItem value="Anulada">Anulada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tabla */}
       <Card>
-        <CardHeader>
-          <CardTitle>Listado de Órdenes de Producción ({filtered.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 text-sm text-gray-600">Código</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-600">Producto</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Responsable</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-600">Cantidad</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-600">Estado</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Entrega</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-600">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-gray-500">
+                    <td colSpan={5} className="py-12 text-center text-gray-500">
                       No se encontraron órdenes de producción
                     </td>
                   </tr>
@@ -595,38 +628,40 @@ function ProductionOrdersSubmodule() {
                   <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm font-medium text-gray-900">{order.codigoOrden}</td>
                     <td className="py-3 px-4 text-sm text-gray-700">{order.producto?.nombreProducto ?? '—'}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">
-                      {order.responsable ? `${order.responsable.nombres} ${order.responsable.apellidos}` : '—'}
-                    </td>
                     <td className="py-3 px-4 text-sm text-gray-700">{order.cantidad}</td>
                     <td className="py-3 px-4">
-                      <Badge className={estadoColor(order.estado ?? '')}>{order.estado}</Badge>
+                      {(TRANSICIONES[order.estado ?? ''] ?? []).length > 0 ? (
+                        <select
+                          value={order.estado ?? ''}
+                          onChange={e => handleInlineStatus(order, e.target.value)}
+                          className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value={order.estado ?? ''}>{order.estado}</option>
+                          {(TRANSICIONES[order.estado ?? ''] ?? []).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-gray-500">{order.estado}</span>
+                      )}
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{order.fechaEntrega}</td>
                     <td className="py-3 px-4">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" title="Ver detalle"
-                          onClick={() => { setSelected(order); setIsViewOpen(true); }}>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" title="Ver detalle"
+                          onClick={() => { setSelected(order); setIsViewOpen(true); }}
+                          className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
                           <EyeIcon className="w-4 h-4" />
                         </Button>
-                        {canEdit(order.estado) && (
-                          <Button variant="ghost" size="sm" title="Cambiar estado"
-                            onClick={() => { setSelected(order); setNewEstado(''); setIsStatusOpen(true); }}>
-                            <CheckCircleIcon className="w-4 h-4 text-blue-600" />
-                          </Button>
-                        )}
-                        {canEdit(order.estado) && (
-                          <Button variant="ghost" size="sm" title="Anular"
-                            onClick={() => { setSelected(order); setMotivo(''); setIsAnulOpen(true); }}>
-                            <XCircleIcon className="w-4 h-4 text-orange-600" />
-                          </Button>
-                        )}
-                        {['Pendiente', 'Anulada'].includes(order.estado ?? '') && (
-                          <Button variant="ghost" size="sm" title="Eliminar"
-                            onClick={() => { setSelected(order); setIsDeleteOpen(true); }}>
-                            <TrashIcon className="w-4 h-4 text-red-600" />
-                          </Button>
-                        )}
+                        <Button size="sm" title="Editar"
+                          onClick={() => { setSelected(order); setNewEstado(''); setIsStatusOpen(true); }}
+                          className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                          <EditIcon className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" title="Eliminar"
+                          onClick={() => { setSelected(order); setIsDeleteOpen(true); }}
+                          className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                          <TrashIcon className="w-4 h-4" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -672,11 +707,9 @@ function ProductionOrdersSubmodule() {
                   <div><p className="text-xs text-gray-500">Referencia</p><p className="text-sm">{selected.producto?.referencia ?? '—'}</p></div>
                   <div><p className="text-xs text-gray-500">Cantidad</p><p className="text-sm">{selected.cantidad}</p></div>
                   <div><p className="text-xs text-gray-500">Responsable</p><p className="text-sm">{selected.responsable ? `${selected.responsable.nombres} ${selected.responsable.apellidos}` : '—'}</p></div>
-                  <div><p className="text-xs text-gray-500">Fecha de Entrega</p><p className="text-sm">{selected.fechaEntrega}</p></div>
-                  <div><p className="text-xs text-gray-500">Fecha de Inicio</p><p className="text-sm">{selected.fechaInicio ?? '—'}</p></div>
-                  <div><p className="text-xs text-gray-500">Fecha de Fin</p><p className="text-sm">{selected.fechaFin ?? '—'}</p></div>
+                  <div><p className="text-xs text-gray-500">Fecha de Inicio</p><p className="text-sm">{selected.fechaEntrega ? selected.fechaEntrega.split('T')[0] : '—'}</p></div>
                   {selected.motivoAnulacion && (
-                    <div className="col-span-2"><p className="text-xs text-gray-500">Motivo de Anulación</p><p className="text-sm text-red-600">{selected.motivoAnulacion}</p></div>
+                    <div className="col-span-2"><p className="text-xs text-gray-500">Motivo de Anulación</p><p className="text-sm text-blue-700">{selected.motivoAnulacion}</p></div>
                   )}
                   {selected.nota && (
                     <div className="col-span-2"><p className="text-xs text-gray-500">Notas</p><p className="text-sm">{selected.nota}</p></div>
@@ -692,7 +725,7 @@ function ProductionOrdersSubmodule() {
                       <CheckCircleIcon className="w-4 h-4 mr-2" />
                       Cambiar Estado
                     </Button>
-                    <Button variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                    <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       onClick={() => { setIsViewOpen(false); setMotivo(''); setIsAnulOpen(true); }}>
                       <XCircleIcon className="w-4 h-4 mr-2" />
                       Anular
@@ -775,7 +808,7 @@ function ProductionOrdersSubmodule() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); }}>Cancelar</Button>
-                <Button className="bg-red-600 hover:bg-red-700" onClick={handleAnular} disabled={submitting || motivo.trim().length < 10 || motivo.trim().length > 500}>
+                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAnular} disabled={submitting || motivo.trim().length < 10 || motivo.trim().length > 500}>
                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Anular Orden
                 </Button>
@@ -797,7 +830,7 @@ function ProductionOrdersSubmodule() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelected(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700" disabled={submitting}>
+            <AlertDialogAction onClick={handleDelete} className="bg-blue-600 hover:bg-blue-700" disabled={submitting}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
