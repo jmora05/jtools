@@ -44,7 +44,11 @@ import {
   Wallet,
   ChevronDown,
   ChevronUp,
+  Lock,
+  Download,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import {
   getVentas,
@@ -95,7 +99,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        const data = await getClientes();
+        const data = await getClientes() as any[];
         setClients(data.map((c: any) => ({
           id: String(c.id),
           name: `${c.nombres} ${c.apellidos}`,
@@ -114,7 +118,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const data = await getProductos();
+        const data = await getProductos() as any[];
         setProducts(data.map((p: any) => ({
           id: String(p.id),
           name: p.nombreProducto ?? '',
@@ -137,6 +141,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [viewingSale, setViewingSale]           = useState<Sale | null>(null);
   const [pdfSale, setPdfSale]                   = useState<Sale | null>(null);
   const [saleToCancel, setSaleToCancel]         = useState<Sale | null>(null);
+  const [pdfBannerId, setPdfBannerId]           = useState<number | null>(null);
   const [searchTerm, setSearchTerm]             = useState('');
   const [currentPage, setCurrentPage]           = useState(1);
   const itemsPerPage = 5;
@@ -185,7 +190,134 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const handleViewDetail = (sale: Sale) => { setViewingSale(sale); setShowDetailModal(true); };
-  const handleViewPDF    = (sale: Sale) => { setPdfSale(sale); setShowPDFModal(true); };
+
+  const handleViewPDF = (sale: Sale) => {
+    if (sale.status === 'Anulada') {
+      setPdfBannerId(prev => prev === sale.id ? null : sale.id);
+      return;
+    }
+    setPdfBannerId(null);
+    setPdfSale(sale);
+    setShowPDFModal(true);
+  };
+
+  const generateSalePDF = (sale: Sale) => {
+    const doc = new jsPDF();
+
+    // Encabezado azul
+    doc.setFillColor(29, 78, 216);
+    doc.rect(0, 0, 210, 38, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('JREPUESTOS MEDELLÍN', 14, 16);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Repuestos de Carros de Alta Calidad  ·  Medellín, Colombia  ·  Tel: (604) 123-4567', 14, 25);
+    doc.text('contacto@jrepuestos.com', 14, 32);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FACTURA DE VENTA', 196, 14, { align: 'right' });
+    doc.setFontSize(16);
+    doc.text(`#${sale.id}`, 196, 24, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha: ${sale.date}`, 196, 32, { align: 'right' });
+
+    // Info cliente y pago
+    doc.setTextColor(0, 0, 0);
+    const y = 50;
+
+    doc.setFillColor(249, 250, 251);
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(14, y, 86, 28, 'FD');
+    doc.rect(110, y, 86, 28, 'FD');
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(107, 114, 128);
+    doc.text('DATOS DEL CLIENTE', 18, y + 7);
+    doc.text('INFORMACIÓN DE PAGO', 114, y + 7);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(17, 24, 39);
+    doc.setFontSize(10);
+    doc.text(sale.clientName.length > 30 ? sale.clientName.substring(0, 30) + '…' : sale.clientName, 18, y + 16);
+    if (sale.clientDocument) {
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      doc.text(`Doc: ${sale.clientDocument}`, 18, y + 23);
+    }
+
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`Método: ${sale.paymentMethod}`, 114, y + 16);
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Estado: ${sale.status}`, 114, y + 23);
+
+    // Tabla de productos
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: y + 36,
+      head: [['Código', 'Producto', 'Cant.', 'Precio Unit.', 'Subtotal']],
+      body: sale.items.map(item => [
+        item.code || '—',
+        item.name,
+        item.quantity.toString(),
+        `$${item.price.toLocaleString('es-CO')}`,
+        `$${(item.quantity * item.price).toLocaleString('es-CO')}`,
+      ]),
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [29, 78, 216], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [239, 246, 255] },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 85 },
+        2: { cellWidth: 15, halign: 'center' },
+        3: { cellWidth: 32, halign: 'right' },
+        4: { cellWidth: 33, halign: 'right' },
+      },
+    });
+
+    // Totales
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    const subtotal = Math.round(sale.total / 1.19);
+    const iva = sale.total - subtotal;
+
+    doc.setFillColor(249, 250, 251);
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(120, finalY, 76, 30, 'FD');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text('Subtotal:', 124, finalY + 9);
+    doc.text('IVA (19%):', 124, finalY + 17);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`$${subtotal.toLocaleString('es-CO')}`, 192, finalY + 9, { align: 'right' });
+    doc.text(`$${iva.toLocaleString('es-CO')}`, 192, finalY + 17, { align: 'right' });
+
+    doc.setDrawColor(29, 78, 216);
+    doc.line(120, finalY + 21, 196, finalY + 21);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(29, 78, 216);
+    doc.text('Total:', 124, finalY + 28);
+    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 28, { align: 'right' });
+
+    // Pie de página
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(156, 163, 175);
+    doc.text('Gracias por su compra. Documento generado por JTOOLS SOFT.', 105, 280, { align: 'center' });
+    doc.text('JRepuestos Medellín · NIT: 900.123.456-7 · (604) 123-4567 · contacto@jrepuestos.com', 105, 285, { align: 'center' });
+
+    doc.save(`venta-${sale.id}.pdf`);
+  };
+
   const handleCancelSale = (sale: Sale) => { setSaleToCancel(sale); setShowCancelDialog(true); };
 
   const confirmCancel = async () => {
@@ -736,7 +868,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 ) : currentSales.map((sale) => {
                   const isAnulada = sale.status === 'Anulada';
                   return (
-                    <tr key={sale.id} className={`hover:bg-gray-50 transition-colors ${isAnulada ? 'opacity-60' : ''}`}>
+                    <React.Fragment key={sale.id}>
+                    <tr className={`hover:bg-gray-50 transition-colors ${isAnulada ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{sale.clientName}</div>
                         {sale.clientDocument && (
@@ -768,11 +901,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="sm"
                                 onClick={() => handleViewPDF(sale)}
-                                className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                disabled={isAnulada}
+                                className={isAnulada ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed" : "text-blue-900 border-blue-900 hover:bg-blue-50"}>
                                 <FileTextIcon className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent><p>Ver PDF</p></TooltipContent>
+                            <TooltipContent><p>{isAnulada ? 'Venta anulada' : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
 
                           {!isAnulada && !clientMode && (
@@ -790,6 +924,22 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         </div>
                       </td>
                     </tr>
+                    {pdfBannerId === sale.id && (
+                      <tr>
+                        <td colSpan={5} className="px-4 pb-2">
+                          <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Lock className="w-4 h-4 shrink-0 text-gray-500" />
+                              <span>No puedes generar el PDF de una venta anulada.</span>
+                            </div>
+                            <button onClick={() => setPdfBannerId(null)} className="text-gray-400 hover:text-gray-600 ml-4">
+                              <XCircleIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -924,117 +1074,204 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
         {/* ── MODAL PDF ─────────────────────────────────────────────────── */}
         <Dialog open={showPDFModal} onOpenChange={setShowPDFModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle>Factura de Venta #{pdfSale?.id}</DialogTitle>
-              <DialogDescription>Vista previa del documento de venta</DialogDescription>
-            </DialogHeader>
-            {pdfSale && (
-              <div className="overflow-y-auto max-h-[calc(90vh-120px)] bg-white">
-                <div className="bg-white p-8 space-y-6 border rounded-lg">
-                  <div className="flex justify-between items-start border-b-2 border-blue-600 pb-4">
-                    <div>
-                      <h2 className="text-3xl text-blue-600 mb-2">JREPUESTOS MEDELLÍN</h2>
-                      <p className="text-sm text-gray-600">Repuestos de Carros de Alta Calidad</p>
-                      <p className="text-sm text-gray-600">Medellín, Colombia</p>
-                      <p className="text-sm text-gray-600">Tel: (604) 123-4567</p>
-                      <p className="text-sm text-gray-600">contacto@jrepuestos.com</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="bg-blue-600 text-white px-4 py-2 rounded mb-2">
-                        <p className="text-sm">FACTURA DE VENTA</p>
-                        <p className="text-xl">#{pdfSale.id}</p>
-                      </div>
-                      <p className="text-sm text-gray-600">Fecha: {pdfSale.date}</p>
-                      <div className="mt-1">{getTypeBadge(pdfSale.type)}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-600 mb-2">Datos del Cliente</h3>
-                      <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                        <p className="text-gray-900">{pdfSale.clientName}</p>
-                        {pdfSale.clientDocument && <p className="text-sm text-gray-600">Documento: {pdfSale.clientDocument}</p>}
-                        {pdfSale.clientId && <p className="text-sm text-gray-600">ID Cliente: {pdfSale.clientId}</p>}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-600 mb-2">Información de Pago</h3>
-                      <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                        <p className="text-sm text-gray-600">Método de Pago:</p>
-                        <p className="text-gray-900">{pdfSale.paymentMethod}</p>
-                        <p className="text-sm text-gray-600 mt-2">Estado:</p>
-                        <div className="mt-1">{getStatusBadge(pdfSale.status)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm uppercase text-gray-600 mb-3">Detalle de Productos</h3>
-                    <table className="w-full border border-gray-300">
-                      <thead className="bg-blue-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs text-gray-700 uppercase border-b border-gray-300">Código</th>
-                          <th className="px-4 py-3 text-left text-xs text-gray-700 uppercase border-b border-gray-300">Producto</th>
-                          <th className="px-4 py-3 text-center text-xs text-gray-700 uppercase border-b border-gray-300">Cantidad</th>
-                          <th className="px-4 py-3 text-right text-xs text-gray-700 uppercase border-b border-gray-300">Precio Unit.</th>
-                          <th className="px-4 py-3 text-right text-xs text-gray-700 uppercase border-b border-gray-300">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pdfSale.items.map((item, index) => (
-                          <tr key={index} className="border-b border-gray-200">
-                            <td className="px-4 py-3 text-sm text-gray-600">{item.code}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.name}</td>
-                            <td className="px-4 py-3 text-center text-sm text-gray-900">{item.quantity}</td>
-                            <td className="px-4 py-3 text-right text-sm text-gray-900">${item.price.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-right text-sm text-gray-900">${(item.quantity * item.price).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <div className="w-80 space-y-2">
-                      <div className="flex justify-between py-2 border-b border-gray-200">
-                        <span className="text-gray-600">Subtotal:</span>
-                        <span className="text-gray-900">${Math.round(pdfSale.total / 1.19).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-200">
-                        <span className="text-gray-600">IVA (19%):</span>
-                        <span className="text-gray-900">${Math.round(pdfSale.total - pdfSale.total / 1.19).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between py-3 border-t-2 border-blue-600">
-                        <span className="text-lg text-gray-900">Total:</span>
-                        <span className="text-xl text-blue-600">${pdfSale.total.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t-2 border-gray-300 pt-4 mt-6">
-                    <p className="text-xs text-gray-600 text-center mb-2">
-                      Gracias por su compra. Esta es una representación válida de su factura de venta.
-                    </p>
-                    <p className="text-xs text-gray-500 text-center">
-                      JRepuestos Medellín - NIT: 900.123.456-7 - Régimen Común
-                    </p>
-                    <p className="text-xs text-gray-500 text-center">
-                      Para cualquier duda o reclamo, contáctenos al (604) 123-4567 o contacto@jrepuestos.com
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-4 pt-4 border-t">
-                  <Button onClick={() => window.print()} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                    <FileTextIcon className="w-4 h-4 mr-2" />Imprimir / Descargar PDF
-                  </Button>
-                  <Button onClick={() => setShowPDFModal(false)} variant="outline" className="flex-1">
-                    Cerrar
-                  </Button>
-                </div>
+          <DialogContent
+            className="p-0 gap-0 overflow-hidden"
+            style={{ width: '96vw', maxWidth: 1000, height: '90vh', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* ════ HEADER ════ */}
+            <header style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+              flexShrink: 0, background: '#fff',
+            }}>
+              <div style={{
+                width: 40, height: 40, background: '#1d4ed8', borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <FileTextIcon style={{ width: 20, height: 20, color: '#fff' }} />
               </div>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+                <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
+                  Factura de Venta #{pdfSale?.id}
+                </DialogTitle>
+                <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                  Vista previa del documento — descarga el PDF con el botón inferior.
+                </DialogDescription>
+              </div>
+            </header>
+
+            {pdfSale && (
+              <>
+                {/* ════ BODY (2 COLUMNAS) ════ */}
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+                  {/* ── SIDEBAR IZQUIERDO ── */}
+                  <aside style={{
+                    width: 280, flexShrink: 0,
+                    borderRight: '1px solid #e5e7eb', background: '#f9fafb',
+                    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                  }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+
+                      {/* Empresa */}
+                      <div style={{ marginBottom: 20, padding: 14, background: '#1d4ed8', borderRadius: 8 }}>
+                        <p style={{ margin: 0, fontWeight: 700, color: '#fff', fontSize: 15 }}>JREPUESTOS</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#93c5fd', marginTop: 2 }}>Repuestos de Alta Calidad</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#93c5fd', marginTop: 1 }}>Medellín, Colombia</p>
+                      </div>
+
+                      {/* Cliente */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'block' }}>
+                          Cliente
+                        </label>
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
+                          <p style={{ margin: 0, fontWeight: 600, color: '#111827', fontSize: 14 }}>{pdfSale.clientName}</p>
+                          {pdfSale.clientDocument && (
+                            <p style={{ margin: 0, fontSize: 12, color: '#6b7280', marginTop: 2 }}>Doc: {pdfSale.clientDocument}</p>
+                          )}
+                          {pdfSale.clientId && (
+                            <p style={{ margin: 0, fontSize: 12, color: '#6b7280', marginTop: 1 }}>ID: {pdfSale.clientId}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Método de pago */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'block' }}>
+                          Método de Pago
+                        </label>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px',
+                        }}>
+                          {pdfSale.paymentMethod === 'Efectivo'      && <Banknote       style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
+                          {pdfSale.paymentMethod === 'Transferencia' && <ArrowLeftRight  style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
+                          {pdfSale.paymentMethod === 'Tarjeta'       && <CreditCard      style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
+                          {pdfSale.paymentMethod === 'Crédito'       && <Wallet          style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
+                          <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{pdfSale.paymentMethod}</span>
+                        </div>
+                      </div>
+
+                      {/* Estado */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'block' }}>
+                          Estado
+                        </label>
+                        <div>{getStatusBadge(pdfSale.status)}</div>
+                      </div>
+
+                      {/* Fecha */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'block' }}>
+                          Fecha
+                        </label>
+                        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px' }}>
+                          <span style={{ fontSize: 14, color: '#111827' }}>{pdfSale.date}</span>
+                        </div>
+                      </div>
+
+                      {/* Tipo */}
+                      {pdfSale.type && (
+                        <div style={{ marginBottom: 18 }}>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'block' }}>
+                            Tipo de Venta
+                          </label>
+                          <div>{getTypeBadge(pdfSale.type)}</div>
+                        </div>
+                      )}
+                    </div>
+                  </aside>
+
+                  {/* ── PANEL DERECHO ── */}
+                  <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+
+                    {/* Header panel */}
+                    <div style={{
+                      padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+                    }}>
+                      <div>
+                        <h3 style={{ fontWeight: 700, color: '#111827', fontSize: 16, margin: 0 }}>
+                          Detalle de Productos
+                          <span style={{ marginLeft: 8, fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+                            {pdfSale.items.length} item(s)
+                          </span>
+                        </h3>
+                        <p style={{ fontSize: 12, color: '#6b7280', margin: 0, marginTop: 2 }}>Factura #{pdfSale.id}</p>
+                      </div>
+                    </div>
+
+                    {/* Tabla */}
+                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                        <thead style={{ position: 'sticky', top: 0 }}>
+                          <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                            <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Código</th>
+                            <th style={{ textAlign: 'left', padding: '12px 12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producto</th>
+                            <th style={{ textAlign: 'center', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 70 }}>Cant.</th>
+                            <th style={{ textAlign: 'right', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 110 }}>Precio Unit.</th>
+                            <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 110 }}>Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pdfSale.items.map((item, index) => (
+                            <tr key={index} style={{ borderBottom: '1px solid #f3f4f6', background: index % 2 === 0 ? '#fff' : '#fafafa' }}>
+                              <td style={{ padding: '12px 24px', fontSize: 12, color: '#6b7280' }}>{item.code}</td>
+                              <td style={{ padding: '12px 12px', fontWeight: 500, color: '#111827' }}>{item.name}</td>
+                              <td style={{ padding: '12px', textAlign: 'center', color: '#111827' }}>{item.quantity}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', color: '#111827' }}>${item.price.toLocaleString()}</td>
+                              <td style={{ padding: '12px 24px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>${(item.quantity * item.price).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Totales */}
+                    <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px 24px', flexShrink: 0, background: '#fff' }}>
+                      <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', marginBottom: 8 }}>
+                          <span style={{ color: '#6b7280', fontSize: 13 }}>Subtotal:</span>
+                          <span style={{ color: '#111827', fontSize: 13 }}>${Math.round(pdfSale.total / 1.19).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', marginBottom: 8 }}>
+                          <span style={{ color: '#6b7280', fontSize: 13 }}>IVA (19%):</span>
+                          <span style={{ color: '#111827', fontSize: 13 }}>${Math.round(pdfSale.total - pdfSale.total / 1.19).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: '#111827', fontSize: 15 }}>Total:</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* ════ FOOTER ════ */}
+                <footer style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: 16, padding: '12px 24px',
+                  borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0,
+                }}>
+                  <p style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                    <Info style={{ width: 14, height: 14, flexShrink: 0 }} />
+                    JRepuestos Medellín · NIT: 900.123.456-7
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <Button variant="outline" onClick={() => setShowPDFModal(false)} style={{ height: 36, padding: '0 16px' }}>
+                      Cerrar
+                    </Button>
+                    <Button
+                      onClick={() => { generateSalePDF(pdfSale); setShowPDFModal(false); }}
+                      style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                    >
+                      <Download style={{ width: 16, height: 16, marginRight: 8 }} />
+                      Descargar PDF
+                    </Button>
+                  </div>
+                </footer>
+              </>
             )}
           </DialogContent>
         </Dialog>
