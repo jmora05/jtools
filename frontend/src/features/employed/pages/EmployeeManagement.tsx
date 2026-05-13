@@ -28,7 +28,7 @@ import {
 } from '../utils/empleadosValidations';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const AREAS:  Empleado['area'][]  = ['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración'];
+const AREAS:  Empleado['area'][]  = ['Producción', 'Administración'];
 
 type FormState = {
     tipoDocumento: 'CC' | 'CE' | 'PPT';

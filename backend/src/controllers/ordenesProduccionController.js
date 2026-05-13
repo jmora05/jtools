@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { OrdenesProduccion, Productos, Empleados } = require('../models/index.js');
+const { OrdenesProduccion, Productos, Empleados, FichaTecnica, Insumos } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
 const {
   validarCrearOrden,
@@ -206,6 +206,56 @@ const updateOrdenProduccion = async (req, res) => {
       updates.fechaFin = new Date().toISOString().split('T')[0];
     }
 
+    // 5a. Descontar insumos al pasar a "En Proceso" por primera vez
+    if (estado === 'En Proceso' && orden.estado !== 'En Proceso' && !orden.fechaInicio) {
+      const ficha = await FichaTecnica.findOne({
+        where: { productoId: orden.productoId, estado: 'Activa' },
+        transaction,
+      });
+
+      if (ficha && Array.isArray(ficha.insumos) && ficha.insumos.length > 0) {
+        const snapshot = [];
+
+        for (const fichaInsumo of ficha.insumos) {
+          const cantidadADescontar = fichaInsumo.quantity * orden.cantidad;
+          if (!cantidadADescontar || cantidadADescontar <= 0) continue;
+
+          const insumo = await Insumos.findOne({
+            where: { nombreInsumo: { [Op.like]: fichaInsumo.name } },
+            transaction,
+          });
+
+          if (!insumo) {
+            console.warn(`Insumo "${fichaInsumo.name}" no encontrado en inventario — omitido`);
+            continue;
+          }
+
+          const cantidadActual = insumo.cantidad ?? 0;
+          const cantidadNueva  = Math.max(0, cantidadActual - cantidadADescontar);
+
+          await insumo.update({ cantidad: cantidadNueva }, { transaction });
+
+          snapshot.push({
+            insumosId:          insumo.id,
+            nombre:             insumo.nombreInsumo,
+            cantidadDescontada: cantidadADescontar,
+          });
+
+          console.info('Insumo descontado al iniciar producción', {
+            codigoOrden: orden.codigoOrden,
+            insumo: insumo.nombreInsumo,
+            cantidadDescontada: cantidadADescontar,
+            stockAnterior: cantidadActual,
+            stockNuevo: cantidadNueva,
+          });
+        }
+
+        if (snapshot.length > 0) {
+          updates.insumosCalculados = snapshot;
+        }
+      }
+    }
+
     // 5b. Aumentar stock del producto al finalizar la orden
     if (estado === 'Finalizada' && orden.estado !== 'Finalizada') {
       const producto = await Productos.findByPk(orden.productoId, { transaction });
@@ -251,28 +301,60 @@ const updateOrdenProduccion = async (req, res) => {
 //  PUT /ordenes-produccion/:id/anular  —  anular
 // ────────────────────────────────────────────────────────────
 const anularOrdenProduccion = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const { id } = req.params;
     if (!id || isNaN(id)) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'El ID proporcionado no es válido' });
     }
 
-    const orden = await OrdenesProduccion.findByPk(id);
+    const orden = await OrdenesProduccion.findByPk(id, { transaction });
     if (!orden) {
+      await transaction.rollback();
       return res.status(404).json({ message: 'Orden de producción no encontrada' });
     }
 
     const errores = validarAnularOrden(req.body, orden.estado);
     if (errores.length > 0) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Error de validación', errores });
     }
 
+    // Devolver insumos al stock si la orden ya había consumido insumos
+    const insumosCalculados = Array.isArray(orden.insumosCalculados) ? orden.insumosCalculados : [];
+    for (const item of insumosCalculados) {
+      if (!item.insumosId || !item.cantidadDescontada) continue;
+
+      const insumo = await Insumos.findByPk(item.insumosId, { transaction });
+      if (!insumo) continue;
+
+      const cantidadRestaurada = (insumo.cantidad ?? 0) + item.cantidadDescontada;
+      await insumo.update({ cantidad: cantidadRestaurada }, { transaction });
+
+      console.info('Insumo restaurado al anular orden', {
+        codigoOrden: orden.codigoOrden,
+        insumo: insumo.nombreInsumo,
+        cantidadRestaurada: item.cantidadDescontada,
+        stockAnterior: insumo.cantidad,
+        stockNuevo: cantidadRestaurada,
+      });
+    }
+
     const { motivoAnulacion } = req.body;
-    await orden.update({ estado: 'Anulada', motivoAnulacion: motivoAnulacion.trim() });
+    await orden.update(
+      { estado: 'Anulada', motivoAnulacion: motivoAnulacion.trim(), insumosCalculados: [] },
+      { transaction }
+    );
+
+    await transaction.commit();
 
     res.status(200).json({ message: 'Orden anulada correctamente', orden });
 
   } catch (error) {
+    await transaction.rollback();
+    console.error('Error anulando orden de producción', { error: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al anular la orden de producción', error: error.message });
   }
 };

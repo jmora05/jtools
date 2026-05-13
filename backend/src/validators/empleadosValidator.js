@@ -6,9 +6,6 @@
 const TIPOS_DOCUMENTO = ['CC', 'CE', 'PPT'];
 const AREAS = [
   'Producción',
-  'Calidad',
-  'Logística',
-  'Mantenimiento',
   'Administración',
 ];
 

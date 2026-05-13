@@ -9,7 +9,7 @@ export type Empleado = {
   telefono: string;
   email: string;
   cargo: string;
-  area: 'Producción' | 'Calidad' | 'Logística' | 'Mantenimiento' | 'Administración';
+  area: 'Producción' | 'Administración';
   direccion?: string;
   ciudad?: string;
   fechaIngreso: string;

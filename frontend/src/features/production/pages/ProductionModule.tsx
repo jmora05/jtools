@@ -77,28 +77,18 @@ const OPFieldError = ({ message }: { message?: string }) =>
     </p>
   ) : null;
 
+type CarritoItemOP = { productoId: number; nombre: string; referencia: string; cantidad: number };
+
 type OrdenFormErrors = {
-  productoId?: string;
-  cantidad?: string;
   responsableId?: string;
   fechaInicio?: string;
   nota?: string;
 };
 
-type OrdenFormData = { productoId: string; cantidad: string; responsableId: string; fechaInicio: string; nota: string };
+type OrdenFormData = { responsableId: string; fechaInicio: string; nota: string };
 
 function validateOrdenForm(form: OrdenFormData): OrdenFormErrors {
   const errors: OrdenFormErrors = {};
-
-  if (!form.productoId) errors.productoId = 'El producto es obligatorio.';
-
-  if (!form.cantidad || form.cantidad === '') {
-    errors.cantidad = 'La cantidad es obligatoria.';
-  } else {
-    const n = Number(form.cantidad);
-    if (!Number.isInteger(n) || n <= 0) errors.cantidad = 'Debe ser un número entero mayor a 0.';
-    else if (n > CANTIDAD_MAX_OP) errors.cantidad = `No puede superar ${CANTIDAD_MAX_OP.toLocaleString()} unidades.`;
-  }
 
   if (!form.responsableId) errors.responsableId = 'El responsable es obligatorio.';
 
@@ -148,12 +138,16 @@ function ProductionOrdersSubmodule() {
   const [submitting, setSubmitting] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const emptyForm: OrdenFormData = { productoId: '', cantidad: '', responsableId: '', fechaInicio: todayStr, nota: '' };
+  const emptyForm: OrdenFormData = { responsableId: '', fechaInicio: todayStr, nota: '' };
   const [form, setForm] = useState<OrdenFormData>(emptyForm);
   const [formErrors, setFormErrors] = useState<OrdenFormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof OrdenFormData, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [newEstado, setNewEstado] = useState('');
+  const [carrito, setCarrito] = useState<CarritoItemOP[]>([]);
+  const [carritoErrors, setCarritoErrors] = useState<Record<number, string>>({});
+  const [productoSelId, setProductoSelId] = useState('');
+  const [cantidadNueva, setCantidadNueva] = useState('');
+  const [editForm, setEditForm] = useState({ productoId: '', cantidad: '', responsableId: '', fechaInicio: '', nota: '', estado: '' });
   const [motivo, setMotivo] = useState('');
   const [motivoTouched, setMotivoTouched] = useState(false);
 
@@ -211,10 +205,14 @@ function ProductionOrdersSubmodule() {
   };
 
   const resetCreateForm = () => {
-    setForm({ ...emptyForm, responsableId: getAutoResponsableId(), fechaInicio: new Date().toISOString().split('T')[0] });
+    setForm({ responsableId: getAutoResponsableId(), fechaInicio: new Date().toISOString().split('T')[0], nota: '' });
+    setCarrito([]);
+    setCarritoErrors({});
     setFormErrors({});
     setTouched({});
     setSubmitAttempted(false);
+    setProductoSelId('');
+    setCantidadNueva('');
   };
 
   const filtered = orders.filter(o => {
@@ -230,49 +228,92 @@ function ProductionOrdersSubmodule() {
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async () => {
     setSubmitAttempted(true);
-    setTouched({ productoId: true, cantidad: true, responsableId: true, fechaEntrega: true, nota: true });
+    setTouched({ responsableId: true, fechaInicio: true, nota: true });
     const errors = validateOrdenForm(form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Completa los campos obligatorios correctamente');
       return;
     }
+    if (carrito.length === 0) {
+      toast.error('Agrega al menos un producto para producir');
+      return;
+    }
+    const errs: Record<number, string> = {};
+    carrito.forEach(item => {
+      if (!Number.isInteger(item.cantidad) || item.cantidad <= 0) errs[item.productoId] = 'Debe ser un entero mayor a 0.';
+      else if (item.cantidad > CANTIDAD_MAX_OP) errs[item.productoId] = `Máximo ${CANTIDAD_MAX_OP.toLocaleString()}.`;
+    });
+    setCarritoErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      toast.error('Revisa las cantidades de los productos');
+      return;
+    }
     setSubmitting(true);
     try {
-      await createOrdenProduccion({
-        productoId: Number(form.productoId),
-        cantidad: Number(form.cantidad),
-        responsableId: Number(form.responsableId),
-        tipoOrden: 'Venta',
-        fechaEntrega: form.fechaInicio + 'T12:00:00',
-        nota: form.nota.trim() || undefined,
-      });
-      toast.success('Orden de producción creada correctamente');
+      for (const item of carrito) {
+        await createOrdenProduccion({
+          productoId: item.productoId,
+          cantidad: item.cantidad,
+          responsableId: Number(form.responsableId),
+          tipoOrden: 'Venta',
+          fechaEntrega: form.fechaInicio + 'T12:00:00',
+          nota: form.nota.trim() || undefined,
+        });
+      }
+      toast.success(carrito.length === 1
+        ? 'Orden de producción creada correctamente'
+        : `${carrito.length} órdenes de producción creadas correctamente`
+      );
       setIsCreateOpen(false);
       resetCreateForm();
       loadOrders();
     } catch (err: any) {
-      toast.error(err.message || 'Error al crear la orden');
+      toast.error(err.message || 'Error al crear las órdenes');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleStatusChange = async () => {
-    if (!selected || !newEstado) return;
+  const openEdit = (order: OrdenProduccion) => {
+    setSelected(order);
+    setEditForm({
+      productoId: String(order.productoId ?? ''),
+      cantidad: String(order.cantidad ?? ''),
+      responsableId: String(order.responsableId ?? ''),
+      fechaInicio: order.fechaEntrega ? order.fechaEntrega.split('T')[0] : todayStr,
+      nota: order.nota ?? '',
+      estado: '',
+    });
+    setIsStatusOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!selected) return;
     setSubmitting(true);
     try {
-      await updateOrdenProduccion(selected.id!, { estado: newEstado as any });
-      toast.success('Estado actualizado correctamente');
+      if (selected.estado === 'Pendiente') {
+        await updateOrdenProduccion(selected.id!, {
+          productoId: Number(editForm.productoId) || undefined,
+          cantidad: Number(editForm.cantidad) || undefined,
+          responsableId: Number(editForm.responsableId) || undefined,
+          fechaEntrega: editForm.fechaInicio ? editForm.fechaInicio + 'T12:00:00' : undefined,
+          nota: editForm.nota.trim() || undefined,
+        } as any);
+      } else {
+        const payload: any = {};
+        if (editForm.responsableId) payload.responsableId = Number(editForm.responsableId);
+        if (editForm.estado) payload.estado = editForm.estado;
+        await updateOrdenProduccion(selected.id!, payload);
+      }
+      toast.success('Orden actualizada correctamente');
       setIsStatusOpen(false);
-      setNewEstado('');
       setSelected(null);
       loadOrders();
     } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar el estado');
+      toast.error(err.message || 'Error al actualizar la orden');
     } finally {
       setSubmitting(false);
     }
@@ -379,15 +420,15 @@ function ProductionOrdersSubmodule() {
           <DialogContent
             className="p-0 gap-0 overflow-hidden"
             style={{
-              width: '90vw', maxWidth: 720, borderRadius: 12,
-              display: 'flex', flexDirection: 'column',
+              width: '96vw', maxWidth: 1100, height: '92vh', maxHeight: '92vh',
+              display: 'flex', flexDirection: 'column', padding: 0, gap: 0,
             }}
           >
-            {/* Header */}
+            {/* ════ HEADER ════ */}
             <header style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
-              background: '#fff', flexShrink: 0,
+              flexShrink: 0, background: '#fff',
             }}>
               <div style={{
                 width: 40, height: 40, background: '#1d4ed8',
@@ -396,20 +437,25 @@ function ProductionOrdersSubmodule() {
               }}>
                 <ClipboardListIcon style={{ width: 20, height: 20, color: '#fff' }} />
               </div>
-              <div style={{ flex: 1, paddingRight: 32 }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
                 <DialogTitle style={{
-                  fontSize: 17, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0,
+                  fontSize: 18, fontWeight: 700, color: '#111827',
+                  lineHeight: 1.2, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0,
                 }}>
-                  Registrar Nueva Orden de Producción
+                  Registrar Órdenes de Producción
                 </DialogTitle>
-                <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                  Completa los campos para crear la orden. Los campos marcados con * son obligatorios.
+                <DialogDescription style={{
+                  fontSize: 12, color: '#6b7280', marginTop: 2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  Completa la información y agrega los productos a producir. Se creará una orden por cada producto.
                 </DialogDescription>
               </div>
             </header>
 
-            {/* Alerta de errores */}
-            {submitAttempted && totalFormErrors > 0 && (
+            {/* ════ ALERTAS ════ */}
+            {submitAttempted && (totalFormErrors > 0 || carrito.length === 0) && (
               <div style={{
                 padding: '8px 24px', background: '#fffbeb',
                 borderBottom: '1px solid #fde68a', flexShrink: 0,
@@ -417,42 +463,26 @@ function ProductionOrdersSubmodule() {
                 fontSize: 12, color: '#92400e',
               }}>
                 <Info style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0 }} />
-                <span>{totalFormErrors} campo(s) requieren atención.</span>
+                <span>
+                  {totalFormErrors > 0 && `${totalFormErrors} campo(s) requieren atención. `}
+                  {carrito.length === 0 && 'Agrega al menos un producto para continuar.'}
+                </span>
               </div>
             )}
 
-            {/* Body */}
-            <div style={{ padding: '24px', background: '#f9fafb', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-              <form id="orden-form" onSubmit={handleCreate}>
-                {/* Producto */}
-                <div style={SO.fieldGroup}>
-                  <label style={SO.label}>Producto <span style={{ color: '#f87171' }}>*</span></label>
-                  <Select
-                    value={form.productoId}
-                    onValueChange={(v) => { handleFormChange('productoId', v); setTouched(p => ({ ...p, productoId: true })); }}
-                  >
-                    <SelectTrigger style={{
-                      height: 40, fontSize: 14, background: '#fff',
-                      borderColor: touched.productoId && formErrors.productoId ? '#f87171' : undefined,
-                    }}>
-                      <SelectValue placeholder="Seleccionar producto activo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productos.length === 0
-                        ? <SelectItem value="__none" disabled>Sin productos activos</SelectItem>
-                        : productos.map((p: any) => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {p.nombreProducto} — {p.referencia}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <OPFieldError message={touched.productoId ? formErrors.productoId : undefined} />
-                </div>
+            {/* ════ BODY (2 COLUMNAS) ════ */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
 
-                {/* Responsable + Fecha de Inicio */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
-                  <div>
+              {/* ── SIDEBAR IZQUIERDO ── */}
+              <aside style={{
+                width: 320, flexShrink: 0,
+                borderRight: '1px solid #e5e7eb', background: '#f9fafb',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+
+                  {/* Responsable */}
+                  <div style={SO.fieldGroup}>
                     <label style={SO.label}>Responsable <span style={{ color: '#f87171' }}>*</span></label>
                     <Select
                       value={form.responsableId}
@@ -476,8 +506,10 @@ function ProductionOrdersSubmodule() {
                     </Select>
                     <OPFieldError message={touched.responsableId ? formErrors.responsableId : undefined} />
                   </div>
-                  <div>
-                    <label style={SO.label}>Fecha de Inicio <span style={{ color: '#f87171' }}>*</span></label>
+
+                  {/* Fecha de Inicio */}
+                  <div style={SO.fieldGroup}>
+                    <label style={SO.label}>Fecha de inicio <span style={{ color: '#f87171' }}>*</span></label>
                     <Input
                       type="date"
                       min={todayStr}
@@ -491,59 +523,230 @@ function ProductionOrdersSubmodule() {
                     />
                     <OPFieldError message={touched.fechaInicio ? formErrors.fechaInicio : undefined} />
                   </div>
-                </div>
 
-                {/* Cantidad */}
-                <div style={SO.fieldGroup}>
-                  <label style={SO.label}>Cantidad <span style={{ color: '#f87171' }}>*</span></label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={CANTIDAD_MAX_OP}
-                    step={1}
-                    placeholder="Ej: 10"
-                    value={form.cantidad}
-                    onKeyDown={blockNonIntegerOP}
-                    onChange={(e) => handleFormChange('cantidad', e.target.value)}
-                    onBlur={() => handleBlurField('cantidad')}
-                    style={{
-                      height: 40, fontSize: 14, background: '#fff',
-                      borderColor: touched.cantidad && formErrors.cantidad ? '#f87171' : undefined,
-                    }}
-                  />
-                  <OPFieldError message={touched.cantidad ? formErrors.cantidad : undefined} />
-                </div>
+                  {/* Notas */}
+                  <div style={SO.fieldGroup}>
+                    <label style={SO.label}>Notas (opcional)</label>
+                    <Textarea
+                      placeholder="Observaciones adicionales..."
+                      value={form.nota}
+                      onChange={(e) => handleFormChange('nota', e.target.value)}
+                      onBlur={() => handleBlurField('nota')}
+                      rows={5}
+                      maxLength={NOTA_MAX + 1}
+                      style={{
+                        fontSize: 14, background: '#fff', resize: 'none',
+                        borderColor: touched.nota && formErrors.nota ? '#f87171' : undefined,
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                      <OPFieldError message={touched.nota ? formErrors.nota : undefined} />
+                      <span style={{
+                        fontSize: 11, marginLeft: 'auto',
+                        color: form.nota.length > NOTA_MAX ? '#ef4444' : '#9ca3af',
+                        fontWeight: form.nota.length > NOTA_MAX ? 600 : 400,
+                      }}>
+                        {form.nota.length}/{NOTA_MAX}
+                      </span>
+                    </div>
+                  </div>
 
-                {/* Notas */}
-                <div style={SO.fieldGroup}>
-                  <label style={SO.label}>Notas <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', textTransform: 'none' }}>(opcional)</span></label>
-                  <Textarea
-                    placeholder="Observaciones adicionales..."
-                    value={form.nota}
-                    onChange={(e) => handleFormChange('nota', e.target.value)}
-                    onBlur={() => handleBlurField('nota')}
-                    rows={3}
-                    maxLength={NOTA_MAX + 1}
-                    style={{
-                      fontSize: 14, background: '#fff', resize: 'none',
-                      borderColor: touched.nota && formErrors.nota ? '#f87171' : undefined,
-                    }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                    <OPFieldError message={touched.nota ? formErrors.nota : undefined} />
-                    <span style={{
-                      fontSize: 11, marginLeft: 'auto',
-                      color: form.nota.length > NOTA_MAX ? '#ef4444' : '#9ca3af',
-                      fontWeight: form.nota.length > NOTA_MAX ? 600 : 400,
-                    }}>
-                      {form.nota.length}/{NOTA_MAX}
-                    </span>
+                </div>
+              </aside>
+
+              {/* ── PANEL DERECHO ── */}
+              <section style={{
+                flex: 1, minWidth: 0,
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', background: '#fff',
+              }}>
+                {/* Header del panel + campos de agregar */}
+                <div style={{
+                  padding: '16px 24px', borderBottom: '1px solid #e5e7eb',
+                  flexShrink: 0, background: '#f9fafb',
+                }}>
+                  <h3 style={{ fontWeight: 700, color: '#111827', fontSize: 16, lineHeight: 1.2, margin: '0 0 14px 0' }}>
+                    Productos a producir
+                  </h3>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={SO.label}>Producto</label>
+                      <Select value={productoSelId} onValueChange={setProductoSelId}>
+                        <SelectTrigger style={{ height: 40, fontSize: 14, background: '#fff' }}>
+                          <SelectValue placeholder="Seleccionar producto activo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {productos.length === 0
+                            ? <SelectItem value="__none" disabled>Sin productos activos</SelectItem>
+                            : productos.map((p: any) => (
+                              <SelectItem key={p.id} value={String(p.id)}>
+                                {p.nombreProducto} — {p.referencia}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div style={{ width: 120 }}>
+                      <label style={SO.label}>Cantidad</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={CANTIDAD_MAX_OP}
+                        step={1}
+                        placeholder="Ej: 10"
+                        value={cantidadNueva}
+                        onKeyDown={blockNonIntegerOP}
+                        onChange={(e) => setCantidadNueva(e.target.value)}
+                        style={{ height: 40, fontSize: 14, background: '#fff' }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const p = productos.find((p: any) => String(p.id) === productoSelId);
+                        const qty = parseInt(cantidadNueva, 10);
+                        if (!p || !qty || qty <= 0) return;
+                        if (carrito.some(i => i.productoId === p.id)) {
+                          setCarrito(prev => prev.map(i => i.productoId === p.id ? { ...i, cantidad: i.cantidad + qty } : i));
+                        } else {
+                          setCarrito(prev => [...prev, { productoId: p.id, nombre: p.nombreProducto, referencia: p.referencia ?? '', cantidad: qty }]);
+                        }
+                        setProductoSelId('');
+                        setCantidadNueva('');
+                      }}
+                      style={{
+                        height: 40, background: '#1d4ed8', color: '#fff',
+                        fontSize: 13, padding: '0 18px', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        alignSelf: 'flex-end',
+                      }}
+                    >
+                      <PlusIcon style={{ width: 15, height: 15 }} />
+                      Agregar
+                    </Button>
                   </div>
                 </div>
-              </form>
+
+                {/* Tabla / estado vacío */}
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {carrito.length === 0 ? (
+                    <div style={{
+                      margin: 24, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      padding: '64px 0', borderRadius: 12,
+                      border: `2px dashed ${submitAttempted ? '#fca5a5' : '#e5e7eb'}`,
+                      background: submitAttempted ? '#fef2f2' : 'transparent',
+                      color: '#9ca3af',
+                    }}>
+                      <ClipboardListIcon style={{ width: 48, height: 48, marginBottom: 12, opacity: 0.25 }} />
+                      <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>Sin productos aún</p>
+                      <p style={{ fontSize: 12, marginTop: 4, margin: 0 }}>Usa el botón "Agregar producto"</p>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producto</th>
+                          <th style={{ textAlign: 'left', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 160 }}>Referencia</th>
+                          <th style={{ textAlign: 'center', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 150 }}>Cantidad</th>
+                          <th style={{ width: 48 }} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {carrito.map(item => {
+                          const itemErr = carritoErrors[item.productoId];
+                          return (
+                            <tr key={item.productoId} style={{
+                              borderBottom: '1px solid #f3f4f6',
+                              background: itemErr ? '#fef2f2' : 'transparent',
+                            }}>
+                              <td style={{ padding: '12px 24px' }}>
+                                <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.nombre}
+                                </p>
+                              </td>
+                              <td style={{ padding: '12px', fontSize: 13, color: '#6b7280' }}>
+                                {item.referencia || '—'}
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                  <div style={{
+                                    display: 'flex', alignItems: 'center',
+                                    border: '1px solid #e5e7eb', borderRadius: 8,
+                                    overflow: 'hidden', background: '#fff',
+                                  }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = Math.max(1, item.cantidad - 1);
+                                        setCarrito(prev => prev.map(i => i.productoId === item.productoId ? { ...i, cantidad: next } : i));
+                                      }}
+                                      disabled={item.cantidad <= 1}
+                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, fontWeight: 500, cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer', opacity: item.cantidad <= 1 ? 0.3 : 1 }}
+                                    >−</button>
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={item.cantidad}
+                                      onKeyDown={blockNonIntegerOP}
+                                      onChange={(e) => {
+                                        const parsed = parseInt(e.target.value, 10);
+                                        const next = isNaN(parsed) ? 1 : Math.max(1, Math.min(parsed, CANTIDAD_MAX_OP));
+                                        setCarrito(prev => prev.map(i => i.productoId === item.productoId ? { ...i, cantidad: next } : i));
+                                      }}
+                                      style={{ width: 52, height: 32, textAlign: 'center', fontSize: 14, fontWeight: 600, padding: '0 4px', border: 'none', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb', borderRadius: 0 }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = Math.min(CANTIDAD_MAX_OP, item.cantidad + 1);
+                                        setCarrito(prev => prev.map(i => i.productoId === item.productoId ? { ...i, cantidad: next } : i));
+                                      }}
+                                      disabled={item.cantidad >= CANTIDAD_MAX_OP}
+                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, fontWeight: 500, cursor: item.cantidad >= CANTIDAD_MAX_OP ? 'not-allowed' : 'pointer', opacity: item.cantidad >= CANTIDAD_MAX_OP ? 0.3 : 1 }}
+                                    >+</button>
+                                  </div>
+                                  {itemErr && <p style={{ color: '#ef4444', fontSize: 10, lineHeight: 1.2, textAlign: 'center', margin: 0 }}>{itemErr}</p>}
+                                </div>
+                              </td>
+                              <td style={{ paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCarrito(prev => prev.filter(i => i.productoId !== item.productoId));
+                                    setCarritoErrors(prev => { const n = { ...prev }; delete n[item.productoId]; return n; });
+                                  }}
+                                  style={{ color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                  title="Quitar"
+                                  onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+                                >
+                                  <XCircleIcon style={{ width: 16, height: 16 }} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Resumen */}
+                {carrito.length > 0 && (
+                  <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px 24px', flexShrink: 0, background: '#fff' }}>
+                    <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
+                        <span style={{ fontWeight: 700, color: '#111827' }}>Total de órdenes</span>
+                        <span style={{ fontSize: 22, fontWeight: 700, color: '#1d4ed8' }}>{carrito.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
 
-            {/* Footer */}
+            {/* ════ FOOTER ════ */}
             <footer style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               gap: 16, padding: '12px 24px',
@@ -551,24 +754,25 @@ function ProductionOrdersSubmodule() {
             }}>
               <p style={{
                 fontSize: 12, color: '#9ca3af',
-                display: 'flex', alignItems: 'center', gap: 6, margin: 0,
+                display: 'flex', alignItems: 'center', gap: 6,
+                margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 <Info style={{ width: 14, height: 14, flexShrink: 0 }} />
                 Los campos con * son obligatorios
               </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="outline" onClick={() => { setIsCreateOpen(false); resetCreateForm(); }} disabled={submitting} style={{ height: 36, padding: '0 16px' }}>
-                Cancelar
-              </Button>
-              <Button
-                form="orden-form"
-                type="submit"
-                disabled={submitting}
-                style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
-              >
-                {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
-                Crear Orden
-              </Button>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <Button variant="outline" onClick={() => { setIsCreateOpen(false); resetCreateForm(); }} disabled={submitting} style={{ height: 36, padding: '0 16px' }}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={submitting}
+                  style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+                >
+                  {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
+                  {carrito.length > 1 ? `Crear ${carrito.length} órdenes` : 'Crear Orden'}
+                </Button>
               </div>
             </footer>
           </DialogContent>
@@ -653,13 +857,15 @@ function ProductionOrdersSubmodule() {
                           <EyeIcon className="w-4 h-4" />
                         </Button>
                         <Button size="sm" title="Editar"
-                          onClick={() => { setSelected(order); setNewEstado(''); setIsStatusOpen(true); }}
-                          className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                          onClick={() => canEdit(order.estado) && openEdit(order)}
+                          className="bg-white border border-blue-900 hover:bg-blue-50"
+                          style={{ opacity: canEdit(order.estado) ? 1 : 0.3, cursor: canEdit(order.estado) ? 'pointer' : 'not-allowed', color: '#1e3a8a' }}>
                           <EditIcon className="w-4 h-4" />
                         </Button>
                         <Button size="sm" title="Eliminar"
-                          onClick={() => { setSelected(order); setIsDeleteOpen(true); }}
-                          className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                          onClick={() => { if (order.estado === 'Pendiente') { setSelected(order); setIsDeleteOpen(true); } }}
+                          className="bg-white border border-blue-900 hover:bg-blue-50"
+                          style={{ opacity: order.estado === 'Pendiente' ? 1 : 0.3, cursor: order.estado === 'Pendiente' ? 'pointer' : 'not-allowed', color: '#1e3a8a' }}>
                           <TrashIcon className="w-4 h-4" />
                         </Button>
                       </div>
@@ -721,7 +927,7 @@ function ProductionOrdersSubmodule() {
                 {canEdit(selected.estado) && (
                   <>
                     <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => { setIsViewOpen(false); setNewEstado(''); setIsStatusOpen(true); }}>
+                      onClick={() => { setIsViewOpen(false); openEdit(selected!); }}>
                       <CheckCircleIcon className="w-4 h-4 mr-2" />
                       Cambiar Estado
                     </Button>
@@ -738,39 +944,141 @@ function ProductionOrdersSubmodule() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Cambiar Estado */}
-      <Dialog open={isStatusOpen} onOpenChange={setIsStatusOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cambiar Estado de la Orden</DialogTitle>
-            <DialogDescription>Actualiza el estado de la orden de producción</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-700">Orden: <strong>{selected.codigoOrden}</strong></p>
-                <p className="text-xs text-gray-500 mt-1">Estado actual: {selected.estado}</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Nuevo Estado *</Label>
-                <Select value={newEstado} onValueChange={setNewEstado}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
-                  <SelectContent>
-                    {(TRANSICIONES[selected.estado ?? ''] ?? []).map(e => (
-                      <SelectItem key={e} value={e}>{e}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => { setIsStatusOpen(false); setNewEstado(''); }}>Cancelar</Button>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleStatusChange} disabled={submitting || !newEstado}>
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Confirmar
-                </Button>
-              </div>
+      {/* Modal Editar */}
+      <Dialog open={isStatusOpen} onOpenChange={(o) => { if (!o) { setIsStatusOpen(false); setSelected(null); } }}>
+        <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '90vw', maxWidth: 520, display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid #e5e7eb', flexShrink: 0, background: '#fff' }}>
+            <div style={{ width: 40, height: 40, background: '#1d4ed8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <EditIcon style={{ width: 20, height: 20, color: '#fff' }} />
             </div>
-          )}
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+              <DialogTitle style={{ fontSize: 17, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Editar Orden {selected?.codigoOrden}
+              </DialogTitle>
+              <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                {selected?.estado === 'Pendiente'
+                  ? 'Puedes modificar todos los campos de la orden.'
+                  : 'Solo puedes cambiar el estado y el responsable.'}
+              </DialogDescription>
+            </div>
+          </header>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', background: '#f9fafb', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {selected?.estado === 'Pendiente' ? (
+              /* ── PENDIENTE: edición completa ── */
+              <>
+                <div style={SO.fieldGroup}>
+                  <label style={SO.label}>Producto</label>
+                  <Select value={editForm.productoId} onValueChange={(v) => setEditForm(p => ({ ...p, productoId: v }))}>
+                    <SelectTrigger style={{ height: 40, fontSize: 14, background: '#fff' }}>
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productos.map((p: any) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.nombreProducto} — {p.referencia}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+                  <div>
+                    <label style={SO.label}>Responsable</label>
+                    <Select value={editForm.responsableId} onValueChange={(v) => setEditForm(p => ({ ...p, responsableId: v }))}>
+                      <SelectTrigger style={{ height: 40, fontSize: 14, background: '#fff' }}>
+                        <SelectValue placeholder="Seleccionar empleado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empleados.map((e: any) => (
+                          <SelectItem key={e.id} value={String(e.id)}>{e.nombres} {e.apellidos}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label style={SO.label}>Fecha de inicio</label>
+                    <Input type="date" min={todayStr} value={editForm.fechaInicio}
+                      onChange={(e) => setEditForm(p => ({ ...p, fechaInicio: e.target.value }))}
+                      style={{ height: 40, fontSize: 14, background: '#fff' }} />
+                  </div>
+                </div>
+                <div style={SO.fieldGroup}>
+                  <label style={SO.label}>Cantidad</label>
+                  <Input type="number" min={1} max={CANTIDAD_MAX_OP} step={1} placeholder="Ej: 10"
+                    value={editForm.cantidad} onKeyDown={blockNonIntegerOP}
+                    onChange={(e) => setEditForm(p => ({ ...p, cantidad: e.target.value }))}
+                    style={{ height: 40, fontSize: 14, background: '#fff' }} />
+                </div>
+                <div style={SO.fieldGroup}>
+                  <label style={SO.label}>Notas <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', textTransform: 'none' }}>(opcional)</span></label>
+                  <Textarea placeholder="Observaciones..." value={editForm.nota} rows={3}
+                    onChange={(e) => setEditForm(p => ({ ...p, nota: e.target.value }))}
+                    style={{ fontSize: 14, background: '#fff', resize: 'none' }} />
+                </div>
+              </>
+            ) : (
+              /* ── OTROS ESTADOS: edición limitada ── */
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, padding: '10px 14px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                  <span style={SO.label as any}>Estado actual</span>
+                  <Badge className={estadoColor(selected?.estado ?? '')}>{selected?.estado}</Badge>
+                </div>
+                {(TRANSICIONES[selected?.estado ?? ''] ?? []).length > 0 && (
+                  <div style={SO.fieldGroup}>
+                    <label style={SO.label}>Nuevo estado</label>
+                    <Select value={editForm.estado} onValueChange={(v) => setEditForm(p => ({ ...p, estado: v }))}>
+                      <SelectTrigger style={{ height: 40, fontSize: 14, background: '#fff' }}>
+                        <SelectValue placeholder="Seleccionar nuevo estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(TRANSICIONES[selected?.estado ?? ''] ?? []).map(e => (
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div style={SO.fieldGroup}>
+                  <label style={SO.label}>Responsable</label>
+                  <Select value={editForm.responsableId} onValueChange={(v) => setEditForm(p => ({ ...p, responsableId: v }))}>
+                    <SelectTrigger style={{ height: 40, fontSize: 14, background: '#fff' }}>
+                      <SelectValue placeholder="Seleccionar empleado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {empleados.map((e: any) => (
+                        <SelectItem key={e.id} value={String(e.id)}>{e.nombres} {e.apellidos}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <footer style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+            <div>
+              {canEdit(selected?.estado) && (
+                <Button variant="outline" type="button" disabled={submitting}
+                  onClick={() => { setIsStatusOpen(false); setMotivo(''); setMotivoTouched(false); setIsAnulOpen(true); }}
+                  style={{ height: 36, padding: '0 16px', color: '#6b7280', borderColor: '#e5e7eb' }}>
+                  <XCircleIcon style={{ width: 15, height: 15, marginRight: 6 }} />
+                  Anular
+                </Button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="outline" onClick={() => { setIsStatusOpen(false); setSelected(null); }} disabled={submitting} style={{ height: 36, padding: '0 16px' }}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleEdit} disabled={submitting}
+                style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}>
+                {submitting && <Loader2 style={{ width: 15, height: 15, marginRight: 8 }} className="animate-spin" />}
+                Guardar cambios
+              </Button>
+            </div>
+          </footer>
         </DialogContent>
       </Dialog>
 

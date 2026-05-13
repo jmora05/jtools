@@ -81,15 +81,12 @@ const Empleados = sequelize.define('Empleados', {
     area: {
         type: DataTypes.ENUM(
             'Producción',
-            'Calidad',
-            'Logística',
-            'Mantenimiento',
             'Administración'
         ),
         allowNull: false,
         validate: {
             isIn: {
-                args: [['Producción', 'Calidad', 'Logística', 'Mantenimiento', 'Administración']],
+                args: [['Producción', 'Administración']],
                 msg: 'El área seleccionada no es válida'
             }
         }
