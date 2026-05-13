@@ -20,6 +20,8 @@ export type NominaBackend = {
     apellidos: string;
     cargo: string;
     area: string;
+    tipoDocumento?: string;
+    numeroDocumento?: string;
   };
 };
 

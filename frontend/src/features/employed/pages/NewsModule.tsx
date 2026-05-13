@@ -6,7 +6,6 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Badge } from '@/shared/components/ui/badge';
-import { Switch } from '@/shared/components/ui/switch';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/shared/components/ui/dialog';
@@ -26,7 +25,7 @@ import { toast } from 'sonner';
 
 import {
   getNovedades, createNovedad, updateNovedad, deleteNovedad, cambiarEstadoNovedad,
-  type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO,
+  type Novedad, type CreateNovedadDTO, type UpdateNovedadDTO, type EstadoNovedad,
 } from '../services/novedadesService';
 
 import { getEmpleados, desactivarEmpleado, reactivarEmpleado } from '../services/empleadosService';
@@ -37,14 +36,25 @@ import {
 
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
+const ESTADO_SELECT_CLASSES: Record<string, string> = {
+  registrada:                'border-blue-300 bg-blue-50 text-blue-900',
+  aprobada_remunera:         'border-green-300 bg-green-50 text-green-900',
+  aprobada_sin_remuneracion: 'border-amber-300 bg-amber-50 text-amber-900',
+  rechazada:                 'border-red-300 bg-red-50 text-red-900',
+};
+
 const ESTADO_COLORS: Record<string, string> = {
-  registrada: 'bg-blue-100 text-blue-900 border-blue-200',
-  aprobada:   'bg-blue-100 text-blue-900 border-blue-200',
+  registrada:                'bg-blue-100 text-blue-900 border-blue-200',
+  aprobada_remunera:         'bg-green-100 text-green-900 border-green-200',
+  aprobada_sin_remuneracion: 'bg-amber-100 text-amber-900 border-amber-200',
+  rechazada:                 'bg-red-100 text-red-900 border-red-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
-  registrada: 'Registrada',
-  aprobada:   'Aprobada',
+  registrada:                'Registrada',
+  aprobada_remunera:         'Aprobada con Remuneración',
+  aprobada_sin_remuneracion: 'Aprobada sin Remuneración',
+  rechazada:                 'Rechazada',
 };
 
 const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
@@ -64,11 +74,11 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (n: Novedad) => n.estado === 'registrada';
+const canEdit   = (_n: Novedad) => true;
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
-const editBlockReason   = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede editar: la novedad ya fue aprobada' : null;
-const deleteBlockReason = (n: Novedad) => n.estado === 'aprobada' ? 'No se puede eliminar: la novedad ya fue aprobada' : null;
+const editBlockReason   = (n: Novedad) => n.estado !== 'registrada' ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
+const deleteBlockReason = (n: Novedad) => n.estado !== 'registrada' ? `No se puede eliminar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
 
 // ─── Tipos del formulario ─────────────────────────────────────────────────────
 
@@ -85,7 +95,8 @@ interface FormValues {
   fecha_inicio: string;
   fecha_finalizacion: string;
   empleado_afectado: EmpleadoSeleccionado | null;
-  estado: 'registrada' | 'aprobada';
+  estado: 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada';
+  horas_ausencia: string;
 }
 
 interface FormErrors {
@@ -103,6 +114,7 @@ const emptyForm: FormValues = {
   fecha_finalizacion: '',
   empleado_afectado: null,
   estado: 'registrada',
+  horas_ausencia: '',
 };
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
@@ -354,15 +366,16 @@ export function NewsModule() {
   const showRowBanner = (id: number, action: 'edit' | 'delete') => { setBannerNovedadId(id); setBannerAction(action); };
   const closeBanner   = () => { setBannerNovedadId(null); setBannerAction(null); };
 
-  const handleToggleEstado = async (novedad: Novedad) => {
-    const nuevoEstado: 'registrada' | 'aprobada' = novedad.estado === 'aprobada' ? 'registrada' : 'aprobada';
+  const handleCambiarEstado = async (novedad: Novedad, nuevoEstado: EstadoNovedad) => {
+    if (novedad.estado === nuevoEstado) return;
     setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: nuevoEstado } : n));
     setTogglingIds(prev => new Set(prev).add(novedad.id));
     try {
       const updated = await cambiarEstadoNovedad(novedad.id, nuevoEstado);
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
 
-      if (nuevoEstado === 'aprobada' && novedad.empleado_afectado) {
+      const esAprobada = nuevoEstado === 'aprobada_remunera' || nuevoEstado === 'aprobada_sin_remuneracion';
+      if (esAprobada && novedad.empleado_afectado) {
         try {
           await reactivarEmpleado(novedad.empleado_afectado);
           setAllEmpleados(prev => {
@@ -378,7 +391,7 @@ export function NewsModule() {
         }
       }
 
-      toast.success(`Novedad ${nuevoEstado === 'aprobada' ? 'finalizada' : 'reabierta'} exitosamente`);
+      toast.success('Estado actualizado exitosamente');
     } catch (err: any) {
       setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: novedad.estado } : n));
       toast.error(err.message ?? 'Error al cambiar el estado');
@@ -480,7 +493,9 @@ export function NewsModule() {
         fecha_inicio:          form.fecha_inicio,
         fecha_finalizacion:    form.fecha_finalizacion,
         empleado_afectado:     form.empleado_afectado?.id ?? null,
+        horas_ausencia:        form.horas_ausencia ? parseFloat(form.horas_ausencia) : null,
       };
+
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
 
@@ -502,23 +517,36 @@ export function NewsModule() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
-    const validationErrors = validateForm(form, true);
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0 || !selectedNovedad) return;
+    if (!selectedNovedad) return;
+
+    const soloEstado = selectedNovedad.estado !== 'registrada';
+
+    if (!soloEstado) {
+      setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
+      const validationErrors = validateForm(form, true);
+      setErrors(validationErrors);
+      if (Object.keys(validationErrors).length > 0) return;
+    }
 
     setSubmitting(true);
     try {
-      const dto: UpdateNovedadDTO = {
-        titulo:                form.titulo.trim(),
-        descripcion_detallada: form.descripcion_detallada.trim(),
-        fecha_inicio:          form.fecha_inicio,
-        fecha_finalizacion:    form.fecha_finalizacion,
-        empleado_afectado:     form.empleado_afectado?.id ?? null,
-      };
-      let updated = await updateNovedad(selectedNovedad.id, dto);
+      let updated: Novedad = selectedNovedad;
 
-      const estadoCambioAAprobada = form.estado !== selectedNovedad.estado && form.estado === 'aprobada';
+      if (!soloEstado) {
+        const dto: UpdateNovedadDTO = {
+          titulo:                form.titulo.trim(),
+          descripcion_detallada: form.descripcion_detallada.trim(),
+          fecha_inicio:          form.fecha_inicio,
+          fecha_finalizacion:    form.fecha_finalizacion,
+          empleado_afectado:     form.empleado_afectado?.id ?? null,
+          horas_ausencia:        form.horas_ausencia ? parseFloat(form.horas_ausencia) : null,
+        };
+
+        updated = await updateNovedad(selectedNovedad.id, dto);
+      }
+
+      const estadoCambioAAprobada = form.estado !== selectedNovedad.estado &&
+        (form.estado === 'aprobada_remunera' || form.estado === 'aprobada_sin_remuneracion');
 
       if (form.estado !== selectedNovedad.estado) {
         updated = await cambiarEstadoNovedad(selectedNovedad.id, form.estado);
@@ -597,6 +625,7 @@ export function NewsModule() {
       fecha_finalizacion:    n.fecha_finalizacion ? n.fecha_finalizacion.split('T')[0] : '',
       empleado_afectado:     resolveEmpleado(n.empleado_afectado, n.empleadoAfectado),
       estado:                n.estado,
+      horas_ausencia:        n.horas_ausencia != null ? String(n.horas_ausencia) : '',
     });
 
     setIsEditMode(true);
@@ -619,18 +648,28 @@ export function NewsModule() {
     onSubmit: (e: React.FormEvent) => void,
     submitLabel: string,
     isEdit = false
-  ) => (
-    <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+  ) => {
+    const bloqueado = isEdit && selectedNovedad?.estado !== 'registrada';
+    return (
+    <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column' }}>
+
+      {bloqueado && (
+        <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
+          <Lock className="w-4 h-4 shrink-0 text-amber-500" />
+          Esta novedad está <strong className="mx-1">{ESTADO_LABELS[form.estado]}</strong> — solo puedes modificar el estado.
+        </div>
+      )}
+
       {/* ── Cuerpo en dos columnas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, flex: 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32 }}>
 
         {/* COLUMNA IZQUIERDA — Título + Descripción */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <Field
             label="Título"
-            required
+            required={!bloqueado}
             error={touched.titulo ? errors.titulo : undefined}
-            hint={!errors.titulo ? `${form.titulo.length}/50 caracteres` : undefined}
+            hint={!errors.titulo && !bloqueado ? `${form.titulo.length}/50 caracteres` : undefined}
           >
             <Input
               value={form.titulo}
@@ -639,15 +678,16 @@ export function NewsModule() {
               onKeyDown={handleTituloKeyDown}
               placeholder="Breve descripción del problema o novedad..."
               maxLength={50}
-              className={touched.titulo && errors.titulo ? 'border-red-400 focus-visible:ring-red-400' : ''}
+              disabled={bloqueado}
+              className={`${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.titulo && errors.titulo ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
 
           <Field
             label="Descripción Detallada"
-            required
+            required={!bloqueado}
             error={touched.descripcion_detallada ? errors.descripcion_detallada : undefined}
-            hint={!errors.descripcion_detallada ? 'Mínimo 10 caracteres' : undefined}
+            hint={!errors.descripcion_detallada && !bloqueado ? 'Mínimo 10 caracteres' : undefined}
           >
             <Textarea
               value={form.descripcion_detallada}
@@ -655,7 +695,8 @@ export function NewsModule() {
               onBlur={handleBlur('descripcion_detallada')}
               placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
               rows={10}
-              className={`resize-none h-full min-h-[200px] ${touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+              disabled={bloqueado}
+              className={`resize-none h-full min-h-[200px] ${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
         </div>
@@ -665,7 +706,7 @@ export function NewsModule() {
 
           <Field
             label="Fecha de inicio"
-            required
+            required={!bloqueado}
             error={touched.fecha_inicio ? errors.fecha_inicio : undefined}
           >
             <Input
@@ -674,13 +715,14 @@ export function NewsModule() {
               min={isEdit ? undefined : getTodayString()}
               onChange={handleChange('fecha_inicio')}
               onBlur={handleBlur('fecha_inicio')}
-              className={touched.fecha_inicio && errors.fecha_inicio ? 'border-red-400 focus-visible:ring-red-400' : ''}
+              disabled={bloqueado}
+              className={`${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.fecha_inicio && errors.fecha_inicio ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
 
           <Field
             label="Fecha de finalización"
-            required
+            required={!bloqueado}
             error={touched.fecha_finalizacion ? errors.fecha_finalizacion : undefined}
           >
             <Input
@@ -692,7 +734,8 @@ export function NewsModule() {
                 setTouched(prev => ({ ...prev, fecha_finalizacion: true }));
               }}
               onBlur={handleBlur('fecha_finalizacion')}
-              className={touched.fecha_finalizacion && errors.fecha_finalizacion ? 'border-red-400 focus-visible:ring-red-400' : ''}
+              disabled={bloqueado}
+              className={`${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.fecha_finalizacion && errors.fecha_finalizacion ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
 
@@ -702,30 +745,46 @@ export function NewsModule() {
             onChange={emp => setForm(prev => ({ ...prev, empleado_afectado: emp }))}
             allEmpleados={allEmpleados}
             loadingEmpleados={loadingEmpleados}
-            hint="Opcional — busca por nombre o cargo"
+            hint={bloqueado ? undefined : 'Opcional — busca por nombre o cargo'}
             placeholder="Buscar empleado afectado..."
+            disabled={bloqueado}
           />
+
+          <Field label="Horas de Ausencia" hint={bloqueado ? undefined : 'Opcional — total de horas de ausencia'}>
+            <Input
+              type="number"
+              min="0"
+              max="744"
+              step="0.5"
+              value={form.horas_ausencia}
+              onChange={e => setForm(prev => ({ ...prev, horas_ausencia: e.target.value }))}
+              placeholder="Ej: 8"
+              disabled={bloqueado}
+              className={bloqueado ? 'bg-gray-100 opacity-70' : ''}
+            />
+          </Field>
 
           {isEdit && (
             <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={form.estado === 'aprobada'}
-                  onCheckedChange={(checked: boolean) =>
-                    setForm(prev => ({ ...prev, estado: checked ? 'aprobada' : 'registrada' }))
-                  }
-                />
-                <span className="text-sm text-gray-600">
-                  Estado: <strong>{form.estado === 'aprobada' ? 'Aprobada' : 'Registrada'}</strong>
-                </span>
-              </div>
+              <Field label="Estado">
+                <select
+                  value={form.estado}
+                  onChange={e => setForm(prev => ({ ...prev, estado: e.target.value as FormValues['estado'] }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                  <option value="registrada">Registrada</option>
+                  <option value="aprobada_remunera">Aprobada con Remuneración</option>
+                  <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
+                  <option value="rechazada">Rechazada</option>
+                </select>
+              </Field>
             </div>
           )}
         </div>
       </div>
 
       {/* ── Acciones ── */}
-      <div className="flex gap-4 pt-6 mt-6 border-t border-gray-200">
+      <div className="flex gap-4 pt-3 mt-3 border-t border-gray-200">
         <Button type="button" variant="outline" className="flex-1"
           onClick={() => {
             resetForm();
@@ -741,7 +800,8 @@ export function NewsModule() {
         </Button>
       </div>
     </form>
-  );
+    );
+  };
 
   // ── Render principal ───────────────────────────────────────────────────────
   return (
@@ -834,11 +894,13 @@ export function NewsModule() {
               <select
                 value={statusFilter}
                 onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-1/4 sm:w-40 sm:flex-[1]"
+                className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 w-1/4 sm:w-56 sm:flex-[1]"
               >
                 <option value="all">Todos los estados</option>
                 <option value="registrada">Registrada</option>
-                <option value="aprobada">Aprobada</option>
+                <option value="aprobada_remunera">Aprobada con Remuneración</option>
+                <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
+                <option value="rechazada">Rechazada</option>
               </select>
 
             </div>
@@ -892,16 +954,21 @@ export function NewsModule() {
                         <td className="px-6 py-4 text-sm text-gray-900">{formatFecha(novedad.fecha_registro)}</td>
                         
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={novedad.estado === 'aprobada'}
-                              onCheckedChange={() => handleToggleEstado(novedad)}
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={novedad.estado}
+                              onChange={e => handleCambiarEstado(novedad, e.target.value as EstadoNovedad)}
                               disabled={togglingIds.has(novedad.id)}
-                            />
-                            <Badge className={ESTADO_COLORS[novedad.estado] ?? 'bg-gray-100 text-gray-700'}>
-                              {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
-                            </Badge>
-                            {togglingIds.has(novedad.id) && <Loader2Icon className="w-3 h-3 animate-spin text-gray-400" />}
+                              className={`border rounded-md px-2 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 pr-7 ${ESTADO_SELECT_CLASSES[novedad.estado] ?? 'border-gray-300 bg-white text-gray-700'} ${togglingIds.has(novedad.id) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                              <option value="registrada">Registrada</option>
+                              <option value="aprobada_remunera">Aprobada con Remuneración</option>
+                              <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
+                              <option value="rechazada">Rechazada</option>
+                            </select>
+                            {togglingIds.has(novedad.id) && (
+                              <Loader2Icon className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-gray-500 pointer-events-none" />
+                            )}
                           </div>
                         </td>
 
@@ -921,15 +988,12 @@ export function NewsModule() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm"
-                                  onClick={() => {
-                                    if (!canEdit(novedad)) { showRowBanner(novedad.id, 'edit'); return; }
-                                    closeBanner(); openEdit(novedad);
-                                  }}
-                                  className={`border-blue-900 transition-opacity ${canEdit(novedad) ? 'text-blue-900 hover:bg-blue-50' : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'}`}>
+                                  onClick={() => { closeBanner(); openEdit(novedad); }}
+                                  className="text-blue-900 border-blue-900 hover:bg-blue-50">
                                   <EditIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>{canEdit(novedad) ? 'Editar novedad' : editBlockReason(novedad)}</p></TooltipContent>
+                              <TooltipContent><p>Editar novedad</p></TooltipContent>
                             </Tooltip>
 
                             <Tooltip>
@@ -958,8 +1022,8 @@ export function NewsModule() {
                               <span>
                                 <strong>Novedad bloqueada:</strong>{' '}
                                 {bannerAction === 'edit'
-                                  ? `No puedes editar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`
-                                  : `No puedes eliminar esta novedad porque ya fue ${novedades.find(n => n.id === bannerNovedadId)?.estado}.`}
+                                  ? `No puedes editar esta novedad porque está ${ESTADO_LABELS[novedades.find(n => n.id === bannerNovedadId)?.estado ?? ''] ?? novedades.find(n => n.id === bannerNovedadId)?.estado}.`
+                                  : `No puedes eliminar esta novedad porque está ${ESTADO_LABELS[novedades.find(n => n.id === bannerNovedadId)?.estado ?? ''] ?? novedades.find(n => n.id === bannerNovedadId)?.estado}.`}
                               </span>
                               <button onClick={closeBanner} className="ml-auto opacity-60 hover:opacity-100">
                                 <X className="w-3.5 h-3.5" />
@@ -1041,6 +1105,14 @@ export function NewsModule() {
                       <p className="text-xs text-gray-500">Fecha de finalización</p>
                       <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
                     </div>
+
+                    {/* Horas de ausencia */}
+                    {selectedNovedad.horas_ausencia != null && (
+                      <div>
+                        <p className="text-xs text-gray-500">Horas de ausencia</p>
+                        <p className="font-semibold text-sm mt-0.5">{selectedNovedad.horas_ausencia} h</p>
+                      </div>
+                    )}
 
                     {/* Afectado */}
                     <div>

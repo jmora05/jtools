@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Badge } from '@/shared/components/ui/badge';
 import { ImageWithFallback } from '@/shared/components/figma/ImageWithFallback';
 import { toast } from 'sonner@2.0.3';
-import { 
+import { getApiBaseUrl } from '@/services/http';
+import {
   MenuIcon,
   XIcon,
   ArrowRightIcon,
@@ -20,20 +21,18 @@ import {
   UsersIcon,
   AwardIcon,
   ClockIcon,
-  StarIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  Loader2Icon,
 } from 'lucide-react';
 
-interface Product {
+interface Producto {
   id: number;
-  name: string;
-  category: string;
-  price: string;
-  originalPrice?: string;
-  image: string;
-  description: string;
-  rating: number;
-  reviews: number;
+  nombreProducto: string;
+  descripcion?: string;
+  precio: number;
+  imagenUrl?: string;
+  estado: string;
+  categoria?: { nombreCategoria: string };
 }
 
 interface LandingPageProps {
@@ -42,59 +41,33 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onGoToSystem, userType }: LandingPageProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen]     = useState(false);
+  const [products, setProducts]         = useState<Producto[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [contactForm, setContactForm] = useState({
     name: '',
     email: '',
     message: ''
   });
 
-  // Featured products data
-  const featuredProducts: Product[] = [
-    {
-      id: 1,
-      name: 'Pastillas de Freno Premium',
-      category: 'Sistema de Frenos',
-      price: '$89.900',
-      originalPrice: '$105.000',
-      image: 'https://images.unsplash.com/photo-1656597631995-9fa0e1072279?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXIlMjBicmFrZSUyMHBhZHMlMjBhdXRvbW90aXZlJTIwcGFydHN8ZW58MXx8fHwxNzU2Njk5MzA5fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      description: 'Pastillas de freno de alta calidad para máxima seguridad y durabilidad',
-      rating: 4.8,
-      reviews: 127
-    },
-    {
-      id: 2,
-      name: 'Kit de Motor Completo',
-      category: 'Motor',
-      price: '$450.000',
-      originalPrice: '$520.000',
-      image: 'https://images.unsplash.com/photo-1633281256183-c0f106f70d76?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXIlMjBlbmdpbmUlMjBwYXJ0cyUyMG1vdG9yJTIwYXV0b21vdGl2ZXxlbnwxfHx8fDE3NTY3NTQ0Nzd8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      description: 'Kit completo de repuestos para motor con garantía extendida',
-      rating: 4.9,
-      reviews: 89
-    },
-    {
-      id: 3,
-      name: 'Llantas Deportivas 18"',
-      category: 'Llantas y Neumáticos',
-      price: '$320.000',
-      image: 'https://images.unsplash.com/photo-1580053852056-f3992ab1e5e5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXIlMjB0aXJlcyUyMHdoZWVscyUyMGF1dG9tb3RpdmV8ZW58MXx8fHwxNzU2NzU0NDgwfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      description: 'Llantas deportivas de aleación ligera para mejor rendimiento',
-      rating: 4.7,
-      reviews: 203
-    },
-    {
-      id: 4,
-      name: 'Amortiguadores Premium',
-      category: 'Suspensión',
-      price: '$180.000',
-      originalPrice: '$210.000',
-      image: 'https://images.unsplash.com/photo-1561338800-3aca39ac913e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXIlMjBzdXNwZW5zaW9uJTIwcGFydHN8ZW58MXx8fHwxNzU2NzU0NDg3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      description: 'Amortiguadores de alta gama para mejor estabilidad y confort',
-      rating: 4.6,
-      reviews: 156
-    }
-  ];
+  useEffect(() => {
+    fetch(`${getApiBaseUrl()}/public/productos`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        const activos = Array.isArray(data)
+          ? data.filter((p: Producto) => p.estado === 'activo')
+          : [];
+        setProducts(activos);
+      })
+      .catch(err => {
+        console.error('Landing productos error:', err.message);
+        setProducts([]);
+      })
+      .finally(() => setLoadingProducts(false));
+  }, []);
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -160,21 +133,12 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
               >
                 Contacto
               </button>
-              {onGoToSystem ? (
-                <Button 
-                  onClick={onGoToSystem}
-                  className="bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                  Ver Sistema
-                </Button>
-              ) : (
-                <Button 
-                  onClick={() => scrollToSection('catalogo')}
-                  className="bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                  Ver Productos
-                </Button>
-              )}
+              <Button
+                onClick={onGoToSystem ?? (() => scrollToSection('catalogo'))}
+                className="bg-blue-600 hover:bg-blue-700 text-white "
+              >
+                Iniciar Sesión
+              </Button>
             </div>
 
             {/* Mobile menu button */}
@@ -334,72 +298,52 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {featuredProducts.map((product) => (
-              <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
-                <div className="relative overflow-hidden rounded-t-lg">
-                  <ImageWithFallback
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  {product.originalPrice && (
-                    <Badge className="absolute top-3 right-3 bg-orange-500 text-white">
-                      Oferta
-                    </Badge>
-                  )}
-                </div>
-                <CardContent className="p-6 space-y-4">
-                  <div>
-                    <Badge variant="outline" className="text-xs mb-2">
-                      {product.category}
-                    </Badge>
-                    <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                      {product.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {product.description}
-                    </p>
+            {loadingProducts ? (
+              <div className="col-span-4 flex justify-center py-16">
+                <Loader2Icon className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : products.length === 0 ? (
+              <div className="col-span-4 text-center text-gray-500 py-16">
+                No hay productos disponibles en este momento.
+              </div>
+            ) : (
+              products.map((product) => (
+                <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
+                  <div className="relative overflow-hidden rounded-t-lg">
+                    <ImageWithFallback
+                      src={product.imagenUrl || ''}
+                      alt={product.nombreProducto}
+                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
                   </div>
-
-                  <div className="flex items-center space-x-1">
-                    {[...Array(5)].map((_, i) => (
-                      <StarIcon
-                        key={i}
-                        className={`w-4 h-4 ${
-                          i < Math.floor(product.rating)
-                            ? 'text-yellow-400 fill-current'
-                            : 'text-gray-300'
-                        }`}
-                      />
-                    ))}
-                    <span className="text-sm text-gray-600 ml-2">
-                      ({product.reviews} reseñas)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
+                  <CardContent className="p-6 space-y-4">
                     <div>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {product.price}
-                      </div>
-                      {product.originalPrice && (
-                        <div className="text-sm text-gray-500 line-through">
-                          {product.originalPrice}
-                        </div>
-                      )}
+                      <Badge variant="outline" className="text-xs mb-2">
+                        {product.categoria?.nombreCategoria ?? 'Sin categoría'}
+                      </Badge>
+                      <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {product.nombreProducto}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {product.descripcion || '—'}
+                      </p>
                     </div>
-                  </div>
 
-                  <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => toast.success('Producto agregado a la consulta. Te contactaremos pronto.')}
-                  >
-                    <ShoppingCartIcon className="w-4 h-4 mr-2" />
-                    Ver más detalles
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="text-2xl font-bold text-gray-900">
+                      ${Number(product.precio).toLocaleString('es-CO')}
+                    </div>
+
+                    <Button
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => toast.success('Te contactaremos pronto para más detalles.')}
+                    >
+                      <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                      Ver más detalles
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
 
           <div className="text-center mt-12">

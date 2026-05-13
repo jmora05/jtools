@@ -4,7 +4,7 @@ const ENDPOINT = `${getApiBaseUrl()}/novedades`;
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type EstadoNovedad = 'registrada' | 'aprobada';
+export type EstadoNovedad = 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada';
 
 type EmpleadoResumen = { id: number; nombres: string; apellidos: string; cargo: string };
 
@@ -18,6 +18,7 @@ export interface Novedad {
   fecha_finalizacion: string;
   empleado_afectado: number | null;
   empleadoAfectado?: EmpleadoResumen | null;
+  horas_ausencia?: number | null;
 }
 
 export interface CreateNovedadDTO {
@@ -28,6 +29,7 @@ export interface CreateNovedadDTO {
   fecha_registro?: string;
   fecha_inicio?: string;
   fecha_finalizacion?: string;
+  horas_ausencia?: number | null;
 }
 
 export interface UpdateNovedadDTO {
@@ -36,6 +38,7 @@ export interface UpdateNovedadDTO {
   empleado_afectado?: number | null;
   fecha_inicio?: string;
   fecha_finalizacion?: string;
+  horas_ausencia?: number | null;
 }
 
 // ─── Servicio ─────────────────────────────────────────────────────────────────

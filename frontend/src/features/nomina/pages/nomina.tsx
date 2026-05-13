@@ -186,7 +186,9 @@ export function PayrollModule() {
       id: n.id,
       employeeId: n.empleado_id,
       employeeName: n.empleado ? `${n.empleado.nombres} ${n.empleado.apellidos}` : '—',
-      employeeDocument: '—',
+      employeeDocument: n.empleado?.tipoDocumento && n.empleado?.numeroDocumento
+        ? `${n.empleado.tipoDocumento} ${n.empleado.numeroDocumento}`
+        : '—',
       position: n.empleado?.cargo ?? '—',
       baseSalary: salBase,
       daysWorked: n.dias_trabajados,
@@ -330,6 +332,18 @@ export function PayrollModule() {
       return;
     }
 
+    const fechaCorte = toYMD(selectedFriday);
+    const empId = parseInt(formData.employeeId);
+    const duplicado = payrollRecords.find(r =>
+      r.employeeId === empId &&
+      r.paymentDate === fechaCorte &&
+      (!editingRecord || r.id !== editingRecord.id)
+    );
+    if (duplicado) {
+      toast.error(`Ya existe una nómina para ${formData.employeeName} en la semana que cierra el ${fechaCorte}`);
+      return;
+    }
+
     const calculatedValues = calculatePayroll();
     const totalHE =
       calculatedValues.recargoNocturno + calculatedValues.recargoDiurnoDominical +
@@ -414,7 +428,13 @@ export function PayrollModule() {
   };
 
   const handleViewDetail = (record: PayrollRecord) => {
-    setViewingRecord(record);
+    const emp = employees.find((e) => String(e.id) === String(record.employeeId));
+    setViewingRecord({
+      ...record,
+      employeeDocument: emp
+        ? `${emp.tipoDocumento} ${emp.numeroDocumento}`
+        : record.employeeDocument,
+    });
     setShowDetailModal(true);
   };
 
@@ -628,6 +648,10 @@ export function PayrollModule() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                            <ClockIcon className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
+                            <span>Estos valores se calculan automáticamente desde el módulo de <strong>Novedades</strong> y <strong>Horas Extras</strong>. No se pueden editar manualmente.</span>
+                          </div>
                           {/* Recargos */}
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recargos</p>
                           <div className="grid grid-cols-2 gap-3">
@@ -635,19 +659,22 @@ export function PayrollModule() {
                               <Label htmlFor="recargoNocturno" className="text-xs">Recargo Nocturno (+35%)</Label>
                               <Input id="recargoNocturno" type="number" min="0" step="0.5"
                                 value={formData.recargoNocturno}
-                                onChange={(e) => setFormData({ ...formData, recargoNocturno: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor="recargoDiurnoDominical" className="text-xs">Recargo Diurno Dominical (+75%)</Label>
                               <Input id="recargoDiurnoDominical" type="number" min="0" step="0.5"
                                 value={formData.recargoDiurnoDominical}
-                                onChange={(e) => setFormData({ ...formData, recargoDiurnoDominical: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                             <div className="space-y-1 col-span-2">
                               <Label htmlFor="recargoNocturnoDominical" className="text-xs">Recargo Nocturno Dominical (+110%)</Label>
                               <Input id="recargoNocturnoDominical" type="number" min="0" step="0.5"
                                 value={formData.recargoNocturnoDominical}
-                                onChange={(e) => setFormData({ ...formData, recargoNocturnoDominical: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                           </div>
                           {/* Horas extras */}
@@ -657,25 +684,29 @@ export function PayrollModule() {
                               <Label htmlFor="horaExtraDiurna" className="text-xs">Hora Extra Diurna (+25%)</Label>
                               <Input id="horaExtraDiurna" type="number" min="0" step="0.5"
                                 value={formData.horaExtraDiurna}
-                                onChange={(e) => setFormData({ ...formData, horaExtraDiurna: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor="horaExtraNocturna" className="text-xs">Hora Extra Nocturna (+75%)</Label>
                               <Input id="horaExtraNocturna" type="number" min="0" step="0.5"
                                 value={formData.horaExtraNocturna}
-                                onChange={(e) => setFormData({ ...formData, horaExtraNocturna: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor="horaExtraDiurnaDominical" className="text-xs">Hora Extra Diurna Dominical (+100%)</Label>
                               <Input id="horaExtraDiurnaDominical" type="number" min="0" step="0.5"
                                 value={formData.horaExtraDiurnaDominical}
-                                onChange={(e) => setFormData({ ...formData, horaExtraDiurnaDominical: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor="horaExtraNocturnaDominical" className="text-xs">Hora Extra Nocturna Dominical (+150%)</Label>
                               <Input id="horaExtraNocturnaDominical" type="number" min="0" step="0.5"
                                 value={formData.horaExtraNocturnaDominical}
-                                onChange={(e) => setFormData({ ...formData, horaExtraNocturnaDominical: e.target.value })} />
+                                readOnly
+                                className="bg-gray-50 cursor-not-allowed text-gray-600" />
                             </div>
                           </div>
 
@@ -965,7 +996,7 @@ export function PayrollModule() {
                     <th className="px-6 py-4 text-left text-black font-semibold">Cargo</th>
                     <th className="px-6 py-4 text-left text-black font-semibold">Período</th>
                     <th className="px-6 py-4 text-right text-black font-semibold">Salario base</th>
-                    <th className="px-6 py-4 text-center text-black font-semibold">Días</th>
+                    <th className="px-6 py-4 text-center text-black font-semibold">Días de trabajo</th>
                     <th className="px-6 py-4 text-right text-black font-semibold">Neto a pagar</th>
                     <th className="px-6 py-4 text-center text-black font-semibold">Estado</th>
                     <th className="px-6 py-4 text-center text-black font-semibold">Acciones</th>

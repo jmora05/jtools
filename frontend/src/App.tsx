@@ -55,6 +55,7 @@ type ModuleItem =
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLandingFirst, setShowLandingFirst] = useState(true);
   const [currentModule, setCurrentModule] = useState('dashboard');
   const [user, setUser] = useState<AppUser | null>(null);
   const [isClientPreview, setIsClientPreview] = useState(false);
@@ -90,6 +91,7 @@ export default function App() {
     setCurrentModule('dashboard');
     setIsClientPreview(false);
     setSalesClientFilter(null);
+    setShowLandingFirst(true);
     localStorage.removeItem('jrepuestos_user');
     localStorage.removeItem('jrepuestos_token');
   };
@@ -116,6 +118,14 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
+    if (showLandingFirst) {
+      return (
+        <>
+          <Toaster richColors position="top-right" />
+          <LandingPage onGoToSystem={() => setShowLandingFirst(false)} />
+        </>
+      );
+    }
     return (
       <>
         <Toaster richColors position="top-right" />
