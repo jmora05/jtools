@@ -163,6 +163,8 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       const sal = parseFloat(v);
       if (isNaN(sal) || sal < 1423500)
         return 'El salario no puede ser menor al SMMLV ($1.423.500)';
+      if (sal > 99_999_999)
+        return 'El salario no puede superar $99.999.999 (8 dígitos)';
       return '';
     }
 

@@ -107,12 +107,14 @@ function FormFields({
     errores = {},
     setErrores,
     roles = [],
+    isEditing = false,
 }: {
     form: FormState;
     setForm: (f: FormState) => void;
     errores?: FormErrors;
     setErrores: (e: FormErrors) => void;
     roles?: Rol[];
+    isEditing?: boolean;
 }) {
     function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
         const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
@@ -307,12 +309,14 @@ function FormFields({
                                 placeholder="1423500"
                                 value={form.salario}
                                 min={1423500}
+                                max={99999999}
                                 onChange={e => update('salario', e.target.value)}
                                 onBlur={() => blur('salario')}
                                 className={errores.salario ? 'border-red-400 focus-visible:ring-red-300' : ''}
                             />
                             <FieldError mensaje={errores.salario} />
                         </div>
+                        {isEditing && (
                         <div>
                             <label className="block text-sm text-gray-700 mb-2">Estado</label>
                             <div className="flex items-center space-x-2 pt-2">
@@ -323,6 +327,7 @@ function FormFields({
                                 <span className="text-sm text-gray-600">{form.estado === 'activo' ? 'Activo' : 'Inactivo'}</span>
                             </div>
                         </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -388,11 +393,13 @@ export function EmployeeManagement() {
 
     // ── Filtros ───────────────────────────────────────────────────────────────
     const filtered = empleados.filter(emp => {
+        const term = searchTerm.toLowerCase();
         const name = `${emp.nombres} ${emp.apellidos}`.toLowerCase();
         return (
-            (name.includes(searchTerm.toLowerCase()) ||
+            (name.includes(term) ||
                 emp.numeroDocumento.includes(searchTerm) ||
-                emp.cargo.toLowerCase().includes(searchTerm.toLowerCase())) &&
+                emp.email.toLowerCase().includes(term) ||
+                emp.cargo.toLowerCase().includes(term)) &&
             (filterEstado === 'all' || emp.estado === filterEstado)
         );
     });
@@ -625,7 +632,7 @@ export function EmployeeManagement() {
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
-                    placeholder="Buscar por nombre, documento o cargo..."
+                    placeholder="Buscar por nombre, documento, correo o cargo..."
                     value={searchTerm}
                     onChange={(e) => {
                         setSearchTerm(e.target.value);
@@ -848,6 +855,7 @@ export function EmployeeManagement() {
                             errores={formErrors}
                             setErrores={setFormErrors}
                             roles={roles}
+                            isEditing={!!editingEmployee}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>
