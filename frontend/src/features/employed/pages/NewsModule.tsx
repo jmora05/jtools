@@ -74,7 +74,7 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (_n: Novedad) => true;
+const canEdit   = (n: Novedad) => n.estado === 'registrada';
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
 const editBlockReason   = (n: Novedad) => n.estado !== 'registrada' ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
@@ -105,6 +105,7 @@ interface FormErrors {
   empleado_afectado?: string;
   fecha_inicio?: string;
   fecha_finalizacion?: string;
+  horas_ausencia?: string;
 }
 
 const emptyForm: FormValues = {
@@ -144,6 +145,13 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     const inicio = new Date(values.fecha_inicio + 'T00:00:00');
     if (inicio < today) {
       errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al día de hoy';
+    }
+  }
+
+  if (values.horas_ausencia !== '') {
+    const h = parseFloat(values.horas_ausencia);
+    if (!isNaN(h) && h > 0 && h < 0.5) {
+      errors.horas_ausencia = 'El mínimo es 30 minutos (0.5 h)';
     }
   }
 
@@ -450,9 +458,16 @@ export function NewsModule() {
     setErrors(validateForm(form, isEditMode));
   };
 
+  const handleTituloChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const soloLetras = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    setForm(prev => ({ ...prev, titulo: soloLetras }));
+  };
+
   const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
-    if (form.titulo.length >= 50 && !allowed.includes(e.key) && !e.ctrlKey && !e.metaKey) e.preventDefault();
+    const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
+    if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+    if (form.titulo.length >= 50) { e.preventDefault(); return; }
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]$/.test(e.key)) e.preventDefault();
   };
 
   const resetForm = () => {
@@ -673,7 +688,7 @@ export function NewsModule() {
           >
             <Input
               value={form.titulo}
-              onChange={handleChange('titulo')}
+              onChange={handleTituloChange}
               onBlur={handleBlur('titulo')}
               onKeyDown={handleTituloKeyDown}
               placeholder="Breve descripción del problema o novedad..."
@@ -750,17 +765,25 @@ export function NewsModule() {
             disabled={bloqueado}
           />
 
-          <Field label="Horas de Ausencia" hint={bloqueado ? undefined : 'Opcional — total de horas de ausencia'}>
+          <Field
+            label="Horas de Ausencia"
+            error={errors.horas_ausencia}
+            hint={!errors.horas_ausencia && !bloqueado ? 'Opcional — mínimo 30 minutos (0.5 h)' : undefined}
+          >
             <Input
               type="number"
-              min="0"
+              min="0.5"
               max="744"
               step="0.5"
               value={form.horas_ausencia}
-              onChange={e => setForm(prev => ({ ...prev, horas_ausencia: e.target.value }))}
+              onChange={e => {
+                setForm(prev => ({ ...prev, horas_ausencia: e.target.value }));
+                setTouched(prev => ({ ...prev, horas_ausencia: true }));
+              }}
+              onBlur={handleBlur('horas_ausencia')}
               placeholder="Ej: 8"
               disabled={bloqueado}
-              className={bloqueado ? 'bg-gray-100 opacity-70' : ''}
+              className={`${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${errors.horas_ausencia ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
 
@@ -988,12 +1011,15 @@ export function NewsModule() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm"
-                                  onClick={() => { closeBanner(); openEdit(novedad); }}
-                                  className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                  onClick={() => {
+                                    if (!canEdit(novedad)) { showRowBanner(novedad.id, 'edit'); return; }
+                                    closeBanner(); openEdit(novedad);
+                                  }}
+                                  className={`border-blue-900 transition-opacity ${canEdit(novedad) ? 'text-blue-900 hover:bg-blue-50' : 'opacity-40 cursor-not-allowed text-gray-400 border-gray-300'}`}>
                                   <EditIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>Editar novedad</p></TooltipContent>
+                              <TooltipContent><p>{canEdit(novedad) ? 'Editar novedad' : editBlockReason(novedad)}</p></TooltipContent>
                             </Tooltip>
 
                             <Tooltip>
@@ -1239,6 +1265,76 @@ const TIPO_BADGE_COLORS: Record<TipoRecargo, string> = {
   'Hora Extra Diurna Dominical/Festiva': 'bg-gray-100 text-gray-800 border-gray-200',
 };
 
+// ─── Festivos Colombia ────────────────────────────────────────────────────────
+
+function calcularPascua(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day   = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function sumarDias(date: Date, days: number): Date {
+  const d = new Date(date); d.setDate(d.getDate() + days); return d;
+}
+
+function siguienteLunes(date: Date): Date {
+  const d = new Date(date);
+  const dow = d.getDay();
+  if (dow === 1) return d;
+  d.setDate(d.getDate() + (dow === 0 ? 1 : 8 - dow));
+  return d;
+}
+
+function festivosColombia(year: number): Set<string> {
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  const s = new Set<string>();
+  const f = (m: number, day: number) => new Date(year, m - 1, day);
+
+  // Fijos sin movimiento
+  [f(1,1), f(5,1), f(7,20), f(8,7), f(12,8), f(12,25)].forEach(d => s.add(fmt(d)));
+
+  // Emiliani (se mueven al siguiente lunes)
+  [f(1,6), f(3,19), f(6,29), f(8,15), f(10,12), f(11,1), f(11,11)]
+    .forEach(d => s.add(fmt(siguienteLunes(d))));
+
+  // Semana Santa (fijos relativos a Pascua)
+  const pascua = calcularPascua(year);
+  s.add(fmt(sumarDias(pascua, -3))); // Jueves Santo
+  s.add(fmt(sumarDias(pascua, -2))); // Viernes Santo
+
+  // Relativos a Pascua que siempre van al siguiente lunes
+  s.add(fmt(siguienteLunes(sumarDias(pascua, 39))));  // Ascensión
+  s.add(fmt(siguienteLunes(sumarDias(pascua, 60))));  // Corpus Christi
+  s.add(fmt(siguienteLunes(sumarDias(pascua, 68))));  // Sagrado Corazón
+
+  return s;
+}
+
+const TIPOS_DOMINICAL_FESTIVA = new Set<string>([
+  'Recargo Diurno Dominical',
+  'Recargo Nocturno Dominical',
+  'Hora Extra Diurna Dominical/Festiva',
+]);
+
+function esDominicalOFestivo(fechaStr: string): boolean {
+  const d = new Date(fechaStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return false;
+  if (d.getDay() === 0) return true;
+  return festivosColombia(d.getFullYear()).has(fechaStr);
+}
+
 // ── Formulario de edición (un solo registro) ──────────────────────────────
 interface HoraExtraFormValues {
   empleado: EmpleadoSeleccionado | null;
@@ -1272,6 +1368,8 @@ function validateHoraExtraForm(v: HoraExtraFormValues): HoraExtraErrors {
     const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
     if (isNaN(d.getTime())) e.fecha = 'Fecha inválida';
     else if (d > hoy)       e.fecha = 'La fecha no puede ser futura';
+    else if (TIPOS_DOMINICAL_FESTIVA.has(v.tipo) && !esDominicalOFestivo(v.fecha))
+      e.fecha = 'Este tipo solo aplica en domingos o festivos colombianos';
   }
   if (!v.horas || v.horas === '') {
     e.horas = 'El número de horas es obligatorio';
@@ -1310,6 +1408,8 @@ function validateRecargItem(item: RecargItem, todayStr: string): RecargItemError
     const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
     if (isNaN(d.getTime())) e.fecha = 'Fecha inválida';
     else if (d > hoy)       e.fecha = 'No puede ser futura';
+    else if (TIPOS_DOMINICAL_FESTIVA.has(item.tipo) && !esDominicalOFestivo(item.fecha))
+      e.fecha = 'Solo domingos o festivos colombianos';
   }
   if (!item.horas) {
     e.horas = 'Obligatorio';
@@ -1548,12 +1648,17 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Fecha" required error={touched.fecha ? errors.fecha : undefined}>
+        <Field
+          label="Fecha"
+          required
+          error={touched.fecha ? errors.fecha : undefined}
+          hint={!errors.fecha && TIPOS_DOMINICAL_FESTIVA.has(form.tipo) ? 'Solo domingos o festivos colombianos' : undefined}
+        >
           <Input
             type="date"
             max={todayStr}
             value={form.fecha}
-            onChange={e => handleChange('fecha', e.target.value)}
+            onChange={e => { handleChange('fecha', e.target.value); setTouched(p => ({ ...p, fecha: true })); }}
             onBlur={() => handleBlurF('fecha')}
             className={touched.fecha && errors.fecha ? 'border-red-400 focus-visible:ring-red-400' : ''}
           />
@@ -1778,10 +1883,14 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                             onChange={e => updateItem(item.id, 'fecha', e.target.value)}
                             className={itemErr.fecha ? 'border-red-400 focus-visible:ring-red-400' : ''}
                           />
-                          {itemErr.fecha && (
+                          {itemErr.fecha ? (
                             <p style={{ color: '#ef4444', fontSize: 11, marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f87171', flexShrink: 0 }} />
                               {itemErr.fecha}
+                            </p>
+                          ) : TIPOS_DOMINICAL_FESTIVA.has(item.tipo) && (
+                            <p style={{ color: '#6b7280', fontSize: 11, marginTop: 3 }}>
+                              Solo dom. o festivos col.
                             </p>
                           )}
                         </div>
