@@ -44,12 +44,12 @@ interface Supply {
     status:          boolean;
 }
 
+// ── cantidad eliminado del formulario; se gestiona solo vía compras ──────────
 interface FormData {
     name:           string;
     description:    string;
     price:          string;
     unit:           string;
-    cantidad:       string;
     proveedoresIds: number[];
     status:         boolean;
 }
@@ -59,7 +59,6 @@ interface FormErrors {
     description?: string;
     price?:       string;
     unit?:        string;
-    cantidad?:    string;
 }
 
 // ── Validación frontend ───────────────────────────────────────────────────────
@@ -83,12 +82,6 @@ function validarFormulario(data: FormData): FormErrors {
 
     if (!data.unit.trim())
         errs.unit = 'La unidad es obligatoria';
-
-    if (data.cantidad.trim() !== '') {
-        const c = parseInt(data.cantidad, 10);
-        if (isNaN(c) || c < 0)
-            errs.cantidad = 'Ingresa una cantidad válida (≥ 0)';
-    }
 
     return errs;
 }
@@ -170,12 +163,13 @@ export function SupplyManagement() {
     };
 
     // Errores de formulario
-    const [formErrors, setFormErrors]         = useState<FormErrors>({});
+    const [formErrors, setFormErrors]           = useState<FormErrors>({});
     const [submitAttempted, setSubmitAttempted] = useState(false);
 
+    // cantidad eliminado — se inicializa en 0 desde el backend al crear
     const emptyForm: FormData = {
         name: '', description: '', price: '', unit: 'Unidades',
-        cantidad: '', proveedoresIds: [], status: true,
+        proveedoresIds: [], status: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -235,7 +229,8 @@ export function SupplyManagement() {
 
         try {
             setSaving(true);
-            const dto = mapSupplyToDTO(formData);
+            // cantidad no viene del formulario; se envía 0 al crear, se omite al editar
+            const dto = mapSupplyToDTO({ ...formData, cantidad: '0' });
 
             if (editingSupply) {
                 await updateInsumo(editingSupply.id, dto);
@@ -286,7 +281,7 @@ export function SupplyManagement() {
             description:    supply.description,
             price:          supply.price.toString(),
             unit:           supply.unit,
-            cantidad:       supply.cantidad != null ? supply.cantidad.toString() : '',
+            // cantidad no se edita manualmente; se omite del formulario
             proveedoresIds: supply.proveedoresIds,
             status:         supply.status,
         });
@@ -494,10 +489,10 @@ export function SupplyManagement() {
                                                         </p>
                                                     </td>
 
-                                                    {/* Cantidad */}
+                                                    {/* Cantidad — solo lectura, se actualiza vía compras */}
                                                     <td className="py-4 px-6">
                                                         <p className={`text-sm ${isAgotado ? 'text-gray-400' : 'text-gray-700'}`}>
-                                                            {supply.cantidad ?? '—'}
+                                                            {supply.cantidad ?? 0}
                                                         </p>
                                                     </td>
 
@@ -625,7 +620,7 @@ export function SupplyManagement() {
                 <DialogContent
                     className="p-0 gap-0 overflow-hidden"
                     style={{
-                        width: '96vw', maxWidth: 680, height: '92vh', maxHeight: '92vh',
+                        width: '96vw', maxWidth: 680, height: 'auto', maxHeight: '92vh',
                         display: 'flex', flexDirection: 'column',
                     }}
                 >
@@ -816,22 +811,6 @@ export function SupplyManagement() {
                                 </div>
                             </div>
 
-                            {/* Cantidad */}
-                            <div style={{ marginBottom: 18 }}>
-                                <label style={Sf.label}>
-                                    Cantidad
-                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional, ≥ 0)</span>
-                                </label>
-                                <Input
-                                    type="number" min="0" step="1" value={formData.cantidad}
-                                    onChange={e => setFormData(prev => ({ ...prev, cantidad: e.target.value }))}
-                                    placeholder="0"
-                                    className={formErrors.cantidad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
-                                />
-                                <FieldError msg={formErrors.cantidad} />
-                            </div>
-
                             {/* Estado — solo al editar */}
                             {editingSupply && (
                                 <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
@@ -909,14 +888,12 @@ export function SupplyManagement() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500">Cantidad</p>
-                                        <p className="font-semibold text-sm">{viewingSupply.cantidad ?? '—'}</p>
+                                        <p className="font-semibold text-sm">{viewingSupply.cantidad ?? 0}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500">Total</p>
                                         <p className="font-semibold text-sm">
-                                            {viewingSupply.cantidad != null
-                                                ? `$${(viewingSupply.price * viewingSupply.cantidad).toLocaleString()}`
-                                                : '—'}
+                                            {`$${(viewingSupply.price * (viewingSupply.cantidad ?? 0)).toLocaleString()}`}
                                         </p>
                                     </div>
                                     <div>
