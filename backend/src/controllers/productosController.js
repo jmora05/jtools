@@ -1,6 +1,6 @@
 const { Productos, CategoriaProductos, DetalleVentas, DetallePedidos } = require('../models/index.js');
 
-// GET - listar todos los productos
+// ─── GET - listar todos los productos ─────────────────────────────────────────
 const getProductos = async (req, res) => {
     try {
         const productos = await Productos.findAll({
@@ -10,11 +10,12 @@ const getProductos = async (req, res) => {
         });
         res.status(200).json(productos);
     } catch (error) {
+        console.error('ERROR LISTAR PRODUCTOS:', error);
         res.status(500).json({ message: 'Error al obtener los productos', error: error.message });
     }
 };
 
-// GET - obtener producto por ID
+// ─── GET - obtener producto por ID ────────────────────────────────────────────
 const getProductoById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -30,11 +31,12 @@ const getProductoById = async (req, res) => {
 
         res.status(200).json(producto);
     } catch (error) {
+        console.error('ERROR OBTENER PRODUCTO:', error);
         res.status(500).json({ message: 'Error al obtener el producto', error: error.message });
     }
 };
 
-// GET - listar productos con stock bajo (menor o igual a 5)
+// ─── GET - listar productos con stock bajo (menor o igual a 5) ────────────────
 const getProductosStockBajo = async (req, res) => {
     try {
         const { Op } = require('sequelize');
@@ -49,11 +51,14 @@ const getProductosStockBajo = async (req, res) => {
         });
         res.status(200).json(productos);
     } catch (error) {
+        console.error('ERROR STOCK BAJO:', error);
         res.status(500).json({ message: 'Error al obtener productos con stock bajo', error: error.message });
     }
 };
 
-// POST - crear producto
+// ─── POST - crear producto ────────────────────────────────────────────────────
+// El frontend siempre envía estado='activo' al crear. El stock inicial también
+// se envía con un valor fijo desde el formulario.
 const createProducto = async (req, res) => {
     try {
         const {
@@ -64,7 +69,7 @@ const createProducto = async (req, res) => {
             precio,
             stock,
             estado,
-            imagenUrl
+            imagenUrl,
         } = req.body;
 
         // Verificar que la categoría existe
@@ -75,28 +80,29 @@ const createProducto = async (req, res) => {
 
         const producto = await Productos.create({
             nombreProducto: nombreProducto.trim(),
-            referencia: referencia.trim(),
+            referencia:     referencia.trim(),
             categoriaProductoId,
-            descripcion: descripcion ? descripcion.trim() : null,
+            descripcion:    descripcion ? descripcion.trim() : null,
             precio,
             stock,
             estado,
-            imagenUrl: imagenUrl ? imagenUrl.trim() : null,
+            imagenUrl:      imagenUrl ? imagenUrl.trim() : null,
         });
 
         res.status(201).json({ message: 'Producto creado correctamente', producto });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
-    const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
-    return res.status(400).json({ message: 'Error de validación', errores: mensajes });
-}
-        console.error('ERROR CREAR PRODUCTO:', error); // 👈 agregar
-res.status(500).json({ message: 'Error al crear el producto', error: error.message });
+            const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
+            return res.status(400).json({ message: 'Error de validación', errores: mensajes });
+        }
+        console.error('ERROR CREAR PRODUCTO:', error);
+        res.status(500).json({ message: 'Error al crear el producto', error: error.message });
     }
 };
 
-
-// PUT - actualizar producto
+// ─── PUT - actualizar producto ────────────────────────────────────────────────
+// Desde el formulario de edición NO se envían stock ni estado: se preservan.
+// El estado se cambia desde el switch del listado (también pasa por aquí).
 const updateProducto = async (req, res) => {
     try {
         const { id } = req.params;
@@ -114,7 +120,7 @@ const updateProducto = async (req, res) => {
             precio,
             stock,
             estado,
-            imagenUrl
+            imagenUrl,
         } = req.body;
 
         // Verificar que la categoría existe si se está actualizando
@@ -126,16 +132,14 @@ const updateProducto = async (req, res) => {
         }
 
         await producto.update({
-            nombreProducto: nombreProducto ? nombreProducto.trim() : producto.nombreProducto,
-            referencia: referencia ? referencia.trim() : producto.referencia,
+            nombreProducto:      nombreProducto ? nombreProducto.trim() : producto.nombreProducto,
+            referencia:          referencia ? referencia.trim() : producto.referencia,
             categoriaProductoId: categoriaProductoId ?? producto.categoriaProductoId,
-            descripcion: descripcion !== undefined ? (descripcion ? descripcion.trim() : null) : producto.descripcion,
-            precio: precio ?? producto.precio,
-            stock: stock ?? producto.stock,
-            estado: estado ?? producto.estado,
-            imagenUrl: imagenUrl !== undefined ? (imagenUrl ? imagenUrl.trim() : null) : producto.imagenUrl, // 👈 agregar
-
-
+            descripcion:         descripcion !== undefined ? (descripcion ? descripcion.trim() : null) : producto.descripcion,
+            precio:              precio ?? producto.precio,
+            stock:               stock ?? producto.stock,
+            estado:              estado ?? producto.estado,
+            imagenUrl:           imagenUrl !== undefined ? (imagenUrl ? imagenUrl.trim() : null) : producto.imagenUrl,
         });
 
         res.status(200).json({ message: 'Producto actualizado correctamente', producto });
@@ -144,12 +148,13 @@ const updateProducto = async (req, res) => {
             const mensajes = error.errors.map(e => ({ campo: e.path, mensaje: e.message }));
             return res.status(400).json({ message: 'Error de validación', errores: mensajes });
         }
+        console.error('ERROR ACTUALIZAR PRODUCTO:', error);
         res.status(500).json({ message: 'Error al actualizar el producto', error: error.message });
     }
 };
 
-// DELETE - desactivar producto (no se borra físicamente por historial de ventas y pedidos)
-// DELETE - eliminar producto físicamente
+// ─── DELETE - eliminar producto físicamente ───────────────────────────────────
+// Si tiene ventas/pedidos asociados, se devuelve 409 para que se desactive en lugar de eliminar.
 const deleteProducto = async (req, res) => {
     try {
         const { id } = req.params;
@@ -161,7 +166,6 @@ const deleteProducto = async (req, res) => {
 
         await producto.destroy();
         res.status(200).json({ message: 'Producto eliminado correctamente' });
-
     } catch (error) {
         if (
             error.name === 'SequelizeForeignKeyConstraintError' ||
@@ -171,6 +175,7 @@ const deleteProducto = async (req, res) => {
                 message: 'No se puede eliminar: el producto tiene ventas o pedidos asociados. Desactívalo en su lugar.',
             });
         }
+        console.error('ERROR ELIMINAR PRODUCTO:', error);
         res.status(500).json({ message: 'Error al eliminar el producto', error: error.message });
     }
 };
@@ -181,5 +186,5 @@ module.exports = {
     getProductosStockBajo,
     createProducto,
     updateProducto,
-    deleteProducto
+    deleteProducto,
 };

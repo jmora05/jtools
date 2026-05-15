@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
     Search, Plus, Edit, Eye, Package, FileText,
     ChevronLeft, ChevronRight, Loader2, CheckCircle2,
-    Trash2, Lock, X, ImageOff, AlertTriangle,
+    Trash2, Lock, X, ImageOff, AlertTriangle, Tag, Boxes,
 } from 'lucide-react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
@@ -32,6 +32,8 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
 
 const ProductImage = ({ src, alt, className }: { src?: string | null; alt: string; className?: string }) => {
     const [error, setError] = useState(false);
+    useEffect(() => { setError(false); }, [src]);
+
     if (!src || error) {
         return (
             <div className={`flex items-center justify-center bg-gray-100 rounded ${className}`}>
@@ -92,6 +94,9 @@ export function ProductCatalog() {
     useEffect(() => { fetchProductos(); }, [fetchProductos]);
 
     // ── Guardar producto (crear o editar) ──────────────────────────────────
+    // CREAR: estado = 'activo' siempre, stock = 1 (valor inicial fijo)
+    // EDITAR: NO se envían estado ni stock — se preservan en backend
+    //         (el estado se cambia desde el switch del listado)
     const handleSaveProduct = async (form: ProductoForm) => {
         try {
             setSaving(true);
@@ -103,9 +108,8 @@ export function ProductCatalog() {
                     categoriaProductoId: parseInt(form.categoriaProductoId),
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
-                    stock:               parseInt(form.stock, 10) >= 0 ? parseInt(form.stock, 10) : editingProduct.stock,
-                    estado:              form.estado,
                     imagenUrl:           form.imagenUrl.trim() || undefined,
+                    // stock y estado NO se envían: se preservan
                 });
                 showFeedback('✓ Producto actualizado correctamente');
                 toast.success('Producto actualizado exitosamente');
@@ -116,8 +120,8 @@ export function ProductCatalog() {
                     categoriaProductoId: parseInt(form.categoriaProductoId),
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
-                    stock:               1,
-                    estado:              form.estado,
+                    stock:               1,         // stock inicial fijo
+                    estado:              'activo',  // siempre activo al crear
                     imagenUrl:           form.imagenUrl.trim() || undefined,
                 });
                 showFeedback('✓ Producto creado exitosamente');
@@ -140,7 +144,7 @@ export function ProductCatalog() {
         }
     };
 
-    // ── Cambiar estado activo/inactivo ─────────────────────────────────────
+    // ── Cambiar estado activo/inactivo (único punto donde se modifica el estado) ──
     const handleToggleEstado = async (product: Producto) => {
         const nuevoEstado: 'activo' | 'inactivo' = product.estado === 'activo' ? 'inactivo' : 'activo';
         if (nuevoEstado === 'activo' && blockedAlertId === product.id) setBlockedAlertId(null);
@@ -149,15 +153,7 @@ export function ProductCatalog() {
         setTogglingIds(prev => new Set(prev).add(product.id));
 
         try {
-            await updateProducto(product.id, {
-                nombreProducto:      product.nombreProducto,
-                referencia:          product.referencia,
-                categoriaProductoId: product.categoriaProductoId,
-                descripcion:         product.descripcion ?? '',
-                precio:              product.precio,
-                stock:               product.stock,
-                estado:              nuevoEstado,
-            });
+            await updateProducto(product.id, { estado: nuevoEstado });
             toast.success(`Producto ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} correctamente`);
         } catch (error: any) {
             setProducts(prev => prev.map(p => p.id === product.id ? { ...p, estado: product.estado } : p));
@@ -353,7 +349,7 @@ export function ProductCatalog() {
                                                                 onCheckedChange={() => handleToggleEstado(product)}
                                                                 disabled={togglingIds.has(product.id)}
                                                             />
-                                                            {togglingIds.has(product.id) && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                            {togglingIds.has(product.id) && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-6">
@@ -412,6 +408,7 @@ export function ProductCatalog() {
                                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                                     <Button
                                         key={page} size="sm"
+                                        variant={currentPage === page ? 'default' : 'outline'}
                                         onClick={() => setCurrentPage(page)}
                                         className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
                                     >{page}</Button>
@@ -440,18 +437,11 @@ export function ProductCatalog() {
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{product.referencia}</code>
-                                        <div className="flex items-center gap-1.5">
-                                            <Switch
-                                                checked={product.estado === 'activo'}
-                                                onCheckedChange={() => handleToggleEstado(product)}
-                                                disabled={togglingIds.has(product.id)}
-                                            />
-                                            <span className={`text-xs font-medium ${product.estado === 'activo' ? 'text-blue-700' : 'text-gray-400'}`}>
-                                                {togglingIds.has(product.id)
-                                                    ? <Loader2 className="w-3 h-3 animate-spin inline" />
-                                                    : product.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                                            </span>
-                                        </div>
+                                        <Switch
+                                            checked={product.estado === 'activo'}
+                                            onCheckedChange={() => handleToggleEstado(product)}
+                                            disabled={togglingIds.has(product.id)}
+                                        />
                                     </div>
                                     <p className="text-xs text-gray-400 font-mono mb-1">#{product.id}</p>
                                     <h3 className="text-gray-900 font-semibold mb-1">{product.nombreProducto}</h3>
@@ -504,71 +494,130 @@ export function ProductCatalog() {
                 onClose={() => { setShowModal(false); setEditingProduct(null); }}
             />
 
-            {/* ════ MODAL — VER DETALLE ════ */}
+            {/* ════════════════════════════════════════════════════════════════
+                MODAL — VER DETALLE
+            ════════════════════════════════════════════════════════════════ */}
             <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Detalles del Producto</DialogTitle>
-                            <DialogDescription>Información completa del producto seleccionado.</DialogDescription>
-                        </DialogHeader>
-                        {loadingDetail ? (
-                            <div className="flex justify-center py-10">
-                                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <DialogContent className="p-0 overflow-y-auto gap-0" style={{ width: '600px', maxWidth: '90vw', maxHeight: '85vh' }}>
+                    {loadingDetail ? (
+                        <div className="flex flex-col justify-center items-center py-24 gap-3">
+                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                            <span className="text-sm text-gray-500">Cargando información del producto...</span>
+                        </div>
+                    ) : viewingProduct ? (
+                        <div className="flex flex-col">
+
+                            {/* ─ Header con fondo azul ─ */}
+                            <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-blue-700 flex-shrink-0">
+                                <DialogHeader>
+                                    <DialogTitle className="text-blue-900 text-lg font-bold flex items-center gap-2">
+                                        <Package className="w-5 h-5" />
+                                        Detalle del Producto
+                                    </DialogTitle>
+                                    <DialogDescription className="text-blue-800 text-xs">
+                                        Información completa del producto seleccionado
+                                    </DialogDescription>
+                                </DialogHeader>
                             </div>
-                        ) : viewingProduct ? (
-                            <div className="space-y-4 mt-4">
-                                {viewingProduct.imagenUrl && (
-                                    <div className="flex justify-center">
-                                        <ProductImage
-                                            src={viewingProduct.imagenUrl}
-                                            alt={viewingProduct.nombreProducto}
-                                            className="w-48 h-48 object-cover rounded-xl border border-gray-200 shadow"
-                                        />
-                                    </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+
+                            {/* ─ Cuerpo scrollable ─ */}
+                            <div className="overflow-y-auto flex-1">
+
+                                {/* Imagen */}
+                                <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center border-b border-gray-200">
+                                    <ProductImage
+                                        src={viewingProduct.imagenUrl}
+                                        alt={viewingProduct.nombreProducto}
+                                        className="w-full h-auto object-cover rounded-2xl border-2 border-white shadow-lg max-w-xs max-h-64"
+                                    />
+                                </div>
+
+                                {/* Información principal */}
+                                <div className="p-6 space-y-4">
+
+                                    {/* Badges + nombre + IDs */}
                                     <div>
-                                        <p className="text-xs text-gray-500 uppercase">Referencia</p>
-                                        <p className="font-semibold">{viewingProduct.referencia}</p>
+                                        <div className="flex items-center flex-wrap gap-2 mb-3">
+                                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                                <Tag className="w-3 h-3" />
+                                                {viewingProduct.categoria?.nombreCategoria ?? `Cat. #${viewingProduct.categoriaProductoId}`}
+                                            </Badge>
+                                            <Badge className={
+                                                viewingProduct.estado === 'activo'
+                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                                                    : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                            }>
+                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 inline-block ${
+                                                    viewingProduct.estado === 'activo' ? 'bg-emerald-500' : 'bg-gray-400'
+                                                }`} />
+                                                {viewingProduct.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                                            </Badge>
+                                        </div>
+                                        <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+                                            {viewingProduct.nombreProducto}
+                                        </h2>
+                                        <div className="mt-2 flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+                                            <span className="font-mono">Ref: {viewingProduct.referencia}</span>
+                                            <span className="text-gray-300">•</span>
+                                            <span className="font-mono">ID #{viewingProduct.id}</span>
+                                        </div>
                                     </div>
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-gray-500 uppercase">Producto</p>
-                                        <p className="font-semibold text-blue-900 text-lg">{viewingProduct.nombreProducto}</p>
+
+                                    {/* Precio destacado */}
+                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                                        <p className="text-[10px] uppercase tracking-widest font-bold text-blue-700 mb-1">
+                                            Precio unitario
+                                        </p>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-3xl font-extrabold text-blue-900">
+                                                ${Number(viewingProduct.precio).toLocaleString('es-CO')}
+                                            </span>
+                                            <span className="text-sm text-blue-600 font-medium">COP</span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Precio</p>
-                                        <p className="text-blue-600 font-bold text-xl">${Number(viewingProduct.precio).toLocaleString()}</p>
+
+                                    {/* Stock disponible */}
+                                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Boxes className="w-3.5 h-3.5 text-gray-500" />
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-600">
+                                                Stock disponible
+                                            </p>
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-xl font-bold text-gray-900">
+                                                {Number(viewingProduct.stock).toLocaleString()}
+                                            </span>
+                                            <span className="text-sm text-gray-600">unidades</span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Stock</p>
-                                        <p className="font-semibold">{viewingProduct.stock} und</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Categoría</p>
-                                        <Badge variant="secondary">
-                                            {viewingProduct.categoria?.nombreCategoria ?? `#${viewingProduct.categoriaProductoId}`}
-                                        </Badge>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Estado</p>
-                                        <Badge className={viewingProduct.estado === 'activo' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-500'}>
-                                            {viewingProduct.estado}
-                                        </Badge>
-                                    </div>
+
+                                    {/* Descripción (si existe) */}
                                     {viewingProduct.descripcion && (
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-gray-500 uppercase">Descripción</p>
-                                            <p className="text-sm text-gray-700">{viewingProduct.descripcion}</p>
+                                        <div className="border-t pt-4">
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2">
+                                                Descripción
+                                            </p>
+                                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                                {viewingProduct.descripcion}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                </div>
                             </div>
-                        ) : null}
-                    </div>
+
+                            {/* ─ Footer ─ */}
+                            <div className="border-t bg-gray-50 px-6 py-3 flex justify-end flex-shrink-0">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowDetailModal(false)}
+                                    className="border-blue-900 text-blue-900 hover:bg-blue-50"
+                                >
+                                    Cerrar
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
                 </DialogContent>
             </Dialog>
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import { Switch } from '@/shared/components/ui/switch';
 import {
     Dialog, DialogContent, DialogDescription, DialogTitle,
 } from '@/shared/components/ui/dialog';
@@ -20,20 +19,25 @@ export interface Producto {
     categoria?: Categoria;
     imagenUrl?: string | null;
 }
+// Nota: estado y stock NO están en el form.
+// - Estado: siempre 'activo' al crear; se cambia desde el switch del listado.
+// - Stock: valor inicial fijo al crear; se modifica desde otras pantallas (ventas, ajustes, etc.).
 export interface ProductoForm {
-    nombreProducto: string; referencia: string; categoriaProductoId: string;
-    descripcion: string; precio: string; estado: 'activo' | 'inactivo';
-    imagenUrl: string; stock: string;
+    nombreProducto: string;
+    referencia: string;
+    categoriaProductoId: string;
+    descripcion: string;
+    precio: string;
+    imagenUrl: string;
 }
 interface FormErrors {
     nombreProducto?: string; referencia?: string; categoriaProductoId?: string;
-    descripcion?: string; precio?: string; imagenUrl?: string; stock?: string;
+    descripcion?: string; precio?: string; imagenUrl?: string;
 }
 interface DuplicateErrors { nombreProducto?: string; referencia?: string; }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const PRECIO_MAXIMO = 99_999_999.99;
-const STOCK_MAXIMO  = 999_999;
 const DESC_MAX      = 255;
 
 // ─── Regex ────────────────────────────────────────────────────────────────────
@@ -86,14 +90,6 @@ function validateProductoForm(form: ProductoForm): FormErrors {
         errors.precio = 'El precio no puede superar $99,999,999.99.';
     }
 
-    const stockNum = parseInt(form.stock, 10);
-    if (form.stock === '' || isNaN(stockNum))
-        errors.stock = 'El stock es obligatorio.';
-    else if (stockNum < 0)
-        errors.stock = 'El stock no puede ser negativo.';
-    else if (stockNum > STOCK_MAXIMO)
-        errors.stock = `El stock no puede superar ${STOCK_MAXIMO.toLocaleString()} unidades.`;
-
     if (form.imagenUrl.trim()) {
         const url = form.imagenUrl.trim();
         if (!url.startsWith('data:image/')) {
@@ -130,11 +126,6 @@ const bloquearPrecio = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '0' && (input.value === '' || (input.selectionStart === 0 && input.selectionEnd === input.value.length))) {
         e.preventDefault(); toast.warning('El precio no puede empezar con 0.');
     }
-};
-const bloquearStock = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
-    if (!/\d/.test(e.key)) e.preventDefault();
 };
 
 // ─── Estilos reutilizables ────────────────────────────────────────────────────
@@ -283,8 +274,12 @@ export interface ProductFormModalProps {
 }
 
 const emptyForm: ProductoForm = {
-    nombreProducto: '', referencia: '', categoriaProductoId: '',
-    descripcion: '', precio: '', estado: 'activo', imagenUrl: '', stock: '0',
+    nombreProducto: '',
+    referencia: '',
+    categoriaProductoId: '',
+    descripcion: '',
+    precio: '',
+    imagenUrl: '',
 };
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -310,9 +305,7 @@ export function ProductFormModal({
                 categoriaProductoId: editingProduct.categoriaProductoId.toString(),
                 descripcion:         editingProduct.descripcion ?? '',
                 precio:              editingProduct.precio.toString(),
-                estado:              editingProduct.estado,
                 imagenUrl:           editingProduct.imagenUrl ?? '',
-                stock:               editingProduct.stock.toString(),
             };
             setForm(f);
             setImageMode(f.imagenUrl.startsWith('data:image/') ? 'file' : 'url');
@@ -360,7 +353,7 @@ export function ProductFormModal({
 
     const touchAll = () => setTouched({
         nombreProducto: true, referencia: true, categoriaProductoId: true,
-        precio: true, descripcion: true, imagenUrl: true, stock: true,
+        precio: true, descripcion: true, imagenUrl: true,
     });
 
     const hasDuplicates = !!(duplicates.nombreProducto || duplicates.referencia);
@@ -398,12 +391,6 @@ export function ProductFormModal({
         handleChange('precio', sanitized);
     };
 
-    const handleStockChange = (raw: string) => {
-        const soloDigitos = raw.replace(/\D/g, '');
-        if (soloDigitos.length > 6) return;
-        handleChange('stock', soloDigitos);
-    };
-
     // ── Guardar ───────────────────────────────────────────────────────────────
     const handleSave = () => {
         setSubmitAttempted(true);
@@ -432,7 +419,7 @@ export function ProductFormModal({
             <DialogContent
                 className="p-0 gap-0 overflow-hidden"
                 style={{
-                    width: '96vw', maxWidth: 1100, height: '90vh', maxHeight: '90vh',
+                    width: '98vw', maxWidth: '1600px', height: '92vh', maxHeight: '92vh',
                     display: 'flex', flexDirection: 'column', padding: 0, gap: 0,
                 }}
                 onInteractOutside={e => { if ((window as any)._filePickerOpen) e.preventDefault(); }}
@@ -536,76 +523,6 @@ export function ProductFormModal({
                                 <FieldError message={touched.categoriaProductoId ? errors.categoriaProductoId : undefined} />
                             </div>
 
-                            {/* Estado */}
-                            <div style={S.fieldGroup}>
-                                <label style={S.label}>Estado del producto</label>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 10,
-                                    padding: '10px 12px', background: '#fff',
-                                    border: '1px solid #e5e7eb', borderRadius: 6,
-                                }}>
-                                    <Switch
-                                        checked={form.estado === 'activo'}
-                                        onCheckedChange={checked => handleChange('estado', checked ? 'activo' : 'inactivo')}
-                                    />
-                                    <span style={{ fontSize: 13, fontWeight: 500, color: form.estado === 'activo' ? '#1d4ed8' : '#9ca3af' }}>
-                                        {form.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                    <span style={{
-                                        marginLeft: 'auto', fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
-                                        background: form.estado === 'activo' ? '#dbeafe' : '#f3f4f6',
-                                        color: form.estado === 'activo' ? '#1e40af' : '#6b7280',
-                                    }}>
-                                        {form.estado === 'activo' ? 'Disponible' : 'No disponible'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* ── Stock ── */}
-                            <div style={S.fieldGroup}>
-                                <label style={S.label}>Stock <span style={{ color: '#f87171' }}>*</span></label>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center',
-                                    border: `1px solid ${touched.stock && errors.stock ? '#f87171' : '#e5e7eb'}`,
-                                    borderRadius: 6, background: '#fff', overflow: 'hidden',
-                                    transition: 'border-color 0.15s',
-                                }}>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={form.stock}
-                                        onChange={e => handleStockChange(e.target.value)}
-                                        onBlur={e => {
-                                            handleBlur('stock');
-                                            e.currentTarget.parentElement!.style.borderColor =
-                                                errors.stock ? '#f87171' : '#e5e7eb';
-                                        }}
-                                        onFocus={e => { e.currentTarget.parentElement!.style.borderColor = '#60a5fa'; }}
-                                        onKeyDown={bloquearStock}
-                                        placeholder="0"
-                                        style={{
-                                            flex: 1, height: 40, padding: '0 12px',
-                                            fontSize: 14, fontWeight: 500, color: '#111827',
-                                            border: 'none', outline: 'none', background: 'transparent',
-                                            fontFamily: 'inherit',
-                                        }}
-                                    />
-                                    <div style={{
-                                        padding: '0 12px', fontSize: 12, color: '#9ca3af', fontWeight: 500,
-                                        flexShrink: 0, borderLeft: '1px solid #e5e7eb',
-                                        height: 40, display: 'flex', alignItems: 'center',
-                                    }}>
-                                        und
-                                    </div>
-                                </div>
-                                <FieldError message={touched.stock ? errors.stock : undefined} />
-                                {form.stock && !errors.stock && (
-                                    <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-                                        Máx. {STOCK_MAXIMO.toLocaleString()} unidades
-                                    </p>
-                                )}
-                            </div>
-
                             {/* Descripción */}
                             <div style={S.fieldGroup}>
                                 <label style={S.label}>
@@ -642,6 +559,23 @@ export function ProductFormModal({
                                         {form.descripcion.length}/{DESC_MAX}
                                     </span>
                                 </div>
+                            </div>
+
+                            {/* Info banner: estado y stock */}
+                            <div style={{
+                                marginTop: 4,
+                                padding: '10px 12px',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: 8,
+                                display: 'flex', alignItems: 'flex-start', gap: 8,
+                            }}>
+                                <Info style={{ width: 14, height: 14, color: '#1d4ed8', flexShrink: 0, marginTop: 2 }} />
+                                <p style={{ fontSize: 11, color: '#1e3a8a', lineHeight: 1.4, margin: 0 }}>
+                                    {editingProduct
+                                        ? 'El estado y el stock se gestionan desde el listado de productos.'
+                                        : 'Los productos nuevos se crean como activos. El estado se gestiona desde el listado.'}
+                                </p>
                             </div>
                         </div>
                     </aside>
@@ -790,18 +724,9 @@ export function ProductFormModal({
                                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                                     <ProductImagePreview src={form.imagenUrl || null} />
                                     <div style={{ padding: '14px 16px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 8 }}>
-                                            <code style={{ fontSize: 11, background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, color: '#6b7280', fontFamily: 'monospace' }}>
-                                                {form.referencia || 'REF-000'}
-                                            </code>
-                                            <span style={{
-                                                fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
-                                                background: form.estado === 'activo' ? '#dbeafe' : '#f3f4f6',
-                                                color: form.estado === 'activo' ? '#1e40af' : '#6b7280',
-                                            }}>
-                                                {form.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                                            </span>
-                                        </div>
+                                        <code style={{ fontSize: 11, background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, color: '#6b7280', fontFamily: 'monospace', display: 'inline-block', marginBottom: 8 }}>
+                                            {form.referencia || 'REF-000'}
+                                        </code>
                                         <h4 style={{ fontWeight: 600, color: '#111827', fontSize: 14, marginBottom: 4, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {form.nombreProducto || 'Nombre del producto'}
                                         </h4>
@@ -818,11 +743,6 @@ export function ProductFormModal({
                                                 </span>
                                             )}
                                         </div>
-                                        {form.stock !== '' && !errors.stock && (
-                                            <p style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
-                                                Stock: <strong>{parseInt(form.stock, 10).toLocaleString()} und</strong>
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
                             </div>
