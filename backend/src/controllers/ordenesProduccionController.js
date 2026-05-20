@@ -214,11 +214,13 @@ const updateOrdenProduccion = async (req, res) => {
       });
 
       if (ficha && Array.isArray(ficha.insumos) && ficha.insumos.length > 0) {
-        const snapshot = [];
+        const insuficientes = [];
+        const plan = [];
 
         for (const fichaInsumo of ficha.insumos) {
-          const cantidadADescontar = fichaInsumo.quantity * orden.cantidad;
-          if (!cantidadADescontar || cantidadADescontar <= 0) continue;
+          const cantidadPorUnidad = Number(fichaInsumo.quantity) || 0;
+          const cantidadADescontar = cantidadPorUnidad * orden.cantidad;
+          if (cantidadADescontar <= 0) continue;
 
           const insumo = await Insumos.findOne({
             where: { nombreInsumo: { [Op.like]: fichaInsumo.name } },
@@ -226,26 +228,46 @@ const updateOrdenProduccion = async (req, res) => {
           });
 
           if (!insumo) {
-            console.warn(`Insumo "${fichaInsumo.name}" no encontrado en inventario — omitido`);
+            insuficientes.push(`El insumo "${fichaInsumo.name}" no existe en inventario`);
             continue;
           }
 
           const cantidadActual = insumo.cantidad ?? 0;
-          const cantidadNueva  = Math.max(0, cantidadActual - cantidadADescontar);
+          if (cantidadActual < cantidadADescontar) {
+            insuficientes.push(
+              `No hay suficiente "${insumo.nombreInsumo}". ` +
+              `Requeridos: ${cantidadADescontar}, disponibles: ${cantidadActual}`
+            );
+            continue;
+          }
 
-          await insumo.update({ cantidad: cantidadNueva }, { transaction });
+          plan.push({ insumo, cantidadADescontar, cantidadActual });
+        }
+
+        if (insuficientes.length > 0) {
+          await transaction.rollback();
+          return res.status(400).json({
+            message: 'No hay suficientes insumos para iniciar la orden',
+            errores: insuficientes,
+          });
+        }
+
+        const snapshot = [];
+        for (const item of plan) {
+          const cantidadNueva = item.cantidadActual - item.cantidadADescontar;
+          await item.insumo.update({ cantidad: cantidadNueva }, { transaction });
 
           snapshot.push({
-            insumosId:          insumo.id,
-            nombre:             insumo.nombreInsumo,
-            cantidadDescontada: cantidadADescontar,
+            insumosId:          item.insumo.id,
+            nombre:             item.insumo.nombreInsumo,
+            cantidadDescontada: item.cantidadADescontar,
           });
 
           console.info('Insumo descontado al iniciar producción', {
             codigoOrden: orden.codigoOrden,
-            insumo: insumo.nombreInsumo,
-            cantidadDescontada: cantidadADescontar,
-            stockAnterior: cantidadActual,
+            insumo: item.insumo.nombreInsumo,
+            cantidadDescontada: item.cantidadADescontar,
+            stockAnterior: item.cantidadActual,
             stockNuevo: cantidadNueva,
           });
         }

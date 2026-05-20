@@ -92,6 +92,13 @@ export function sanitizarCiudad(valor: string): string {
   return limpio.replace(/(^|\s)([a-záéíóúñü])/g, (_, sep, letra) => sep + letra.toUpperCase());
 }
 
+export function sanitizarSalario(valor: string): string {
+  const soloNumerosYPunto = valor.replace(/[^0-9.]/g, '');
+  const [entero, ...decimales] = soloNumerosYPunto.split('.');
+  if (decimales.length === 0) return entero;
+  return `${entero}.${decimales.join('').slice(0, 2)}`;
+}
+
 // ─── Validación campo por campo (tiempo real) ─────────────────────────────
 
 /** Valida un campo individual. Retorna string con el error o '' si es válido. */
@@ -160,6 +167,9 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
 
     case 'salario': {
       if (!v) return 'El salario base es obligatorio';
+      if (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(v)) {
+        return 'El salario debe ser un número válido sin signos ni símbolos';
+      }
       const sal = parseFloat(v);
       if (isNaN(sal) || sal < 1423500)
         return 'El salario no puede ser menor al SMMLV ($1.423.500)';

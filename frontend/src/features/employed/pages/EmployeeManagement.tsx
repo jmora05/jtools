@@ -24,6 +24,7 @@ import {
 import {
     validarFormEmpleado, validarCampo, validarUnicidad, hayErrores,
     sanitizarNombre, sanitizarDocumento, sanitizarTelefono, sanitizarCiudad,
+    sanitizarSalario,
     type FormErrors,
 } from '../utils/empleadosValidations';
 
@@ -306,11 +307,23 @@ function FormFields({
                             <label className="block text-sm text-gray-700 mb-2">Salario base mensual <span className="text-red-500">*</span></label>
                             <Input
                                 type="number"
+                                inputMode="numeric"
                                 placeholder="1423500"
                                 value={form.salario}
                                 min={1423500}
                                 max={99999999}
-                                onChange={e => update('salario', e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                onPaste={(e) => {
+                                    const text = e.clipboardData.getData('text');
+                                    if (/[-+eE]/.test(text)) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                onChange={e => update('salario', e.target.value, sanitizarSalario(e.target.value))}
                                 onBlur={() => blur('salario')}
                                 className={errores.salario ? 'border-red-400 focus-visible:ring-red-300' : ''}
                             />

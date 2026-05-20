@@ -18,6 +18,7 @@ const REGEX_TELEFONO = /^\+57\d{10}$/;
 
 // Solo letras, números, espacios y guiones (para ciudad)
 const REGEX_CIUDAD = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-]+$/;
+const REGEX_SALARIO = /^\d+(?:\.\d{1,2})?$/;
 
 /**
  * Valida los datos de un empleado.
@@ -166,9 +167,14 @@ function validarEmpleado(data, esActualizacion = false) {
 
   // ── 11. Salario ────────────────────────────────────────────────────────────
   if (salario !== undefined && salario !== null && salario !== '') {
-    const sal = parseFloat(salario);
-    if (isNaN(sal) || sal < 1423500) {
-      errores.push('El salario no puede ser menor al SMMLV ($1.423.500)');
+    const salString = String(salario).trim();
+    if (!REGEX_SALARIO.test(salString)) {
+      errores.push('El salario debe ser un número válido sin signos ni símbolos');
+    } else {
+      const sal = parseFloat(salString);
+      if (isNaN(sal) || sal < 1423500) {
+        errores.push('El salario no puede ser menor al SMMLV ($1.423.500)');
+      }
     }
   }
 
