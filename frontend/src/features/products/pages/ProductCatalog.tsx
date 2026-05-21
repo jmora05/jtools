@@ -3,6 +3,7 @@ import {
     Search, Plus, Edit, Eye, Package, FileText,
     ChevronLeft, ChevronRight, Loader2, CheckCircle2,
     Trash2, Lock, X, ImageOff, AlertTriangle, Tag, Boxes,
+    ShoppingCart, MessageCircle,
 } from 'lucide-react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
@@ -14,9 +15,15 @@ import { Card, CardContent } from '@/shared/components/ui/card';
 import { toast } from 'sonner';
 
 import { getProductos, getProductoById, createProducto, updateProducto, deleteProducto, getCategorias } from '../services/productosService';
-
 import { ProductFormModal } from '../components/ProductFormModal';
 import type { Categoria, Producto, ProductoForm } from '../components/ProductFormModal';
+
+import { useCart } from '@/shared/hooks/useCart';
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface ProductCatalogProps {
+    userType?: 'admin' | 'client';
+}
 
 // ─── Componentes UI locales ───────────────────────────────────────────────────
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
@@ -33,7 +40,6 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
 const ProductImage = ({ src, alt, className }: { src?: string | null; alt: string; className?: string }) => {
     const [error, setError] = useState(false);
     useEffect(() => { setError(false); }, [src]);
-
     if (!src || error) {
         return (
             <div className={`flex items-center justify-center bg-gray-100 rounded ${className}`}>
@@ -44,8 +50,354 @@ const ProductImage = ({ src, alt, className }: { src?: string | null; alt: strin
     return <img src={src} alt={alt} className={className} onError={() => setError(true)} />;
 };
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-export function ProductCatalog() {
+// ═══════════════════════════════════════════════════════════════════════════════
+// VISTA CLIENTE — Tienda limpia
+// ═══════════════════════════════════════════════════════════════════════════════
+function ClientCatalogView() {
+    const [products, setProducts]     = useState<Producto[]>([]);
+    const [categorias, setCategorias] = useState<Categoria[]>([]);
+    const [loading, setLoading]       = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [catFilter, setCatFilter]   = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [viewingProduct, setViewingProduct] = useState<Producto | null>(null);
+    const [showDetailModal, setShowDetailModal] = useState(false);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+    const itemsPerPage = 8;
+
+    const { addItem, items: cartItems, totalItems, openCart } = useCart();
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const [p, c] = await Promise.all([getProductos(), getCategorias()]);
+                // El cliente solo ve productos activos
+                setProducts(p.filter((x: Producto) => x.estado === 'activo'));
+                setCategorias(c);
+            } catch (e: any) {
+                toast.error(`Error al cargar productos: ${e.message}`);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    const handleAddToCart = (product: Producto) => {
+        addItem({
+            id:             product.id,
+            nombreProducto: product.nombreProducto,
+            referencia:     product.referencia,
+            precio:         Number(product.precio),
+            imagenUrl:      product.imagenUrl,
+        });
+        toast.success(`"${product.nombreProducto}" agregado al carrito`);
+    };
+
+    const isInCart = (id: number) => cartItems.some(i => i.id === id);
+
+    const viewDetails = async (product: Producto) => {
+        setShowDetailModal(true);
+        setViewingProduct(null);
+        setLoadingDetail(true);
+        try {
+            setViewingProduct(await getProductoById(product.id));
+        } catch (e: any) {
+            toast.error(`Error: ${e.message}`);
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    const filtered = products.filter(p => {
+        const matchSearch = p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchCat    = catFilter === 'all' || p.categoriaProductoId.toString() === catFilter;
+        return matchSearch && matchCat;
+    });
+
+    const totalPages      = Math.ceil(filtered.length / itemsPerPage);
+    const currentProducts = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    return (
+        <div className="p-6 space-y-6">
+
+            {/* ── Encabezado ── */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-blue-900 mb-1">Catálogo de Productos</h1>
+                    <p className="text-blue-600 text-sm">Encuentra el repuesto que necesitas</p>
+                </div>
+
+                {/* Indicador del carrito */}
+                {totalItems > 0 && (
+                    <button
+                        onClick={openCart}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                    >
+                        <ShoppingCart className="w-4 h-4" />
+                        Ver carrito ({totalItems})
+                    </button>
+                )}
+            </div>
+
+            {/* ── Filtros ── */}
+            <Card>
+                <CardContent className="p-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                            <Input
+                                placeholder="Buscar producto o referencia..."
+                                value={searchTerm}
+                                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="pl-10"
+                            />
+                        </div>
+                        <Select value={catFilter} onValueChange={v => { setCatFilter(v); setCurrentPage(1); }}>
+                            <SelectTrigger className="w-48 shrink-0">
+                                <SelectValue placeholder="Categoría" />
+                            </SelectTrigger>
+                            <SelectContent position="popper" className="z-[9999]">
+                                <SelectItem value="all">Todas las categorías</SelectItem>
+                                {categorias.map(c => (
+                                    <SelectItem key={c.id} value={c.id.toString()}>{c.nombreCategoria}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* ── Grid de productos ── */}
+            {loading ? (
+                <div className="flex justify-center items-center py-20">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-3 text-gray-500">Cargando productos...</span>
+                </div>
+            ) : currentProducts.length === 0 ? (
+                <div className="text-center py-20 text-gray-400">
+                    <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium">No se encontraron productos</p>
+                    <p className="text-sm mt-1">Intenta con otro término de búsqueda</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                    {currentProducts.map(product => {
+                        const inCart = isInCart(product.id);
+                        return (
+                            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow border border-gray-200">
+                                {/* Imagen */}
+                                <div className="relative">
+                                    <ProductImage
+                                        src={product.imagenUrl}
+                                        alt={product.nombreProducto}
+                                        className="w-full h-44 object-cover"
+                                    />
+                                    {inCart && (
+                                        <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                            En carrito
+                                        </div>
+                                    )}
+                                </div>
+
+                                <CardContent className="p-4 space-y-3">
+                                    {/* Categoría */}
+                                    <div className="flex items-center gap-1">
+                                        <Tag className="w-3 h-3 text-blue-600" />
+                                        <span className="text-xs text-blue-600 font-medium">
+                                            {product.categoria?.nombreCategoria ?? 'Sin categoría'}
+                                        </span>
+                                    </div>
+
+                                    {/* Nombre y referencia */}
+                                    <div>
+                                        <h3 className="font-semibold text-blue-900 text-sm leading-tight line-clamp-2">
+                                            {product.nombreProducto}
+                                        </h3>
+                                        <p className="text-xs text-gray-400 font-mono mt-0.5">Ref: {product.referencia}</p>
+                                    </div>
+
+                                    {/* Descripción */}
+                                    {product.descripcion && (
+                                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                                            {product.descripcion}
+                                        </p>
+                                    )}
+
+                                    {/* Precio y stock */}
+                                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                                        <span className="text-lg font-bold text-blue-900">
+                                            ${Number(product.precio).toLocaleString('es-CO')}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            Stock: {product.stock} und
+                                        </span>
+                                    </div>
+
+                                    {/* Botones */}
+                                    <div className="flex gap-2 pt-1">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => viewDetails(product)}
+                                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50 text-xs"
+                                        >
+                                            <Eye className="w-3 h-3 mr-1" /> Ver
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleAddToCart(product)}
+                                            className={`flex-1 text-xs ${
+                                                inCart
+                                                    ? 'bg-blue-900 hover:bg-blue-800 text-white'
+                                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            }`}
+                                        >
+                                            <ShoppingCart className="w-3 h-3 mr-1" />
+                                            {inCart ? '+ Agregar' : 'Agregar'}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Paginación ── */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 pt-2">
+                    <Button
+                        variant="outline" size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="border-blue-900 text-blue-900 hover:bg-blue-50"
+                    ><ChevronLeft className="w-4 h-4" /></Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                            key={page} size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className={currentPage === page
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                : 'border border-blue-900 text-blue-900 hover:bg-blue-50 bg-white'}
+                        >{page}</Button>
+                    ))}
+                    <Button
+                        variant="outline" size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="border-blue-900 text-blue-900 hover:bg-blue-50"
+                    ><ChevronRight className="w-4 h-4" /></Button>
+                </div>
+            )}
+
+            {/* ── Modal detalle cliente ── */}
+            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+                <DialogContent className="p-0 gap-0 overflow-y-auto" style={{ width: '520px', maxWidth: '90vw', maxHeight: '85vh' }}>
+                    {loadingDetail ? (
+                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+                            <span className="text-sm text-gray-500">Cargando...</span>
+                        </div>
+                    ) : viewingProduct ? (
+                        <div className="flex flex-col">
+                            {/* Header */}
+                            <div className="px-6 py-4 bg-blue-900 flex-shrink-0">
+                                <DialogHeader>
+                                    <DialogTitle className="text-white text-lg font-bold flex items-center gap-2">
+                                        <Package className="w-5 h-5" /> Detalle del producto
+                                    </DialogTitle>
+                                    <DialogDescription className="text-blue-200 text-xs">
+                                        Información completa del producto
+                                    </DialogDescription>
+                                </DialogHeader>
+                            </div>
+
+                            {/* Imagen */}
+                            <div className="bg-gray-50 p-6 flex items-center justify-center border-b">
+                                <ProductImage
+                                    src={viewingProduct.imagenUrl}
+                                    alt={viewingProduct.nombreProducto}
+                                    className="w-full max-w-xs max-h-60 object-cover rounded-xl border border-gray-200 shadow"
+                                />
+                            </div>
+
+                            {/* Info */}
+                            <div className="p-6 space-y-4">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-xs">
+                                        <Tag className="w-3 h-3 mr-1" />
+                                        {viewingProduct.categoria?.nombreCategoria ?? 'Sin categoría'}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-blue-900">{viewingProduct.nombreProducto}</h2>
+                                    <p className="text-xs text-gray-400 font-mono mt-1">Ref: {viewingProduct.referencia}</p>
+                                </div>
+
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <p className="text-xs text-blue-600 font-bold uppercase tracking-widest mb-1">Precio unitario</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-3xl font-extrabold text-blue-900">
+                                            ${Number(viewingProduct.precio).toLocaleString('es-CO')}
+                                        </span>
+                                        <span className="text-sm text-blue-600">COP</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Boxes className="w-3.5 h-3.5 text-gray-500" />
+                                        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Stock disponible</p>
+                                    </div>
+                                    <span className="text-xl font-bold text-gray-900">{viewingProduct.stock}</span>
+                                    <span className="text-sm text-gray-500 ml-1">unidades</span>
+                                </div>
+
+                                {viewingProduct.descripcion && (
+                                    <div className="border-t pt-4">
+                                        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Descripción</p>
+                                        <p className="text-sm text-gray-700 leading-relaxed">{viewingProduct.descripcion}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="border-t bg-gray-50 px-6 py-3 flex justify-between items-center gap-3 flex-shrink-0">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowDetailModal(false)}
+                                    className="border-blue-900 text-blue-900 hover:bg-blue-50"
+                                >
+                                    Cerrar
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        handleAddToCart(viewingProduct);
+                                        setShowDetailModal(false);
+                                    }}
+                                    className={`${
+                                        isInCart(viewingProduct.id)
+                                            ? 'bg-blue-900 hover:bg-blue-800'
+                                            : 'bg-blue-600 hover:bg-blue-700'
+                                    } text-white`}
+                                >
+                                    <ShoppingCart className="w-4 h-4 mr-2" />
+                                    {isInCart(viewingProduct.id) ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VISTA ADMIN — Gestión completa (igual que antes)
+// ═══════════════════════════════════════════════════════════════════════════════
+function AdminCatalogView() {
     const [view, setView]         = useState<'table' | 'grid'>('table');
     const [products, setProducts] = useState<Producto[]>([]);
     const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -77,7 +429,21 @@ export function ProductCatalog() {
         setTimeout(() => setFeedbackMsg(null), 4000);
     };
 
-    // ── Carga de datos ─────────────────────────────────────────────────────
+    const { addItem, items: cartItems } = useCart();
+
+    const handleAddToCart = (product: Producto) => {
+        addItem({
+            id:             product.id,
+            nombreProducto: product.nombreProducto,
+            referencia:     product.referencia,
+            precio:         Number(product.precio),
+            imagenUrl:      product.imagenUrl,
+        });
+        toast.success(`"${product.nombreProducto}" agregado al carrito`);
+    };
+
+    const isInCart = (id: number) => cartItems.some(i => i.id === id);
+
     const fetchProductos = useCallback(async () => {
         try {
             setLoading(true);
@@ -93,14 +459,9 @@ export function ProductCatalog() {
 
     useEffect(() => { fetchProductos(); }, [fetchProductos]);
 
-    // ── Guardar producto (crear o editar) ──────────────────────────────────
-    // CREAR: estado = 'activo' siempre, stock = 1 (valor inicial fijo)
-    // EDITAR: NO se envían estado ni stock — se preservan en backend
-    //         (el estado se cambia desde el switch del listado)
     const handleSaveProduct = async (form: ProductoForm) => {
         try {
             setSaving(true);
-
             if (editingProduct) {
                 await updateProducto(editingProduct.id, {
                     nombreProducto:      form.nombreProducto.trim(),
@@ -109,7 +470,6 @@ export function ProductCatalog() {
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
                     imagenUrl:           form.imagenUrl.trim() || undefined,
-                    // stock y estado NO se envían: se preservan
                 });
                 showFeedback('✓ Producto actualizado correctamente');
                 toast.success('Producto actualizado exitosamente');
@@ -120,14 +480,13 @@ export function ProductCatalog() {
                     categoriaProductoId: parseInt(form.categoriaProductoId),
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
-                    stock:               1,         // stock inicial fijo
-                    estado:              'activo',  // siempre activo al crear
+                    stock:               1,
+                    estado:              'activo',
                     imagenUrl:           form.imagenUrl.trim() || undefined,
                 });
                 showFeedback('✓ Producto creado exitosamente');
                 toast.success('Producto creado exitosamente');
             }
-
             setShowModal(false);
             setEditingProduct(null);
             fetchProductos();
@@ -144,14 +503,11 @@ export function ProductCatalog() {
         }
     };
 
-    // ── Cambiar estado activo/inactivo (único punto donde se modifica el estado) ──
     const handleToggleEstado = async (product: Producto) => {
         const nuevoEstado: 'activo' | 'inactivo' = product.estado === 'activo' ? 'inactivo' : 'activo';
         if (nuevoEstado === 'activo' && blockedAlertId === product.id) setBlockedAlertId(null);
-
         setProducts(prev => prev.map(p => p.id === product.id ? { ...p, estado: nuevoEstado } : p));
         setTogglingIds(prev => new Set(prev).add(product.id));
-
         try {
             await updateProducto(product.id, { estado: nuevoEstado });
             toast.success(`Producto ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} correctamente`);
@@ -163,14 +519,12 @@ export function ProductCatalog() {
         }
     };
 
-    // ── Ver detalle ────────────────────────────────────────────────────────
     const viewDetails = async (product: Producto) => {
         setShowDetailModal(true);
         setViewingProduct(null);
         setLoadingDetail(true);
         try {
-            const detail = await getProductoById(product.id);
-            setViewingProduct(detail);
+            setViewingProduct(await getProductoById(product.id));
         } catch (error: any) {
             toast.error(`Error: ${error.message}`);
         } finally {
@@ -178,18 +532,8 @@ export function ProductCatalog() {
         }
     };
 
-    // ── Abrir edición ──────────────────────────────────────────────────────
-    const openEditDialog = (product: Producto) => {
-        setEditingProduct(product);
-        setShowModal(true);
-    };
-
-    // ── Eliminar ───────────────────────────────────────────────────────────
-    const openDeleteModal = (product: Producto) => {
-        setDeletingProduct(product);
-        setDeleteConfirmed(false);
-        setShowDeleteModal(true);
-    };
+    const openEditDialog  = (product: Producto) => { setEditingProduct(product); setShowModal(true); };
+    const openDeleteModal = (product: Producto) => { setDeletingProduct(product); setDeleteConfirmed(false); setShowDeleteModal(true); };
 
     const handleDelete = async () => {
         if (!deletingProduct) return;
@@ -210,7 +554,6 @@ export function ProductCatalog() {
     const handleBlockedClick = (productId: number) =>
         setBlockedAlertId(prev => prev === productId ? null : productId);
 
-    // ── Filtrado y paginación ──────────────────────────────────────────────
     const filteredProducts = products.filter(p => {
         const matchesSearch =
             p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -225,7 +568,6 @@ export function ProductCatalog() {
     const totalPages      = Math.ceil(filteredProducts.length / itemsPerPage);
     const currentProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // ─────────────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
 
@@ -236,7 +578,7 @@ export function ProductCatalog() {
                 </div>
             )}
 
-            {/* ── Encabezado ── */}
+            {/* Encabezado */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Productos</h1>
@@ -250,7 +592,7 @@ export function ProductCatalog() {
                 </Button>
             </div>
 
-            {/* ── Filtros ── */}
+            {/* Filtros */}
             <Card>
                 <CardContent className="p-4">
                     <div className="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -287,7 +629,7 @@ export function ProductCatalog() {
                 </CardContent>
             </Card>
 
-            {/* ── Tabla / Grid ── */}
+            {/* Tabla / Grid */}
             {loading ? (
                 <div className="flex justify-center items-center py-16">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -312,6 +654,7 @@ export function ProductCatalog() {
                                 <tbody>
                                     {currentProducts.map(product => {
                                         const disabled = product.estado === 'inactivo';
+                                        const inCart   = isInCart(product.id);
                                         return (
                                             <React.Fragment key={product.id}>
                                                 <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
@@ -354,127 +697,85 @@ export function ProductCatalog() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => viewDetails(product)}
-                                                                className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
-                                                            ><Eye className="w-4 h-4" /></Button>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                                                className={`border ${disabled
-                                                                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
+                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"><Eye className="w-4 h-4" /></Button>
+                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
                                                             ><Edit className="w-4 h-4" /></Button>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                                                className={`border ${disabled
-                                                                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                    : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
+                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
                                                             ><Trash2 className="w-4 h-4" /></Button>
+                                                            <Button size="sm" disabled={disabled} onClick={() => !disabled && handleAddToCart(product)}
+                                                                title={disabled ? 'Producto inactivo' : inCart ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : inCart ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700' : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'}`}
+                                                            ><ShoppingCart className="w-4 h-4" /></Button>
                                                         </div>
                                                     </td>
                                                 </tr>
-
                                                 {blockedAlertId === product.id && (
-                                                    <tr>
-                                                        <td colSpan={7} className="px-6 pb-3 pt-0">
-                                                            <BlockedAlert
-                                                                message="Producto inactivo: No puedes editar ni eliminar un producto inactivo. Actívalo primero usando el interruptor de estado."
-                                                                onClose={() => setBlockedAlertId(null)}
-                                                            />
-                                                        </td>
-                                                    </tr>
+                                                    <tr><td colSpan={7} className="px-6 pb-3 pt-0">
+                                                        <BlockedAlert message="Producto inactivo: Actívalo primero para editar, eliminar o agregar al carrito." onClose={() => setBlockedAlertId(null)} />
+                                                    </td></tr>
                                                 )}
                                             </React.Fragment>
                                         );
                                     })}
                                 </tbody>
                             </table>
-
                             {filteredProducts.length === 0 && (
                                 <div className="text-center py-12 text-gray-500">No se encontraron productos</div>
                             )}
                         </div>
-
                         {totalPages > 1 && (
                             <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
-                                <Button
-                                    variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                ><ChevronLeft className="w-4 h-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="w-4 h-4" /></Button>
                                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                    <Button
-                                        key={page} size="sm"
-                                        variant={currentPage === page ? 'default' : 'outline'}
-                                        onClick={() => setCurrentPage(page)}
+                                    <Button key={page} size="sm" variant={currentPage === page ? 'default' : 'outline'} onClick={() => setCurrentPage(page)}
                                         className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
                                     >{page}</Button>
                                 ))}
-                                <Button
-                                    variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}
-                                ><ChevronRight className="w-4 h-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="w-4 h-4" /></Button>
                             </div>
                         )}
                     </CardContent>
                 </Card>
             ) : (
-                /* ── Vista Grid ── */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {currentProducts.map(product => {
                         const disabled = product.estado === 'inactivo';
+                        const inCart   = isInCart(product.id);
                         return (
                             <Card key={product.id} className="overflow-hidden">
-                                <ProductImage
-                                    src={product.imagenUrl}
-                                    alt={product.nombreProducto}
-                                    className="w-full h-40 object-cover"
-                                />
+                                <ProductImage src={product.imagenUrl} alt={product.nombreProducto} className="w-full h-40 object-cover" />
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{product.referencia}</code>
-                                        <Switch
-                                            checked={product.estado === 'activo'}
-                                            onCheckedChange={() => handleToggleEstado(product)}
-                                            disabled={togglingIds.has(product.id)}
-                                        />
+                                        <Switch checked={product.estado === 'activo'} onCheckedChange={() => handleToggleEstado(product)} disabled={togglingIds.has(product.id)} />
                                     </div>
                                     <p className="text-xs text-gray-400 font-mono mb-1">#{product.id}</p>
                                     <h3 className="text-gray-900 font-semibold mb-1">{product.nombreProducto}</h3>
                                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.descripcion}</p>
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="text-lg text-blue-600 font-bold">${Number(product.precio).toLocaleString()}</span>
-                                        <Badge variant="secondary">
-                                            {product.categoria?.nombreCategoria ?? `Cat #${product.categoriaProductoId}`}
-                                        </Badge>
+                                        <Badge variant="secondary">{product.categoria?.nombreCategoria ?? `Cat #${product.categoriaProductoId}`}</Badge>
                                     </div>
                                     <p className="text-sm text-gray-500 mb-3">Stock: {product.stock} und</p>
-                                    <div className="flex space-x-2">
-                                        <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1">
-                                            <Eye className="w-4 h-4 mr-1" /> Ver
-                                        </Button>
-                                        <Button
-                                            variant="outline" size="sm"
-                                            onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                    <div className="flex space-x-2 mb-2">
+                                        <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1"><Eye className="w-4 h-4 mr-1" /> Ver</Button>
+                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
                                             className={`flex-1 ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}
                                         ><Edit className="w-4 h-4 mr-1" /> Editar</Button>
-                                        <Button
-                                            variant="outline" size="sm"
-                                            onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
                                             className={disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}
                                         ><Trash2 className="w-4 h-4" /></Button>
                                     </div>
+                                    <Button size="sm" disabled={disabled} onClick={() => !disabled && handleAddToCart(product)}
+                                        className={`w-full ${disabled ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed' : inCart ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'}`}
+                                    >
+                                        <ShoppingCart className="w-4 h-4 mr-2" />
+                                        {inCart ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                    </Button>
                                     {blockedAlertId === product.id && (
-                                        <div className="mt-2">
-                                            <BlockedAlert
-                                                message="Producto inactivo: Actívalo primero para editar o eliminar."
-                                                onClose={() => setBlockedAlertId(null)}
-                                            />
-                                        </div>
+                                        <div className="mt-2"><BlockedAlert message="Producto inactivo: Actívalo primero." onClose={() => setBlockedAlertId(null)} /></div>
                                     )}
                                 </CardContent>
                             </Card>
@@ -483,20 +784,14 @@ export function ProductCatalog() {
                 </div>
             )}
 
-            {/* ════ MODAL — CREAR / EDITAR (ProductFormModal) ════ */}
+            {/* Modal crear/editar */}
             <ProductFormModal
-                open={showModal}
-                editingProduct={editingProduct}
-                categorias={categorias}
-                products={products}
-                saving={saving}
-                onSave={handleSaveProduct}
+                open={showModal} editingProduct={editingProduct} categorias={categorias}
+                products={products} saving={saving} onSave={handleSaveProduct}
                 onClose={() => { setShowModal(false); setEditingProduct(null); }}
             />
 
-            {/* ════════════════════════════════════════════════════════════════
-                MODAL — VER DETALLE
-            ════════════════════════════════════════════════════════════════ */}
+            {/* Modal detalle */}
             <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
                 <DialogContent className="p-0 overflow-y-auto gap-0" style={{ width: '600px', maxWidth: '90vw', maxHeight: '85vh' }}>
                     {loadingDetail ? (
@@ -506,131 +801,77 @@ export function ProductCatalog() {
                         </div>
                     ) : viewingProduct ? (
                         <div className="flex flex-col">
-
-                            {/* ─ Header con fondo azul ─ */}
                             <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-blue-700 flex-shrink-0">
                                 <DialogHeader>
                                     <DialogTitle className="text-blue-900 text-lg font-bold flex items-center gap-2">
-                                        <Package className="w-5 h-5" />
-                                        Detalle del Producto
+                                        <Package className="w-5 h-5" />Detalle del Producto
                                     </DialogTitle>
                                     <DialogDescription className="text-blue-800 text-xs">
                                         Información completa del producto seleccionado
                                     </DialogDescription>
                                 </DialogHeader>
                             </div>
-
-                            {/* ─ Cuerpo scrollable ─ */}
                             <div className="overflow-y-auto flex-1">
-
-                                {/* Imagen */}
                                 <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center border-b border-gray-200">
-                                    <ProductImage
-                                        src={viewingProduct.imagenUrl}
-                                        alt={viewingProduct.nombreProducto}
-                                        className="w-full h-auto object-cover rounded-2xl border-2 border-white shadow-lg max-w-xs max-h-64"
-                                    />
+                                    <ProductImage src={viewingProduct.imagenUrl} alt={viewingProduct.nombreProducto} className="w-full h-auto object-cover rounded-2xl border-2 border-white shadow-lg max-w-xs max-h-64" />
                                 </div>
-
-                                {/* Información principal */}
                                 <div className="p-6 space-y-4">
-
-                                    {/* Badges + nombre + IDs */}
                                     <div>
                                         <div className="flex items-center flex-wrap gap-2 mb-3">
                                             <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                                <Tag className="w-3 h-3" />
-                                                {viewingProduct.categoria?.nombreCategoria ?? `Cat. #${viewingProduct.categoriaProductoId}`}
+                                                <Tag className="w-3 h-3" />{viewingProduct.categoria?.nombreCategoria ?? `Cat. #${viewingProduct.categoriaProductoId}`}
                                             </Badge>
-                                            <Badge className={
-                                                viewingProduct.estado === 'activo'
-                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
-                                                    : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                                            }>
-                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 inline-block ${
-                                                    viewingProduct.estado === 'activo' ? 'bg-emerald-500' : 'bg-gray-400'
-                                                }`} />
+                                            <Badge className={viewingProduct.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-100'}>
+                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 inline-block ${viewingProduct.estado === 'activo' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
                                                 {viewingProduct.estado === 'activo' ? 'Activo' : 'Inactivo'}
                                             </Badge>
                                         </div>
-                                        <h2 className="text-2xl font-bold text-gray-900 leading-tight">
-                                            {viewingProduct.nombreProducto}
-                                        </h2>
+                                        <h2 className="text-2xl font-bold text-gray-900 leading-tight">{viewingProduct.nombreProducto}</h2>
                                         <div className="mt-2 flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                                             <span className="font-mono">Ref: {viewingProduct.referencia}</span>
                                             <span className="text-gray-300">•</span>
                                             <span className="font-mono">ID #{viewingProduct.id}</span>
                                         </div>
                                     </div>
-
-                                    {/* Precio destacado */}
                                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-blue-700 mb-1">
-                                            Precio unitario
-                                        </p>
+                                        <p className="text-[10px] uppercase tracking-widest font-bold text-blue-700 mb-1">Precio unitario</p>
                                         <div className="flex items-baseline gap-2">
-                                            <span className="text-3xl font-extrabold text-blue-900">
-                                                ${Number(viewingProduct.precio).toLocaleString('es-CO')}
-                                            </span>
+                                            <span className="text-3xl font-extrabold text-blue-900">${Number(viewingProduct.precio).toLocaleString('es-CO')}</span>
                                             <span className="text-sm text-blue-600 font-medium">COP</span>
                                         </div>
                                     </div>
-
-                                    {/* Stock disponible */}
                                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                                         <div className="flex items-center gap-2 mb-1">
                                             <Boxes className="w-3.5 h-3.5 text-gray-500" />
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-600">
-                                                Stock disponible
-                                            </p>
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-600">Stock disponible</p>
                                         </div>
                                         <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-bold text-gray-900">
-                                                {Number(viewingProduct.stock).toLocaleString()}
-                                            </span>
+                                            <span className="text-xl font-bold text-gray-900">{Number(viewingProduct.stock).toLocaleString()}</span>
                                             <span className="text-sm text-gray-600">unidades</span>
                                         </div>
                                     </div>
-
-                                    {/* Descripción (si existe) */}
                                     {viewingProduct.descripcion && (
                                         <div className="border-t pt-4">
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2">
-                                                Descripción
-                                            </p>
-                                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                                                {viewingProduct.descripcion}
-                                            </p>
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2">Descripción</p>
+                                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{viewingProduct.descripcion}</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
-
-                            {/* ─ Footer ─ */}
                             <div className="border-t bg-gray-50 px-6 py-3 flex justify-end flex-shrink-0">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowDetailModal(false)}
-                                    className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                >
-                                    Cerrar
-                                </Button>
+                                <Button variant="outline" onClick={() => setShowDetailModal(false)} className="border-blue-900 text-blue-900 hover:bg-blue-50">Cerrar</Button>
                             </div>
                         </div>
                     ) : null}
                 </DialogContent>
             </Dialog>
 
-            {/* ════ MODAL — CONFIRMAR ELIMINACIÓN ════ */}
-            <Dialog open={showDeleteModal} onOpenChange={open => {
-                if (!open) { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }
-            }}>
+            {/* Modal eliminar */}
+            <Dialog open={showDeleteModal} onOpenChange={open => { if (!open) { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); } }}>
                 <DialogContent className="max-w-md p-0">
                     <div className="p-6">
                         <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-blue-900">
-                                <Trash2 className="w-5 h-5" />Eliminar producto
-                            </DialogTitle>
+                            <DialogTitle className="flex items-center gap-2 text-blue-900"><Trash2 className="w-5 h-5" />Eliminar producto</DialogTitle>
                             <DialogDescription>Esta acción no se puede deshacer.</DialogDescription>
                         </DialogHeader>
                         {deletingProduct && (
@@ -641,43 +882,34 @@ export function ProductCatalog() {
                                 </div>
                                 {!deleteConfirmed
                                     ? <p className="text-sm text-gray-600">¿Estás seguro de que deseas eliminar este producto permanentemente?</p>
-                                    : (
-                                        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
-                                            <AlertTriangle className="w-4 h-4 shrink-0 text-blue-600" />
-                                            Confirma que entiendes que esta acción es irreversible.
-                                        </div>
-                                    )
+                                    : <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg px-4 py-3 text-sm">
+                                        <AlertTriangle className="w-4 h-4 shrink-0 text-blue-600" />
+                                        Confirma que entiendes que esta acción es irreversible.
+                                      </div>
                                 }
                             </div>
                         )}
                         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-                            <Button
-                                variant="outline"
-                                onClick={() => { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }}
-                                disabled={deleting}
-                            >Cancelar</Button>
+                            <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); }} disabled={deleting}>Cancelar</Button>
                             {!deleteConfirmed
-                                ? (
-                                    <Button
-                                        onClick={() => setDeleteConfirmed(true)}
-                                        className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900"
-                                    >Sí, eliminar</Button>
-                                ) : (
-                                    <Button
-                                        onClick={handleDelete}
-                                        disabled={deleting}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                                    >
-                                        {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                        Confirmar eliminación
-                                    </Button>
-                                )
+                                ? <Button onClick={() => setDeleteConfirmed(true)} className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900">Sí, eliminar</Button>
+                                : <Button onClick={handleDelete} disabled={deleting} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                    {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                                    Confirmar eliminación
+                                  </Button>
                             }
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
-
         </div>
     );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORT PRINCIPAL — elige vista según userType
+// ═══════════════════════════════════════════════════════════════════════════════
+export function ProductCatalog({ userType = 'admin' }: ProductCatalogProps) {
+    if (userType === 'client') return <ClientCatalogView />;
+    return <AdminCatalogView />;
 }

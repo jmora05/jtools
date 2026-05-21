@@ -145,16 +145,6 @@ const CategoryForm = ({ formData, onChange, errors, touched, onBlur, duplicateOf
             <FieldError message={touched.descripcion ? errors.descripcion : undefined} />
             <p className="text-xs text-gray-400 mt-1">{formData.descripcion.length}/255 caracteres</p>
         </div>
-        <div>
-            <label className="block text-sm text-gray-700 mb-2">Estado</label>
-            <div className="flex items-center space-x-2 pt-1">
-                <Switch
-                    checked={formData.estado === 'activo'}
-                    onCheckedChange={(checked) => onChange('estado', checked ? 'activo' : 'inactivo')}
-                />
-                <span className="text-sm text-gray-600">{formData.estado === 'activo' ? 'Activo' : 'Inactivo'}</span>
-            </div>
-        </div>
     </div>
 );
 
@@ -424,7 +414,6 @@ export function ProductCategoryManagement() {
                                     <tr>
                                         <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Nombre</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                                     </tr>
@@ -442,11 +431,6 @@ export function ProductCategoryManagement() {
                                                             <Tag className="w-4 h-4 text-blue-600 shrink-0" />
                                                             <span className="font-semibold text-blue-900">{category.nombreCategoria}</span>
                                                         </div>
-                                                    </td>
-                                                    <td className="py-4 px-6">
-                                                        <span className="text-gray-600 text-sm">
-                                                            {category.descripcion ?? <em className="text-gray-400">Sin descripción</em>}
-                                                        </span>
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center gap-2">

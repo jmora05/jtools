@@ -15,6 +15,9 @@ import { PurchaseModule } from '@/features/suppliers/pages/PurchaseModule';
 import { SupplierManagement } from '@/features/suppliers/pages/SupplierManagement';
 import { SupplyManagement } from '@/features/suppliers/pages/SupplyManagement';
 import { TechnicalSheetModule } from '@/features/production/pages/TechnicalSheetModule';
+import { CartProvider } from '@/shared/context/CartContext';
+import { CartDrawer }   from '@/shared/components/CartDrawer';
+import { CartButton }   from '@/shared/components/CartButton';
 import { ProductionModule } from '@/features/production/pages/ProductionModule';
 import { NewsModule } from '@/features/employed/pages/NewsModule';
 import { PayrollModule } from '@/features/nomina/pages/nomina';
@@ -256,7 +259,7 @@ export default function App() {
   const isClient = (u.userType as string) === 'client' || isClientPreview;
 
   return (
-    <>
+    <CartProvider>
       <Toaster richColors position="top-right" />
       <div className="min-h-screen bg-gray-100 flex relative">
         {sidebarOpen && (
@@ -457,7 +460,9 @@ export default function App() {
           </div>
         </div>
       </div>
-    </>
+      <CartDrawer />
+      <CartButton />
+    </CartProvider>
   );
 }
 
