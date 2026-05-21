@@ -49,9 +49,9 @@ export function ProductionModule() {
 // ========================
 
 const TRANSICIONES: Record<string, string[]> = {
-  'Pendiente':   ['En Proceso', 'Pausada'],
+  'Pendiente':   ['En Proceso', 'Pausada', 'Anulada'],
   'En Proceso':  ['Pausada', 'Finalizada'],
-  'Pausada':     ['En Proceso'],
+  'Pausada':     ['En Proceso', 'Anulada'],
   'Finalizada':  [],
   'Anulada':     [],
 };
@@ -321,6 +321,13 @@ function ProductionOrdersSubmodule() {
 
   const handleInlineStatus = async (order: OrdenProduccion, nuevoEstado: string) => {
     if (!nuevoEstado || nuevoEstado === order.estado) return;
+    // Si el usuario selecciona 'Anulada' desde el desplegable, abrir modal de anulación
+    if (nuevoEstado === 'Anulada') {
+      setSelected(order);
+      setIsAnulOpen(true);
+      return;
+    }
+
     try {
       await updateOrdenProduccion(order.id!, { estado: nuevoEstado as any });
       toast.success('Estado actualizado correctamente');
@@ -384,7 +391,8 @@ function ProductionOrdersSubmodule() {
     }
   };
 
-  const canEdit = (estado?: string) => !['Finalizada', 'Anulada'].includes(estado ?? '');
+  // No permitir editar/anular cuando la orden está en proceso
+  const canEdit = (estado?: string) => !['Finalizada', 'Anulada', 'En Proceso'].includes(estado ?? '');
 
   const totalFormErrors = Object.keys(formErrors).length;
   const motivoError = motivoTouched && motivo.trim().length < 10
@@ -856,6 +864,7 @@ function ProductionOrdersSubmodule() {
                           className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
                           <EyeIcon className="w-4 h-4" />
                         </Button>
+
                         <Button size="sm" title="Editar"
                           onClick={() => canEdit(order.estado) && openEdit(order)}
                           className="bg-white border border-blue-900 hover:bg-blue-50"
@@ -1085,14 +1094,23 @@ function ProductionOrdersSubmodule() {
       {/* Modal Anular */}
       <Dialog open={isAnulOpen} onOpenChange={(o) => { if (!o) { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); } }}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Anular Orden de Producción</DialogTitle>
-            <DialogDescription>Esta acción no se puede deshacer. Indica el motivo de la anulación.</DialogDescription>
-          </DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Anular Orden de Producción</DialogTitle>
+              <DialogDescription>
+                {selected?.estado === 'Pausada'
+                  ? 'Advertencia: al anular una orden en pausa la orden pasará a estado Anulada y se repondrán los insumos que ya se utilizaron.'
+                  : 'Esta acción no se puede deshacer. Indica el motivo de la anulación.'}
+              </DialogDescription>
+            </DialogHeader>
           {selected && (
             <div className="space-y-4">
               <p className="text-sm text-gray-700">Orden: <strong>{selected.codigoOrden}</strong></p>
               <div className="space-y-2">
+                {selected?.estado === 'Pausada' && (
+                  <div className="p-3 rounded bg-orange-50 border border-orange-100">
+                    <p className="text-sm text-orange-700 font-medium">Al anular esta orden en pausa, los insumos descontados serán restaurados automáticamente al inventario.</p>
+                  </div>
+                )}
                 <Label>Motivo de Anulación * <span className="text-xs text-gray-400">(10–500 caracteres)</span></Label>
                 <Textarea
                   value={motivo}

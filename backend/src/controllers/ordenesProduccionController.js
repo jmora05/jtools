@@ -213,68 +213,91 @@ const updateOrdenProduccion = async (req, res) => {
         transaction,
       });
 
-      if (ficha && Array.isArray(ficha.insumos) && ficha.insumos.length > 0) {
-        const insuficientes = [];
-        const plan = [];
+      // Requerimos una ficha activa con insumos para iniciar producción
+      if (!ficha) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message: 'No existe una ficha técnica activa para este producto. Cree o active una ficha antes de iniciar producción.'
+        });
+      }
 
-        for (const fichaInsumo of ficha.insumos) {
-          const cantidadPorUnidad = Number(fichaInsumo.quantity) || 0;
-          const cantidadADescontar = cantidadPorUnidad * orden.cantidad;
-          if (cantidadADescontar <= 0) continue;
+      const insumosFicha = Array.isArray(ficha.insumos) ? ficha.insumos : [];
+      if (insumosFicha.length === 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message: 'La ficha técnica no contiene insumos. No se puede iniciar producción.'
+        });
+      }
 
-          const insumo = await Insumos.findOne({
-            where: { nombreInsumo: { [Op.like]: fichaInsumo.name } },
-            transaction,
-          });
+      const insuficientes = [];
+      const plan = [];
 
-          if (!insumo) {
-            insuficientes.push(`El insumo "${fichaInsumo.name}" no existe en inventario`);
-            continue;
-          }
+      for (const fichaInsumo of insumosFicha) {
+        const nombreRaw = fichaInsumo.name || fichaInsumo.nombre || fichaInsumo.insumo || '';
+        const cantidadPorUnidad = Number(fichaInsumo.quantity ?? fichaInsumo.cantidad ?? fichaInsumo.qty ?? 0) || 0;
+        const nombre = String(nombreRaw).trim();
+        const cantidadADescontar = cantidadPorUnidad * orden.cantidad;
 
-          const cantidadActual = insumo.cantidad ?? 0;
-          if (cantidadActual < cantidadADescontar) {
-            insuficientes.push(
-              `No hay suficiente "${insumo.nombreInsumo}". ` +
-              `Requeridos: ${cantidadADescontar}, disponibles: ${cantidadActual}`
-            );
-            continue;
-          }
+        if (!nombre) {
+          insuficientes.push('Una línea de insumo en la ficha no tiene nombre definido');
+          continue;
+        }
+        if (cantidadADescontar <= 0) continue;
 
-          plan.push({ insumo, cantidadADescontar, cantidadActual });
+        const nombreNormalized = nombre.toLowerCase();
+
+        // Buscar insumo por nombre (case-insensitive)
+        const insumo = await Insumos.findOne({
+          where: sequelize.where(sequelize.fn('lower', sequelize.col('nombreInsumo')), nombreNormalized),
+          transaction,
+        });
+
+        if (!insumo) {
+          insuficientes.push(`El insumo "${nombre}" no existe en inventario`);
+          continue;
         }
 
-        if (insuficientes.length > 0) {
-          await transaction.rollback();
-          return res.status(400).json({
-            message: 'No hay suficientes insumos para iniciar la orden',
-            errores: insuficientes,
-          });
+        const cantidadActual = insumo.cantidad ?? 0;
+        if (cantidadActual < cantidadADescontar) {
+          insuficientes.push(
+            `No hay suficiente "${insumo.nombreInsumo}". Requeridos: ${cantidadADescontar}, disponibles: ${cantidadActual}`
+          );
+          continue;
         }
 
-        const snapshot = [];
-        for (const item of plan) {
-          const cantidadNueva = item.cantidadActual - item.cantidadADescontar;
-          await item.insumo.update({ cantidad: cantidadNueva }, { transaction });
+        plan.push({ insumo, cantidadADescontar, cantidadActual });
+      }
 
-          snapshot.push({
-            insumosId:          item.insumo.id,
-            nombre:             item.insumo.nombreInsumo,
-            cantidadDescontada: item.cantidadADescontar,
-          });
+      if (insuficientes.length > 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message: 'No hay suficientes insumos para iniciar la orden',
+          errores: insuficientes,
+        });
+      }
 
-          console.info('Insumo descontado al iniciar producción', {
-            codigoOrden: orden.codigoOrden,
-            insumo: item.insumo.nombreInsumo,
-            cantidadDescontada: item.cantidadADescontar,
-            stockAnterior: item.cantidadActual,
-            stockNuevo: cantidadNueva,
-          });
-        }
+      const snapshot = [];
+      for (const item of plan) {
+        const cantidadNueva = item.cantidadActual - item.cantidadADescontar;
+        await item.insumo.update({ cantidad: cantidadNueva }, { transaction });
 
-        if (snapshot.length > 0) {
-          updates.insumosCalculados = snapshot;
-        }
+        snapshot.push({
+          insumosId:          item.insumo.id,
+          nombre:             item.insumo.nombreInsumo,
+          cantidadDescontada: item.cantidadADescontar,
+        });
+
+        console.info('Insumo descontado al iniciar producción', {
+          codigoOrden: orden.codigoOrden,
+          insumo: item.insumo.nombreInsumo,
+          cantidadDescontada: item.cantidadADescontar,
+          stockAnterior: item.cantidadActual,
+          stockNuevo: cantidadNueva,
+        });
+      }
+
+      if (snapshot.length > 0) {
+        updates.insumosCalculados = snapshot;
       }
     }
 
@@ -346,20 +369,31 @@ const anularOrdenProduccion = async (req, res) => {
 
     // Devolver insumos al stock si la orden ya había consumido insumos
     const insumosCalculados = Array.isArray(orden.insumosCalculados) ? orden.insumosCalculados : [];
+    const insumosRestaurados = [];
+
     for (const item of insumosCalculados) {
       if (!item.insumosId || !item.cantidadDescontada) continue;
 
       const insumo = await Insumos.findByPk(item.insumosId, { transaction });
       if (!insumo) continue;
 
-      const cantidadRestaurada = (insumo.cantidad ?? 0) + item.cantidadDescontada;
+      const stockAnterior = insumo.cantidad ?? 0;
+      const cantidadRestaurada = stockAnterior + item.cantidadDescontada;
       await insumo.update({ cantidad: cantidadRestaurada }, { transaction });
+
+      insumosRestaurados.push({
+        insumosId: item.insumosId,
+        nombre: insumo.nombreInsumo,
+        cantidadRestaurada: item.cantidadDescontada,
+        stockAnterior,
+        stockNuevo: cantidadRestaurada,
+      });
 
       console.info('Insumo restaurado al anular orden', {
         codigoOrden: orden.codigoOrden,
         insumo: insumo.nombreInsumo,
         cantidadRestaurada: item.cantidadDescontada,
-        stockAnterior: insumo.cantidad,
+        stockAnterior,
         stockNuevo: cantidadRestaurada,
       });
     }
@@ -372,7 +406,11 @@ const anularOrdenProduccion = async (req, res) => {
 
     await transaction.commit();
 
-    res.status(200).json({ message: 'Orden anulada correctamente', orden });
+    res.status(200).json({
+      message: 'Orden anulada correctamente',
+      orden,
+      insumosRestaurados,
+    });
 
   } catch (error) {
     await transaction.rollback();

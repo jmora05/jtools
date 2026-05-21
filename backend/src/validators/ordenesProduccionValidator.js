@@ -191,6 +191,11 @@ function validarAnularOrden(data, estadoActual) {
     errores.push('No se puede anular una orden finalizada');
     return errores;
   }
+  // No permitir anular una orden que está actualmente en proceso
+  if (estadoActual === 'En Proceso') {
+    errores.push('No se puede anular una orden en proceso. Pausa la orden antes de anularla.');
+    return errores;
+  }
 
   // ✅ motivoAnulacion es obligatorio y con validación de contenido
   if (!motivoAnulacion || String(motivoAnulacion).trim() === '') {
