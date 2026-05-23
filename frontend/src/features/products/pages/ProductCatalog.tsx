@@ -1,3 +1,4 @@
+// src/features/products/pages/ProductCatalog.tsx
 import React, { useState, useCallback, useEffect } from 'react';
 import {
     Search, Plus, Edit, Eye, Package, FileText,
@@ -71,7 +72,6 @@ function ClientCatalogView() {
         (async () => {
             try {
                 const [p, c] = await Promise.all([getProductos(), getCategorias()]);
-                // El cliente solo ve productos activos
                 setProducts(p.filter((x: Producto) => x.estado === 'activo'));
                 setCategorias(c);
             } catch (e: any) {
@@ -82,13 +82,19 @@ function ClientCatalogView() {
         })();
     }, []);
 
+    // ── Agregar al carrito con validación de stock ────────────────────────────
     const handleAddToCart = (product: Producto) => {
+        if (product.stock <= 0) {
+            toast.error('Producto agotado — no hay unidades disponibles');
+            return;
+        }
         addItem({
             id:             product.id,
             nombreProducto: product.nombreProducto,
             referencia:     product.referencia,
             precio:         Number(product.precio),
             imagenUrl:      product.imagenUrl,
+            stock:          product.stock,   // ← necesario para el reducer
         });
         toast.success(`"${product.nombreProducto}" agregado al carrito`);
     };
@@ -127,8 +133,6 @@ function ClientCatalogView() {
                     <h1 className="text-2xl font-bold text-blue-900 mb-1">Catálogo de Productos</h1>
                     <p className="text-blue-600 text-sm">Encuentra el repuesto que necesitas</p>
                 </div>
-
-                {/* Indicador del carrito */}
                 {totalItems > 0 && (
                     <button
                         onClick={openCart}
@@ -183,7 +187,9 @@ function ClientCatalogView() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {currentProducts.map(product => {
-                        const inCart = isInCart(product.id);
+                        const inCart     = isInCart(product.id);
+                        const outOfStock = product.stock === 0;
+
                         return (
                             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow border border-gray-200">
                                 {/* Imagen */}
@@ -193,9 +199,16 @@ function ClientCatalogView() {
                                         alt={product.nombreProducto}
                                         className="w-full h-44 object-cover"
                                     />
-                                    {inCart && (
+                                    {/* Badge "En carrito" */}
+                                    {inCart && !outOfStock && (
                                         <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
                                             En carrito
+                                        </div>
+                                    )}
+                                    {/* Badge "Agotado" */}
+                                    {outOfStock && (
+                                        <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" /> Agotado
                                         </div>
                                     )}
                                 </div>
@@ -229,8 +242,8 @@ function ClientCatalogView() {
                                         <span className="text-lg font-bold text-blue-900">
                                             ${Number(product.precio).toLocaleString('es-CO')}
                                         </span>
-                                        <span className="text-xs text-gray-400">
-                                            Stock: {product.stock} und
+                                        <span className={`text-xs font-medium ${outOfStock ? 'text-red-500' : 'text-gray-400'}`}>
+                                            {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
                                         </span>
                                     </div>
 
@@ -244,17 +257,22 @@ function ClientCatalogView() {
                                         >
                                             <Eye className="w-3 h-3 mr-1" /> Ver
                                         </Button>
+
+                                        {/* Botón carrito — deshabilitado cuando stock = 0 */}
                                         <Button
                                             size="sm"
                                             onClick={() => handleAddToCart(product)}
+                                            disabled={outOfStock}
                                             className={`flex-1 text-xs ${
-                                                inCart
-                                                    ? 'bg-blue-900 hover:bg-blue-800 text-white'
-                                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                outOfStock
+                                                    ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed'
+                                                    : inCart
+                                                        ? 'bg-blue-900 hover:bg-blue-800 text-white'
+                                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
                                             }`}
                                         >
                                             <ShoppingCart className="w-3 h-3 mr-1" />
-                                            {inCart ? '+ Agregar' : 'Agregar'}
+                                            {outOfStock ? 'Agotado' : inCart ? '+ Agregar' : 'Agregar'}
                                         </Button>
                                     </div>
                                 </CardContent>
@@ -345,13 +363,23 @@ function ClientCatalogView() {
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                {/* Stock con estado visual */}
+                                <div className={`border rounded-xl p-4 ${viewingProduct.stock === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
                                     <div className="flex items-center gap-2 mb-1">
                                         <Boxes className="w-3.5 h-3.5 text-gray-500" />
                                         <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Stock disponible</p>
                                     </div>
-                                    <span className="text-xl font-bold text-gray-900">{viewingProduct.stock}</span>
-                                    <span className="text-sm text-gray-500 ml-1">unidades</span>
+                                    {viewingProduct.stock === 0 ? (
+                                        <div className="flex items-center gap-2">
+                                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                                            <span className="text-lg font-bold text-red-500">Sin stock</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span className="text-xl font-bold text-gray-900">{viewingProduct.stock}</span>
+                                            <span className="text-sm text-gray-500 ml-1">unidades</span>
+                                        </>
+                                    )}
                                 </div>
 
                                 {viewingProduct.descripcion && (
@@ -362,7 +390,7 @@ function ClientCatalogView() {
                                 )}
                             </div>
 
-                            {/* Footer */}
+                            {/* Footer modal */}
                             <div className="border-t bg-gray-50 px-6 py-3 flex justify-between items-center gap-3 flex-shrink-0">
                                 <Button
                                     variant="outline"
@@ -372,18 +400,25 @@ function ClientCatalogView() {
                                     Cerrar
                                 </Button>
                                 <Button
+                                    disabled={viewingProduct.stock <= 0}
                                     onClick={() => {
                                         handleAddToCart(viewingProduct);
-                                        setShowDetailModal(false);
+                                        if (viewingProduct.stock > 0) setShowDetailModal(false);
                                     }}
                                     className={`${
-                                        isInCart(viewingProduct.id)
-                                            ? 'bg-blue-900 hover:bg-blue-800'
-                                            : 'bg-blue-600 hover:bg-blue-700'
-                                    } text-white`}
+                                        viewingProduct.stock <= 0
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : isInCart(viewingProduct.id)
+                                                ? 'bg-blue-900 hover:bg-blue-800 text-white'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    }`}
                                 >
                                     <ShoppingCart className="w-4 h-4 mr-2" />
-                                    {isInCart(viewingProduct.id) ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                    {viewingProduct.stock <= 0
+                                        ? 'Producto agotado'
+                                        : isInCart(viewingProduct.id)
+                                            ? 'Agregar otra unidad'
+                                            : 'Agregar al carrito'}
                                 </Button>
                             </div>
                         </div>
@@ -395,7 +430,7 @@ function ClientCatalogView() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// VISTA ADMIN — Gestión completa (igual que antes)
+// VISTA ADMIN — Gestión completa
 // ═══════════════════════════════════════════════════════════════════════════════
 function AdminCatalogView() {
     const [view, setView]         = useState<'table' | 'grid'>('table');
@@ -431,13 +466,19 @@ function AdminCatalogView() {
 
     const { addItem, items: cartItems } = useCart();
 
+    // ── Agregar al carrito con validación de stock ────────────────────────────
     const handleAddToCart = (product: Producto) => {
+        if (product.stock <= 0) {
+            toast.error('Producto agotado — no hay unidades disponibles');
+            return;
+        }
         addItem({
             id:             product.id,
             nombreProducto: product.nombreProducto,
             referencia:     product.referencia,
             precio:         Number(product.precio),
             imagenUrl:      product.imagenUrl,
+            stock:          product.stock,   // ← necesario para el reducer
         });
         toast.success(`"${product.nombreProducto}" agregado al carrito`);
     };
@@ -653,8 +694,12 @@ function AdminCatalogView() {
                                 </thead>
                                 <tbody>
                                     {currentProducts.map(product => {
-                                        const disabled = product.estado === 'inactivo';
-                                        const inCart   = isInCart(product.id);
+                                        const inactive   = product.estado === 'inactivo';
+                                        const outOfStock = product.stock === 0;
+                                        const inCart     = isInCart(product.id);
+                                        // Botón carrito deshabilitado si inactivo O sin stock
+                                        const cartDisabled = inactive || outOfStock;
+
                                         return (
                                             <React.Fragment key={product.id}>
                                                 <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
@@ -682,7 +727,9 @@ function AdminCatalogView() {
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
                                                             <span className="text-blue-900 font-semibold">${Number(product.precio).toLocaleString()}</span>
-                                                            <span className="text-sm text-gray-500">Stock: {product.stock} und</span>
+                                                            <span className={`text-sm font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
+                                                                {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
+                                                            </span>
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-6">
@@ -697,23 +744,45 @@ function AdminCatalogView() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
-                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"><Eye className="w-4 h-4" /></Button>
-                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
+                                                            <Button size="sm" onClick={() => viewDetails(product)} className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
+                                                                <Eye className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button size="sm"
+                                                                onClick={() => inactive ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                                                className={`border ${inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
                                                             ><Edit className="w-4 h-4" /></Button>
-                                                            <Button size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
+                                                            <Button size="sm"
+                                                                onClick={() => inactive ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                                                className={`border ${inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
                                                             ><Trash2 className="w-4 h-4" /></Button>
-                                                            <Button size="sm" disabled={disabled} onClick={() => !disabled && handleAddToCart(product)}
-                                                                title={disabled ? 'Producto inactivo' : inCart ? 'Agregar otra unidad' : 'Agregar al carrito'}
-                                                                className={`border ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : inCart ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700' : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'}`}
+
+                                                            {/* Carrito: deshabilitado si inactivo O sin stock */}
+                                                            <Button size="sm"
+                                                                disabled={cartDisabled}
+                                                                onClick={() => !cartDisabled && handleAddToCart(product)}
+                                                                title={
+                                                                    inactive    ? 'Producto inactivo'
+                                                                    : outOfStock ? 'Producto agotado'
+                                                                    : inCart     ? 'Agregar otra unidad'
+                                                                    :              'Agregar al carrito'
+                                                                }
+                                                                className={`border ${
+                                                                    cartDisabled
+                                                                        ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                        : inCart
+                                                                            ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                                                                            : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
+                                                                }`}
                                                             ><ShoppingCart className="w-4 h-4" /></Button>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 {blockedAlertId === product.id && (
                                                     <tr><td colSpan={7} className="px-6 pb-3 pt-0">
-                                                        <BlockedAlert message="Producto inactivo: Actívalo primero para editar, eliminar o agregar al carrito." onClose={() => setBlockedAlertId(null)} />
+                                                        <BlockedAlert
+                                                            message="Producto inactivo: Actívalo primero para editar, eliminar o agregar al carrito."
+                                                            onClose={() => setBlockedAlertId(null)}
+                                                        />
                                                     </td></tr>
                                                 )}
                                             </React.Fragment>
@@ -739,13 +808,24 @@ function AdminCatalogView() {
                     </CardContent>
                 </Card>
             ) : (
+                /* ── Vista Grid ── */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {currentProducts.map(product => {
-                        const disabled = product.estado === 'inactivo';
-                        const inCart   = isInCart(product.id);
+                        const inactive   = product.estado === 'inactivo';
+                        const outOfStock = product.stock === 0;
+                        const inCart     = isInCart(product.id);
+                        const cartDisabled = inactive || outOfStock;
+
                         return (
                             <Card key={product.id} className="overflow-hidden">
-                                <ProductImage src={product.imagenUrl} alt={product.nombreProducto} className="w-full h-40 object-cover" />
+                                <div className="relative">
+                                    <ProductImage src={product.imagenUrl} alt={product.nombreProducto} className="w-full h-40 object-cover" />
+                                    {outOfStock && !inactive && (
+                                        <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" /> Agotado
+                                        </div>
+                                    )}
+                                </div>
                                 <CardContent className="p-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{product.referencia}</code>
@@ -754,28 +834,46 @@ function AdminCatalogView() {
                                     <p className="text-xs text-gray-400 font-mono mb-1">#{product.id}</p>
                                     <h3 className="text-gray-900 font-semibold mb-1">{product.nombreProducto}</h3>
                                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.descripcion}</p>
-                                    <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center justify-between mb-1">
                                         <span className="text-lg text-blue-600 font-bold">${Number(product.precio).toLocaleString()}</span>
                                         <Badge variant="secondary">{product.categoria?.nombreCategoria ?? `Cat #${product.categoriaProductoId}`}</Badge>
                                     </div>
-                                    <p className="text-sm text-gray-500 mb-3">Stock: {product.stock} und</p>
+                                    <p className={`text-sm mb-3 font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
+                                        {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
+                                    </p>
                                     <div className="flex space-x-2 mb-2">
                                         <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1"><Eye className="w-4 h-4 mr-1" /> Ver</Button>
-                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openEditDialog(product)}
-                                            className={`flex-1 ${disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}
+                                        <Button variant="outline" size="sm"
+                                            onClick={() => inactive ? handleBlockedClick(product.id) : openEditDialog(product)}
+                                            className={`flex-1 ${inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-600'}`}
                                         ><Edit className="w-4 h-4 mr-1" /> Editar</Button>
-                                        <Button variant="outline" size="sm" onClick={() => disabled ? handleBlockedClick(product.id) : openDeleteModal(product)}
-                                            className={disabled ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}
+                                        <Button variant="outline" size="sm"
+                                            onClick={() => inactive ? handleBlockedClick(product.id) : openDeleteModal(product)}
+                                            className={inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}
                                         ><Trash2 className="w-4 h-4" /></Button>
                                     </div>
-                                    <Button size="sm" disabled={disabled} onClick={() => !disabled && handleAddToCart(product)}
-                                        className={`w-full ${disabled ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed' : inCart ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'}`}
+                                    {/* Botón carrito en grid — deshabilitado si inactivo O sin stock */}
+                                    <Button size="sm"
+                                        disabled={cartDisabled}
+                                        onClick={() => !cartDisabled && handleAddToCart(product)}
+                                        className={`w-full ${
+                                            cartDisabled
+                                                ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed'
+                                                : inCart
+                                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                                    : 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'
+                                        }`}
                                     >
                                         <ShoppingCart className="w-4 h-4 mr-2" />
-                                        {inCart ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                        {outOfStock    ? 'Agotado'
+                                         : inactive    ? 'Inactivo'
+                                         : inCart      ? 'Agregar otra unidad'
+                                         :               'Agregar al carrito'}
                                     </Button>
                                     {blockedAlertId === product.id && (
-                                        <div className="mt-2"><BlockedAlert message="Producto inactivo: Actívalo primero." onClose={() => setBlockedAlertId(null)} /></div>
+                                        <div className="mt-2">
+                                            <BlockedAlert message="Producto inactivo: Actívalo primero." onClose={() => setBlockedAlertId(null)} />
+                                        </div>
                                     )}
                                 </CardContent>
                             </Card>
@@ -840,15 +938,22 @@ function AdminCatalogView() {
                                             <span className="text-sm text-blue-600 font-medium">COP</span>
                                         </div>
                                     </div>
-                                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                    <div className={`border rounded-xl p-4 ${viewingProduct.stock === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
                                         <div className="flex items-center gap-2 mb-1">
                                             <Boxes className="w-3.5 h-3.5 text-gray-500" />
                                             <p className="text-[10px] uppercase tracking-widest font-bold text-gray-600">Stock disponible</p>
                                         </div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-bold text-gray-900">{Number(viewingProduct.stock).toLocaleString()}</span>
-                                            <span className="text-sm text-gray-600">unidades</span>
-                                        </div>
+                                        {viewingProduct.stock === 0 ? (
+                                            <div className="flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-red-500" />
+                                                <span className="text-lg font-bold text-red-500">Sin stock</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-xl font-bold text-gray-900">{Number(viewingProduct.stock).toLocaleString()}</span>
+                                                <span className="text-sm text-gray-600">unidades</span>
+                                            </div>
+                                        )}
                                     </div>
                                     {viewingProduct.descripcion && (
                                         <div className="border-t pt-4">

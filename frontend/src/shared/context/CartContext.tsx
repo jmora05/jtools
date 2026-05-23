@@ -3,16 +3,17 @@ import React, { createContext, useReducer, useCallback } from 'react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 export interface CartItem {
-    id: number;
+    id:             number;
     nombreProducto: string;
-    referencia: string;
-    precio: number;
-    imagenUrl?: string | null;
-    cantidad: number;
+    referencia:     string;
+    precio:         number;
+    imagenUrl?:     string | null;
+    cantidad:       number;
+    stock:          number;   // ← unidades disponibles en inventario
 }
 
 interface CartState {
-    items: CartItem[];
+    items:  CartItem[];
     isOpen: boolean;
 }
 
@@ -42,19 +43,31 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     switch (action.type) {
 
         case 'ADD_ITEM': {
+            // ── Línea de defensa: bloquear si no hay stock ─────────────────
+            // El UI ya deshabilita el botón, esto es la segunda capa.
+            if (action.payload.stock <= 0) return state;
+
             const exists = state.items.find(i => i.id === action.payload.id);
+
             if (exists) {
-                // Si ya está en el carrito, suma 1
+                const nextCantidad = exists.cantidad + 1;
+                // No superar el stock disponible
+                if (nextCantidad > action.payload.stock) {
+                    // Solo abre el drawer, no incrementa
+                    return { ...state, isOpen: true };
+                }
                 return {
                     ...state,
                     isOpen: true,
                     items: state.items.map(i =>
                         i.id === action.payload.id
-                            ? { ...i, cantidad: i.cantidad + 1 }
+                            ? { ...i, cantidad: nextCantidad }
                             : i
                     ),
                 };
             }
+
+            // Item nuevo: cantidad inicial = 1
             return {
                 ...state,
                 isOpen: true,
@@ -68,7 +81,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
                 items: state.items.filter(i => i.id !== action.payload.id),
             };
 
-        case 'UPDATE_QTY':
+        case 'UPDATE_QTY': {
+            // Si la cantidad resultante es < 1, eliminar el item
             if (action.payload.cantidad < 1) {
                 return {
                     ...state,
@@ -77,12 +91,14 @@ function cartReducer(state: CartState, action: CartAction): CartState {
             }
             return {
                 ...state,
-                items: state.items.map(i =>
-                    i.id === action.payload.id
-                        ? { ...i, cantidad: action.payload.cantidad }
-                        : i
-                ),
+                items: state.items.map(i => {
+                    if (i.id !== action.payload.id) return i;
+                    // Nunca superar el stock disponible almacenado en el item
+                    const cantidad = Math.min(action.payload.cantidad, i.stock);
+                    return { ...i, cantidad };
+                }),
             };
+        }
 
         case 'CLEAR_CART':
             return { ...state, items: [] };
