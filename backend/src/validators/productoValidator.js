@@ -1,3 +1,4 @@
+// src/validators/productoValidator.js  (o donde lo tengas actualmente)
 const { body, validationResult } = require('express-validator');
 
 // ─── Manejador de errores ─────────────────────────────────────────────────────
@@ -12,21 +13,46 @@ const manejarErrores = (req, res, next) => {
     next();
 };
 
-// ─── Validador de imagen (URL o data URL) ─────────────────────────────────────
+// ─── Extensiones de imagen permitidas ────────────────────────────────────────
+const EXTENSIONES_IMAGEN = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const MSG_IMAGEN_INVALIDA = 'Solo se permiten links directos de imágenes válidas (.png, .jpg, .jpeg, .webp...)';
+
+/**
+ * Validador de imagen.
+ * Acepta:
+ *   a) data URL base64  →  data:image/png;base64,...
+ *   b) URL HTTP/HTTPS cuya RUTA termine en extensión de imagen válida
+ *      p.ej. https://cdn.site.com/foto.webp  ✓
+ *            https://google.com              ✗
+ *            https://chatgpt.com            ✗
+ *            https://flamingo.com           ✗
+ */
 const validarImagen = body('imagenUrl')
     .optional({ nullable: true, checkFalsy: true })
     .custom((value) => {
         if (!value) return true;
-        const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
-        const isHttpUrl = (() => {
-            try {
-                const u = new URL(value);
-                return u.protocol === 'http:' || u.protocol === 'https:';
-            } catch { return false; }
-        })();
-        if (!isDataUrl && !isHttpUrl) {
-            throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+
+        // ── a) Data URL base64 ────────────────────────────────────────────────
+        if (/^data:image\/(png|jpe?g|webp|gif);base64,/.test(value)) return true;
+
+        // ── b) URL HTTP/HTTPS ─────────────────────────────────────────────────
+        let url;
+        try {
+            url = new URL(value);
+        } catch {
+            throw new Error(MSG_IMAGEN_INVALIDA);
         }
+
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error(MSG_IMAGEN_INVALIDA);
+        }
+
+        // Evaluar solo el pathname (ignorar query params y fragmentos)
+        const pathname = url.pathname.toLowerCase().split('?')[0];
+        if (!EXTENSIONES_IMAGEN.some(ext => pathname.endsWith(ext))) {
+            throw new Error(MSG_IMAGEN_INVALIDA);
+        }
+
         return true;
     });
 

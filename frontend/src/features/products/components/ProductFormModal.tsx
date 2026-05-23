@@ -91,12 +91,24 @@ function validateProductoForm(form: ProductoForm): FormErrors {
     }
 
     if (form.imagenUrl.trim()) {
-        const url = form.imagenUrl.trim();
-        if (!url.startsWith('data:image/')) {
-            try { new URL(url); }
-            catch { errors.imagenUrl = 'Ingresa una URL válida (ej: https://...).'; }
+    const url = form.imagenUrl.trim();
+    if (!url.startsWith('data:image/')) {
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                errors.imagenUrl = 'Solo se permiten links directos de imágenes válidas (.png, .jpg, .jpeg, .webp...)';
+            } else {
+                const pathname = parsed.pathname.toLowerCase().split('?')[0];
+                const EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+                if (!EXTS.some(ext => pathname.endsWith(ext))) {
+                    errors.imagenUrl = 'Solo se permiten links directos de imágenes válidas (.png, .jpg, .jpeg, .webp...)';
+                }
+            }
+        } catch {
+            errors.imagenUrl = 'Solo se permiten links directos de imágenes válidas (.png, .jpg, .jpeg, .webp...)';
         }
     }
+}
 
     return errors;
 }

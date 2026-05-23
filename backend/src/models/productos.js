@@ -1,3 +1,4 @@
+// src/models/Productos.js  (o donde esté actualmente)
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/jtools_db');
 
@@ -5,6 +6,10 @@ const { sequelize } = require('../config/jtools_db');
 const SOLO_TEXTO       = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/;
 const SOLO_REFERENCIA  = /^[a-zA-Z0-9\-_./]+$/;
 const SOLO_DESCRIPCION = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,();:'"!?/]+$/;
+
+// ─── Extensiones de imagen permitidas ────────────────────────────────────────
+const EXTENSIONES_IMAGEN  = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const MSG_IMAGEN_INVALIDA = 'Solo se permiten links directos de imágenes válidas (.png, .jpg, .jpeg, .webp...) o imágenes en base64.';
 
 const Productos = sequelize.define(
     'Productos',
@@ -24,18 +29,11 @@ const Productos = sequelize.define(
                 msg: 'Este nombre de producto ya existe.',
             },
             validate: {
-                notEmpty: {
-                    msg: 'El nombre del producto no puede estar vacío.',
-                },
-                len: {
-                    args: [2, 100],
-                    msg: 'El nombre del producto debe tener entre 2 y 100 caracteres.',
-                },
+                notEmpty: { msg: 'El nombre del producto no puede estar vacío.' },
+                len: { args: [2, 100], msg: 'El nombre del producto debe tener entre 2 y 100 caracteres.' },
                 sinCaracteresEspeciales(value) {
                     if (!SOLO_TEXTO.test(value)) {
-                        throw new Error(
-                            'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.'
-                        );
+                        throw new Error('El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.');
                     }
                 },
             },
@@ -49,18 +47,11 @@ const Productos = sequelize.define(
                 msg: 'Esta referencia de producto ya existe.',
             },
             validate: {
-                notEmpty: {
-                    msg: 'La referencia del producto no puede estar vacía.',
-                },
-                len: {
-                    args: [2, 50],
-                    msg: 'La referencia debe tener entre 2 y 50 caracteres.',
-                },
+                notEmpty: { msg: 'La referencia del producto no puede estar vacía.' },
+                len: { args: [2, 50], msg: 'La referencia debe tener entre 2 y 50 caracteres.' },
                 formatoReferencia(value) {
                     if (!SOLO_REFERENCIA.test(value)) {
-                        throw new Error(
-                            'La referencia solo puede contener letras, números, guiones (-), guión bajo (_), punto (.) y barra (/).'
-                        );
+                        throw new Error('La referencia solo puede contener letras, números, guiones (-), guión bajo (_), punto (.) y barra (/).');
                     }
                 },
             },
@@ -82,15 +73,10 @@ const Productos = sequelize.define(
             allowNull: true,
             defaultValue: null,
             validate: {
-                len: {
-                    args: [0, 255],
-                    msg: 'La descripción no puede superar los 255 caracteres.',
-                },
+                len: { args: [0, 255], msg: 'La descripción no puede superar los 255 caracteres.' },
                 sinCaracteresEspeciales(value) {
                     if (value && !SOLO_DESCRIPCION.test(value)) {
-                        throw new Error(
-                            'La descripción contiene caracteres no permitidos (como $, %, @, #, &, *, etc.).'
-                        );
+                        throw new Error('La descripción contiene caracteres no permitidos (como $, %, @, #, &, *, etc.).');
                     }
                 },
             },
@@ -136,19 +122,38 @@ const Productos = sequelize.define(
             allowNull: true,
             defaultValue: null,
             validate: {
-                esUrlODataUrl(value) {
+                /**
+                 * Acepta:
+                 *   a) data URL base64  →  data:image/png;base64,...
+                 *   b) URL HTTP/HTTPS con extensión de imagen en la ruta
+                 *
+                 * Rechaza:
+                 *   - https://google.com
+                 *   - https://flamingo.com
+                 *   - strings aleatorios
+                 */
+                esUrlValida(value) {
                     if (!value) return;
-                    const isDataUrl = /^data:image\/(png|jpe?g|webp|gif|avif|svg\+xml);base64,/.test(value);
-                    const isHttpUrl = (() => {
-                        try {
-                            const u = new URL(value);
-                            return u.protocol === 'http:' || u.protocol === 'https:';
-                        } catch {
-                            return false;
-                        }
-                    })();
-                    if (!isDataUrl && !isHttpUrl) {
-                        throw new Error('La imagen debe ser una URL válida (https://...) o una imagen en base64.');
+
+                    // a) Data URL base64 — generada por subida desde PC
+                    if (/^data:image\/(png|jpe?g|webp|gif);base64,/.test(value)) return;
+
+                    // b) URL HTTP/HTTPS
+                    let url;
+                    try {
+                        url = new URL(value);
+                    } catch {
+                        throw new Error(MSG_IMAGEN_INVALIDA);
+                    }
+
+                    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                        throw new Error(MSG_IMAGEN_INVALIDA);
+                    }
+
+                    // La ruta debe terminar en extensión de imagen
+                    const pathname = url.pathname.toLowerCase().split('?')[0];
+                    if (!EXTENSIONES_IMAGEN.some(ext => pathname.endsWith(ext))) {
+                        throw new Error(MSG_IMAGEN_INVALIDA);
                     }
                 },
             },
