@@ -60,8 +60,8 @@ const updateHoraExtra = async (req, res) => {
     const { id } = req.params;
     const registro = await HorasExtra.findByPk(id);
     if (!registro) return res.status(404).json({ message: 'Registro no encontrado' });
-    if (registro.estado === 'aprobada')
-      return res.status(400).json({ message: 'No se puede modificar un registro aprobado' });
+    if (registro.estado !== 'registrada')
+      return res.status(400).json({ message: 'Solo se puede modificar un registro en estado registrada' });
 
     const { empleadoId, tipo, fecha, horas, observaciones, estado } = req.body;
 
@@ -98,6 +98,8 @@ const cambiarEstadoHoraExtra = async (req, res) => {
     const { estado } = req.body;
     const registro   = await HorasExtra.findByPk(id);
     if (!registro) return res.status(404).json({ message: 'Registro no encontrado' });
+    if (registro.estado !== 'registrada')
+      return res.status(400).json({ message: 'Solo se puede cambiar el estado de un registro en estado registrada' });
     await registro.update({ estado });
     await registro.reload({ include: INCLUDE_EMPLEADO });
     res.status(200).json(registro);
@@ -111,8 +113,8 @@ const deleteHoraExtra = async (req, res) => {
     const { id }   = req.params;
     const registro = await HorasExtra.findByPk(id);
     if (!registro) return res.status(404).json({ message: 'Registro no encontrado' });
-    if (registro.estado === 'aprobada')
-      return res.status(400).json({ message: 'No se puede eliminar un registro aprobado' });
+    if (registro.estado !== 'registrada')
+      return res.status(400).json({ message: 'Solo se puede eliminar un registro en estado registrada' });
     await registro.destroy();
     res.status(200).json({ message: 'Registro eliminado correctamente' });
   } catch (error) {

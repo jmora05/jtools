@@ -87,36 +87,6 @@ export function generarPdfNomina(record, formatCurrency) {
     },
   });
 
-  // ── Deducciones ───────────────────────────────────────────────────────
-  y = doc.lastAutoTable.finalY + 8;
-  doc.setTextColor(...rojo);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('DEDUCCIONES', 14, y);
-  y += 3;
-
-  autoTable(doc, {
-    startY: y,
-    head: [['Concepto', 'Valor']],
-    body: [
-      ['Salud (4%)',         `-${formatCurrency(cv.healthDeduction)}`],
-      ['Pensión (4%)',       `-${formatCurrency(cv.pensionDeduction)}`],
-      ['TOTAL DEDUCCIONES',  `-${formatCurrency(cv.totalDeductions)}`],
-    ],
-    styles:     { fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [185, 28, 28], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 0: { cellWidth: 130 }, 1: { cellWidth: 52, halign: 'right' } },
-    margin: { left: 14, right: 14 },
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.row.index === 2) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [254, 226, 226];
-        data.cell.styles.textColor = [185, 28, 28];
-      }
-    },
-  });
-
   // ── Neto a pagar ──────────────────────────────────────────────────────
   const netY = doc.lastAutoTable.finalY + 10;
   doc.setFillColor(...azul);

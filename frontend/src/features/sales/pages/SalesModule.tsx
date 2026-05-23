@@ -151,6 +151,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     clientName: '',
     clientDocument: '',
     paymentMethod: 'Efectivo',
+    descuento: '',
     items: [] as SaleItem[],
   });
 

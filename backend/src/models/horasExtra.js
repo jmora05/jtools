@@ -45,9 +45,9 @@ const HorasExtra = sequelize.define('HorasExtra', {
     allowNull: true,
   },
   estado: {
-    type: DataTypes.ENUM('pendiente', 'aprobada'),
+    type: DataTypes.ENUM('registrada', 'aprobada', 'rechazada'),
     allowNull: false,
-    defaultValue: 'pendiente',
+    defaultValue: 'registrada',
   },
 }, {
   tableName: 'horas_extra',

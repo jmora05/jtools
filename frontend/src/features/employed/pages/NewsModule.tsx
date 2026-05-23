@@ -37,7 +37,7 @@ import {
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_SELECT_CLASSES: Record<string, string> = {
-  registrada:                'border-blue-300 bg-blue-50 text-blue-900',
+  registrada:                'border-gr-300 bg-blue-50 text-blue-900',
   aprobada_remunera:         'border-green-300 bg-green-50 text-green-900',
   aprobada_sin_remuneracion: 'border-amber-300 bg-amber-50 text-amber-900',
   rechazada:                 'border-red-300 bg-red-50 text-red-900',
@@ -74,10 +74,10 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (n: Novedad) => n.estado === 'registrada';
+const canEdit   = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
-const editBlockReason   = (n: Novedad) => n.estado !== 'registrada' ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
+const editBlockReason   = (n: Novedad) => !canEdit(n) ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
 const deleteBlockReason = (n: Novedad) => n.estado !== 'registrada' ? `No se puede eliminar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
 
 // ─── Tipos del formulario ─────────────────────────────────────────────────────
@@ -978,17 +978,23 @@ export function NewsModule() {
                         
                         <td className="px-6 py-4">
                           <div className="relative inline-flex items-center">
-                            <select
-                              value={novedad.estado}
-                              onChange={e => handleCambiarEstado(novedad, e.target.value as EstadoNovedad)}
-                              disabled={togglingIds.has(novedad.id)}
-                              className={`border rounded-md px-2 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 pr-7 ${ESTADO_SELECT_CLASSES[novedad.estado] ?? 'border-gray-300 bg-white text-gray-700'} ${togglingIds.has(novedad.id) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                              <option value="registrada">Registrada</option>
-                              <option value="aprobada_remunera">Aprobada con Remuneración</option>
-                              <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
-                              <option value="rechazada">Rechazada</option>
-                            </select>
+                            {(novedad.estado === 'registrada' || novedad.estado === 'rechazada') ? (
+                              <select
+                                value={novedad.estado}
+                                onChange={e => handleCambiarEstado(novedad, e.target.value as EstadoNovedad)}
+                                disabled={togglingIds.has(novedad.id)}
+                                className={`border rounded-md px-2 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 pr-7 ${ESTADO_SELECT_CLASSES[novedad.estado] ?? 'border-gray-300 bg-white text-gray-700'} ${togglingIds.has(novedad.id) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                              >
+                                <option value="registrada">Registrada</option>
+                                <option value="aprobada_remunera">Aprobada con Remuneración</option>
+                                <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
+                                <option value="rechazada">Rechazada</option>
+                              </select>
+                            ) : (
+                              <span className={`border rounded-md px-2 py-1.5 text-xs font-medium ${ESTADO_SELECT_CLASSES[novedad.estado] ?? 'border-gray-300 bg-white text-gray-700'}`}>
+                                {ESTADO_LABELS[novedad.estado] ?? novedad.estado}
+                              </span>
+                            )}
                             {togglingIds.has(novedad.id) && (
                               <Loader2Icon className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-gray-500 pointer-events-none" />
                             )}
@@ -1342,7 +1348,7 @@ interface HoraExtraFormValues {
   fecha: string;
   horas: string;
   observaciones: string;
-  estado: 'pendiente' | 'aprobada';
+  estado: 'registrada' | 'aprobada' | 'rechazada';
 }
 
 interface HoraExtraErrors {
@@ -1354,7 +1360,7 @@ interface HoraExtraErrors {
 }
 
 const EMPTY_HE_FORM: HoraExtraFormValues = {
-  empleado: null, tipo: '', fecha: '', horas: '', observaciones: '', estado: 'pendiente',
+  empleado: null, tipo: '', fecha: '', horas: '', observaciones: '', estado: 'registrada',
 };
 
 function validateHoraExtraForm(v: HoraExtraFormValues): HoraExtraErrors {
@@ -1448,8 +1454,8 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
   const [heBannerId,    setHeBannerId]    = useState<number | null>(null);
   const [heBannerAction, setHeBannerAction] = useState<'edit' | 'delete' | null>(null);
 
-  const canEditHE   = (r: HoraExtra) => r.estado !== 'aprobada';
-  const canDeleteHE = (r: HoraExtra) => r.estado !== 'aprobada';
+  const canEditHE   = (r: HoraExtra) => r.estado === 'registrada';
+  const canDeleteHE = (r: HoraExtra) => r.estado === 'registrada';
   const showHeBanner = (id: number, action: 'edit' | 'delete') => { setHeBannerId(id); setHeBannerAction(action); };
   const closeHeBanner = () => { setHeBannerId(null); setHeBannerAction(null); };
 
@@ -1589,14 +1595,26 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
     } finally { setSubmitting(false); }
   };
 
-  const handleToggle = async (r: HoraExtra) => {
-    const nuevo: 'pendiente' | 'aprobada' = r.estado === 'aprobada' ? 'pendiente' : 'aprobada';
+  const HE_ESTADO_LABELS: Record<string, string> = {
+    registrada: 'Registrada',
+    aprobada:   'Aprobada',
+    rechazada:  'Rechazada',
+  };
+
+  const HE_ESTADO_SELECT_CLASSES: Record<string, string> = {
+    registrada: 'border-blue-300 bg-blue-50 text-blue-900',
+    aprobada:   'border-green-300 bg-green-50 text-green-900',
+    rechazada:  'border-red-300 bg-red-50 text-red-900',
+  };
+
+  const handleCambiarEstadoHE = async (r: HoraExtra, nuevoEstado: 'registrada' | 'aprobada' | 'rechazada') => {
+    if (r.estado === nuevoEstado) return;
     setTogglingIds(prev => new Set(prev).add(r.id));
-    setRecords(prev => prev.map(x => x.id === r.id ? { ...x, estado: nuevo } : x));
+    setRecords(prev => prev.map(x => x.id === r.id ? { ...x, estado: nuevoEstado } : x));
     try {
-      const updated = await cambiarEstadoHoraExtra(r.id, nuevo);
+      const updated = await cambiarEstadoHoraExtra(r.id, nuevoEstado);
       setRecords(prev => prev.map(x => x.id === updated.id ? updated : x));
-      toast.success(`Estado cambiado a ${nuevo}`);
+      toast.success(`Estado cambiado a ${HE_ESTADO_LABELS[nuevoEstado]}`);
     } catch (err: any) {
       setRecords(prev => prev.map(x => x.id === r.id ? { ...x, estado: r.estado } : x));
       toast.error(err.message ?? 'Error al cambiar el estado');
@@ -1957,13 +1975,14 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                 <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Tipo</th>
                 <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
                 <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Horas</th>
+                <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <Loader2Icon className="w-8 h-8 animate-spin" />
                       <p>Cargando registros...</p>
@@ -1972,7 +1991,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                 </tr>
               ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center text-gray-500">
                       <CalendarIcon className="w-12 h-12 mb-3 text-gray-300" />
                       <p className="text-gray-900">No se encontraron registros</p>
@@ -1994,6 +2013,29 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">{r.fecha}</td>
                   <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{Number(r.horas)}h</td>
+                  <td className="px-6 py-4">
+                    <div className="relative inline-flex items-center">
+                      {r.estado === 'registrada' ? (
+                        <select
+                          value={r.estado}
+                          onChange={e => handleCambiarEstadoHE(r, e.target.value as 'registrada' | 'aprobada' | 'rechazada')}
+                          disabled={togglingIds.has(r.id)}
+                          className={`border rounded-md px-2 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-300 pr-7 ${HE_ESTADO_SELECT_CLASSES[r.estado]} ${togglingIds.has(r.id) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <option value="registrada">Registrada</option>
+                          <option value="aprobada">Aprobada</option>
+                          <option value="rechazada">Rechazada</option>
+                        </select>
+                      ) : (
+                        <span className={`border rounded-md px-2 py-1.5 text-xs font-medium ${HE_ESTADO_SELECT_CLASSES[r.estado] ?? 'border-gray-300 bg-white text-gray-700'}`}>
+                          {HE_ESTADO_LABELS[r.estado] ?? r.estado}
+                        </span>
+                      )}
+                      {togglingIds.has(r.id) && (
+                        <Loader2Icon className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-gray-500 pointer-events-none" />
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-2">
                       <Tooltip>
@@ -2019,7 +2061,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{canEditHE(r) ? 'Editar' : 'No se puede editar: el registro ya fue aprobado'}</p>
+                          <p>{canEditHE(r) ? 'Editar' : `No se puede editar: el registro está ${HE_ESTADO_LABELS[r.estado] ?? r.estado}`}</p>
                         </TooltipContent>
                       </Tooltip>
 
@@ -2035,7 +2077,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{canDeleteHE(r) ? 'Eliminar' : 'No se puede eliminar: el registro ya fue aprobado'}</p>
+                          <p>{canDeleteHE(r) ? 'Eliminar' : `No se puede eliminar: el registro está ${HE_ESTADO_LABELS[r.estado] ?? r.estado}`}</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
@@ -2044,14 +2086,14 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
 
                 {heBannerId === r.id && (
                   <tr className="border-b border-amber-100">
-                    <td colSpan={5} className="px-6 py-0">
+                    <td colSpan={6} className="px-6 py-0">
                       <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 my-2 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
                         <Lock className="w-4 h-4 text-amber-500 shrink-0" />
                         <span>
                           <strong>Registro bloqueado:</strong>{' '}
                           {heBannerAction === 'edit'
-                            ? 'No puedes editar este registro porque ya fue aprobado.'
-                            : 'No puedes eliminar este registro porque ya fue aprobado.'}
+                            ? `No puedes editar este registro porque está ${HE_ESTADO_LABELS[records.find(x => x.id === heBannerId)?.estado ?? ''] ?? ''}.`
+                            : `No puedes eliminar este registro porque está ${HE_ESTADO_LABELS[records.find(x => x.id === heBannerId)?.estado ?? ''] ?? ''}.`}
                         </span>
                         <button onClick={closeHeBanner} className="ml-auto opacity-60 hover:opacity-100">
                           <X className="w-3.5 h-3.5" />
@@ -2121,10 +2163,12 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                   <p className="text-xs text-gray-500">Estado</p>
                   <Badge className={
                     selected.estado === 'aprobada'
-                      ? 'bg-blue-100 text-blue-900 border-blue-200 mt-0.5'
-                      : 'bg-gray-100 text-gray-700 border-gray-200 mt-0.5'
+                      ? 'bg-green-100 text-green-900 border-green-200 mt-0.5'
+                      : selected.estado === 'rechazada'
+                        ? 'bg-red-100 text-red-900 border-red-200 mt-0.5'
+                        : 'bg-blue-100 text-blue-900 border-blue-200 mt-0.5'
                   }>
-                    {selected.estado === 'aprobada' ? 'Aprobada' : 'Pendiente'}
+                    {HE_ESTADO_LABELS[selected.estado] ?? selected.estado}
                   </Badge>
                 </div>
                 <div>
@@ -2144,10 +2188,12 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsViewOpen(false)}>Cerrar</Button>
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => { setIsViewOpen(false); openEdit(selected); }}>
-                  Editar
-                </Button>
+                {canEditHE(selected) && (
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => { setIsViewOpen(false); openEdit(selected); }}>
+                    Editar
+                  </Button>
+                )}
               </div>
             </div>
           )}

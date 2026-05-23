@@ -10,7 +10,7 @@ export type TipoRecargo =
   | 'Hora Extra Nocturna'
   | 'Hora Extra Diurna Dominical/Festiva';
 
-export type EstadoHoraExtra = 'pendiente' | 'aprobada';
+export type EstadoHoraExtra = 'registrada' | 'aprobada' | 'rechazada';
 
 type EmpleadoResumen = { id: number; nombres: string; apellidos: string; cargo: string };
 

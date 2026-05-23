@@ -19,7 +19,6 @@ import {
   EditIcon,
   EyeIcon,
   TrendingUpIcon,
-  BarChart3Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
   Loader2,
@@ -48,8 +47,6 @@ const PCT_HE_DIUR_DOM  = 1.00;   // Hora Extra Diurna Dominical
 const PCT_HE_NOC_DOM   = 1.50;   // Hora Extra Nocturna Dominical
 const DIAS_MES = 30;
 const HORAS_MENSUALES = 240;
-const PORCENTAJE_SALUD = 0.04;
-const PORCENTAJE_PENSION = 0.04;
 
 // ─── Helpers de semana ───────────────────────────────────────────────────────
 
@@ -178,8 +175,6 @@ export function PayrollModule() {
   const mapNominaToRecord = (n: NominaBackend): PayrollRecord => {
     const salBase   = parseFloat(String(n.salario_base));
     const auxTrans  = parseFloat(String(n.auxilio_transporte));
-    const totalHE   = parseFloat(String(n.total_horas_extras));
-    const deduc     = parseFloat(String(n.deducciones));
     const neto      = parseFloat(String(n.pago_neto));
     const propSal   = salBase / DIAS_MES * n.dias_trabajados;
     return {
@@ -203,10 +198,10 @@ export function PayrollModule() {
         recargoNocturno: 0, recargoDiurnoDominical: 0, recargoNocturnoDominical: 0,
         horaExtraDiurna: 0, horaExtraNocturna: 0, horaExtraDiurnaDominical: 0, horaExtraNocturnaDominical: 0,
         transportAllowance: auxTrans,
-        totalEarned: neto + deduc,
-        healthDeduction: deduc / 2,
-        pensionDeduction: deduc / 2,
-        totalDeductions: deduc,
+        totalEarned: neto,
+        healthDeduction: 0,
+        pensionDeduction: 0,
+        totalDeductions: 0,
         netPay: neto,
       },
       createdAt: n.fecha_pago,
@@ -231,11 +226,9 @@ export function PayrollModule() {
     const startYMD = toYMD(weekStart);
     const endYMD   = toYMD(selectedFriday);
 
-    // Horas extras pendientes del empleado en la semana seleccionada
+    // Todas las horas extras aprobadas del empleado (sin restricción de período)
     const empHE = allHE.filter(
-      (he) => he.empleadoId === emp.id &&
-               he.fecha >= startYMD && he.fecha <= endYMD &&
-               he.estado === 'pendiente'
+      (he) => he.empleadoId === emp.id && he.estado === 'aprobada'
     );
     let recNoc = 0, recDiurDom = 0, recNocDom = 0;
     let heDiur = 0, heNoc = 0, heDiurDom = 0, heNocDom = 0;
@@ -250,18 +243,23 @@ export function PayrollModule() {
       }
     });
 
-    // Días ausentes por novedades registradas que se solapen con la semana
+    // Días ausentes por novedades aprobadas sin remuneración o rechazadas que se solapen con la semana
     const empNov = allNov.filter(
       (n) => n.empleado_afectado === emp.id &&
-              n.estado === 'registrada' &&
+              (n.estado === 'aprobada_sin_remuneracion' || n.estado === 'rechazada') &&
               n.fecha_inicio <= endYMD && n.fecha_finalizacion >= startYMD
     );
     let absentDays = 0;
     empNov.forEach((n) => {
-      const s  = n.fecha_inicio       > startYMD ? n.fecha_inicio       : startYMD;
-      const e  = n.fecha_finalizacion < endYMD   ? n.fecha_finalizacion : endYMD;
-      const ms = new Date(e).getTime() - new Date(s).getTime();
-      absentDays += Math.round(ms / 86400000) + 1;
+      if (n.horas_ausencia != null && n.horas_ausencia > 0) {
+        // Convertir horas de ausencia a días (8 horas laborales por día)
+        absentDays += n.horas_ausencia / 8;
+      } else {
+        const s  = n.fecha_inicio       > startYMD ? n.fecha_inicio       : startYMD;
+        const e  = n.fecha_finalizacion < endYMD   ? n.fecha_finalizacion : endYMD;
+        const ms = new Date(e).getTime() - new Date(s).getTime();
+        absentDays += Math.round(ms / 86400000) + 1;
+      }
     });
     const daysWorked = Math.max(0, 7 - absentDays);
 
@@ -312,10 +310,10 @@ export function PayrollModule() {
     const totalEarned      = proportionalSalary + recargoNocturno + recargoDiurnoDominical
                            + recargoNocturnoDominical + horaExtraDiurna + horaExtraNocturna
                            + horaExtraDiurnaDominical + horaExtraNocturnaDominical + transportAllowance;
-    const healthDeduction  = proportionalSalary * PORCENTAJE_SALUD;
-    const pensionDeduction = proportionalSalary * PORCENTAJE_PENSION;
-    const totalDeductions  = healthDeduction + pensionDeduction;
-    const netPay           = totalEarned - totalDeductions;
+    const healthDeduction  = 0;
+    const pensionDeduction = 0;
+    const totalDeductions  = 0;
+    const netPay           = totalEarned;
 
     return {
       proportionalSalary, recargoNocturno, recargoDiurnoDominical, recargoNocturnoDominical,
@@ -324,11 +322,20 @@ export function PayrollModule() {
     };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!formData.employeeId) {
       toast.error('Debes seleccionar un empleado');
+      return;
+    }
+
+    // Validar que el viernes seleccionado no supere una semana más allá del viernes actual
+    const maxFriday = addDays(getFriday(new Date()), 7);
+    if (selectedFriday > maxFriday) {
+      toast.error(
+        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular nómina para semanas tan adelantadas.`
+      );
       return;
     }
 
@@ -356,7 +363,7 @@ export function PayrollModule() {
       fecha_inicio_periodo: toYMD(weekStart),
       fecha_fin_periodo:    toYMD(selectedFriday),
       fecha_pago:           toYMD(selectedFriday),
-      dias_trabajados:      parseInt(formData.daysWorked),
+      dias_trabajados:      parseFloat(formData.daysWorked),
       salario_base:         parseFloat(formData.baseSalary),
       auxilio_transporte:   calculatedValues.transportAllowance,
       total_horas_extras:   totalHE,
@@ -630,7 +637,7 @@ export function PayrollModule() {
                               id="daysWorked"
                               type="number"
                               min="0"
-                              max="7"
+                              step="any"
                               value={formData.daysWorked}
                               onChange={(e) => setFormData({ ...formData, daysWorked: e.target.value })}
                               required
@@ -804,29 +811,6 @@ export function PayrollModule() {
 
                               <Separator className="my-4" />
 
-                              <div className="space-y-3">
-                                <h3 className="font-semibold text-sm text-gray-700 uppercase">Deducciones</h3>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Salud (4%)</span>
-                                    <span className="font-medium text-red-600">-{formatCurrency(previewCalculation.healthDeduction)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Pensión (4%)</span>
-                                    <span className="font-medium text-red-600">-{formatCurrency(previewCalculation.pensionDeduction)}</span>
-                                  </div>
-                                </div>
-
-                                <Separator />
-
-                                <div className="flex justify-between text-base font-semibold">
-                                  <span>Total deducciones</span>
-                                  <span className="text-red-600">-{formatCurrency(previewCalculation.totalDeductions)}</span>
-                                </div>
-                              </div>
-
-                              <Separator className="my-4" />
-
                               <div className="bg-blue-600 text-white p-6 rounded-lg">
                                 <div className="flex justify-between items-center">
                                   <div>
@@ -857,7 +841,7 @@ export function PayrollModule() {
                         <CardHeader className="pb-3">
                           <CardTitle className="text-base flex items-center gap-2">
                             <ClockIcon className="w-4 h-4 text-blue-600" />
-                            Horas Extras de la semana
+                            Horas Extras Aprobadas
                             {empWeekHE.length > 0 && (
                               <Badge className="ml-auto bg-blue-100 text-blue-700 font-medium">
                                 {empWeekHE.length} registro(s)
@@ -868,7 +852,7 @@ export function PayrollModule() {
                         <CardContent className="p-0">
                           {empWeekHE.length === 0 ? (
                             <p className="text-sm text-gray-400 text-center py-6 px-4">
-                              Sin horas extras pendientes esta semana
+                              Sin horas extras aprobadas
                             </p>
                           ) : (
                             <table className="w-full text-sm">
@@ -1193,99 +1177,73 @@ export function PayrollModule() {
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="bg-blue-50">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
-                        <TrendingUpIcon className="w-5 h-5" />
-                        Devengos
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
+                <Card className="bg-blue-50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
+                      <TrendingUpIcon className="w-5 h-5" />
+                      Devengos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Salario proporcional</span>
+                      <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.proportionalSalary)}</span>
+                    </div>
+                    {viewingRecord.calculatedValues.recargoNocturno > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Salario proporcional</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.proportionalSalary)}</span>
+                        <span className="text-gray-600">Recargo Nocturno (+35%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturno)}</span>
                       </div>
-                      {viewingRecord.calculatedValues.recargoNocturno > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Recargo Nocturno (+35%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturno)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.recargoDiurnoDominical > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Recargo Diurno Dominical (+75%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoDiurnoDominical)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.recargoNocturnoDominical > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Recargo Nocturno Dominical (+110%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturnoDominical)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.horaExtraDiurna > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Hora Extra Diurna (+25%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurna)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.horaExtraNocturna > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Hora Extra Nocturna (+75%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturna)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.horaExtraDiurnaDominical > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Hora Extra Diurna Dominical (+100%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurnaDominical)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.horaExtraNocturnaDominical > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Hora Extra Nocturna Dominical (+150%)</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturnaDominical)}</span>
-                        </div>
-                      )}
-                      {viewingRecord.calculatedValues.transportAllowance > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Auxilio transporte</span>
-                          <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.transportAllowance)}</span>
-                        </div>
-                      )}
-                      <Separator className="my-2" />
-                      <div className="flex justify-between text-base font-bold text-blue-700">
-                        <span>Total devengado</span>
-                        <span>{formatCurrency(viewingRecord.calculatedValues.totalEarned)}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-red-50">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2 text-red-700">
-                        <BarChart3Icon className="w-5 h-5" />
-                        Deducciones
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
+                    )}
+                    {viewingRecord.calculatedValues.recargoDiurnoDominical > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Salud (4%)</span>
-                        <span className="font-medium">-{formatCurrency(viewingRecord.calculatedValues.healthDeduction)}</span>
+                        <span className="text-gray-600">Recargo Diurno Dominical (+75%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoDiurnoDominical)}</span>
                       </div>
+                    )}
+                    {viewingRecord.calculatedValues.recargoNocturnoDominical > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Pensión (4%)</span>
-                        <span className="font-medium">-{formatCurrency(viewingRecord.calculatedValues.pensionDeduction)}</span>
+                        <span className="text-gray-600">Recargo Nocturno Dominical (+110%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturnoDominical)}</span>
                       </div>
-                      <Separator className="my-2" />
-                      <div className="flex justify-between text-base font-bold text-red-700">
-                        <span>Total deducciones</span>
-                        <span>-{formatCurrency(viewingRecord.calculatedValues.totalDeductions)}</span>
+                    )}
+                    {viewingRecord.calculatedValues.horaExtraDiurna > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Hora Extra Diurna (+25%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurna)}</span>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    )}
+                    {viewingRecord.calculatedValues.horaExtraNocturna > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Hora Extra Nocturna (+75%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturna)}</span>
+                      </div>
+                    )}
+                    {viewingRecord.calculatedValues.horaExtraDiurnaDominical > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Hora Extra Diurna Dominical (+100%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurnaDominical)}</span>
+                      </div>
+                    )}
+                    {viewingRecord.calculatedValues.horaExtraNocturnaDominical > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Hora Extra Nocturna Dominical (+150%)</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturnaDominical)}</span>
+                      </div>
+                    )}
+                    {viewingRecord.calculatedValues.transportAllowance > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Auxilio transporte</span>
+                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.transportAllowance)}</span>
+                      </div>
+                    )}
+                    <Separator className="my-2" />
+                    <div className="flex justify-between text-base font-bold text-blue-700">
+                      <span>Neto a pagar</span>
+                      <span>{formatCurrency(viewingRecord.calculatedValues.netPay)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white">
                   <CardContent className="p-6">
