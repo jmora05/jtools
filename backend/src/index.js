@@ -42,6 +42,7 @@ const detalleOrdenRoutes           = require('./routes/detalleOrdenRoutes.js');
 const detalleCompraInsumoRoutes    = require('./routes/detalleCompraInsumoRoutes.js');
 const comprasRoutes                = require('./routes/comprasRoutes.js');
 const clientesRoutes               = require('./routes/clientesRoutes.js');
+const clienteMeRoutes              = require('./routes/clienteMeRoutes.js');
 const categoriaProductosRoutes     = require('./routes/categoriaProductosRoutes.js');
 const usuariosRoutes               = require('./routes/usuariosRoutes.js');
 const permisosRoutes               = require('./routes/permisosRoutes.js');
@@ -67,6 +68,7 @@ app.get('/api/public/productos', getPublicProductos);
 app.use('/api/productos',               verifyToken, productosRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
 app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
+app.use('/api/cliente',                 verifyToken, clienteMeRoutes);
 
 // ── Rutas SOLO ADMIN (bloquean el perfil 'client') ──
 app.use('/api/usuarios',                verifyToken, requireAdmin, usuariosRoutes);
