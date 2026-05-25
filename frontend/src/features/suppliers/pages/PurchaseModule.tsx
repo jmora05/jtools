@@ -175,10 +175,14 @@ export function PurchaseModule() {
                 const updateStockPromises = carrito.map(async (item) => {
                     const insumoActual   = insumos.find((i) => i.id === item.insumoId);
                     const cantidadActual = Number(insumoActual?.cantidad ?? 0);
+                    const precioActual   = Number(insumoActual?.precioUnitario ?? 0);
+                    // Conservar siempre el precio más alto
+                    const precioFinal    = Math.max(precioActual, item.precio);
                     return updateInsumo(item.insumoId, {
                         cantidad:       cantidadActual + item.cantidad,
                         estado:         'disponible',
                         proveedoresIds: [proveedorId],
+                        precioUnitario: precioFinal,
                     });
                 });
 

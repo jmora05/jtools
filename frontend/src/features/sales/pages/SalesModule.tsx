@@ -88,6 +88,28 @@ interface SalesModuleProps {
   clientMode?: boolean;
 }
 
+// ─── Persistencia de estados de pago (localStorage) ──────────────────────────
+
+const SALE_STATUS_KEY = 'jtools_sale_statuses';
+
+const getSaleStatuses = (): Record<number, string> => {
+  try { return JSON.parse(localStorage.getItem(SALE_STATUS_KEY) ?? '{}'); }
+  catch { return {}; }
+};
+
+const persistSaleStatus = (id: number, status: string) => {
+  const map = getSaleStatuses();
+  if (status === 'Completada') delete map[id];
+  else map[id] = status;
+  localStorage.setItem(SALE_STATUS_KEY, JSON.stringify(map));
+};
+
+const getDaysUntilVoid = (dateStr: string) => {
+  const voidDate = new Date(dateStr);
+  voidDate.setDate(voidDate.getDate() + 30);
+  return Math.ceil((voidDate.getTime() - Date.now()) / 86_400_000);
+};
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function SalesModule({ clientFilter, onClearClientFilter, clientMode = false }: SalesModuleProps) {
@@ -165,7 +187,31 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       setLoading(true);
       try {
         const data = await getVentas();
-        setSales(data.map(mapVentaToSale));
+        const statuses = getSaleStatuses();
+
+        // Mergear estado de pago persistido con datos del backend
+        const mapped = data.map(v => {
+          const s = mapVentaToSale(v);
+          if (statuses[v.id]) s.status = statuses[v.id];
+          return s;
+        });
+
+        // Auto-anular ventas pendientes con más de 30 días
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 30);
+        const toVoid = mapped.filter(s => s.status === 'Pendiente' && new Date(s.date) < cutoff);
+
+        let result = [...mapped];
+        for (const sale of toVoid) {
+          try {
+            await deleteVenta(sale.id);
+            persistSaleStatus(sale.id, 'Anulada');
+            result = result.map(s => s.id === sale.id ? { ...s, status: 'Anulada' } : s);
+            toast.warning(`Venta #${sale.id} anulada automáticamente (pago pendiente más de 30 días)`);
+          } catch {}
+        }
+
+        setSales(result);
       } catch (error: any) {
         toast.error(error.message || 'Error al cargar las ventas');
       } finally {
@@ -319,7 +365,14 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.save(`venta-${sale.id}.pdf`);
   };
 
-  const handleCancelSale = (sale: Sale) => { setSaleToCancel(sale); setShowCancelDialog(true); };
+  const handleCancelSale = (sale: Sale) => {
+    if (sale.status === 'Completada') {
+      toast.error('Las ventas completadas no pueden ser anuladas');
+      return;
+    }
+    setSaleToCancel(sale);
+    setShowCancelDialog(true);
+  };
 
   const confirmCancel = async () => {
     if (!saleToCancel) return;
@@ -333,6 +386,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       setShowCancelDialog(false);
       setSaleToCancel(null);
     }
+  };
+
+  const handleChangeStatus = (sale: Sale, newStatus: string) => {
+    persistSaleStatus(sale.id, newStatus);
+    setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: newStatus } : s));
+    toast.success(`Venta #${sale.id} marcada como ${newStatus}`);
   };
 
   const handleAddProduct = (product: any) => {
@@ -359,12 +418,22 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     setClientSearch('');
   };
 
-  const calculateTotal = () => saleForm.items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const calculateSubtotal = () => saleForm.items.reduce((s, i) => s + i.quantity * i.price, 0);
+
+  const parseDescuento = () => {
+    const val = parseFloat(saleForm.descuento.replace(/\./g, '').replace(',', '.'));
+    return isNaN(val) || val < 0 ? 0 : val;
+  };
+
+  const calculateTotal = () => Math.max(0, calculateSubtotal() - parseDescuento());
 
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!saleForm.clientId)          { toast.error('Por favor selecciona un cliente'); return; }
     if (saleForm.items.length === 0) { toast.error('Por favor agrega al menos un producto'); return; }
+    const descuentoVal = parseDescuento();
+    if (saleForm.descuento !== '' && descuentoVal < 0) { toast.error('El descuento no puede ser negativo'); return; }
+    if (descuentoVal > calculateSubtotal()) { toast.error('El descuento no puede ser mayor al subtotal'); return; }
 
     setSubmitting(true);
     try {
@@ -401,7 +470,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
   const resetSaleForm = () => {
-    setSaleForm({ clientId: '', clientName: '', clientDocument: '', paymentMethod: 'Efectivo', items: [] });
+    setSaleForm({ clientId: '', clientName: '', clientDocument: '', paymentMethod: 'Efectivo', descuento: '', items: [] });
     setProductSearch('');
     setClientSearch('');
   };
@@ -411,7 +480,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       'Completada': 'bg-blue-50 text-blue-900 border-blue-200',
-      'Pendiente':  'bg-blue-50 text-blue-900 border-blue-200',
+      'Pendiente':  'bg-amber-50 text-amber-800 border-amber-300',
       'Anulada':    'bg-gray-100 text-gray-700 border-gray-300',
     };
     return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
@@ -458,7 +527,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     return pages;
   };
 
-  const subtotal = saleForm.items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const subtotal    = calculateSubtotal();
+  const descuento   = parseDescuento();
+  const totalFinal  = calculateTotal();
 
   // ─── JSX ──────────────────────────────────────────────────────────────────
 
@@ -478,7 +549,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           </div>
 
           {/* ── MODAL NUEVA VENTA ─────────────────────────────────────────── */}
-          <Dialog open={showNewSaleModal} onOpenChange={(open) => {
+          <Dialog open={showNewSaleModal} onOpenChange={(open: boolean) => {
             setShowNewSaleModal(open);
             if (!open) { resetSaleForm(); if (onClearClientFilter) onClearClientFilter(); }
           }}>
@@ -637,6 +708,47 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           })}
                         </div>
                       </div>
+                      {/* Descuento */}
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, display: 'block' }}>
+                          Descuento <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', fontSize: 14, fontWeight: 600, pointerEvents: 'none' }}>$</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={saleForm.descuento}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '');
+                              const formatted = raw ? Number(raw).toLocaleString('es-CO') : '';
+                              setSaleForm({ ...saleForm, descuento: formatted });
+                            }}
+                            style={{
+                              width: '100%', boxSizing: 'border-box',
+                              paddingLeft: 26, paddingRight: 12, height: 36,
+                              border: `1px solid ${
+                                saleForm.descuento !== '' && parseDescuento() > subtotal
+                                  ? '#f87171'
+                                  : '#e5e7eb'
+                              }`,
+                              borderRadius: 8, fontSize: 14, color: '#111827',
+                              outline: 'none', background: '#fff',
+                            }}
+                          />
+                        </div>
+                        {saleForm.descuento !== '' && parseDescuento() > subtotal && subtotal > 0 && (
+                          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#f87171' }}>
+                            El descuento no puede superar el subtotal (${subtotal.toLocaleString('es-CO')})
+                          </p>
+                        )}
+                        {saleForm.descuento !== '' && parseDescuento() > 0 && parseDescuento() <= subtotal && (
+                          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#16a34a' }}>
+                            Descuento aplicado: -${parseDescuento().toLocaleString('es-CO')}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </aside>
 
@@ -777,10 +889,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     {saleForm.items.length > 0 && (
                       <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px 24px', flexShrink: 0, background: '#fff' }}>
                         <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 13, color: '#6b7280' }}>Subtotal</span>
+                            <span style={{ fontSize: 14, color: '#374151' }}>${subtotal.toLocaleString('es-CO')}</span>
+                          </div>
+                          {descuento > 0 && descuento <= subtotal && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontSize: 13, color: '#16a34a' }}>Descuento</span>
+                              <span style={{ fontSize: 14, color: '#16a34a', fontWeight: 600 }}>-${descuento.toLocaleString('es-CO')}</span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: descuento > 0 && descuento <= subtotal ? '1px solid #e5e7eb' : 'none' }}>
                             <span style={{ fontWeight: 700, color: '#111827' }}>Total</span>
                             <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>
-                              ${subtotal.toLocaleString()}
+                              ${totalFinal.toLocaleString('es-CO')}
                             </span>
                           </div>
                         </div>
@@ -867,7 +989,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     </td>
                   </tr>
                 ) : currentSales.map((sale) => {
-                  const isAnulada = sale.status === 'Anulada';
+                  const isAnulada    = sale.status === 'Anulada';
+                  const isCompletada = sale.status === 'Completada';
                   return (
                     <React.Fragment key={sale.id}>
                     <tr className={`hover:bg-gray-50 transition-colors ${isAnulada ? 'opacity-60' : ''}`}>
@@ -883,7 +1006,45 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <div className="text-sm text-gray-500">{sale.items.length} producto(s)</div>
                       </td>
                       <td className="px-6 py-4">
-                        {getStatusBadge(sale.status)}
+                        {isAnulada ? (
+                          getStatusBadge('Anulada')
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <select
+                              value={sale.status}
+                              onChange={(e) => handleChangeStatus(sale, e.target.value)}
+                              style={{
+                                padding: '4px 28px 4px 8px',
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                border: '1px solid',
+                                borderColor: sale.status === 'Pendiente' ? '#fcd34d' : '#bfdbfe',
+                                background: sale.status === 'Pendiente' ? '#fffbeb' : '#eff6ff',
+                                color: sale.status === 'Pendiente' ? '#92400e' : '#1e40af',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                appearance: 'auto',
+                              }}
+                            >
+                              <option value="Completada">Completada</option>
+                              <option value="Pendiente">Pendiente</option>
+                            </select>
+                            {sale.status === 'Pendiente' && (() => {
+                              const days = getDaysUntilVoid(sale.date);
+                              if (days > 15) return null;
+                              return (
+                                <span style={{
+                                  fontSize: 10, display: 'flex', alignItems: 'center', gap: 2,
+                                  color: days <= 7 ? '#ef4444' : '#f59e0b',
+                                }}>
+                                  <AlertTriangleIcon style={{ width: 10, height: 10, flexShrink: 0 }} />
+                                  {days <= 0 ? 'Se anulará hoy' : `${days}d para anularse`}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center space-x-2">
@@ -915,11 +1076,16 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm"
                                   onClick={() => handleCancelSale(sale)}
-                                  className="text-blue-900 border-blue-900 hover:bg-red-50">
+                                  disabled={isCompletada}
+                                  className={isCompletada
+                                    ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed"
+                                    : "text-blue-900 border-blue-900 hover:bg-red-50"}>
                                   <XCircleIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent><p>Anular venta</p></TooltipContent>
+                              <TooltipContent>
+                                <p>{isCompletada ? 'Las ventas completadas no se pueden anular' : 'Anular venta'}</p>
+                              </TooltipContent>
                             </Tooltip>
                           )}
                         </div>
@@ -1278,7 +1444,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         </Dialog>
 
         {/* ── MODAL ANULACIÓN ───────────────────────────────────────────── */}
-        <AlertDialog open={showCancelDialog} onOpenChange={(open) => {
+        <AlertDialog open={showCancelDialog} onOpenChange={(open: boolean) => {
           setShowCancelDialog(open);
           if (!open) setSaleToCancel(null);
         }}>

@@ -75,11 +75,6 @@ function validarFormulario(data: FormData): FormErrors {
     if (data.description && data.description.trim().length > 255)
         errs.description = 'Máximo 255 caracteres';
 
-    if (!data.price.trim())
-        errs.price = 'El precio es obligatorio';
-    else if (isNaN(parseFloat(data.price)) || parseFloat(data.price) < 0)
-        errs.price = 'Ingresa un precio válido (≥ 0)';
-
     if (!data.unit.trim())
         errs.unit = 'La unidad es obligatoria';
 
@@ -168,7 +163,7 @@ export function SupplyManagement() {
 
     // cantidad eliminado — se inicializa en 0 desde el backend al crear
     const emptyForm: FormData = {
-        name: '', description: '', price: '', unit: 'Unidades',
+        name: '', description: '', price: '0', unit: 'Unidades',
         proveedoresIds: [], status: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
@@ -778,37 +773,25 @@ export function SupplyManagement() {
                                 )}
                             </div>
 
-                            {/* Precio + Unidad */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-                                <div>
-                                    <label style={Sf.label}>
-                                        Precio unitario <span style={{ color: '#f87171' }}>*</span>
-                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(≥ 0)</span>
-                                    </label>
-                                    <Input
-                                        type="number" step="0.01" min="0" value={formData.price}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                                        placeholder="45000"
-                                        className={formErrors.price ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
-                                    />
-                                    <FieldError msg={formErrors.price} />
-                                </div>
-                                <div>
-                                    <label style={Sf.label}>Unidad de medida <span style={{ color: '#f87171' }}>*</span></label>
-                                    <Select value={formData.unit} onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}>
-                                        <SelectTrigger className={formErrors.unit ? 'border-red-400' : ''} style={{ height: 40, background: '#fff', fontSize: 14 }}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Unidades">Unidades</SelectItem>
-                                            <SelectItem value="Litros">Litros</SelectItem>
-                                            <SelectItem value="Kilogramos">Kilogramos</SelectItem>
-                                            <SelectItem value="Cajas">Cajas</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FieldError msg={formErrors.unit} />
-                                </div>
+                            {/* Unidad de medida */}
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>Unidad de medida <span style={{ color: '#f87171' }}>*</span></label>
+                                <Select value={formData.unit} onValueChange={(value) => setFormData(prev => ({ ...prev, unit: value }))}>
+                                    <SelectTrigger className={formErrors.unit ? 'border-red-400' : ''} style={{ height: 40, background: '#fff', fontSize: 14 }}>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Unidades">Unidades</SelectItem>
+                                        <SelectItem value="Litros">Litros</SelectItem>
+                                        <SelectItem value="Kilogramos">Kilogramos</SelectItem>
+                                        <SelectItem value="Cajas">Cajas</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FieldError msg={formErrors.unit} />
+                                <p style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Info style={{ width: 12, height: 12, flexShrink: 0 }} />
+                                    El precio se actualiza automáticamente al registrar una compra (siempre se conserva el mayor).
+                                </p>
                             </div>
 
                             {/* Estado — solo al editar */}
