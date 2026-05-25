@@ -37,17 +37,17 @@ import {
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_SELECT_CLASSES: Record<string, string> = {
-  registrada:                'border-gr-300 bg-blue-50 text-blue-900',
-  aprobada_remunera:         'border-green-300 bg-green-50 text-green-900',
+  registrada:                'border-amber-300 bg-amber-50 text-amber-900',
+  aprobada_remunera:         'border-amber-300 bg-amber-50 text-amber-900',
   aprobada_sin_remuneracion: 'border-amber-300 bg-amber-50 text-amber-900',
-  rechazada:                 'border-red-300 bg-red-50 text-red-900',
+  rechazada:                 'border-amber-300 bg-amber-50 text-amber-900',
 };
 
 const ESTADO_COLORS: Record<string, string> = {
-  registrada:                'bg-blue-100 text-blue-900 border-blue-200',
-  aprobada_remunera:         'bg-green-100 text-green-900 border-green-200',
+  registrada:                'bg-amber-100 text-amber-900 border-amber-200',
+  aprobada_remunera:         'bg-amber-100 text-amber-900 border-amber-200',
   aprobada_sin_remuneracion: 'bg-amber-100 text-amber-900 border-amber-200',
-  rechazada:                 'bg-red-100 text-red-900 border-red-200',
+  rechazada:                 'bg-amber-100 text-amber-900 border-amber-200',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -1602,9 +1602,11 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
   };
 
   const HE_ESTADO_SELECT_CLASSES: Record<string, string> = {
-    registrada: 'border-blue-300 bg-blue-50 text-blue-900',
-    aprobada:   'border-green-300 bg-green-50 text-green-900',
-    rechazada:  'border-red-300 bg-red-50 text-red-900',
+    registrada: 'border-amber-300 bg-amber-50 text-amber-900',
+    aprobada:   'border-amber-300 bg-amber-50 text-amber-900',
+    rechazada:  'border-amber-300 bg-amber-50 text-amber-900',
+
+    
   };
 
   const handleCambiarEstadoHE = async (r: HoraExtra, nuevoEstado: 'registrada' | 'aprobada' | 'rechazada') => {
@@ -2139,64 +2141,90 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
 
       {/* Dialog Ver */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle del Registro</DialogTitle>
-            <DialogDescription>Información del recargo u hora extra registrada</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4 mt-2">
-              <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                <div className="col-span-2">
-                  <Badge className={TIPO_BADGE_COLORS[selected.tipo]}>{selected.tipo}</Badge>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
+          <div className="overflow-y-auto max-h-[90vh] p-6">
+            <DialogHeader>
+              <DialogTitle>Detalle del Registro</DialogTitle>
+              <DialogDescription>Información del recargo u hora extra registrada</DialogDescription>
+            </DialogHeader>
+            {selected && (
+              <div className="space-y-4 mt-4">
+                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+
+                  {/* Cabecera */}
+                  <div className="col-span-2 flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <CalendarIcon className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-blue-900 text-lg leading-tight">{selected.tipo}</p>
+                      <Badge className={`mt-1 ${
+                        selected.estado === 'aprobada'
+                          ? 'bg-gray-100 text-gray-900 border-gray-200'
+                          : 'bg-amber-100 text-amber-900 border-amber-200'
+                      }`}>
+                        {HE_ESTADO_LABELS[selected.estado] ?? selected.estado}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Fecha de registro */}
+                  <div>
+                    <p className="text-xs text-gray-500">Fecha de registro</p>
+                    <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                      <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                      {formatFecha(selected.createdAt)}
+                    </p>
+                  </div>
+
+                  {/* Fecha */}
+                  <div>
+                    <p className="text-xs text-gray-500">Fecha</p>
+                    <p className="font-semibold text-sm mt-0.5">{selected.fecha}</p>
+                  </div>
+
+                  {/* Horas */}
+                  <div>
+                    <p className="text-xs text-gray-500">Horas</p>
+                    <p className="font-semibold text-sm mt-0.5">{Number(selected.horas)} h</p>
+                  </div>
+
+                  {/* Empleado */}
+                  <div>
+                    <p className="text-xs text-gray-500">Empleado</p>
+                    <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
+                      <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                      {selected.empleado ? `${selected.empleado.nombres} ${selected.empleado.apellidos}` : '—'}
+                    </p>
+                    {selected.empleado?.cargo && (
+                      <p className="text-xs text-gray-400 mt-0.5">{selected.empleado.cargo}</p>
+                    )}
+                  </div>
+
+                  {/* Observaciones */}
+                  {selected.observaciones && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-500">Observaciones</p>
+                      <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
+                        {selected.observaciones}
+                      </p>
+                    </div>
+                  )}
+
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Empleado</p>
-                  <p className="text-sm font-semibold mt-0.5">
-                    {selected.empleado ? `${selected.empleado.nombres} ${selected.empleado.apellidos}` : '—'}
-                  </p>
-                  {selected.empleado?.cargo && (
-                    <p className="text-xs text-gray-400">{selected.empleado.cargo}</p>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsViewOpen(false)}>Cerrar</Button>
+                  {canEditHE(selected) && (
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => { setIsViewOpen(false); openEdit(selected); }}>
+                      Editar Registro
+                    </Button>
                   )}
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Estado</p>
-                  <Badge className={
-                    selected.estado === 'aprobada'
-                      ? 'bg-green-100 text-green-900 border-green-200 mt-0.5'
-                      : selected.estado === 'rechazada'
-                        ? 'bg-red-100 text-red-900 border-red-200 mt-0.5'
-                        : 'bg-blue-100 text-blue-900 border-blue-200 mt-0.5'
-                  }>
-                    {HE_ESTADO_LABELS[selected.estado] ?? selected.estado}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Fecha</p>
-                  <p className="text-sm font-semibold mt-0.5">{selected.fecha}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Horas</p>
-                  <p className="text-sm font-semibold mt-0.5">{Number(selected.horas)}h</p>
-                </div>
-                {selected.observaciones && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-gray-500">Observaciones</p>
-                    <p className="text-sm mt-0.5 text-gray-700 whitespace-pre-line">{selected.observaciones}</p>
-                  </div>
-                )}
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsViewOpen(false)}>Cerrar</Button>
-                {canEditHE(selected) && (
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => { setIsViewOpen(false); openEdit(selected); }}>
-                    Editar
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

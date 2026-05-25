@@ -10,6 +10,7 @@ import { EmployeeManagement } from '@/features/employed/pages/EmployeeManagement
 import { ProductCatalog } from '@/features/products/pages/ProductCatalog';
 import { ProductCategoryManagement } from '@/features/products/pages/ProductCategoryManagement';
 import { ClientManagement } from '@/features/clients/pages/ClientManagement';
+import { ClientProfile } from '@/features/clients/pages/ClientProfile';
 import { SalesModule } from '@/features/sales/pages/SalesModule';
 import { PurchaseModule } from '@/features/suppliers/pages/PurchaseModule';
 import { SupplierManagement } from '@/features/suppliers/pages/SupplierManagement';
@@ -194,9 +195,10 @@ export default function App() {
 
     // Cliente registrado: Compras (ventas filtradas) + Pedidos + Productos
     return [
-  { id: 'dashboard',        label: 'Dashboard',   icon: <LayoutDashboard size={18} /> },
-  { id: 'catalog',          label: 'Productos',   icon: <Package size={18} /> },
-  { id: 'client-purchases', label: 'Mis Compras', icon: <ShoppingCart size={18} /> },
+  { id: 'dashboard',        label: 'Dashboard',        icon: <LayoutDashboard size={18} /> },
+  { id: 'catalog',          label: 'Productos',         icon: <Package size={18} /> },
+  { id: 'client-purchases', label: 'Mis Compras',       icon: <ShoppingCart size={18} /> },
+  { id: 'my-info',          label: 'Mi Información',    icon: <UserIcon size={18} /> },
 ];
   };
 
@@ -210,6 +212,7 @@ export default function App() {
       case 'client-purchases':    return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-profile':          return D();
+      case 'my-info':             return <ClientProfile />;
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
       case 'users':               return !isClient ? <UserManagement /> : D();
       case 'roles':               return !isClient ? <RoleManagement /> : D();
@@ -250,6 +253,7 @@ export default function App() {
       nomina:                         'Nómina',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
+      'my-info':                      'Mi Información',
       'client-purchases':             'Mis Compras',
     };
     return titles[currentModule] ?? 'Panel Principal';

@@ -168,6 +168,10 @@ function FieldError({ msg }: { msg?: string }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: () => void }) {
+    const stored = localStorage.getItem('jrepuestos_user');
+    const currentUser = stored ? JSON.parse(stored) : null;
+    const isAdmin = currentUser?.role?.toLowerCase() === 'administrador';
+
     const [clients, setClients]         = useState<Cliente[]>([]);
     const [loading, setLoading]         = useState(true);
     const [saving, setSaving]           = useState(false);
@@ -477,12 +481,14 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                     <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Clientes</h1>
                     <p className="text-blue-800">Administra la base de datos de clientes</p>
                 </div>
-                <Button
-                    onClick={() => { resetForm(); setShowModal(true); }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                    <Plus className="w-4 h-4 mr-2" />Nuevo Cliente
-                </Button>
+                {isAdmin && (
+                    <Button
+                        onClick={() => { resetForm(); setShowModal(true); }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        <Plus className="w-4 h-4 mr-2" />Nuevo Cliente
+                    </Button>
+                )}
             </div>
 
             {/* ── Filtros ─────────────────────────────────────────────────── */}
@@ -589,14 +595,22 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
                                                     {/* Estado */}
                                                     <td className="py-4 px-6">
-                                                        <div className="flex items-center gap-2">
-                                                            <Switch
-                                                                checked={client.estado === 'activo'}
-                                                                onCheckedChange={() => handleToggleEstado(client)}
-                                                                disabled={isToggling}
-                                                            />
-                                                            {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
-                                                        </div>
+                                                        {isAdmin ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Switch
+                                                                    checked={client.estado === 'activo'}
+                                                                    onCheckedChange={() => handleToggleEstado(client)}
+                                                                    disabled={isToggling}
+                                                                />
+                                                                {isToggling && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                            </div>
+                                                        ) : (
+                                                            <Badge className={client.estado === 'activo'
+                                                                ? 'bg-blue-100 text-blue-900'
+                                                                : 'bg-gray-100 text-gray-500'}>
+                                                                {client.estado}
+                                                            </Badge>
+                                                        )}
                                                     </td>
 
                                                     {/* Acciones */}
@@ -627,20 +641,22 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
 
-                                                            {/* Eliminar */}
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleDelete(client)}
-                                                                disabled={isToggling}
-                                                                title={isInactive ? 'Cliente inactivo' : 'Eliminar'}
-                                                                className={`border transition-all duration-200 ${
-                                                                    isInactive
-                                                                        ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
-                                                                        : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
-                                                                }`}
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
+                                                            {/* Eliminar — solo administrador */}
+                                                            {isAdmin && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleDelete(client)}
+                                                                    disabled={isToggling}
+                                                                    title={isInactive ? 'Cliente inactivo' : 'Eliminar'}
+                                                                    className={`border transition-all duration-200 ${
+                                                                        isInactive
+                                                                            ? 'bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed'
+                                                                            : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
+                                                                    }`}
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
 
                                                         </div>
                                                     </td>
@@ -911,8 +927,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <FieldError msg={formErrors.direccion} />
                             </div>
 
-                            {/* Estado — solo al editar */}
-                            {editingClient && (
+                            {/* Estado — solo al editar y solo administrador */}
+                            {editingClient && isAdmin && (
                                 <div className="border-t border-gray-200 pt-4">
                                     <div className="flex items-center space-x-3">
                                         <Switch

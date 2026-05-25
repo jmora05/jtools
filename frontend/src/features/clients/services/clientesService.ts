@@ -78,6 +78,33 @@ export const updateCliente = async (id: number, data: {
     return handleResponse(response);
 };
 
+// GET - obtener el propio perfil del cliente autenticado
+export const getClienteMe = async () => {
+    const response = await fetch(`${BASE_URL}/cliente/me`, {
+        headers: buildAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+// PUT - actualizar el propio perfil del cliente autenticado
+export const updateClienteMe = async (data: {
+    nombres?: string;
+    apellidos?: string;
+    razon_social?: string;
+    contacto?: string;
+    telefono?: string;
+    email?: string;
+    direccion?: string;
+    ciudad?: string;
+}) => {
+    const response = await fetch(`${BASE_URL}/cliente/me`, {
+        method: 'PUT',
+        headers: buildAuthHeaders(),
+        body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+};
+
 // DELETE - desactivar cliente
 export const deleteCliente = async (id: number) => {
     const response = await fetch(`${BASE_URL}/clientes/${id}`, {

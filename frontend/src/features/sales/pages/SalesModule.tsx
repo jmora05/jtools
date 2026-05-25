@@ -119,6 +119,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const [clients, setClients] = useState<any[]>([]);
   useEffect(() => {
+    if (clientMode) return;
     const fetchClientes = async () => {
       try {
         const data = await getClientes() as any[];
@@ -134,7 +135,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       }
     };
     fetchClientes();
-  }, []);
+  }, [clientMode]);
 
   const [products, setProducts] = useState<any[]>([]);
   useEffect(() => {
