@@ -535,9 +535,9 @@ export function EmployeeManagement() {
         try {
             await updateEmpleado(emp.id!, { ...emp, estado: nuevoEstado });
             toast.success(`Empleado ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} correctamente`);
-        } catch {
+        } catch (err: any) {
             setEmpleados(prev => prev.map(e => e.id === emp.id ? { ...e, estado: emp.estado } : e));
-            toast.error('Error al cambiar estado');
+            toast.error('Error al cambiar estado: ' + (err?.message ?? 'Error desconocido'));
         } finally {
             setTogglingIds(prev => { const next = new Set(prev); next.delete(emp.id!); return next; });
         }

@@ -22,6 +22,8 @@ import {
   CheckCircleIcon,
   Loader2,
   Info,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import {
   getOrdenesProduccion,
@@ -30,6 +32,7 @@ import {
   anularOrdenProduccion,
   deleteOrdenProduccion,
   type OrdenProduccion,
+  type DevolucionInsumo,
 } from '@/features/orders/services/ordenesproduccionservice';
 import { getProductos } from '@/features/products/services/productosService';
 import { getEmpleados } from '@/features/employed/services/empleadosService';
@@ -151,12 +154,16 @@ function ProductionOrdersSubmodule() {
   const [motivo, setMotivo] = useState('');
   const [motivoTouched, setMotivoTouched] = useState(false);
 
+  // Devoluciones de insumos al anular
+  type DevolucionUI = { insumosId: number; nombre: string; cantidadDescontada: number; cantidadADevolver: string };
+  const [devoluciones, setDevoluciones] = useState<DevolucionUI[]>([]);
+
   const loadOrders = async () => {
     try {
       const data = await getOrdenesProduccion();
       setOrders(data);
-    } catch {
-      toast.error('Error al cargar las órdenes de producción');
+    } catch (err: any) {
+      toast.error('Error al cargar las órdenes de producción: ' + (err?.message ?? 'Error desconocido'));
     } finally {
       setLoading(false);
     }
@@ -323,8 +330,7 @@ function ProductionOrdersSubmodule() {
     if (!nuevoEstado || nuevoEstado === order.estado) return;
     // Si el usuario selecciona 'Anulada' desde el desplegable, abrir modal de anulación
     if (nuevoEstado === 'Anulada') {
-      setSelected(order);
-      setIsAnulOpen(true);
+      openAnulModal(order);
       return;
     }
 
@@ -335,6 +341,25 @@ function ProductionOrdersSubmodule() {
     } catch (err: any) {
       toast.error(err.message || 'Error al actualizar el estado');
     }
+  };
+
+  // Abre el modal de anulación inicializando los campos de devolución
+  const openAnulModal = (order: OrdenProduccion) => {
+    setSelected(order);
+    setMotivo('');
+    setMotivoTouched(false);
+    const insumos = Array.isArray(order.insumosCalculados) ? order.insumosCalculados : [];
+    setDevoluciones(
+      insumos
+        .filter(i => i.cantidadDescontada > 0)
+        .map(i => ({
+          insumosId: i.insumosId,
+          nombre: i.nombre,
+          cantidadDescontada: i.cantidadDescontada,
+          cantidadADevolver: String(i.cantidadDescontada),
+        }))
+    );
+    setIsAnulOpen(true);
   };
 
   const handleAnular = async () => {
@@ -348,13 +373,31 @@ function ProductionOrdersSubmodule() {
       toast.error('El motivo no puede superar los 500 caracteres');
       return;
     }
+    // Validar cantidades de devolución
+    for (const dev of devoluciones) {
+      const val = parseFloat(dev.cantidadADevolver);
+      if (isNaN(val) || val < 0) {
+        toast.error(`La cantidad a devolver de "${dev.nombre}" debe ser un número mayor o igual a 0`);
+        return;
+      }
+      if (val > dev.cantidadDescontada) {
+        toast.error(`No puedes devolver más de ${dev.cantidadDescontada} de "${dev.nombre}"`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await anularOrdenProduccion(selected.id!, motivo.trim());
+      const insumosADevolver: DevolucionInsumo[] = devoluciones.map(d => ({
+        insumosId: d.insumosId,
+        cantidadADevolver: parseFloat(d.cantidadADevolver) || 0,
+      }));
+      await anularOrdenProduccion(selected.id!, motivo.trim(), insumosADevolver);
       toast.success('Orden anulada correctamente');
       setIsAnulOpen(false);
       setMotivo('');
       setMotivoTouched(false);
+      setDevoluciones([]);
       setSelected(null);
       loadOrders();
     } catch (err: any) {
@@ -410,7 +453,7 @@ function ProductionOrdersSubmodule() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -789,19 +832,19 @@ function ProductionOrdersSubmodule() {
 
       {/* Búsqueda y Filtros */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 relative">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 placeholder="Buscar por código o producto..."
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="pl-10"
+                className="pl-10 w-full"
               />
             </div>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
-              <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Estado" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="Pendiente">Pendiente</SelectItem>
@@ -817,16 +860,16 @@ function ProductionOrdersSubmodule() {
 
       {/* Tabla */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Código</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Producto</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Cantidad</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Estado</th>
-                  <th className="text-left py-3 px-4 text-sm text-gray-600">Acciones</th>
+              <thead className="bg-blue-900">
+                <tr>
+                  <th className="text-left py-4 px-6 text-black font-semibold">Código</th>
+                  <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
+                  <th className="text-left py-4 px-6 text-black font-semibold">Cantidad</th>
+                  <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
+                  <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -837,11 +880,11 @@ function ProductionOrdersSubmodule() {
                     </td>
                   </tr>
                 ) : paginated.map(order => (
-                  <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-sm font-medium text-gray-900">{order.codigoOrden}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{order.producto?.nombreProducto ?? '—'}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{order.cantidad}</td>
-                    <td className="py-3 px-4">
+                  <tr key={order.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                    <td className="py-4 px-6 text-sm font-medium text-gray-900">{order.codigoOrden}</td>
+                    <td className="py-4 px-6 text-sm text-gray-700">{order.producto?.nombreProducto ?? '—'}</td>
+                    <td className="py-4 px-6 text-sm text-gray-700">{order.cantidad}</td>
+                    <td className="py-4 px-6">
                       {(TRANSICIONES[order.estado ?? ''] ?? []).length > 0 ? (
                         <select
                           value={order.estado ?? ''}
@@ -857,7 +900,7 @@ function ProductionOrdersSubmodule() {
                         <span className="text-sm text-gray-500">{order.estado}</span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-4 px-6">
                       <div className="flex items-center gap-1">
                         <Button size="sm" title="Ver detalle"
                           onClick={() => { setSelected(order); setIsViewOpen(true); }}
@@ -884,25 +927,25 @@ function ProductionOrdersSubmodule() {
               </tbody>
             </table>
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-6">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Button>
-              {[...Array(totalPages)].map((_, i) => {
-                const n = i + 1;
-                return n === currentPage
-                  ? <Button key={n} variant="outline" size="sm" className="bg-blue-600 text-white hover:bg-blue-700 min-w-[40px]">{n}</Button>
-                  : <Button key={n} variant="ghost" size="sm" className="w-8" onClick={() => setCurrentPage(n)}>•</Button>;
-              })}
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronRightIcon className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
+            <ChevronLeftIcon className="w-4 h-4" />
+          </Button>
+          {[...Array(totalPages)].map((_, i) => {
+            const n = i + 1;
+            return n === currentPage
+              ? <Button key={n} variant="outline" size="sm" className="bg-blue-600 text-white hover:bg-blue-700 min-w-[40px]">{n}</Button>
+              : <Button key={n} variant="ghost" size="sm" className="w-8" onClick={() => setCurrentPage(n)}>•</Button>;
+          })}
+          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
+            <ChevronRightIcon className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Modal Ver Detalle */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
@@ -941,7 +984,7 @@ function ProductionOrdersSubmodule() {
                       Cambiar Estado
                     </Button>
                     <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => { setIsViewOpen(false); setMotivo(''); setIsAnulOpen(true); }}>
+                      onClick={() => { setIsViewOpen(false); openAnulModal(selected!); }}>
                       <XCircleIcon className="w-4 h-4 mr-2" />
                       Anular
                     </Button>
@@ -1070,7 +1113,7 @@ function ProductionOrdersSubmodule() {
             <div>
               {canEdit(selected?.estado) && (
                 <Button variant="outline" type="button" disabled={submitting}
-                  onClick={() => { setIsStatusOpen(false); setMotivo(''); setMotivoTouched(false); setIsAnulOpen(true); }}
+                  onClick={() => { setIsStatusOpen(false); openAnulModal(selected!); }}
                   style={{ height: 36, padding: '0 16px', color: '#6b7280', borderColor: '#e5e7eb' }}>
                   <XCircleIcon style={{ width: 15, height: 15, marginRight: 6 }} />
                   Anular
@@ -1091,56 +1134,175 @@ function ProductionOrdersSubmodule() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Anular */}
-      <Dialog open={isAnulOpen} onOpenChange={(o) => { if (!o) { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); } }}>
-        <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Anular Orden de Producción</DialogTitle>
-              <DialogDescription>
-                {selected?.estado === 'Pausada'
-                  ? 'Advertencia: al anular una orden en pausa la orden pasará a estado Anulada y se repondrán los insumos que ya se utilizaron.'
-                  : 'Esta acción no se puede deshacer. Indica el motivo de la anulación.'}
+      {/* ═══ Modal Anular ═══ */}
+      <Dialog open={isAnulOpen} onOpenChange={(o) => {
+        if (!o) { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); setDevoluciones([]); }
+      }}>
+        <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '96vw', maxWidth: 560, display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
+
+          {/* Header */}
+          <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid #e5e7eb', flexShrink: 0, background: '#fff' }}>
+            <div style={{ width: 40, height: 40, background: '#1d4ed8', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <XCircleIcon style={{ width: 20, height: 20, color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
+              <DialogTitle style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: 0 }}>
+                Anular Orden — {selected?.codigoOrden}
+              </DialogTitle>
+              <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                Completa los datos para confirmar la anulación.
               </DialogDescription>
-            </DialogHeader>
+            </div>
+          </header>
+
+          {/* Body */}
           {selected && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-700">Orden: <strong>{selected.codigoOrden}</strong></p>
-              <div className="space-y-2">
-                {selected?.estado === 'Pausada' && (
-                  <div className="p-3 rounded bg-orange-50 border border-orange-100">
-                    <p className="text-sm text-orange-700 font-medium">Al anular esta orden en pausa, los insumos descontados serán restaurados automáticamente al inventario.</p>
-                  </div>
-                )}
-                <Label>Motivo de Anulación * <span className="text-xs text-gray-400">(10–500 caracteres)</span></Label>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Motivo */}
+              <div>
+                <Label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                  Motivo de Anulación <span style={{ color: '#f87171' }}>*</span>
+                  <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 4 }}>(10–500 caracteres)</span>
+                </Label>
                 <Textarea
                   value={motivo}
                   onChange={(e) => { setMotivo(e.target.value); if (motivoTouched) setMotivoTouched(true); }}
                   onBlur={() => setMotivoTouched(true)}
                   placeholder="Describe el motivo de la anulación..."
-                  rows={4}
+                  rows={3}
                   maxLength={501}
-                  style={{ borderColor: motivoError ? '#f87171' : undefined, resize: 'none' }}
+                  style={{ fontSize: 13, resize: 'none', borderColor: motivoError ? '#f87171' : undefined }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                   <OPFieldError message={motivoError} />
-                  <span style={{
-                    fontSize: 11, marginLeft: 'auto',
-                    color: motivo.trim().length > 500 ? '#ef4444' : '#9ca3af',
-                    fontWeight: motivo.trim().length > 500 ? 600 : 400,
-                  }}>
+                  <span style={{ fontSize: 11, marginLeft: 'auto', color: motivo.trim().length > 500 ? '#ef4444' : '#9ca3af', fontWeight: motivo.trim().length > 500 ? 600 : 400 }}>
                     {motivo.trim().length}/500
                   </span>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); }}>Cancelar</Button>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAnular} disabled={submitting || motivo.trim().length < 10 || motivo.trim().length > 500}>
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Anular Orden
-                </Button>
+
+              {/* Devolución de insumos — solo si hay insumos consumidos */}
+              {devoluciones.length > 0 ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <RotateCcw style={{ width: 15, height: 15, color: '#3b82f6' }} />
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1e3a8a', margin: 0 }}>
+                      Devolución de Insumos al Inventario
+                    </p>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+                    Indica cuánto de cada insumo deseas devolver. Por defecto se devuelve todo lo consumido.
+                  </p>
+
+                  {/* Encabezado columnas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px', gap: 8, padding: '4px 10px', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Insumo</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Consumido</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>A devolver</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {devoluciones.map((dev, i) => {
+                      const val = parseFloat(dev.cantidadADevolver);
+                      const esInvalido = dev.cantidadADevolver !== '' && (isNaN(val) || val < 0 || val > dev.cantidadDescontada);
+                      return (
+                        <div key={dev.insumosId} style={{
+                          display: 'grid', gridTemplateColumns: '1fr 100px 110px', gap: 8, alignItems: 'center',
+                          padding: '8px 10px', background: esInvalido ? '#fef2f2' : '#f8fafc',
+                          borderRadius: 8, border: `1px solid ${esInvalido ? '#fca5a5' : '#e2e8f0'}`,
+                        }}>
+                          {/* Nombre */}
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 500, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {dev.nombre}
+                            </p>
+                          </div>
+                          {/* Cantidad consumida */}
+                          <p style={{ fontSize: 13, color: '#6b7280', textAlign: 'right', margin: 0 }}>
+                            {dev.cantidadDescontada}
+                          </p>
+                          {/* Input cantidad a devolver */}
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={dev.cantidadADevolver}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: raw } : d));
+                              }}
+                              style={{
+                                flex: 1, height: 32, textAlign: 'right', fontSize: 13, fontWeight: 600,
+                                padding: '0 8px', borderRadius: 6,
+                                border: `1px solid ${esInvalido ? '#f87171' : '#d1d5db'}`,
+                                background: '#fff', outline: 'none', minWidth: 0,
+                              }}
+                            />
+                            <button
+                              type="button"
+                              title="Devolver todo"
+                              onClick={() => setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: String(d.cantidadDescontada) } : d))}
+                              style={{ flexShrink: 0, height: 32, padding: '0 6px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}
+                            >
+                              Todo
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Sin insumos consumidos */
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                  <Info style={{ width: 15, height: 15, color: '#6b7280', flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+                    Esta orden no tiene insumos consumidos que devolver al inventario.
+                  </p>
+                </div>
+              )}
+
+              {/* Advertencia final */}
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 12 }}>
+                <AlertTriangle style={{ width: 18, height: 18, color: '#1d4ed8', flexShrink: 0, marginTop: 1 }} />
+                <div style={{ fontSize: 13, color: '#1e3a8a', lineHeight: 1.5 }}>
+                  <p style={{ fontWeight: 700, margin: '0 0 4px 0' }}>Esta acción no se puede deshacer.</p>
+                  {devoluciones.length > 0 ? (
+                    <p style={{ margin: 0 }}>
+                      La orden <strong>{selected.codigoOrden}</strong> quedará en estado <strong>Anulada</strong>{' '}
+                      y las cantidades indicadas serán sumadas de vuelta al inventario de insumos.
+                      Si colocas <strong>0</strong> en un insumo, ese insumo <strong>no</strong> se devolverá.
+                    </p>
+                  ) : (
+                    <p style={{ margin: 0 }}>
+                      La orden <strong>{selected.codigoOrden}</strong> quedará en estado <strong>Anulada</strong>.
+                      No hay insumos que devolver.
+                    </p>
+                  )}
+                </div>
               </div>
+
             </div>
           )}
+
+          {/* Footer */}
+          <footer style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '12px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+            <Button variant="outline"
+              onClick={() => { setIsAnulOpen(false); setMotivo(''); setMotivoTouched(false); setDevoluciones([]); }}
+              disabled={submitting}
+              style={{ height: 36, padding: '0 16px' }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAnular}
+              disabled={submitting || motivo.trim().length < 10 || motivo.trim().length > 500}
+              style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
+              className="hover:bg-blue-700">
+              {submitting && <Loader2 style={{ width: 15, height: 15, marginRight: 8 }} className="animate-spin" />}
+              Confirmar Anulación
+            </Button>
+          </footer>
         </DialogContent>
       </Dialog>
 

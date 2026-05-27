@@ -371,20 +371,36 @@ const anularOrdenProduccion = async (req, res) => {
     const insumosCalculados = Array.isArray(orden.insumosCalculados) ? orden.insumosCalculados : [];
     const insumosRestaurados = [];
 
+    // insumosADevolver: array opcional con cantidades personalizadas a devolver
+    // Formato: [{ insumosId: number, cantidadADevolver: number }, ...]
+    const { motivoAnulacion, insumosADevolver } = req.body;
+
     for (const item of insumosCalculados) {
       if (!item.insumosId || !item.cantidadDescontada) continue;
 
       const insumo = await Insumos.findByPk(item.insumosId, { transaction });
       if (!insumo) continue;
 
+      // Determinar cuánto devolver: si el cliente especificó una cantidad personalizada, usarla
+      // limitada entre 0 y el total descontado; de lo contrario devolver todo.
+      let cantidadARestaurar = item.cantidadDescontada;
+      if (Array.isArray(insumosADevolver) && insumosADevolver.length > 0) {
+        const override = insumosADevolver.find(d => Number(d.insumosId) === Number(item.insumosId));
+        if (override !== undefined) {
+          cantidadARestaurar = Math.max(0, Math.min(Number(override.cantidadADevolver) || 0, item.cantidadDescontada));
+        }
+      }
+
+      if (cantidadARestaurar <= 0) continue;
+
       const stockAnterior = insumo.cantidad ?? 0;
-      const cantidadRestaurada = stockAnterior + item.cantidadDescontada;
+      const cantidadRestaurada = stockAnterior + cantidadARestaurar;
       await insumo.update({ cantidad: cantidadRestaurada }, { transaction });
 
       insumosRestaurados.push({
         insumosId: item.insumosId,
         nombre: insumo.nombreInsumo,
-        cantidadRestaurada: item.cantidadDescontada,
+        cantidadRestaurada: cantidadARestaurar,
         stockAnterior,
         stockNuevo: cantidadRestaurada,
       });
@@ -392,13 +408,11 @@ const anularOrdenProduccion = async (req, res) => {
       console.info('Insumo restaurado al anular orden', {
         codigoOrden: orden.codigoOrden,
         insumo: insumo.nombreInsumo,
-        cantidadRestaurada: item.cantidadDescontada,
+        cantidadRestaurada: cantidadARestaurar,
         stockAnterior,
         stockNuevo: cantidadRestaurada,
       });
     }
-
-    const { motivoAnulacion } = req.body;
     await orden.update(
       { estado: 'Anulada', motivoAnulacion: motivoAnulacion.trim(), insumosCalculados: [] },
       { transaction }

@@ -13,20 +13,20 @@ import { toast } from 'sonner';
 import {
     Plus, Search, Eye, Edit, Trash2, AlertTriangle,
     ChevronLeft, ChevronRight, FileText,
-    CheckCircle, XCircle, List, Ruler,
+    CheckCircle, XCircle, List,
     Calendar, Loader2, CheckCircle2,
     Lock, X, User,
 } from 'lucide-react';
 import {
     getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica, puedeEliminarFichaTecnica,
-    type FichaTecnica, type Medida, type InsumoFT,
+    type FichaTecnica, type InsumoFT,
 } from '../services/fichaTecnicaService';
 import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../services/http';
 import { getInsumosDisponibles, type InsumoDisponible } from '../services/insumosService';
 import {
-    validarMedida, validarMedidaCampos, validarInsumoCampos,
+    validarInsumoCampos,
     validarFormCrear, validarFormEditar, validarNotasCampo,
-    filtrarParametro, filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
+    filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
 
@@ -57,21 +57,20 @@ const EMPTY_MAQUINA = {
 type MaquinaFormState = typeof EMPTY_MAQUINA;
 
 function toMaquinaPayload(m: MaquinaFormState) {
-    const n = (s: string) => (s ? parseInt(s) || 0 : 0);
     const f = (s: string) => (s ? parseFloat(s) || 0 : 0);
     return {
         unidadInyeccion: {
-            tolva:            { velocidad: n(m.tolva.velocidad),            presion: n(m.tolva.presion) },
-            inyeccion:        { velocidad: n(m.inyeccion.velocidad),        presion: n(m.inyeccion.presion) },
-            segundaInyeccion: { velocidad: n(m.segundaInyeccion.velocidad), presion: n(m.segundaInyeccion.presion) },
-            carga:            { velocidad: n(m.carga.velocidad),            presion: n(m.carga.presion), contrapresion: n(m.carga.extra) },
-            decompresion:     { velocidad: n(m.decompresion.velocidad),     presion: n(m.decompresion.presion) },
+            tolva:            { velocidad: f(m.tolva.velocidad),            presion: f(m.tolva.presion) },
+            inyeccion:        { velocidad: f(m.inyeccion.velocidad),        presion: f(m.inyeccion.presion) },
+            segundaInyeccion: { velocidad: f(m.segundaInyeccion.velocidad), presion: f(m.segundaInyeccion.presion) },
+            carga:            { velocidad: f(m.carga.velocidad),            presion: f(m.carga.presion), contrapresion: f(m.carga.extra) },
+            decompresion:     { velocidad: f(m.decompresion.velocidad),     presion: f(m.decompresion.presion) },
         },
         prensa: {
-            abrir:       { velocidad: n(m.abrir.velocidad),       presion: n(m.abrir.presion) },
-            cerrar:      { velocidad: n(m.cerrar.velocidad),      presion: n(m.cerrar.presion) },
-            seguroMolde: { velocidad: n(m.seguroMolde.velocidad), presion: n(m.seguroMolde.presion) },
-            botador:     { velocidad: n(m.botador.velocidad),     presion: n(m.botador.presion), numSalidas: n(m.botador.extra) },
+            abrir:       { velocidad: f(m.abrir.velocidad),       presion: f(m.abrir.presion) },
+            cerrar:      { velocidad: f(m.cerrar.velocidad),      presion: f(m.cerrar.presion) },
+            seguroMolde: { velocidad: f(m.seguroMolde.velocidad), presion: f(m.seguroMolde.presion) },
+            botador:     { velocidad: f(m.botador.velocidad),     presion: f(m.botador.presion), numSalidas: f(m.botador.extra) },
         },
         temperaturas: {
             boquilla: f(m.temperaturas.boquilla),
@@ -88,6 +87,53 @@ function toMaquinaPayload(m: MaquinaFormState) {
             descompresion:    f(m.tiempos.descompresion),
         },
     };
+}
+
+// ─── Validación de parámetros de máquina (no negativos, no ceros) ────────────
+function validarParametrosMaquina(m: MaquinaFormState): string | null {
+    const check = (val: string, label: string): string | null => {
+        if (!val || val.trim() === '') return null; // vacío = no ingresado, OK
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) return `${label}: el valor debe ser mayor a 0`;
+        return null;
+    };
+    const errores: string[] = [];
+    const p = (e: string | null) => { if (e) errores.push(e); };
+    // Unidad de Inyección
+    p(check(m.tolva.velocidad,            'Tolva — Velocidad'));
+    p(check(m.tolva.presion,              'Tolva — Presión'));
+    p(check(m.inyeccion.velocidad,        'Inyección — Velocidad'));
+    p(check(m.inyeccion.presion,          'Inyección — Presión'));
+    p(check(m.segundaInyeccion.velocidad, '2a Inyección — Velocidad'));
+    p(check(m.segundaInyeccion.presion,   '2a Inyección — Presión'));
+    p(check(m.carga.velocidad,            'Carga — Velocidad'));
+    p(check(m.carga.presion,              'Carga — Presión'));
+    p(check(m.carga.extra,               'Carga — Contrapresión'));
+    p(check(m.decompresion.velocidad,     'Descompresión — Velocidad'));
+    p(check(m.decompresion.presion,       'Descompresión — Presión'));
+    // Prensa
+    p(check(m.abrir.velocidad,            'Prensa Abrir — Velocidad'));
+    p(check(m.abrir.presion,              'Prensa Abrir — Presión'));
+    p(check(m.cerrar.velocidad,           'Prensa Cerrar — Velocidad'));
+    p(check(m.cerrar.presion,             'Prensa Cerrar — Presión'));
+    p(check(m.seguroMolde.velocidad,      'Seguro de Molde — Velocidad'));
+    p(check(m.seguroMolde.presion,        'Seguro de Molde — Presión'));
+    p(check(m.botador.velocidad,          'Botador — Velocidad'));
+    p(check(m.botador.presion,            'Botador — Presión'));
+    p(check(m.botador.extra,             'Botador — Nro. Salidas'));
+    // Temperaturas
+    p(check(m.temperaturas.boquilla,      'Temperatura Boquilla'));
+    p(check(m.temperaturas.z1,            'Temperatura Z1'));
+    p(check(m.temperaturas.z2,            'Temperatura Z2'));
+    p(check(m.temperaturas.z3,            'Temperatura Z3'));
+    // Tiempos
+    p(check(m.tiempos.enfriamiento,       'Tiempo Enfriamiento'));
+    p(check(m.tiempos.pausa,              'Tiempo Pausa'));
+    p(check(m.tiempos.retardoInyeccion,   'Tiempo Retardo de inyección'));
+    p(check(m.tiempos.inyeccion,          'Tiempo Inyección'));
+    p(check(m.tiempos.segundaInyeccion,   'Tiempo 2a Inyección'));
+    p(check(m.tiempos.descompresion,      'Tiempo Descompresión'));
+    return errores.length > 0 ? errores[0] : null;
 }
 
 function fromMaquinaPayload(pm: any): MaquinaFormState {
@@ -290,100 +336,6 @@ function InsumosSection({ insumos, setInsumos, catalogoInsumos, loadingInsumos, 
     );
 }
 
-// ─── MedidasSection ───────────────────────────────────────────────────────────
-function MedidasSection({ medidas, setMedidas }: { medidas: Medida[]; setMedidas: (v: Medida[]) => void }) {
-    const [newMed, setNewMed] = useState<{ parameter: string; value: number; unit: string }>({ parameter: '', value: 0, unit: '' });
-    const [medErrors, setMedErrors] = useState<ItemErrors>({});
-    const [medSubmitted, setMedSubmitted] = useState(false);
-
-    function updateMedField(campo: 'parameter' | 'value' | 'unit', valor: string | number) {
-        let valorFiltrado: string | number = valor;
-        if (campo === 'parameter') valorFiltrado = filtrarParametro(String(valor));
-        else if (campo === 'value') { const numStr = String(valor).replace(/[^0-9.]/g, ''); valorFiltrado = numStr === '' ? 0 : parseFloat(numStr) || 0; }
-        else if (campo === 'unit') valorFiltrado = filtrarUnidad(String(valor));
-
-        const nuevaMed = { ...newMed, [campo]: valorFiltrado };
-        setNewMed(nuevaMed);
-        if (medSubmitted) setMedErrors(validarMedidaCampos(nuevaMed));
-    }
-
-    const addMed = () => {
-        setMedSubmitted(true);
-        const camposErr = validarMedidaCampos(newMed);
-        setMedErrors(camposErr);
-        const { valid, errors } = validarMedida(newMed);
-        if (!valid) { toast.error(errors[0]); return; }
-        setMedidas([...medidas, { parameter: newMed.parameter.trim(), value: newMed.value, unit: newMed.unit.trim() }]);
-        setNewMed({ parameter: '', value: 0, unit: '' });
-        setMedErrors({});
-        setMedSubmitted(false);
-    };
-
-    const inputErr = (hasErr: boolean) => hasErr ? 'border-red-400 focus-visible:ring-red-300' : '';
-
-    return (
-        <div className="border border-blue-100 rounded-lg overflow-hidden">
-            <div className="bg-blue-50 py-3 px-4">
-                <p className="text-sm font-semibold text-blue-900">
-                    Medidas y Especificaciones
-                    <span className="text-gray-400 text-xs font-normal ml-1">(Opcional, máx. 30)</span>
-                </p>
-            </div>
-            <div className="p-4 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                        <Label className="text-xs">Parámetro</Label>
-                        <Input placeholder="Ej: Diámetro exterior"
-                            value={newMed.parameter}
-                            onChange={e => updateMedField('parameter', e.target.value)} className={inputErr(!!medErrors.parameter)} />
-                        <FieldError mensaje={medErrors.parameter} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">Valor</Label>
-                        <Input type="text" inputMode="decimal" placeholder="Ej: 95"
-                            value={newMed.value || ''}
-                            onChange={e => updateMedField('value', e.target.value)} className={inputErr(!!medErrors.value)} />
-                        <FieldError mensaje={medErrors.value} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">Unidad</Label>
-                        <select className={selectCls(!!medErrors.unit)} value={newMed.unit}
-                            onChange={e => updateMedField('unit', e.target.value)}>
-                            <option value="">Seleccionar unidad</option>
-                            <option value="cm">Centímetros (cm)</option>
-                            <option value="m">Metros (m)</option>
-                            <option value="mm">Milímetros (mm)</option>
-                            <option value="g">Gramos (g)</option>
-                            <option value="kg">Kilogramos (kg)</option>
-                            <option value="L">Litros (L)</option>
-                            <option value="ml">Mililitros (ml)</option>
-                            <option value="unidad">Unidad</option>
-                            <option value="pulgadas">Pulgadas (in)</option>
-                        </select>
-                        <FieldError mensaje={medErrors.unit} />
-                    </div>
-                </div>
-                <Button type="button" variant="outline" onClick={addMed} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">
-                    <Plus className="w-4 h-4 mr-2" />Agregar Medida
-                </Button>
-                {medidas.map((m, i) => (
-                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded p-3 border text-sm">
-                        <span className="text-gray-700">{m.parameter}</span>
-                        <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="text-xs">{m.value} {m.unit}</Badge>
-                            <Button type="button" variant="ghost" size="sm"
-                                onClick={() => setMedidas(medidas.filter((_, j) => j !== i))}
-                                className="text-blue-500 hover:text-blue-700 h-7 w-7 p-0">
-                                <Trash2 className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
 // ─── Machine param block ──────────────────────────────────────────────────────
 const inputBase: React.CSSProperties = {
     width: '100%', height: 34, textAlign: 'center',
@@ -398,8 +350,8 @@ const rowLabel: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: '#
 
 function NI({ val, set }: { val: string; set: (v: string) => void }) {
     return (
-        <input type="text" inputMode="numeric" placeholder="0" value={val}
-            onChange={e => set(e.target.value.replace(/[^0-9]/g, ''))}
+        <input type="text" inputMode="decimal" placeholder="0.0" value={val}
+            onChange={e => set(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))}
             style={inputBase}
         />
     );
@@ -539,10 +491,8 @@ export function TechnicalSheetModule() {
     const [createInfoErrors, setCreateInfoErrors] = useState<{ productoId?: string; notas?: string }>({});
     const [editInfoErrors, setEditInfoErrors]     = useState<{ notas?: string }>({});
 
-    // Medidas & Insumos
-    const [cMedidas, setCMedidas] = useState<Medida[]>([]);
+    // Insumos
     const [cInsumos, setCInsumos] = useState<InsumoFT[]>([]);
-    const [eMedidas, setEMedidas] = useState<Medida[]>([]);
     const [eInsumos, setEInsumos] = useState<InsumoFT[]>([]);
 
     // Nuevos campos
@@ -648,7 +598,7 @@ export function TechnicalSheetModule() {
     // ── Reset ───────────────────────────────────────────────────────────────
     const resetCreate = () => {
         setCreateForm(EMPTY_FORM);
-        setCMedidas([]); setCInsumos([]);
+        setCInsumos([]);
         setCNumeroMolde(''); setCResponsableId('');
         setCMaquina({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
         setCreateInfoErrors({});
@@ -686,18 +636,20 @@ export function TechnicalSheetModule() {
             toast.error(`Este producto ya tiene la ficha activa ${codigo}. Inactívala primero.`);
             return;
         }
-        const { valid, errors } = validarFormCrear(createForm, cMedidas, cInsumos);
+        const { valid, errors } = validarFormCrear(createForm, [], cInsumos);
         if (!valid) { toast.error(errors[0]); return; }
+
+        const maquinaErr = validarParametrosMaquina(cMaquina);
+        if (maquinaErr) { toast.error(maquinaErr); return; }
 
         setSaving(true);
         try {
             const res = await createFichaTecnica({
                 productoId:        parseInt(createForm.productoId),
                 procesos:          [],
-                medidas:           cMedidas,
                 insumos:           cInsumos,
                 notas:             createForm.notas || undefined,
-                numeroMolde:       cNumeroMolde ? parseInt(cNumeroMolde) : undefined,
+                numeroMolde:       cNumeroMolde ? cNumeroMolde : undefined,
                 parametrosMaquina: toMaquinaPayload(cMaquina),
                 responsableId:     cResponsableId ? parseInt(cResponsableId) : undefined,
             });
@@ -717,9 +669,8 @@ export function TechnicalSheetModule() {
     const openEdit = (f: FichaTecnica) => {
         setSelectedFicha(f);
         setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
-        setEMedidas(f.medidas ?? []);
         setEInsumos(f.insumos ?? []);
-        setENumeroMolde(f.numeroMolde != null ? String(f.numeroMolde) : '');
+        setENumeroMolde(f.numeroMolde ?? '');
         setEResponsableId(f.responsableId != null ? String(f.responsableId) : '');
         setEMaquina(fromMaquinaPayload(f.parametrosMaquina));
         setEditInfoErrors({});
@@ -731,17 +682,19 @@ export function TechnicalSheetModule() {
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedFicha?.id) return;
-        const { valid, errors } = validarFormEditar(eMedidas, eInsumos, editForm.notas);
+        const { valid, errors } = validarFormEditar([], eInsumos, editForm.notas);
         if (!valid) { toast.error(errors[0]); return; }
+
+        const maquinaErr = validarParametrosMaquina(eMaquina);
+        if (maquinaErr) { toast.error(maquinaErr); return; }
 
         setSaving(true);
         try {
             await updateFichaTecnica(selectedFicha.id, {
-                medidas:           eMedidas,
                 insumos:           eInsumos,
                 notas:             editForm.notas || undefined,
                 estado:            editForm.estado,
-                numeroMolde:       eNumeroMolde ? parseInt(eNumeroMolde) : null,
+                numeroMolde:       eNumeroMolde ? eNumeroMolde : null,
                 parametrosMaquina: toMaquinaPayload(eMaquina),
                 responsableId:     eResponsableId ? parseInt(eResponsableId) : null,
             });
@@ -853,10 +806,7 @@ export function TechnicalSheetModule() {
                                         return (
                                             <tr key={ficha.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                                                 <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <FileText className={`w-4 h-4 shrink-0 ${isInactiva ? 'text-gray-300' : 'text-blue-600'}`} />
-                                                        <span className={`text-sm font-semibold ${isInactiva ? 'text-gray-400' : 'text-blue-900'}`}>{ficha.codigoFicha}</span>
-                                                    </div>
+                                                    <span className={`text-sm font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.codigoFicha}</span>
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <p className={`font-semibold ${isInactiva ? 'text-gray-400' : 'text-gray-900'}`}>{ficha.producto?.nombreProducto ?? '—'}</p>
@@ -1016,17 +966,16 @@ export function TechnicalSheetModule() {
                                     <FieldError mensaje={createInfoErrors.productoId} />
                                 </div>
 
-                                {/* Número de Molde */}
+                                {/* Molde */}
                                 <div>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                                        Número de Molde
+                                        Molde
                                     </label>
                                     <Input
                                         type="text"
-                                        inputMode="numeric"
-                                        placeholder="Ej: 1234"
+                                        placeholder="Ej: MOL-001"
                                         value={cNumeroMolde}
-                                        onChange={e => setCNumeroMolde(e.target.value.replace(/[^0-9]/g, ''))}
+                                        onChange={e => setCNumeroMolde(e.target.value.replace(/[^a-zA-Z0-9\-]/g, ''))}
                                     />
                                 </div>
 
@@ -1099,8 +1048,7 @@ export function TechnicalSheetModule() {
                                     onSet={(campo, val) => setC('tiempos', campo, val)}
                                 />
 
-                                {/* 6. Medidas */}
-                                <MedidasSection medidas={cMedidas} setMedidas={setCMedidas} />
+
                             </div>
                         </section>
                     </form>
@@ -1147,7 +1095,7 @@ export function TechnicalSheetModule() {
                                     </div>
                                     {selectedFicha.numeroMolde != null && (
                                         <div>
-                                            <p className="text-xs text-gray-500 uppercase">Número de Molde</p>
+                                            <p className="text-xs text-gray-500 uppercase">Molde</p>
                                             <p className="font-semibold text-sm mt-1">{selectedFicha.numeroMolde}</p>
                                         </div>
                                     )}
@@ -1286,24 +1234,6 @@ export function TechnicalSheetModule() {
                                     </div>
                                 )}
 
-                                {(selectedFicha.medidas ?? []).length > 0 && (
-                                    <div className="border border-blue-100 rounded-lg overflow-hidden">
-                                        <div className="bg-blue-50 py-3 px-4">
-                                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                                                <Ruler className="w-4 h-4" />Medidas y Especificaciones
-                                            </p>
-                                        </div>
-                                        <div className="p-4 space-y-2">
-                                            {(selectedFicha.medidas ?? []).map((m, i) => (
-                                                <div key={i} className="flex justify-between bg-gray-50 rounded p-3 border text-sm">
-                                                    <span>{m.parameter}</span>
-                                                    <Badge variant="outline">{m.value} {m.unit}</Badge>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
                                     {selectedFicha.estado === 'Activa' && (
@@ -1359,11 +1289,11 @@ export function TechnicalSheetModule() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm text-gray-700 mb-2">Número de Molde</label>
+                                            <label className="block text-sm text-gray-700 mb-2">Molde</label>
                                             <Input
-                                                type="text" inputMode="numeric" placeholder="Ej: 1234"
+                                                type="text" placeholder="Ej: MOL-001"
                                                 value={eNumeroMolde}
-                                                onChange={e => setENumeroMolde(e.target.value.replace(/[^0-9]/g, ''))}
+                                                onChange={e => setENumeroMolde(e.target.value.replace(/[^a-zA-Z0-9\-]/g, ''))}
                                             />
                                         </div>
                                     </div>
@@ -1417,9 +1347,6 @@ export function TechnicalSheetModule() {
                                 tiempos={eMaquina.tiempos}
                                 onSet={(campo, val) => setE('tiempos', campo, val)}
                             />
-
-                            {/* Medidas */}
-                            <MedidasSection medidas={eMedidas} setMedidas={setEMedidas} />
 
                             {errorInsumos && (
                                 <p className="text-red-500 text-sm flex items-center gap-1">

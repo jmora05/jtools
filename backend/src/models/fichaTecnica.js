@@ -67,9 +67,9 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
     },
 
     numeroMolde: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING(50),
         allowNull: true,
-        comment: 'Número de molde de la pieza'
+        comment: 'Identificador del molde (letras, números y guiones, ej: MOL-001)'
     },
 
     parametrosMaquina: {

@@ -3,6 +3,12 @@ import { getApiBaseUrl, buildAuthHeaders, handleResponse } from '../../../servic
 export type EstadoOrden = 'Pendiente' | 'En Proceso' | 'Pausada' | 'Finalizada' | 'Anulada';
 export type TipoOrden   = 'Venta';
 
+export type InsumoCalculado = {
+  insumosId: number;
+  nombre: string;
+  cantidadDescontada: number;
+};
+
 export type OrdenProduccion = {
   id?: number;
   codigoOrden?: string;
@@ -16,6 +22,7 @@ export type OrdenProduccion = {
   fechaFin?: string;
   nota?: string;
   motivoAnulacion?: string;
+  insumosCalculados?: InsumoCalculado[];
   createdAt?: string;
   updatedAt?: string;
   producto?: { id: number; nombreProducto: string; referencia: string };
@@ -77,14 +84,20 @@ export async function updateOrdenProduccion(
   return handleResponse(res);
 }
 
+export type DevolucionInsumo = {
+  insumosId: number;
+  cantidadADevolver: number;
+};
+
 export async function anularOrdenProduccion(
   id: number,
-  motivoAnulacion: string
+  motivoAnulacion: string,
+  insumosADevolver?: DevolucionInsumo[]
 ): Promise<{ message: string; orden: OrdenProduccion }> {
   const res = await fetch(`${BASE}/ordenes-produccion/${id}/anular`, {
     method: 'PUT',
     headers: buildAuthHeaders(),
-    body: JSON.stringify({ motivoAnulacion }),
+    body: JSON.stringify({ motivoAnulacion, insumosADevolver }),
   });
   return handleResponse(res);
 }

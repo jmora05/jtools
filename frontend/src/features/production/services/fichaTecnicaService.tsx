@@ -45,7 +45,7 @@ export type FichaTecnica = {
   medidas?: Medida[];
   insumos?: InsumoFT[];
   notas?: string;
-  numeroMolde?: number | null;
+  numeroMolde?: string | null;
   parametrosMaquina?: ParametrosMaquina | null;
   responsableId?: number | null;
   createdAt?: string;
@@ -66,7 +66,7 @@ export type CreateFichaPayload = {
   medidas?: Medida[];
   insumos?: InsumoFT[];
   notas?: string;
-  numeroMolde?: number;
+  numeroMolde?: string;
   parametrosMaquina?: ParametrosMaquina;
   responsableId?: number;
 };
@@ -77,7 +77,7 @@ export type UpdateFichaPayload = Partial<{
   insumos: InsumoFT[];
   notas: string;
   estado: 'Activa' | 'Inactiva';
-  numeroMolde: number | null;
+  numeroMolde: string | null;
   parametrosMaquina: ParametrosMaquina | null;
   responsableId: number | null;
 }>;
