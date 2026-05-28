@@ -92,7 +92,10 @@ app.use('/api/nomina',                  verifyToken, requireAdmin, nominaRoutes)
 // ================= CONEXIÓN + SINCRONIZACIÓN =================
 testConnection()
 .then(() => {
-    return sequelize.sync({ alter: true }); // 🔥 sincroniza estructura sin borrar datos
+    // Evitar que Sequelize intente alterar enums/constraints automáticamente
+    // porque puede producir SQL inválido en PostgreSQL en algunos casos.
+    // Usamos sync() sin `alter` para evitar modificaciones automáticas peligrosas.
+    return sequelize.sync();
 })
 
 .then(() => {

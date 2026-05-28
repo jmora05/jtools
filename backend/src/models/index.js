@@ -88,8 +88,7 @@ Empleados.hasMany(HorasExtra,   { foreignKey: 'empleadoId', as: 'horasExtra' });
 
 
 // Novedades
-Novedades.belongsTo(Empleados, { foreignKey: 'empleado_responsable', as: 'empleadoResponsable' });
-Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado',    as: 'empleadoAfectado' });
+Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado', as: 'empleadoAfectado', constraints: false });
 
 
 // OrdenesProduccion

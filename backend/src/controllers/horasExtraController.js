@@ -98,8 +98,8 @@ const cambiarEstadoHoraExtra = async (req, res) => {
     const { estado } = req.body;
     const registro   = await HorasExtra.findByPk(id);
     if (!registro) return res.status(404).json({ message: 'Registro no encontrado' });
-    if (registro.estado !== 'registrada')
-      return res.status(400).json({ message: 'Solo se puede cambiar el estado de un registro en estado registrada' });
+    if (registro.estado === 'rechazada')
+      return res.status(400).json({ message: 'No se puede cambiar el estado de un registro rechazado' });
     await registro.update({ estado });
     await registro.reload({ include: INCLUDE_EMPLEADO });
     res.status(200).json(registro);

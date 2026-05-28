@@ -7,7 +7,7 @@ const TIPOS_VALIDOS = [
   'Hora Extra Diurna Dominical/Festiva',
 ];
 
-const ESTADOS_VALIDOS = ['pendiente', 'aprobada'];
+const ESTADOS_VALIDOS = ['registrada', 'aprobada', 'rechazada'];
 
 function esEnteroPositivo(v) {
   return Number.isInteger(Number(v)) && Number(v) > 0;
