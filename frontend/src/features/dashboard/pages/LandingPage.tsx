@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import maquinaImg from '@/assets/imagenes/maquina.jpeg';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -200,14 +201,14 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             <div className="space-y-8">
               <div className="space-y-4">
                 <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                  ¡Calidad garantizada desde 1995!
+                  ¡Calidad garantizada!
                 </Badge>
                 <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
                   Repuestos de <span className="text-blue-600">Calidad</span> para tu Vehículo
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed">
                   En Jrepuestos Medellín encontrarás los mejores repuestos automotrices con la más alta calidad 
-                  y los precios más competitivos del mercado. Más de 25 años de experiencia nos respaldan.
+                  y los precios más competitivos del mercado. Más de 5 años de experiencia nos respaldan.
                 </p>
               </div>
 
@@ -232,7 +233,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
 
               <div className="grid grid-cols-3 gap-6 pt-8 border-t border-gray-200">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">25+</div>
+                  <div className="text-2xl font-bold text-blue-600">2</div>
                   <div className="text-sm text-gray-600">Años de Experiencia</div>
                 </div>
                 <div className="text-center">
@@ -370,33 +371,48 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                   Acércate a nosotros
                 </Badge>
                 <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-6">
-                  Más de 25 años siendo líderes en repuestos automotrices
+                  Más de 5 años siendo líderes en repuestos automotrices
                 </h2>
               </div>
 
               <div className="space-y-6">
                 <p className="text-lg text-gray-600 leading-relaxed">
-                  En <strong>Jrepuestos Medellín</strong> somos una empresa familiar que desde 1995 se ha dedicado 
-                  a brindar soluciones integrales en repuestos automotrices para todo tipo de vehículos. 
-                  Nuestra experiencia y compromiso con la calidad nos han convertido en la opción preferida 
-                  de miles de clientes en toda Antioquia.
+                  En <strong>Jrepuestos Medellín</strong> J Repuestos Medellín es una empresa colombiana en
+                  formación, dedicada a la fabricación y comercialización de repuestos para vehículos, 
+                  con un firme compromiso por la calidad, el servicio y la innovación en el sector automotor.<br/>
+
+                  Somos una familia que cree en el poder del esfuerzo colectivo, la dedicación y la pasión por lo
+                  que hacemos. <br/>
+
+                  En J Repuestos Medellín, diseñamos y fabricamos repuestos con altos estándares de calidad,
+                  buscando siempre ofrecer soluciones duraderas y confiables a nuestros clientes.
+                  Nos inspira el deseo de crecer, aprender y aportar al desarrollo del sector automotriz en 
+                  Colombia, especialmente en nuestra ciudad, Medellín. <br/>
+
+                  Seguimos en proceso de consolidación, pero con metas claras: construir una marca sólida,
+                  generar empleo local y ser reconocidos por nuestra seriedad, compromiso
+                  y productos de excelente desempeño.<br/>
+
+                  J Repuestos Medellín: una empresa con alma familiar y visión de futuro.
                 </p>
 
                 <div className="bg-blue-50 rounded-xl p-6 space-y-4">
                   <h3 className="text-xl font-bold text-blue-900">Nuestra Misión</h3>
                   <p className="text-blue-800">
-                    Proveer repuestos automotrices de la más alta calidad a precios justos, 
-                    brindando un servicio excepcional que supere las expectativas de nuestros clientes 
-                    y contribuya a la seguridad vial en nuestras carreteras.
+                    Somos una microempresa familiar dedicada a la fabricación de productos y repuestos
+                    para vehículos, comprometidos con ofrecer calidad, confianza y buen servicio a nuestros clientes.
+                    Trabajamos con responsabilidad y dedicación para brindar soluciones eficientes que contribuyan
+                    al buen funcionamiento y mantenimiento de los automóviles, apoyándonos en la experiencia adquirida
+                    durante nuestros primeros años en el mercado.
                   </p>
                 </div>
 
                 <div className="bg-orange-50 rounded-xl p-6 space-y-4">
                   <h3 className="text-xl font-bold text-orange-900">Nuestra Visión</h3>
                   <p className="text-orange-800">
-                    Ser reconocidos como la empresa líder en distribución de repuestos automotrices 
-                    en Colombia, expandiendo nuestra presencia nacional mientras mantenemos nuestros 
-                    valores de calidad, confiabilidad y servicio al cliente.
+                    Ser una empresa reconocida a nivel regional por la calidad de nuestros repuestos, el compromiso
+                    con nuestros clientes y el crecimiento constante de nuestro negocio familiar.
+                    Buscamos seguir innovando y fortaleciendo nuestros procesos para expandirnos en el sector automotriz y convertirnos en una opción confiable y competitiva en los próximos años
                   </p>
                 </div>
 
@@ -422,7 +438,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1577801347179-8356c29eb6fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhdXRvbW90aXZlJTIwdGVhbSUyMHdvcmtzaG9wfGVufDF8fHx8MTc1Njc1NDQ4NHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+                  src={maquinaImg}
                   alt="Equipo Jrepuestos"
                   className="w-full h-96 lg:h-[500px] object-cover"
                 />
@@ -555,40 +571,49 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                   <div>
                     <h4 className="font-bold text-gray-900">Teléfonos</h4>
                     <div className="space-y-1 text-gray-600">
-                      <p>+57 (4) 123-4567</p>
-                      <p>+57 (4) 987-6543</p>
+                      <p>+57 3044470797</p>
+                      <p>+57 3008287819</p>
                       <p className="text-sm">Lun - Vie: 7:00 AM - 6:00 PM</p>
-                      <p className="text-sm">Sáb: 8:00 AM - 4:00 PM</p>
+                      
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-4">
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query=Carrera+70a+%2394-18%2C+Medell%C3%ADn%2C+Antioquia%2C+Colombia"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start space-x-4 hover:opacity-80 transition-opacity cursor-pointer"
+                >
                   <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <MapPinIcon className="w-6 h-6 text-orange-600" />
                   </div>
                   <div>
                     <h4 className="font-bold text-gray-900">Dirección</h4>
                     <div className="text-gray-600">
-                      <p>Carrera 50 #25-100</p>
+                      <p>Carrera 70a #94-18</p>
                       <p>Medellín, Antioquia</p>
                       <p>Colombia</p>
                     </div>
                   </div>
-                </div>
+                </a>
 
-                <div className="flex items-start space-x-4">
+                <a
+                  href="https://mail.google.com/mail/?view=cm&to=jrepuestosmed@hotmail.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start space-x-4 hover:opacity-80 transition-opacity"
+                >
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <MailIcon className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
                     <h4 className="font-bold text-gray-900">Correo electrónico</h4>
                     <div className="space-y-1 text-gray-600">
-                      <p>ventas@jrepuestosmedellin.com</p>
-                      <p>info@jrepuestosmedellin.com</p>
+                      <p>jrepuestosmed@hotmail.com</p>
                     </div>
                   </div>
-                </div>
+                </a>
               </div>
 
               {/* Social Media */}
@@ -630,7 +655,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 </div>
               </div>
               <p className="text-gray-300 text-sm leading-relaxed">
-                Más de 25 años brindando soluciones integrales en repuestos automotrices 
+                Más de 5 años brindando soluciones integrales en repuestos automotrices 
                 con la más alta calidad y precios competitivos.
               </p>
               <div className="flex space-x-4">
@@ -705,19 +730,33 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
               <h4 className="font-bold mb-4">Contacto</h4>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start space-x-2">
-                  <MapPinIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-300">
-                    Carrera 50 #25-100<br />
-                    Medellín, Antioquia
-                  </span>
+                  <a
+                    href="https://www.google.com/maps/search/?api=1&query=Carrera+70a+%2394-18%2C+Medell%C3%ADn%2C+Antioquia%2C+Colombia"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start space-x-2 hover:opacity-80 transition-opacity"
+                  >
+                    <MapPinIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-300">
+                      Carrera 70a #94-18<br />
+                      Medellín, Antioquia
+                    </span>
+                  </a>
                 </li>
                 <li className="flex items-center space-x-2">
                   <PhoneIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-300">+57 (4) 123-4567</span>
                 </li>
                 <li className="flex items-center space-x-2">
-                  <MailIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-300">ventas@jrepuestosmedellin.com</span>
+                  <a
+                    href="https://mail.google.com/mail/?view=cm&to=ventas@jrepuestosmedellin.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+                  >
+                    <MailIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-300">ventas@jrepuestosmedellin.com</span>
+                  </a>
                 </li>
               </ul>
             </div>

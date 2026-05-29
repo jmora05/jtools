@@ -172,6 +172,13 @@ export function PayrollModule() {
     fetchNominas();
   }, []);
 
+  // Recalcular días trabajados y horas extra cuando cambia la semana seleccionada
+  useEffect(() => {
+    if (formData.employeeId && employees.length > 0) {
+      handleEmployeeChange(formData.employeeId);
+    }
+  }, [selectedFriday]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const mapNominaToRecord = (n: NominaBackend): PayrollRecord => {
     const salBase   = parseFloat(String(n.salario_base));
     const auxTrans  = parseFloat(String(n.auxilio_transporte));
@@ -245,19 +252,19 @@ export function PayrollModule() {
 
     // Días ausentes por novedades aprobadas sin remuneración o rechazadas que se solapen con la semana
     const empNov = allNov.filter(
-      (n) => n.empleado_afectado === emp.id &&
+      (n) => Number(n.empleado_afectado) === emp.id &&
               (n.estado === 'aprobada_sin_remuneracion' || n.estado === 'rechazada') &&
-              n.fecha_inicio <= endYMD && n.fecha_finalizacion >= startYMD
+              n.fecha_inicio.substring(0, 10) <= endYMD &&
+              n.fecha_finalizacion.substring(0, 10) >= startYMD
     );
     let absentDays = 0;
     empNov.forEach((n) => {
       if (n.horas_ausencia != null && n.horas_ausencia > 0) {
-        // Convertir horas de ausencia a días (8 horas laborales por día)
         absentDays += n.horas_ausencia / 8;
       } else {
-        const s  = n.fecha_inicio       > startYMD ? n.fecha_inicio       : startYMD;
-        const e  = n.fecha_finalizacion < endYMD   ? n.fecha_finalizacion : endYMD;
-        const ms = new Date(e).getTime() - new Date(s).getTime();
+        const s = n.fecha_inicio.substring(0, 10)       > startYMD ? n.fecha_inicio.substring(0, 10)       : startYMD;
+        const e = n.fecha_finalizacion.substring(0, 10) < endYMD   ? n.fecha_finalizacion.substring(0, 10) : endYMD;
+        const ms = new Date(e + 'T00:00:00').getTime() - new Date(s + 'T00:00:00').getTime();
         absentDays += Math.round(ms / 86400000) + 1;
       }
     });
@@ -917,9 +924,9 @@ export function PayrollModule() {
                                 {empWeekNov.map((n) => {
                                   const startYMD = toYMD(weekStart);
                                   const endYMD   = toYMD(selectedFriday);
-                                  const s  = n.fecha_inicio       > startYMD ? n.fecha_inicio       : startYMD;
-                                  const e  = n.fecha_finalizacion < endYMD   ? n.fecha_finalizacion : endYMD;
-                                  const dias = Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000) + 1;
+                                  const s  = n.fecha_inicio.substring(0, 10)       > startYMD ? n.fecha_inicio.substring(0, 10)       : startYMD;
+                                  const e  = n.fecha_finalizacion.substring(0, 10) < endYMD   ? n.fecha_finalizacion.substring(0, 10) : endYMD;
+                                  const dias = Math.round((new Date(e + 'T00:00:00').getTime() - new Date(s + 'T00:00:00').getTime()) / 86400000) + 1;
                                   return (
                                     <tr key={n.id} className="hover:bg-gray-50">
                                       <td className="px-4 py-2 text-gray-700">{n.titulo}</td>

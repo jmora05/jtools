@@ -74,7 +74,7 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
-const canEdit   = (n: Novedad) => n.estado === 'registrada' || n.estado === 'rechazada';
+const canEdit   = (n: Novedad) => n.estado === 'registrada';
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
 const editBlockReason   = (n: Novedad) => !canEdit(n) ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
@@ -152,6 +152,8 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     const h = parseFloat(values.horas_ausencia);
     if (!isNaN(h) && h > 0 && h < 0.5) {
       errors.horas_ausencia = 'El mínimo es 30 minutos (0.5 h)';
+    } else if (!isNaN(h) && h > 8) {
+      errors.horas_ausencia = 'El máximo permitido es 8 horas';
     }
   }
 
@@ -768,12 +770,12 @@ export function NewsModule() {
           <Field
             label="Horas de Ausencia"
             error={errors.horas_ausencia}
-            hint={!errors.horas_ausencia && !bloqueado ? 'Opcional — mínimo 30 minutos (0.5 h)' : undefined}
+            hint={!errors.horas_ausencia && !bloqueado ? 'Opcional — mínimo 0.5 h, máximo 8 h' : undefined}
           >
             <Input
               type="number"
               min="0.5"
-              max="744"
+              max="8"
               step="0.5"
               value={form.horas_ausencia}
               onChange={e => {
@@ -1382,7 +1384,7 @@ function validateHoraExtraForm(v: HoraExtraFormValues): HoraExtraErrors {
   } else {
     const h = parseFloat(v.horas);
     if (isNaN(h) || h <= 0) e.horas = 'Debe ser un número mayor a 0';
-    else if (h > 24)        e.horas = 'No puede superar 24 horas';
+    else if (h > 8)         e.horas = 'No puede superar 8 horas';
   }
   if (v.observaciones.length > 500) e.observaciones = 'Máximo 500 caracteres';
   return e;
@@ -1422,7 +1424,7 @@ function validateRecargItem(item: RecargItem, todayStr: string): RecargItemError
   } else {
     const h = parseFloat(item.horas);
     if (isNaN(h) || h <= 0) e.horas = '> 0';
-    else if (h > 24)        e.horas = 'Máx 24h';
+    else if (h > 8)         e.horas = 'Máx 8h';
   }
   return e;
 }
@@ -1693,7 +1695,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
           <Input
             type="number"
             min="0.5"
-            max="24"
+            max="8"
             step="0.5"
             placeholder="Ej: 2.5"
             value={form.horas}
@@ -1923,7 +1925,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                           <Input
                             type="number"
                             min="0.5"
-                            max="24"
+                            max="8"
                             step="0.5"
                             placeholder="Ej: 2.5"
                             value={item.horas}
@@ -2017,7 +2019,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                   <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{Number(r.horas)}h</td>
                   <td className="px-6 py-4">
                     <div className="relative inline-flex items-center">
-                      {r.estado === 'registrada' ? (
+                      {r.estado !== 'rechazada' ? (
                         <select
                           value={r.estado}
                           onChange={e => handleCambiarEstadoHE(r, e.target.value as 'registrada' | 'aprobada' | 'rechazada')}

@@ -168,6 +168,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [searchTerm, setSearchTerm]             = useState('');
   const [currentPage, setCurrentPage]           = useState(1);
   const itemsPerPage = 5;
+  const [activeView, setActiveView] = useState<'ventas' | 'pedidos'>('ventas');
 
   const [saleForm, setSaleForm] = useState({
     clientId: '',
@@ -200,7 +201,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         // Auto-anular ventas pendientes con más de 30 días
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 30);
-        const toVoid = mapped.filter(s => s.status === 'Pendiente' && new Date(s.date) < cutoff);
+        const toVoid = mapped.filter(s => s.status === 'Pendiente' && s.type === 'Directa' && new Date(s.date) < cutoff);
 
         let result = [...mapped];
         for (const sale of toVoid) {
@@ -367,8 +368,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
   const handleCancelSale = (sale: Sale) => {
-    if (sale.status === 'Completada') {
-      toast.error('Las ventas completadas no pueden ser anuladas');
+    if (sale.status === 'Completada' || sale.status === 'Completado') {
+      toast.error(`Los ${sale.type === 'Pedido' ? 'pedidos' : 'ventas'} completados no pueden ser anulados`);
       return;
     }
     setSaleToCancel(sale);
@@ -442,7 +443,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         clientesId: Number(saleForm.clientId),
         fecha:      new Date().toISOString().split('T')[0],
         metodoPago: toMetodoPago(saleForm.paymentMethod),
-        tipoVenta:  toTipoVenta('Directa'),
+        tipoVenta:  toTipoVenta(activeView === 'pedidos' ? 'Pedido' : 'Directa'),
         total:      calculateTotal(),
       };
       const { venta } = await createVenta(dto);
@@ -454,8 +455,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         date:           venta.fecha.slice(0, 10),
         total:          Number(venta.total),
         paymentMethod:  saleForm.paymentMethod,
-        status:         'Completada',
-        type:           'Directa',
+        status:         activeView === 'pedidos' ? 'Pendiente' : 'Completada',
+        type:           activeView === 'pedidos' ? 'Pedido' : 'Directa',
         items:          saleForm.items,
       };
       setSales([newSale, ...sales]);
@@ -480,9 +481,10 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      'Completada': 'bg-blue-50 text-blue-900 border-blue-200',
+      'Completada': 'bg-amber-50 text-amber-800 border-amber-300',
       'Pendiente':  'bg-amber-50 text-amber-800 border-amber-300',
-      'Anulada':    'bg-gray-100 text-gray-700 border-gray-300',
+      'Anulada':    'bg-amber-50 text-amber-800 border-amber-300',
+      
     };
     return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
   };
@@ -510,10 +512,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     c.document.includes(clientSearch)
   );
 
-  const filteredSales = sales.filter(s =>
+  const allFilteredSales = sales.filter(s =>
     s.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.id.toString().includes(searchTerm) ||
     (s.clientDocument && s.clientDocument.includes(searchTerm))
+  );
+  const filteredSales = allFilteredSales.filter(s =>
+    activeView === 'ventas' ? s.type === 'Directa' : s.type === 'Pedido'
   );
 
   const totalPages    = Math.max(1, Math.ceil(filteredSales.length / itemsPerPage));
@@ -556,7 +561,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                <PlusIcon className="w-4 h-4 mr-2" />Nueva Venta
+                <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : 'Nueva Venta'}
               </Button>
             </DialogTrigger>
 
@@ -582,10 +587,10 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 </div>
                 <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
                   <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
-                    Registrar Nueva Venta
+                    {activeView === 'pedidos' ? 'Registrar Nuevo Pedido' : 'Registrar Nueva Venta'}
                   </DialogTitle>
                   <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                    Selecciona un cliente y agrega productos para completar la venta.
+                    Selecciona un cliente y agrega productos para {activeView === 'pedidos' ? 'registrar el pedido.' : 'completar la venta.'}
                   </DialogDescription>
                 </div>
               </header>
@@ -857,7 +862,22 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                       disabled={item.quantity <= 1}
                                       style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: item.quantity <= 1 ? 'not-allowed' : 'pointer', opacity: item.quantity <= 1 ? 0.3 : 1 }}
                                     >−</button>
-                                    <span style={{ width: 36, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb' }}>{item.quantity}</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={item.quantity}
+                                      onChange={(e) => {
+                                        const v = parseInt(e.target.value, 10);
+                                        if (!isNaN(v) && v >= 1) handleUpdateQuantity(item.id, v);
+                                      }}
+                                      style={{
+                                        width: 48, height: 32, textAlign: 'center', fontSize: 14, fontWeight: 600,
+                                        border: 'none', borderLeft: '1px solid #e5e7eb', borderRight: '1px solid #e5e7eb',
+                                        outline: 'none', background: '#fff', color: '#111827',
+                                        MozAppearance: 'textfield',
+                                      } as React.CSSProperties}
+                                      onWheel={(e) => e.currentTarget.blur()}
+                                    />
                                     <button type="button"
                                       onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                                       style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: 'pointer' }}
@@ -936,7 +956,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
                     >
                       {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
-                      Registrar Venta
+                      {activeView === 'pedidos' ? 'Registrar Pedido' : 'Registrar Venta'}
                     </Button>
                   </div>
                 </footer>
@@ -944,6 +964,28 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Tabs de vista */}
+        {!clientMode && (
+          <div className="flex gap-1 p-1 bg-white rounded-xl border border-gray-200 w-fit">
+            <button
+              type="button"
+              onClick={() => { setActiveView('ventas'); setCurrentPage(1); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeView === 'ventas' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <ShoppingBagIcon className="w-4 h-4" />
+              Ventas
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveView('pedidos'); setCurrentPage(1); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeView === 'pedidos' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <TruckIcon className="w-4 h-4" />
+              Pedidos
+            </button>
+          </div>
+        )}
 
         {/* Filtros */}
         <Card className="shadow-lg border border-gray-100 p-6">
@@ -955,7 +997,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <span className="text-sm text-gray-600">{filteredSales.length} venta(s)</span>
+            <span className="text-sm text-gray-600">{filteredSales.length} {activeView === 'pedidos' ? 'pedido(s)' : 'venta(s)'}</span>
           </div>
         </Card>
 
@@ -968,7 +1010,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Cliente</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Pago</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">{activeView === 'pedidos' ? 'Estado' : 'Método de Pago'}</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
@@ -984,7 +1026,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center text-gray-500">
                         <ShoppingCartIcon className="w-12 h-12 mb-3 text-gray-300" />
-                        <p className="text-gray-900">No se encontraron ventas</p>
+                        <p className="text-gray-900">No se encontraron {activeView === 'pedidos' ? 'pedidos' : 'ventas'}</p>
                         <p className="text-sm">Intenta ajustar los filtros de búsqueda</p>
                       </div>
                     </td>
@@ -992,9 +1034,10 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 ) : currentSales.map((sale) => {
                   const isAnulada    = sale.status === 'Anulada';
                   const isCompletada = sale.status === 'Completada';
+                  const isCancelled  = isAnulada || sale.status === 'Cancelado';
                   return (
                     <React.Fragment key={sale.id}>
-                    <tr className={`hover:bg-gray-50 transition-colors ${isAnulada ? 'opacity-60' : ''}`}>
+                    <tr className={`hover:bg-gray-50 transition-colors ${isCancelled ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{sale.clientName}</div>
                         {sale.clientDocument && (
@@ -1007,44 +1050,31 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <div className="text-sm text-gray-500">{sale.items.length} producto(s)</div>
                       </td>
                       <td className="px-6 py-4">
-                        {isAnulada ? (
-                          getStatusBadge('Anulada')
+                        {activeView === 'ventas' ? (
+                          <span className="text-sm text-gray-700">{sale.paymentMethod}</span>
+                        ) : sale.status === 'Cancelado' || sale.status === 'Completado' ? (
+                          getStatusBadge(sale.status)
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <select
-                              value={sale.status}
-                              onChange={(e) => handleChangeStatus(sale, e.target.value)}
-                              style={{
-                                padding: '4px 28px 4px 8px',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                border: '1px solid',
-                                borderColor: sale.status === 'Pendiente' ? '#fcd34d' : '#bfdbfe',
-                                background: sale.status === 'Pendiente' ? '#fffbeb' : '#eff6ff',
-                                color: sale.status === 'Pendiente' ? '#92400e' : '#1e40af',
-                                cursor: 'pointer',
-                                outline: 'none',
-                                appearance: 'auto',
-                              }}
-                            >
-                              <option value="Completada">Completada</option>
-                              <option value="Pendiente">Pendiente</option>
-                            </select>
-                            {sale.status === 'Pendiente' && (() => {
-                              const days = getDaysUntilVoid(sale.date);
-                              if (days > 15) return null;
-                              return (
-                                <span style={{
-                                  fontSize: 10, display: 'flex', alignItems: 'center', gap: 2,
-                                  color: days <= 7 ? '#ef4444' : '#f59e0b',
-                                }}>
-                                  <AlertTriangleIcon style={{ width: 10, height: 10, flexShrink: 0 }} />
-                                  {days <= 0 ? 'Se anulará hoy' : `${days}d para anularse`}
-                                </span>
-                              );
-                            })()}
-                          </div>
+                          <select
+                            value={sale.status}
+                            onChange={(e) => handleChangeStatus(sale, e.target.value)}
+                            style={{
+                              padding: '4px 28px 4px 8px',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              border: '1px solid',
+                              borderColor: sale.status === 'Pendiente' ? '#f7f4ec' : '#bfdbfe',
+                              background: sale.status === 'Pendiente' ? '#f0ecec' : '#eff6ff',
+                              color: sale.status === 'Pendiente' ? '#1e40af' : '#1e40af',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              appearance: 'auto',
+                            }}
+                          >
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Completado">Completado</option>
+                          </select>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -1064,35 +1094,39 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="sm"
                                 onClick={() => handleViewPDF(sale)}
-                                disabled={isAnulada}
-                                className={isAnulada ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed" : "text-blue-900 border-blue-900 hover:bg-blue-50"}>
+                                disabled={isCancelled}
+                                className={isCancelled ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed" : "text-blue-900 border-blue-900 hover:bg-blue-50"}>
                                 <FileTextIcon className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent><p>{isAnulada ? 'Venta anulada' : 'Ver PDF'}</p></TooltipContent>
+                            <TooltipContent><p>{isCancelled ? (isAnulada ? 'Venta anulada' : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
 
-                          {!isAnulada && !clientMode && (
+                          {!isCancelled && !clientMode && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="outline" size="sm"
                                   onClick={() => handleCancelSale(sale)}
-                                  disabled={isCompletada}
-                                  className={isCompletada
+                                  disabled={isCompletada || sale.status === 'Completado'}
+                                  className={(isCompletada || sale.status === 'Completado')
                                     ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed"
                                     : "text-blue-900 border-blue-900 hover:bg-red-50"}>
                                   <XCircleIcon className="w-4 h-4" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{isCompletada ? 'Las ventas completadas no se pueden anular' : 'Anular venta'}</p>
+                                <p>
+                                  {isCompletada || sale.status === 'Completado'
+                                    ? `Los ${activeView === 'pedidos' ? 'pedidos' : 'ventas'} completados no se pueden anular`
+                                    : activeView === 'pedidos' ? 'Anular pedido' : 'Anular venta'}
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           )}
                         </div>
                       </td>
                     </tr>
-                    {pdfBannerId === sale.id && (
+                    {pdfBannerId === sale.id && isAnulada && (
                       <tr>
                         <td colSpan={5} className="px-4 pb-2">
                           <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
@@ -1453,20 +1487,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
                 <AlertTriangleIcon className="w-5 h-5" />
-                Anular Venta
+                {saleToCancel?.type === 'Pedido' ? 'Anular Pedido' : 'Anular Venta'}
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3">
-                  <p>¿Estás seguro de que deseas anular esta venta?</p>
+                  <p>¿Estás seguro de que deseas anular {saleToCancel?.type === 'Pedido' ? 'este pedido' : 'esta venta'}?</p>
                   {saleToCancel && (
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1 text-sm">
-                      <p><span className="text-gray-500">Venta #: </span>{saleToCancel.id}</p>
+                      <p><span className="text-gray-500">{saleToCancel.type === 'Pedido' ? 'Pedido' : 'Venta'} #: </span>{saleToCancel.id}</p>
                       <p><span className="text-gray-500">Cliente: </span>{saleToCancel.clientName}</p>
                       <p><span className="text-gray-500">Total: </span>${saleToCancel.total.toLocaleString()}</p>
                     </div>
                   )}
                   <p className="text-sm text-blue-600">
-                    La venta cambiará su estado a "Anulada" y no se eliminará del sistema.
+                    El registro cambiará su estado a "Anulada" y no se eliminará del sistema.
                   </p>
                 </div>
               </AlertDialogDescription>
