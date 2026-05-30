@@ -17,7 +17,6 @@ import {
   MailIcon,
   FacebookIcon,
   InstagramIcon,
-  TwitterIcon,
   ShoppingCartIcon,
   UsersIcon,
   AwardIcon,
@@ -233,15 +232,15 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
 
               <div className="grid grid-cols-3 gap-6 pt-8 border-t border-gray-200">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">2</div>
+                  <div className="text-2xl font-bold text-blue-600">5</div>
                   <div className="text-sm text-gray-600">Años de Experiencia</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">10K+</div>
+                  <div className="text-2xl font-bold text-blue-600">10K</div>
                   <div className="text-sm text-gray-600">Clientes Satisfechos</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">50K+</div>
+                  <div className="text-2xl font-bold text-blue-600">20K+</div>
                   <div className="text-sm text-gray-600">Productos Vendidos</div>
                 </div>
               </div>
@@ -258,15 +257,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
               </div>
               
               {/* Floating Cards */}
-              <div className="absolute -top-6 -left-6 bg-white rounded-xl shadow-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <AwardIcon className="w-6 h-6 text-orange-500" />
-                  <div>
-                    <div className="font-medium text-sm">Garantía Extendida</div>
-                    <div className="text-xs text-gray-600">En todos los productos</div>
-                  </div>
-                </div>
-              </div>
+              
 
               <div className="absolute -bottom-6 -right-6 bg-white rounded-xl shadow-lg p-4">
                 <div className="flex items-center space-x-2">
@@ -336,10 +327,21 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
 
                     <Button
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => toast.success('Te contactaremos pronto para más detalles.')}
+                      onClick={() => {
+                        if (!userType) {
+                          toast.error('Debes iniciar sesión para agregar productos al carrito.', {
+                            action: {
+                              label: 'Iniciar sesión',
+                              onClick: () => onGoToSystem?.(),
+                            },
+                          });
+                          return;
+                        }
+                        toast.success('Te contactaremos pronto para más detalles.');
+                      }}
                     >
                       <ShoppingCartIcon className="w-4 h-4 mr-2" />
-                      Ver más detalles
+                      Agregar al Carrito
                     </Button>
                   </CardContent>
                 </Card>
@@ -407,7 +409,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                   </p>
                 </div>
 
-                <div className="bg-orange-50 rounded-xl p-6 space-y-4">
+                <div className="bg-gray-50 rounded-xl p-6 space-y-4">
                   <h3 className="text-xl font-bold text-orange-900">Nuestra Visión</h3>
                   <p className="text-orange-800">
                     Ser una empresa reconocida a nivel regional por la calidad de nuestros repuestos, el compromiso
@@ -449,7 +451,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
               <div className="absolute bottom-6 left-6 right-6 bg-white/95 backdrop-blur-sm rounded-xl p-6">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <div className="text-2xl font-bold text-blue-600">25+</div>
+                    <div className="text-2xl font-bold text-blue-600">5+</div>
                     <div className="text-xs text-gray-600">Años</div>
                   </div>
                   <div>
@@ -483,157 +485,68 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-16">
-            {/* Contact Form */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-2xl text-gray-900">Envíanos un mensaje</CardTitle>
-                <CardDescription>
-                  Completa el formulario y te contactaremos en menos de 24 horas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleContactSubmit} className="space-y-6">
-                  <div className="space-y-2">
-                    <label htmlFor="name" className="text-sm font-medium text-gray-700">
-                      Nombre completo *
-                    </label>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="Tu nombre completo"
-                      value={contactForm.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="email" className="text-sm font-medium text-gray-700">
-                      Correo electrónico *
-                    </label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="tu@email.com"
-                      value={contactForm.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="message" className="text-sm font-medium text-gray-700">
-                      Mensaje *
-                    </label>
-                    <Textarea
-                      id="message"
-                      rows={5}
-                      placeholder="Cuéntanos qué repuesto necesitas o cualquier consulta que tengas..."
-                      value={contactForm.message}
-                      onChange={(e) => handleInputChange('message', e.target.value)}
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
-                      required
-                    />
-                  </div>
-
-                  <Button 
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
-                    size="lg"
-                  >
-                    Enviar Mensaje
-                    <ArrowRightIcon className="w-5 h-5 ml-2" />
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Contact Information */}
-            <div className="space-y-8">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                  Información de contacto
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Visítanos en nuestra sede principal o comunícate con nosotros 
-                  a través de cualquiera de nuestros canales de atención.
-                </p>
+          {/* Contact Information - horizontal layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            {/* Teléfonos */}
+            <div className="bg-white rounded-2xl shadow-md p-8 flex flex-col items-center text-center">
+              <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                <PhoneIcon className="w-7 h-7 text-blue-600" />
               </div>
-
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <PhoneIcon className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900">Teléfonos</h4>
-                    <div className="space-y-1 text-gray-600">
-                      <p>+57 3044470797</p>
-                      <p>+57 3008287819</p>
-                      <p className="text-sm">Lun - Vie: 7:00 AM - 6:00 PM</p>
-                      
-                    </div>
-                  </div>
-                </div>
-
-                <a
-                  href="https://www.google.com/maps/search/?api=1&query=Carrera+70a+%2394-18%2C+Medell%C3%ADn%2C+Antioquia%2C+Colombia"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start space-x-4 hover:opacity-80 transition-opacity cursor-pointer"
-                >
-                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <MapPinIcon className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900">Dirección</h4>
-                    <div className="text-gray-600">
-                      <p>Carrera 70a #94-18</p>
-                      <p>Medellín, Antioquia</p>
-                      <p>Colombia</p>
-                    </div>
-                  </div>
-                </a>
-
-                <a
-                  href="https://mail.google.com/mail/?view=cm&to=jrepuestosmed@hotmail.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start space-x-4 hover:opacity-80 transition-opacity"
-                >
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <MailIcon className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900">Correo electrónico</h4>
-                    <div className="space-y-1 text-gray-600">
-                      <p>jrepuestosmed@hotmail.com</p>
-                    </div>
-                  </div>
-                </a>
+              <h4 className="font-bold text-gray-900 text-lg mb-2">Teléfonos</h4>
+              <div className="space-y-1 text-gray-600">
+                <p>+57 3044470797</p>
+                <p>+57 3008287819</p>
+                <p className="text-sm text-gray-400 mt-2">Lun - Vie: 7:00 AM - 6:00 PM</p>
               </div>
+            </div>
 
-              {/* Social Media */}
-              <div className="pt-6 border-t border-gray-200">
-                <h4 className="font-bold text-gray-900 mb-4">Síguenos en redes sociales</h4>
-                <div className="flex space-x-4">
-                  <Button variant="outline" size="sm" className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white">
-                    <FacebookIcon className="w-4 h-4 mr-2" />
-                    Facebook
-                  </Button>
-                  <Button variant="outline" size="sm" className="border-2 border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white">
-                    <InstagramIcon className="w-4 h-4 mr-2" />
-                    Instagram
-                  </Button>
-                  <Button variant="outline" size="sm" className="border-2 border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white">
-                    <TwitterIcon className="w-4 h-4 mr-2" />
-                    Twitter
-                  </Button>
-                </div>
+            {/* Dirección */}
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=Carrera+70a+%2394-18%2C+Medell%C3%ADn%2C+Antioquia%2C+Colombia"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white rounded-2xl shadow-md p-8 flex flex-col items-center text-center hover:shadow-lg transition-shadow cursor-pointer"
+            >
+              <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                <MapPinIcon className="w-7 h-7 text-orange-600" />
               </div>
+              <h4 className="font-bold text-gray-900 text-lg mb-2">Dirección</h4>
+              <div className="text-gray-600">
+                <p>Carrera 70a #94-18</p>
+                <p>Medellín, Antioquia</p>
+                <p>Colombia</p>
+              </div>
+            </a>
+
+            {/* Correo */}
+            <a
+              href="https://mail.google.com/mail/?view=cm&to=jrepuestosmed@hotmail.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white rounded-2xl shadow-md p-8 flex flex-col items-center text-center hover:shadow-lg transition-shadow"
+            >
+              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <MailIcon className="w-7 h-7 text-green-600" />
+              </div>
+              <h4 className="font-bold text-gray-900 text-lg mb-2">Correo electrónico</h4>
+              <div className="space-y-1 text-gray-600">
+                <p>jrepuestosmed@hotmail.com</p>
+              </div>
+            </a>
+          </div>
+
+          {/* Social Media */}
+          <div className="pt-6 border-t border-gray-200">
+            <h4 className="font-bold text-gray-900 mb-4">Síguenos en redes sociales</h4>
+            <div className="flex space-x-4">
+              <Button variant="outline" size="sm" className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white">
+                <FacebookIcon className="w-4 h-4 mr-2" />
+                Facebook
+              </Button>
+              <Button variant="outline" size="sm" className="border-2 border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white">
+                <InstagramIcon className="w-4 h-4 mr-2" />
+                Instagram
+              </Button>
             </div>
           </div>
         </div>
@@ -664,9 +577,6 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 </button>
                 <button className="w-10 h-10 bg-gray-800 hover:bg-pink-500 rounded-lg flex items-center justify-center transition-colors">
                   <InstagramIcon className="w-5 h-5" />
-                </button>
-                <button className="w-10 h-10 bg-gray-800 hover:bg-blue-400 rounded-lg flex items-center justify-center transition-colors">
-                  <TwitterIcon className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -699,16 +609,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                     Contacto
                   </button>
                 </li>
-                <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    Términos y Condiciones
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                    Política de Privacidad
-                  </a>
-                </li>
+                
               </ul>
             </div>
 
@@ -726,7 +627,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             </div>
 
             {/* Contact Info */}
-            <div>
+            {/* <div>
               <h4 className="font-bold mb-4">Contacto</h4>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start space-x-2">
@@ -745,7 +646,11 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 </li>
                 <li className="flex items-center space-x-2">
                   <PhoneIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-300">+57 (4) 123-4567</span>
+                  <span className="text-gray-300">+57 3044470797</span>
+                </li>
+                <li className="flex items-center space-x-2">
+                  <PhoneIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="text-gray-300">+57 3008287819</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <a
@@ -755,15 +660,15 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                     className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
                   >
                     <MailIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-300">ventas@jrepuestosmedellin.com</span>
+                    <span className="text-gray-300">jrepuestosmed@hotmail.com</span>
                   </a>
                 </li>
               </ul>
-            </div>
+            </div> */}
           </div>
 
           <div className="border-t border-gray-800 pt-8 mt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2025 Jrepuestos Medellín. Todos los derechos reservados.</p>
+            <p>&copy; 2026 Jrepuestos Medellín. Todos los derechos reservados.</p>
             <p className="mt-2">Desarrollado con ❤️ para brindar la mejor experiencia a nuestros clientes.</p>
           </div>
         </div>
