@@ -68,7 +68,7 @@ const getComprasByEstado = async (req, res) => {
 
         if (!estadosValidos.includes(estado)) {
             return res.status(400).json({
-                message: 'Estado no válido. Use: pendiente, en transito, completada o anulada',
+                message: 'Estado no válido.',
             });
         }
 
@@ -87,12 +87,11 @@ const getComprasByEstado = async (req, res) => {
     }
 };
 
-// POST - crear compra
+// POST - crear compra (solo guarda, NO toca inventario)
 const createCompra = async (req, res) => {
     try {
         const { id, proveedoresId, fecha, metodoPago, estado } = req.body;
 
-        // Verificar que el proveedor existe y está activo
         const proveedor = await Proveedores.findByPk(proveedoresId);
         if (!proveedor) {
             return res.status(404).json({ message: 'El proveedor especificado no existe' });
@@ -101,7 +100,6 @@ const createCompra = async (req, res) => {
             return res.status(400).json({ message: 'El proveedor está inactivo' });
         }
 
-        // Verificar que el número de factura no existe ya
         if (id) {
             const facturaExistente = await Compras.findByPk(id);
             if (facturaExistente) {
@@ -109,9 +107,8 @@ const createCompra = async (req, res) => {
             }
         }
 
-        const compra = await Compras.create({ id, proveedoresId, fecha, metodoPago, estado });
+        const compra = await Compras.create({ id, proveedoresId, fecha, metodoPago, estado: estado ?? 'pendiente' });
 
-        // Guardar los detalles si vienen en el body
         const { detalles } = req.body;
         if (detalles && Array.isArray(detalles) && detalles.length > 0) {
             const registros = detalles.map((d) => ({
@@ -121,20 +118,6 @@ const createCompra = async (req, res) => {
                 precioUnitario: d.precioUnitario,
             }));
             await DetalleCompraInsumo.bulkCreate(registros);
-
-            // Actualizar stock y proveedor solo si la compra se crea directamente como completada
-            if (estado === 'completada') {
-                for (const d of detalles) {
-                    const insumo = await Insumos.findByPk(d.insumosId);
-                    if (insumo) {
-                        await insumo.update({
-                            cantidad:      (insumo.cantidad ?? 0) + d.cantidad,
-                            proveedoresId: proveedoresId,
-                        });
-                        await insumo.setProveedores([proveedoresId]);
-                    }
-                }
-            }
         }
 
         res.status(201).json({ message: 'Compra creada correctamente', compra });
@@ -196,6 +179,29 @@ const updateCompra = async (req, res) => {
     }
 };
 
+// ─── Helper: sumar stock de insumos al completar una compra ───────────────────
+const sumarStockDeCompra = async (compraId, proveedoresId) => {
+    const detalles = await DetalleCompraInsumo.findAll({ where: { comprasId: compraId } });
+    for (const d of detalles) {
+        const insumo = await Insumos.findByPk(d.insumosId);
+        if (!insumo) continue;
+
+        const nuevaCantidad = (Number(insumo.cantidad) || 0) + Number(d.cantidad);
+        await insumo.update({
+            cantidad:      nuevaCantidad,
+            proveedoresId: proveedoresId,
+            estado:        'disponible',
+        });
+
+        // Actualizar relación many-to-many con proveedor
+        try {
+            await insumo.setProveedores([proveedoresId]);
+        } catch (_) {
+            // Si falla la relación M2M no bloqueamos el flujo principal
+        }
+    }
+};
+
 // PATCH - cambiar estado de la compra
 const cambiarEstadoCompra = async (req, res) => {
     try {
@@ -209,64 +215,143 @@ const cambiarEstadoCompra = async (req, res) => {
         if (compra.estado === 'anulada') {
             return res.status(400).json({ message: 'No se puede cambiar el estado de una compra anulada' });
         }
+        if (compra.estado === 'completada') {
+            return res.status(400).json({ message: 'Esta compra ya fue completada y no puede cambiar de estado. Si hay un problema, anúlala.' });
+        }
 
         const estadosValidos = ['pendiente', 'en transito', 'completada'];
         if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({
-                message: 'Estado no válido. Use: pendiente, en transito o completada',
-            });
+            return res.status(400).json({ message: 'Estado no válido.' });
         }
 
-        const flujo = { pendiente: 0, 'en transito': 1, completada: 2 };
-        if (flujo[estado] < flujo[compra.estado]) {
-            return res.status(400).json({
-                message: `No se puede cambiar de "${compra.estado}" a "${estado}"`,
-            });
-        }
-
+        // Actualizar estado
         await compra.update({ estado });
 
-        // Actualizar stock y proveedor al completar
+        // Si pasa a completada → sumar stock al inventario
         if (estado === 'completada') {
-            const detallesCompra = await DetalleCompraInsumo.findAll({ where: { comprasId: id } });
-            for (const d of detallesCompra) {
-                const insumo = await Insumos.findByPk(d.insumosId);
-                if (insumo) {
-                    await insumo.update({
-                        cantidad:      (insumo.cantidad ?? 0) + d.cantidad,
-                        proveedoresId: compra.proveedoresId,
-                    });
-                    await insumo.setProveedores([compra.proveedoresId]);
-                }
-            }
+            await sumarStockDeCompra(id, compra.proveedoresId);
         }
 
-        res.status(200).json({ message: `Estado de compra actualizado a "${estado}"`, compra });
+        res.status(200).json({ message: `Estado actualizado a "${estado}"`, compra });
     } catch (error) {
         res.status(500).json({ message: 'Error al cambiar el estado de la compra', error: error.message });
     }
 };
 
-// DELETE → ANULAR: cambia el estado a 'anulada' (soft-delete)
-// Solo se pueden anular compras en estado 'pendiente'.
+// DELETE → ANULAR: cambia estado a 'anulada' y devuelve stock si estaba completada
 const deleteCompra = async (req, res) => {
     try {
         const { id } = req.params;
-        const compra = await Compras.findByPk(id);
+        const compra = await Compras.findByPk(id, {
+            include: [{
+                model: DetalleCompraInsumo,
+                as: 'detalles',
+                include: [{ model: Insumos, as: 'insumo', attributes: ['id', 'nombreInsumo', 'cantidad'] }],
+            }],
+        });
 
         if (!compra) {
             return res.status(404).json({ message: 'Compra no encontrada' });
         }
-        if (compra.estado !== 'pendiente') {
-            return res.status(400).json({
-                message: 'Solo se pueden anular compras en estado pendiente',
-            });
+        if (compra.estado === 'anulada') {
+            return res.status(400).json({ message: 'Esta compra ya fue anulada' });
+        }
+        if (compra.estado === 'en transito') {
+            return res.status(400).json({ message: 'No se puede anular una compra en tránsito' });
+        }
+
+        // Si estaba completada, devolver el stock
+        const insumosDevueltos = [];
+        if (compra.estado === 'completada' && compra.detalles?.length > 0) {
+            for (const d of compra.detalles) {
+                const insumo = await Insumos.findByPk(d.insumosId);
+                if (insumo) {
+                    const cantidadAnterior = Number(insumo.cantidad) || 0;
+                    const cantidadNueva = Math.max(0, cantidadAnterior - Number(d.cantidad));
+                    await insumo.update({
+                        cantidad: cantidadNueva,
+                        estado: cantidadNueva === 0 ? 'agotado' : 'disponible',
+                    });
+                    insumosDevueltos.push({
+                        id: insumo.id,
+                        nombreInsumo: insumo.nombreInsumo,
+                        cantidadDevuelta: d.cantidad,
+                        cantidadAnterior,
+                        cantidadNueva,
+                    });
+                }
+            }
         }
 
         await compra.update({ estado: 'anulada' });
-        res.status(200).json({ message: 'Compra anulada correctamente' });
+
+        res.status(200).json({
+            message: 'Compra anulada correctamente',
+            stockDevuelto: compra.estado === 'completada',
+            insumosDevueltos,
+        });
     } catch (error) {
         res.status(500).json({ message: 'Error al anular la compra', error: error.message });
+    }
+};
+
+// POST /:id/merma — registrar insumos defectuosos
+const registrarMerma = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { items, motivo } = req.body;
+
+        const compra = await Compras.findByPk(id, {
+            include: [{ model: DetalleCompraInsumo, as: 'detalles' }],
+        });
+
+        if (!compra) {
+            return res.status(404).json({ message: 'Compra no encontrada' });
+        }
+        if (compra.estado !== 'completada') {
+            return res.status(400).json({ message: 'Solo se pueden registrar mermas en compras completadas' });
+        }
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'Debe indicar al menos un insumo defectuoso' });
+        }
+
+        const idsEnCompra = (compra.detalles || []).map((d) => d.insumosId);
+        for (const item of items) {
+            if (!idsEnCompra.includes(item.insumosId)) {
+                return res.status(400).json({ message: `El insumo ID ${item.insumosId} no pertenece a esta compra` });
+            }
+            if (!item.cantidad || item.cantidad <= 0) {
+                return res.status(400).json({ message: 'La cantidad defectuosa debe ser mayor a 0' });
+            }
+        }
+
+        const mermaRegistrada = [];
+        for (const item of items) {
+            const insumo = await Insumos.findByPk(item.insumosId);
+            if (insumo) {
+                const cantidadAnterior = Number(insumo.cantidad) || 0;
+                const cantidadNueva = Math.max(0, cantidadAnterior - Number(item.cantidad));
+                await insumo.update({
+                    cantidad: cantidadNueva,
+                    estado: cantidadNueva === 0 ? 'agotado' : 'disponible',
+                });
+                mermaRegistrada.push({
+                    id: insumo.id,
+                    nombreInsumo: insumo.nombreInsumo,
+                    cantidadDefectuosa: item.cantidad,
+                    cantidadAnterior,
+                    cantidadNueva,
+                });
+            }
+        }
+
+        res.status(200).json({
+            message: 'Merma registrada correctamente.',
+            motivo: motivo || 'Sin motivo especificado',
+            mermaRegistrada,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al registrar la merma', error: error.message });
     }
 };
 
@@ -278,4 +363,5 @@ module.exports = {
     updateCompra,
     cambiarEstadoCompra,
     deleteCompra,
+    registrarMerma,
 };

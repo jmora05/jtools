@@ -1,9 +1,7 @@
 const { body, param, query, validationResult } = require('express-validator');
 const { Compras, Proveedores, DetalleCompraInsumo, Insumos } = require('../models/index.js');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER — Enviar errores estandarizados
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── HELPER — Enviar errores estandarizados ───────────────────────────────────
 const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -19,25 +17,14 @@ const handleValidationErrors = (req, res, next) => {
     next();
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS INTERNOS
-// ─────────────────────────────────────────────────────────────────────────────
-const ESTADOS_VALIDOS   = ['pendiente', 'en transito', 'completada'];
+// ─── CONSTANTES ───────────────────────────────────────────────────────────────
+const ESTADOS_VALIDOS      = ['pendiente', 'en transito', 'completada'];
 const METODOS_PAGO_VALIDOS = ['efectivo', 'transferencia'];
-const FLUJO_ESTADO      = { pendiente: 0, 'en transito': 1, completada: 2 };
+const FLUJO_ESTADO         = { pendiente: 0, 'en transito': 1, completada: 2 };
+const FECHA_MIN            = new Date('2000-01-01');
 
-// Fecha mínima razonable para el negocio (año 2000)
-const FECHA_MIN = new Date('2000-01-01');
-
-// Número de factura: solo enteros positivos
-const esNumeroFacturaValido = (valor) => Number.isInteger(Number(valor)) && Number(valor) > 0;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — CREAR COMPRA  (POST /)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — CREAR COMPRA  (POST /) ────────────────────────────────────
 const validarCrearCompra = [
-
-    // ── id / N° factura (opcional) ────────────────────────────────────────────
     body('id')
         .optional()
         .notEmpty().withMessage('El número de factura no puede ser un string vacío')
@@ -46,13 +33,11 @@ const validarCrearCompra = [
         .bail()
         .toInt()
         .custom(async (id) => {
-            // Unicidad: no puede existir otra compra con ese id
             const existe = await Compras.findByPk(id);
             if (existe) throw new Error(`Ya existe una compra con el número de factura ${id}`);
             return true;
         }),
 
-    // ── proveedoresId ─────────────────────────────────────────────────────────
     body('proveedoresId')
         .notEmpty().withMessage('El proveedor es obligatorio')
         .bail()
@@ -68,7 +53,6 @@ const validarCrearCompra = [
             return true;
         }),
 
-    // ── fecha ─────────────────────────────────────────────────────────────────
     body('fecha')
         .notEmpty().withMessage('La fecha es obligatoria')
         .bail()
@@ -77,18 +61,14 @@ const validarCrearCompra = [
         .toDate()
         .custom((fecha) => {
             const hoy = new Date();
-            hoy.setHours(23, 59, 59, 999); // fin del día actual
-
+            hoy.setHours(23, 59, 59, 999);
             if (fecha < FECHA_MIN)
                 throw new Error('La fecha no puede ser anterior al año 2000');
-
             if (fecha > hoy)
                 throw new Error('La fecha no puede ser futura');
-
             return true;
         }),
 
-    // ── metodoPago ────────────────────────────────────────────────────────────
     body('metodoPago')
         .notEmpty().withMessage('El método de pago es obligatorio')
         .bail()
@@ -96,33 +76,26 @@ const validarCrearCompra = [
         .isIn(METODOS_PAGO_VALIDOS)
         .withMessage(`El método de pago debe ser uno de: ${METODOS_PAGO_VALIDOS.join(', ')}`),
 
-    // ── estado ────────────────────────────────────────────────────────────────
     body('estado')
         .optional()
         .trim()
         .isIn(ESTADOS_VALIDOS)
         .withMessage(`El estado debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`),
 
-    // ── notas (campo opcional extra que podría venir del front) ───────────────
     body('notas')
         .optional()
         .isString().withMessage('Las notas deben ser texto')
         .trim()
         .isLength({ max: 500 }).withMessage('Las notas no pueden superar los 500 caracteres'),
 
-    // ── campos no permitidos / inyección ─────────────────────────────────────
     body('creadoEn').not().exists().withMessage('El campo "creadoEn" no puede ser enviado manualmente'),
     body('actualizadoEn').not().exists().withMessage('El campo "actualizadoEn" no puede ser enviado manualmente'),
 
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — ACTUALIZAR COMPRA  (PUT /:id)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — ACTUALIZAR COMPRA  (PUT /:id) ─────────────────────────────
 const validarActualizarCompra = [
-
-    // ── param id ──────────────────────────────────────────────────────────────
     param('id')
         .notEmpty().withMessage('El ID de la compra es obligatorio')
         .bail()
@@ -140,7 +113,6 @@ const validarActualizarCompra = [
             return true;
         }),
 
-    // ── proveedoresId (opcional en PUT) ───────────────────────────────────────
     body('proveedoresId')
         .optional()
         .isInt({ min: 1 }).withMessage('El ID de proveedor debe ser un entero positivo')
@@ -155,7 +127,6 @@ const validarActualizarCompra = [
             return true;
         }),
 
-    // ── fecha ─────────────────────────────────────────────────────────────────
     body('fecha')
         .optional()
         .isISO8601({ strict: true }).withMessage('La fecha debe estar en formato ISO 8601 (YYYY-MM-DD)')
@@ -171,31 +142,26 @@ const validarActualizarCompra = [
             return true;
         }),
 
-    // ── metodoPago ────────────────────────────────────────────────────────────
     body('metodoPago')
         .optional()
         .trim()
         .isIn(METODOS_PAGO_VALIDOS)
         .withMessage(`El método de pago debe ser: ${METODOS_PAGO_VALIDOS.join(', ')}`),
 
-    // ── no se permite cambiar el estado por esta ruta ─────────────────────────
     body('estado')
         .not().exists()
         .withMessage('Para cambiar el estado use el endpoint PATCH /:id/estado'),
 
-    // ── no se permite cambiar el ID de la compra ──────────────────────────────
     body('id')
         .not().exists()
         .withMessage('No se puede modificar el número de factura de una compra existente'),
 
-    // ── notas ─────────────────────────────────────────────────────────────────
     body('notas')
         .optional()
         .isString().withMessage('Las notas deben ser texto')
         .trim()
         .isLength({ max: 500 }).withMessage('Las notas no pueden superar 500 caracteres'),
 
-    // ── body no puede estar vacío ─────────────────────────────────────────────
     body()
         .custom((body) => {
             const camposPermitidos = ['proveedoresId', 'fecha', 'metodoPago', 'notas', 'detalles'];
@@ -224,12 +190,8 @@ const validarActualizarCompra = [
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — CAMBIAR ESTADO  (PATCH /:id/estado)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — CAMBIAR ESTADO  (PATCH /:id/estado) ──────────────────────
 const validarCambiarEstado = [
-
-    // ── param id ──────────────────────────────────────────────────────────────
     param('id')
         .notEmpty().withMessage('El ID de la compra es obligatorio')
         .bail()
@@ -242,7 +204,6 @@ const validarCambiarEstado = [
             return true;
         }),
 
-    // ── estado ────────────────────────────────────────────────────────────────
     body('estado')
         .notEmpty().withMessage('El estado es obligatorio')
         .bail()
@@ -253,32 +214,29 @@ const validarCambiarEstado = [
         .custom(async (nuevoEstado, { req }) => {
             const id     = parseInt(req.params.id);
             const compra = await Compras.findByPk(id);
-            if (!compra) return true; // ya manejado arriba
+            if (!compra) return true;
 
-            // No retroceder estado
             if (FLUJO_ESTADO[nuevoEstado] < FLUJO_ESTADO[compra.estado])
-                throw new Error(
-                    `No se puede retroceder el estado de "${compra.estado}" a "${nuevoEstado}"`
-                );
+                throw new Error(`No se puede retroceder el estado de "${compra.estado}" a "${nuevoEstado}"`);
 
-            // No asignar el mismo estado
             if (nuevoEstado === compra.estado)
                 throw new Error(`La compra ya se encuentra en estado "${compra.estado}"`);
 
-            // Saltos no permitidos: solo avance de un paso
-            if (FLUJO_ESTADO[nuevoEstado] - FLUJO_ESTADO[compra.estado] > 1)
+            // Se permite saltar de pendiente a completada directamente
+            if (
+                FLUJO_ESTADO[nuevoEstado] - FLUJO_ESTADO[compra.estado] > 1 &&
+                !(compra.estado === 'pendiente' && nuevoEstado === 'completada')
+            )
                 throw new Error(
                     `No se puede saltar de "${compra.estado}" a "${nuevoEstado}" sin pasar por el estado intermedio`
                 );
 
-            // Una compra completada no puede cambiar de estado
             if (compra.estado === 'completada')
                 throw new Error('Una compra completada no puede cambiar de estado');
 
             return true;
         }),
 
-    // ── no se permiten otros campos ───────────────────────────────────────────
     body()
         .custom((body) => {
             const camposExtra = Object.keys(body).filter(k => k !== 'estado');
@@ -290,11 +248,9 @@ const validarCambiarEstado = [
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — ELIMINAR COMPRA  (DELETE /:id)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — ELIMINAR / ANULAR COMPRA  (DELETE /:id) ──────────────────
+// Ahora permite anular compras en estado 'pendiente' o 'completada'
 const validarEliminarCompra = [
-
     param('id')
         .notEmpty().withMessage('El ID de la compra es obligatorio')
         .bail()
@@ -305,25 +261,53 @@ const validarEliminarCompra = [
             const compra = await Compras.findByPk(id);
             if (!compra)
                 throw new Error('La compra no existe');
-            if (compra.estado !== 'pendiente')
-                throw new Error('Solo se pueden eliminar compras en estado pendiente');
-
-            // Verificar que no tiene detalles registrados
-            const tieneDetalles = await DetalleCompraInsumo.findOne({ where: { comprasId: id } });
-            if (tieneDetalles)
-                throw new Error('No se puede eliminar una compra que ya tiene insumos registrados');
-
+            if (compra.estado === 'anulada')
+                throw new Error('Esta compra ya fue anulada');
+            if (compra.estado === 'en transito')
+                throw new Error('No se puede anular una compra que está en tránsito');
             return true;
         }),
 
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — OBTENER COMPRA POR ID  (GET /:id)
-// ─────────────────────────────────────────────────────────────────────────────
-const validarObtenerPorId = [
+// ─── VALIDACIONES — REGISTRAR MERMA  (POST /:id/merma) ────────────────────────
+const validarRegistrarMerma = [
+    param('id')
+        .notEmpty().withMessage('El ID de la compra es obligatorio')
+        .bail()
+        .isInt({ min: 1 }).withMessage('El ID debe ser un entero positivo')
+        .bail()
+        .toInt()
+        .custom(async (id) => {
+            const compra = await Compras.findByPk(id);
+            if (!compra)
+                throw new Error('La compra no existe');
+            if (compra.estado !== 'completada')
+                throw new Error('Solo se pueden registrar mermas en compras completadas');
+            return true;
+        }),
 
+    body('items')
+        .isArray({ min: 1 }).withMessage('Debe indicar al menos un insumo defectuoso en "items"'),
+
+    body('items.*.insumosId')
+        .isInt({ min: 1 }).withMessage('Cada item debe tener un insumosId válido'),
+
+    body('items.*.cantidad')
+        .isInt({ min: 1 }).withMessage('La cantidad defectuosa debe ser un entero positivo'),
+
+    body('motivo')
+        .optional()
+        .isString().withMessage('El motivo debe ser texto')
+        .trim()
+        .isLength({ max: 500 }).withMessage('El motivo no puede superar 500 caracteres'),
+
+    handleValidationErrors,
+];
+
+// ─── VALIDACIONES — OBTENER POR ID  (GET /:id) ────────────────────────────────
+const validarObtenerPorId = [
     param('id')
         .notEmpty().withMessage('El ID es obligatorio')
         .bail()
@@ -334,26 +318,20 @@ const validarObtenerPorId = [
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — OBTENER COMPRAS POR ESTADO  (GET /estado/:estado)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — OBTENER POR ESTADO  (GET /estado/:estado) ─────────────────
 const validarObtenerPorEstado = [
-
     param('estado')
         .notEmpty().withMessage('El estado es obligatorio en la URL')
         .bail()
         .trim()
-        .isIn(ESTADOS_VALIDOS)
-        .withMessage(`Estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(', ')}`),
+        .isIn([...ESTADOS_VALIDOS, 'anulada'])
+        .withMessage(`Estado inválido. Valores permitidos: ${[...ESTADOS_VALIDOS, 'anulada'].join(', ')}`),
 
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDACIONES — QUERY PARAMS PARA LISTAR  (GET /)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── VALIDACIONES — QUERY PARAMS PARA LISTAR  (GET /) ─────────────────────────
 const validarQueryListar = [
-
     query('page')
         .optional()
         .isInt({ min: 1 }).withMessage('El parámetro "page" debe ser un entero mayor a 0')
@@ -367,8 +345,8 @@ const validarQueryListar = [
     query('estado')
         .optional()
         .trim()
-        .isIn(ESTADOS_VALIDOS)
-        .withMessage(`Filtro de estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(', ')}`),
+        .isIn([...ESTADOS_VALIDOS, 'anulada'])
+        .withMessage(`Filtro de estado inválido. Valores permitidos: ${[...ESTADOS_VALIDOS, 'anulada'].join(', ')}`),
 
     query('metodoPago')
         .optional()
@@ -409,14 +387,13 @@ const validarQueryListar = [
     handleValidationErrors,
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPORTAR
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── EXPORTAR ─────────────────────────────────────────────────────────────────
 module.exports = {
     validarCrearCompra,
     validarActualizarCompra,
     validarCambiarEstado,
     validarEliminarCompra,
+    validarRegistrarMerma,
     validarObtenerPorId,
     validarObtenerPorEstado,
     validarQueryListar,

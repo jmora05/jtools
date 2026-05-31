@@ -7,18 +7,18 @@ import { toast } from 'sonner';
 import {
     Search, Plus, Edit, Eye, ShoppingCart, ChevronLeft, ChevronRight,
     Loader2, Lock, X, BanIcon,
-    TruckIcon, CheckCircleIcon, ClockIcon,
+    TruckIcon, CheckCircleIcon, ClockIcon, PackageX,
 } from 'lucide-react';
 
 import {
     getCompras, getCompraById, createCompra, updateCompra,
-    deleteCompra, getProveedores, getInsumos,
+    deleteCompra, cambiarEstadoCompra, getProveedores, getInsumos,
 } from '../../suppliers/services/comprasService';
-import { updateInsumo } from '../../suppliers/services/insumosService';
 
 import { CompraFormModal }   from '../components/CompraFormModal';
 import { CompraDetailModal } from '../components/CompraDetailModal';
 import { CompraAnularModal } from '../components/CompraAnularModal';
+import { CompraMermaModal }  from '../components/CompraMermaModal';
 
 import type {
     Proveedor, Insumo, Compra,
@@ -28,6 +28,7 @@ import type {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const EDIT_LIMIT_DAYS = 5;
 const IVA_DEFAULT     = 19;
+const IVA_STORAGE_KEY = 'jtools_iva_rate';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const isEditableByDate = (fecha: string): boolean => {
@@ -54,7 +55,7 @@ const EstadoBadge = ({ estado }: { estado: string }) => {
         pendiente:     { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-amber-50 text-amber-700 border border-amber-200' },
         'en transito': { icon: <TruckIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
         completada:    { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-green-50 text-green-700 border border-green-200' },
-        anulada:       { icon: <BanIcon className="w-3 h-3 mr-1" />,         clase: 'bg-red-50 text-red-600 border border-red-200' },
+        anulada:       { icon: <BanIcon className="w-3 h-3 mr-1" />,         clase: 'bg-blue-50 text-red-600 border border-red-200' },
     };
     const { icon, clase } = config[estado] ?? { icon: null, clase: 'bg-gray-100 text-gray-600' };
     return (
@@ -79,16 +80,26 @@ export function PurchaseModule() {
     const [showModal, setShowModal]             = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showAnularModal, setShowAnularModal] = useState(false);
+    const [showMermaModal, setShowMermaModal]   = useState(false);
 
     const [editingCompra, setEditingCompra]     = useState<Compra | null>(null);
     const [viewingCompra, setViewingCompra]     = useState<Compra | null>(null);
     const [anulatingCompra, setAnulatingCompra] = useState<Compra | null>(null);
+    const [mermaCompra, setMermaCompra]         = useState<Compra | null>(null);
     const [loadingDetail, setLoadingDetail]     = useState(false);
 
     const [blockedAlertId, setBlockedAlertId]   = useState<number | null>(null);
     const [blockedAlertMsg, setBlockedAlertMsg] = useState('');
 
-    const [ivaRate, setIvaRate] = useState<number>(IVA_DEFAULT);
+    const [ivaRate, setIvaRate] = useState<number>(() => {
+        const saved = localStorage.getItem(IVA_STORAGE_KEY);
+        return saved ? parseFloat(saved) : IVA_DEFAULT;
+    });
+
+    const handleIvaChange = (val: number) => {
+        setIvaRate(val);
+        localStorage.setItem(IVA_STORAGE_KEY, val.toString());
+    };
 
     // ── Carga de datos ─────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
@@ -171,23 +182,7 @@ export function PurchaseModule() {
                     detalles,
                 });
 
-                const proveedorId = parseInt(formData.proveedoresId);
-                const updateStockPromises = carrito.map(async (item) => {
-                    const insumoActual   = insumos.find((i) => i.id === item.insumoId);
-                    const cantidadActual = Number(insumoActual?.cantidad ?? 0);
-                    const precioActual   = Number(insumoActual?.precioUnitario ?? 0);
-                    // Conservar siempre el precio más alto
-                    const precioFinal    = Math.max(precioActual, item.precio);
-                    return updateInsumo(item.insumoId, {
-                        cantidad:       cantidadActual + item.cantidad,
-                        estado:         'disponible',
-                        proveedoresIds: [proveedorId],
-                        precioUnitario: precioFinal,
-                    });
-                });
-
-                await Promise.all(updateStockPromises);
-                toast.success('Compra registrada y stock de insumos actualizado.');
+                toast.success('Compra registrada. El stock se actualizará al completar la compra.');
             }
 
             setShowModal(false);
@@ -258,17 +253,71 @@ export function PurchaseModule() {
         if (!anulatingCompra) return;
         try {
             setSaving(true);
-            await deleteCompra(anulatingCompra.id);
+            const res = await deleteCompra(anulatingCompra.id);
+            // Actualizar estado en la lista local sin recargar
+            setCompras((prev) =>
+                prev.map((c) => c.id === anulatingCompra.id ? { ...c, estado: 'anulada' } : c)
+            );
             toast.success('Compra anulada exitosamente.');
-            setShowAnularModal(false);
-            setAnulatingCompra(null);
-            fetchData();
+            return res; // Devolver resultado con insumosDevueltos
         } catch (error: any) {
             const errores: any[] = Array.isArray(error.errores) ? error.errores : [];
             if (errores.length > 0) { toast.error(errores[0].mensaje); return; }
             toast.error(typeof error.message === 'string' ? error.message : 'Error al anular');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAnularClose = () => {
+        setShowAnularModal(false);
+        setAnulatingCompra(null);
+        fetchData();
+    };
+
+    // ── Cambiar estado desde select ────────────────────────────────────────
+    const handleCambiarEstado = async (compra: Compra, nuevoEstado: string) => {
+        if (nuevoEstado === compra.estado) return;
+
+        // Bloquear retroceso de estado en el frontend
+        if (compra.estado === 'completada' && nuevoEstado === 'pendiente') {
+            toast.error('Esta compra ya fue completada y no puede volver a estado pendiente. Si hay un problema, usa la opción de Anular.');
+            await fetchData();
+            return;
+        }
+
+        if (nuevoEstado === 'anulada') {
+            openAnularDialog(compra);
+            return;
+        }
+        try {
+            await cambiarEstadoCompra(compra.id, nuevoEstado);
+            toast.success(`Compra #${compra.id} marcada como "${nuevoEstado}".`);
+            await fetchData();
+        } catch (error: any) {
+            // Extraer mensaje correctamente sin importar la forma del error
+            const msg =
+                error?.errores?.[0]?.mensaje ??
+                error?.errores?.[0]?.msg ??
+                error?.message ??
+                (typeof error === 'string' ? error : 'Error al cambiar el estado');
+            toast.error(msg);
+            await fetchData();
+        }
+    };
+
+    // ── Merma de defectuosos ───────────────────────────────────────────────
+    const openMermaDialog = async (compra: Compra) => {
+        // Cargar detalle completo para tener los detalles de insumos
+        try {
+            setLoadingDetail(true);
+            const detail = await getCompraById(compra.id);
+            setMermaCompra(detail);
+            setShowMermaModal(true);
+        } catch (error: any) {
+            toast.error(`Error al cargar la compra: ${error.message}`);
+        } finally {
+            setLoadingDetail(false);
         }
     };
 
@@ -334,14 +383,17 @@ export function PurchaseModule() {
                                         <th className="text-left py-4 px-6 text-black font-semibold">
                                             Total (c/IVA {ivaRate}%)
                                         </th>
+                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
                                         <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {currentItems.map((compra) => {
-                                        const isPending = compra.estado === 'pendiente';
-                                        const isAnulada = compra.estado === 'anulada';
-                                        const canEdit   = isPending && isEditableByDate(compra.fecha);
+                                        const isPending    = compra.estado === 'pendiente';
+                                        const isCompletada = compra.estado === 'completada';
+                                        const isAnulada    = compra.estado === 'anulada';
+                                        const canEdit      = isPending && isEditableByDate(compra.fecha);
+                                        const canAnular    = isPending || isCompletada;
 
                                         const subtotal = compra.detalles?.reduce(
                                             (sum, d) => sum + d.cantidad * Number(d.precioUnitario), 0
@@ -396,8 +448,29 @@ export function PurchaseModule() {
                                                                 : '—'}
                                                         </span>
                                                     </td>
+                                                    {/* ── Estado con dropdown ── */}
+                                                    <td className="py-4 px-6">
+                                                        {isAnulada ? (
+                                                            <EstadoBadge estado="anulada" />
+                                                        ) : (
+                                                            <select
+                                                                key={`${compra.id}-${compra.estado}`}
+                                                                value={compra.estado ?? 'pendiente'}
+                                                                onChange={(e) => handleCambiarEstado(compra, e.target.value)}
+                                                                className="text-xs border border-gray-300 rounded-md px-2 py-1.5 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+                                                            >
+                                                                {/* Solo mostrar opciones válidas según estado actual */}
+                                                                {compra.estado === 'pendiente' && (
+                                                                    <option value="pendiente">Pendiente</option>
+                                                                )}
+                                                                <option value="completada">Completada</option>
+                                                                <option value="anulada">Anulada</option>
+                                                            </select>
+                                                        )}
+                                                    </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex items-center space-x-2">
+                                                            {/* Ver */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => openViewDialog(compra)}
@@ -406,6 +479,8 @@ export function PurchaseModule() {
                                                             >
                                                                 <Eye className="w-4 h-4" />
                                                             </Button>
+
+                                                            {/* Editar */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
@@ -426,21 +501,23 @@ export function PurchaseModule() {
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
+
+                                                            {/* Anular */}
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    if (isPending) {
+                                                                    if (canAnular) {
                                                                         openAnularDialog(compra);
                                                                     } else {
                                                                         handleBlockedClick(
                                                                             compra.id,
                                                                             isAnulada
                                                                                 ? 'Esta compra ya fue anulada.'
-                                                                                : `Solo se pueden anular compras en estado "pendiente". Esta compra está en estado "${compra.estado}".`
+                                                                                : `No se puede anular una compra en estado "${compra.estado}".`
                                                                         );
                                                                     }
                                                                 }}
-                                                                className={`border ${isPending
+                                                                className={`border ${canAnular
                                                                     ? 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'
                                                                     : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
                                                                 }`}
@@ -448,13 +525,35 @@ export function PurchaseModule() {
                                                             >
                                                                 <BanIcon className="w-4 h-4" />
                                                             </Button>
+
+                                                            {/* Merma — visible siempre, activo solo en completadas */}
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    if (isCompletada) {
+                                                                        openMermaDialog(compra);
+                                                                    } else {
+                                                                        handleBlockedClick(
+                                                                            compra.id,
+                                                                            'Solo se pueden registrar defectuosos en compras completadas.'
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className={`border ${isCompletada
+                                                                    ? 'bg-white text-amber-700 border-amber-400 hover:bg-amber-50'
+                                                                    : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                }`}
+                                                                title={isCompletada ? 'Registrar defectuosos' : 'Solo disponible en compras completadas'}
+                                                            >
+                                                                <PackageX className="w-4 h-4" />
+                                                            </Button>
                                                         </div>
                                                     </td>
                                                 </tr>
 
                                                 {blockedAlertId === compra.id && (
                                                     <tr>
-                                                        <td colSpan={6} className="px-6 pb-3 pt-0">
+                                                        <td colSpan={7} className="px-6 pb-3 pt-0">
                                                             <BlockedAlert
                                                                 message={blockedAlertMsg}
                                                                 onClose={() => setBlockedAlertId(null)}
@@ -514,7 +613,7 @@ export function PurchaseModule() {
                 proveedores={proveedores}
                 insumos={insumos}
                 ivaRate={ivaRate}
-                onIvaChange={setIvaRate}
+                onIvaChange={handleIvaChange}
                 saving={saving}
                 onSave={handleSaveCompra}
                 onClose={() => { setShowModal(false); setEditingCompra(null); }}
@@ -530,10 +629,17 @@ export function PurchaseModule() {
 
             <CompraAnularModal
                 open={showAnularModal}
-                onClose={() => { setShowAnularModal(false); setAnulatingCompra(null); }}
+                onClose={handleAnularClose}
                 anulatingCompra={anulatingCompra}
                 saving={saving}
                 onConfirm={confirmAnular}
+            />
+
+            <CompraMermaModal
+                open={showMermaModal}
+                onClose={() => { setShowMermaModal(false); setMermaCompra(null); }}
+                compra={mermaCompra}
+                onSuccess={fetchData}
             />
         </div>
     );

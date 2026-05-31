@@ -69,7 +69,11 @@ export const cambiarEstadoCompra = async (id: number, estado: string) => {
         headers: buildAuthHeaders(),
         body: JSON.stringify({ estado }),
     });
-    return handleResponse(response);
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData;
+    }
+    return response.json();
 };
 
 export const deleteCompra = async (id: number) => {
@@ -95,4 +99,22 @@ export const getInsumos = async () => {
         headers: buildAuthHeaders(),
     });
     return handleResponse(response);
+};
+
+export interface MermaItem {
+    insumosId: number;
+    cantidad: number;
+}
+
+export const registrarMerma = async (compraId: number, items: MermaItem[], motivo?: string) => {
+    const response = await fetch(`${BASE_URL}/compras/${compraId}/merma`, {
+        method: 'POST',
+        headers: buildAuthHeaders(),
+        body: JSON.stringify({ items, motivo }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw errorData;
+    }
+    return response.json();
 };
