@@ -36,6 +36,7 @@ import {
 } from '@/features/orders/services/ordenesproduccionservice';
 import { getProductos } from '@/features/products/services/productosService';
 import { getEmpleados } from '@/features/employed/services/empleadosService';
+import { OrdenDetailModal } from '@/features/orders/components/OrdenDetailModal';
 
 // ========================
 // INTERFACES
@@ -948,53 +949,11 @@ function ProductionOrdersSubmodule() {
       )}
 
       {/* Modal Ver Detalle */}
-      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de Orden de Producción</DialogTitle>
-            <DialogDescription>Información completa de la orden</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-4">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Información General</CardTitle></CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  <div><p className="text-xs text-gray-500">Código</p><p className="text-sm font-medium">{selected.codigoOrden}</p></div>
-                  <div><p className="text-xs text-gray-500">Estado</p><Badge className={estadoColor(selected.estado ?? '')}>{selected.estado}</Badge></div>
-                  <div><p className="text-xs text-gray-500">Producto</p><p className="text-sm">{selected.producto?.nombreProducto ?? '—'}</p></div>
-                  <div><p className="text-xs text-gray-500">Referencia</p><p className="text-sm">{selected.producto?.referencia ?? '—'}</p></div>
-                  <div><p className="text-xs text-gray-500">Cantidad</p><p className="text-sm">{selected.cantidad}</p></div>
-                  <div><p className="text-xs text-gray-500">Responsable</p><p className="text-sm">{selected.responsable ? `${selected.responsable.nombres} ${selected.responsable.apellidos}` : '—'}</p></div>
-                  <div><p className="text-xs text-gray-500">Fecha de Inicio</p><p className="text-sm">{selected.fechaEntrega ? selected.fechaEntrega.split('T')[0] : '—'}</p></div>
-                  {selected.motivoAnulacion && (
-                    <div className="col-span-2"><p className="text-xs text-gray-500">Motivo de Anulación</p><p className="text-sm text-blue-700">{selected.motivoAnulacion}</p></div>
-                  )}
-                  {selected.nota && (
-                    <div className="col-span-2"><p className="text-xs text-gray-500">Notas</p><p className="text-sm">{selected.nota}</p></div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="flex justify-end gap-3">
-                {canEdit(selected.estado) && (
-                  <>
-                    <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => { setIsViewOpen(false); openEdit(selected!); }}>
-                      <CheckCircleIcon className="w-4 h-4 mr-2" />
-                      Cambiar Estado
-                    </Button>
-                    <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => { setIsViewOpen(false); openAnulModal(selected!); }}>
-                      <XCircleIcon className="w-4 h-4 mr-2" />
-                      Anular
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <OrdenDetailModal
+        open={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        orden={selected}
+      />
 
       {/* Modal Editar */}
       <Dialog open={isStatusOpen} onOpenChange={(o) => { if (!o) { setIsStatusOpen(false); setSelected(null); } }}>

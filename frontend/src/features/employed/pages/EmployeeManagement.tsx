@@ -27,6 +27,7 @@ import {
     sanitizarSalario,
     type FormErrors,
 } from '../utils/empleadosValidations';
+import { EmpleadoDetailModal } from '../components/EmpleadoDetailModal';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const AREAS:  Empleado['area'][]  = ['Producción', 'Administración'];
@@ -882,86 +883,12 @@ export function EmployeeManagement() {
             </Dialog>
 
             {/* ═══ MODAL — VER DETALLE ═══ */}
-            <Dialog open={showDetailModal} onOpenChange={(open) => { if (!open) setShowDetailModal(false); }}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-8">
-                    <DialogHeader>
-                        <DialogTitle>Detalle del Empleado</DialogTitle>
-                        <DialogDescription>Información completa del empleado seleccionado.</DialogDescription>
-                    </DialogHeader>
-                    {viewingEmployee && (
-                        <div className="space-y-4 mt-4">
-                            <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                <div className="col-span-2">
-                                    <p className="text-xs text-gray-500 uppercase">Nombre Completo</p>
-                                    <p className="font-semibold text-blue-900 text-lg">{viewingEmployee.nombres} {viewingEmployee.apellidos}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Identificación</p>
-                                    <p className="font-semibold text-sm">{viewingEmployee.tipoDocumento} {viewingEmployee.numeroDocumento}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Estado</p>
-                                    <Badge className={viewingEmployee.estado === 'activo' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-500'}>
-                                        {viewingEmployee.estado}
-                                    </Badge>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Mail className="w-3 h-3" /> Correo</p>
-                                    <p className="font-semibold text-sm">{viewingEmployee.email}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Phone className="w-3 h-3" /> Teléfono</p>
-                                    <p className="font-semibold text-sm">{viewingEmployee.telefono}</p>
-                                </div>
-                                {viewingEmployee.ciudad && (
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><MapPin className="w-3 h-3" /> Ciudad</p>
-                                        <p className="font-semibold text-sm">{viewingEmployee.ciudad}</p>
-                                    </div>
-                                )}
-                                {viewingEmployee.direccion && (
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Dirección</p>
-                                        <p className="font-semibold text-sm">{viewingEmployee.direccion}</p>
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Briefcase className="w-3 h-3" /> Cargo</p>
-                                    <p className="font-semibold text-sm">{viewingEmployee.cargo}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase">Área</p>
-                                    <Badge variant="secondary">{viewingEmployee.area}</Badge>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" /> Fecha de Ingreso</p>
-                                    <p className="font-semibold text-sm">{viewingEmployee.fechaIngreso}</p>
-                                </div>
-                                <div className="col-span-2 border-t border-blue-100 pt-3 mt-1">
-                                    <p className="text-xs text-gray-500 uppercase">Salario base mensual</p>
-                                    <p className="font-bold text-blue-700 text-xl mt-0.5">
-                                        {viewingEmployee.salario
-                                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(parseFloat(String(viewingEmployee.salario)))
-                                            : '—'}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                {viewingEmployee.estado === 'activo' && (
-                                    <Button
-                                        onClick={() => { openEdit(viewingEmployee); setShowDetailModal(false); }}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                                    >
-                                        Editar Empleado
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-
+            <EmpleadoDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                empleado={viewingEmployee}
+                onEdit={(emp) => { openEdit(emp); setShowDetailModal(false); }}
+            />
             {/* ═══ MODAL — CONFIRMAR DESACTIVACIÓN/ELIMINACIÓN ═══ */}
             <Dialog open={showDeleteModal} onOpenChange={(open) => { if (!open) { setShowDeleteModal(false); setDeletingEmployee(null); setVerificacionEliminacion(null); } }}>
                 <DialogContent className="max-w-md p-6">

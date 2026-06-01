@@ -29,6 +29,7 @@ import {
     type InsumosDependencias,
 } from '../services/insumosService';
 import { getProveedores } from '../services/proveedoresService';
+import { InsumoDetailModal } from '../components/InsumoDetailModal';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supply {
@@ -832,80 +833,11 @@ export function SupplyManagement() {
             </Dialog>
 
             {/* ── MODAL VER DETALLE ───────────────────────────────────────── */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Detalles del Insumo</DialogTitle>
-                            <DialogDescription>Información completa del insumo seleccionado.</DialogDescription>
-                        </DialogHeader>
-                        {viewingSupply && (
-                            <div className="space-y-4 mt-4">
-                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                    <div className="col-span-2 flex items-center gap-4">
-                                        <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <Package className="w-7 h-7 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-blue-900 text-lg">{viewingSupply.name}</p>
-                                            <p className="text-sm text-gray-500">{viewingSupply.description || '—'}</p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Proveedores</p>
-                                        {viewingSupply.proveedores.length === 0 ? (
-                                            <p className="font-semibold text-sm">—</p>
-                                        ) : (
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                {viewingSupply.proveedores.map(p => (
-                                                    <span key={p.id} className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">
-                                                        {p.nombre}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Precio unitario</p>
-                                        <p className="font-semibold text-sm">${viewingSupply.price.toLocaleString()}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Cantidad</p>
-                                        <p className="font-semibold text-sm">{viewingSupply.cantidad ?? 0}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Total</p>
-                                        <p className="font-semibold text-sm">
-                                            {`$${(viewingSupply.price * (viewingSupply.cantidad ?? 0)).toLocaleString()}`}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Unidad de medida</p>
-                                        <Badge variant="secondary">{viewingSupply.unit}</Badge>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Estado</p>
-                                        <Badge className={viewingSupply.status
-                                            ? 'bg-blue-100 text-blue-900'
-                                            : 'bg-gray-100 text-gray-500'}>
-                                            {viewingSupply.status ? 'Disponible' : 'Agotado'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                    <Button
-                                        onClick={() => { handleEdit(viewingSupply); setShowDetailModal(false); }}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                                    >
-                                        Editar Insumo
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <InsumoDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                insumo={viewingSupply}
+            />
 
             {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
             <Dialog open={showDeleteModal} onOpenChange={(open) => {
