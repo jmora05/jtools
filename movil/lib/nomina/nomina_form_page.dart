@@ -67,7 +67,7 @@ class _NominaFormPageState extends State<NominaFormPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
-        title: const Text('Nueva Nómina', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Nuevo Control de Pagos', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
       body: Form(
         key: _key,
@@ -178,7 +178,7 @@ class _NominaFormPageState extends State<NominaFormPage> {
                 child: _saving
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Registrar nómina', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  : const Text('Registrar pago', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 40),
@@ -240,7 +240,7 @@ class _NominaFormPageState extends State<NominaFormPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nómina registrada exitosamente'), backgroundColor: kPrimary));
+          const SnackBar(content: Text('Pago registrado exitosamente'), backgroundColor: kPrimary));
         Navigator.pop(context);
       }
     } catch (e) {

@@ -147,7 +147,7 @@ export function NominaDetailModal({ open, onClose, record }: NominaDetailModalPr
         if (!record) return;
         try {
             generarPdfNomina(record, formatCurrency);
-            toast.success(`PDF de nómina de ${record.employeeName} descargado.`);
+            toast.success(`PDF de control de pagos de ${record.employeeName} descargado.`);
         } catch (err: any) {
             toast.error(`Error al generar PDF: ${err.message}`);
         }
@@ -167,7 +167,7 @@ export function NominaDetailModal({ open, onClose, record }: NominaDetailModalPr
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                 <FileText className="w-4 h-4" style={{ opacity: 0.75 }} />
                                 <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                    Liquidación de nómina
+                                    Control de pagos
                                 </span>
                             </div>
                             <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>

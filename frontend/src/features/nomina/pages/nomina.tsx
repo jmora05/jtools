@@ -152,7 +152,7 @@ export function PayrollModule() {
       const data = await getNominas();
       setPayrollRecords(data.map(mapNominaToRecord));
     } catch {
-      toast.error('Error al cargar nóminas');
+      toast.error('Error al cargar control de pagos');
     }
   };
 
@@ -220,7 +220,7 @@ export function PayrollModule() {
     if (!record.id) return;
     try {
       await apiMarcarPagada(record.id);
-      toast.success(`Nómina de ${record.employeeName} marcada como pagada`);
+      toast.success(`Control de pagos de ${record.employeeName} marcado como pagado`);
       fetchNominas();
     } catch (err: any) {
       toast.error('Error: ' + (err?.message ?? 'No se pudo marcar como pagada'));
@@ -342,7 +342,7 @@ export function PayrollModule() {
     const maxFriday = addDays(getFriday(new Date()), 7);
     if (selectedFriday > maxFriday) {
       toast.error(
-        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular nómina para semanas tan adelantadas.`
+        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular el control de pagos para semanas tan adelantadas.`
       );
       return;
     }
@@ -355,7 +355,7 @@ export function PayrollModule() {
       (!editingRecord || r.id !== editingRecord.id)
     );
     if (duplicado) {
-      toast.error(`Ya existe una nómina para ${formData.employeeName} en la semana que cierra el ${fechaCorte}`);
+      toast.error(`Ya existe un registro de control de pagos para ${formData.employeeName} en la semana que cierra el ${fechaCorte}`);
       return;
     }
 
@@ -383,10 +383,10 @@ export function PayrollModule() {
     try {
       if (editingRecord) {
         await updateNominaApi(editingRecord.id, payload);
-        toast.success('Nómina actualizada exitosamente');
+        toast.success('Control de pagos actualizado exitosamente');
       } else {
         await createNomina(payload);
-        toast.success('Nómina guardada exitosamente');
+        toast.success('Control de pagos guardado exitosamente');
       }
       await fetchNominas();
       resetForm();
@@ -503,9 +503,9 @@ export function PayrollModule() {
           <div>
             <h1 className="text-3xl text-blue-900 font-bold mb-2 flex items-center gap-3">
               <CalculatorIcon className="w-8 h-8 text-blue-600" />
-              Módulo de Nómina
+              Módulo de Control de Pagos
             </h1>
-            <p className="text-blue-800">Sistema integral de cálculo y gestión de nómina empresarial</p>
+            <p className="text-blue-800">Sistema integral de cálculo y control de pagos empresarial</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -541,7 +541,7 @@ export function PayrollModule() {
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
                 <CalculatorIcon className="w-4 h-4 mr-2" />
-                Calcular Nómina
+                Calcular Pago
               </Button>
             </DialogTrigger>
 
@@ -550,7 +550,7 @@ export function PayrollModule() {
                 <DialogHeader>
                   <DialogTitle className="text-2xl flex items-center gap-2">
                     <CalculatorIcon className="w-6 h-6 text-blue-600" />
-                    {editingRecord ? 'Editar Nómina' : 'Calculadora de Nómina'}
+                    {editingRecord ? 'Editar Control de Pagos' : 'Calculadora de Control de Pagos'}
                   </DialogTitle>
                   <DialogDescription className="flex items-center gap-1">
                     <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
@@ -745,7 +745,7 @@ export function PayrollModule() {
                         <CardHeader>
                           <CardTitle className="text-lg flex items-center gap-2">
                             <DollarSignIcon className="w-5 h-5 text-blue-600" />
-                            Cálculo de Nómina
+                            Cálculo de Control de Pagos
                           </CardTitle>
                           <CardDescription>Vista previa del cálculo automático</CardDescription>
                         </CardHeader>
@@ -960,7 +960,7 @@ export function PayrollModule() {
                     </Button>
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                       {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                      {editingRecord ? 'Actualizar Nómina' : 'Guardar Nómina'}
+                      {editingRecord ? 'Actualizar Control de Pagos' : 'Guardar Control de Pagos'}
                     </Button>
                   </div>
                 </form>
@@ -975,9 +975,9 @@ export function PayrollModule() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileTextIcon className="w-5 h-5 text-blue-600" />
-              Registro de Nóminas
+              Registro de Control de Pagos
             </CardTitle>
-            <CardDescription>Historial completo de cálculos de nómina realizados</CardDescription>
+            <CardDescription>Historial completo de registros de control de pagos</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -998,7 +998,7 @@ export function PayrollModule() {
                   {currentRecords.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                        No hay registros de nómina. Usa "Calcular Nómina" para registrar el pago semanal.
+                        No hay registros. Usa "Calcular Pago" para registrar el pago semanal.
                       </td>
                     </tr>
                   ) : (
@@ -1061,7 +1061,7 @@ export function PayrollModule() {
                                     <EditIcon className="w-4 h-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent><p>Editar nómina</p></TooltipContent>
+                                <TooltipContent><p>Editar control de pagos</p></TooltipContent>
                               </Tooltip>
                             )}
 

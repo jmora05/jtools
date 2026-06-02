@@ -189,7 +189,7 @@ export default function App() {
   { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
   { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
   { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
-  { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
+  { id: 'nomina',                       label: 'Control de Pagos',      icon: <DollarSign size={18} /> },
 ];
     }
 
@@ -250,7 +250,7 @@ export default function App() {
       'production-employees':         'Empleados de Producción',
       'production-orders-sub':        'Órdenes de Producción',
       'production-technical-sheets':  'Fichas Técnicas',
-      nomina:                         'Nómina',
+      nomina:                         'Control de Pagos',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
       'my-info':                      'Mi Información',

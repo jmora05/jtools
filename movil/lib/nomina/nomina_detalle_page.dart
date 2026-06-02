@@ -61,7 +61,7 @@ class NominaDetallePage extends StatelessWidget {
               itemBuilder: (_) => [
                 const PopupMenuItem(
                   value: 'eliminar',
-                  child: Text('Eliminar nómina', style: TextStyle(color: kError)),
+                  child: Text('Eliminar registro', style: TextStyle(color: kError)),
                 ),
               ],
             ),
@@ -176,7 +176,7 @@ class NominaDetallePage extends StatelessWidget {
       context: ctx,
       builder: (_) => AlertDialog(
         title: const Text('Confirmar pago'),
-        content: Text('¿Marcar la nómina de ${nomina.nombreEmpleado} como pagada?'),
+        content: Text('¿Marcar el control de pagos de ${nomina.nombreEmpleado} como pagado?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
@@ -190,7 +190,7 @@ class NominaDetallePage extends StatelessWidget {
       await ctx.read<NominaProvider>().marcarPagada(nomina.id);
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(content: Text('Nómina marcada como pagada'), backgroundColor: kPrimary));
+          const SnackBar(content: Text('Control de pagos marcado como pagado'), backgroundColor: kPrimary));
         Navigator.pop(ctx);
       }
     } catch (e) {
@@ -204,8 +204,8 @@ class NominaDetallePage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Eliminar nómina'),
-        content: const Text('¿Eliminar esta nómina permanentemente?'),
+        title: const Text('Eliminar registro'),
+        content: const Text('¿Eliminar este registro permanentemente?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           TextButton(onPressed: () => Navigator.pop(ctx, true),

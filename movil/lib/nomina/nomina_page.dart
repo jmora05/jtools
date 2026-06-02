@@ -39,7 +39,7 @@ class _NominaPageState extends State<NominaPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
-        title: const Text('Nómina', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Control de Pagos', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
@@ -85,7 +85,7 @@ class _NominaPageState extends State<NominaPage> {
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.receipt_long_outlined, size: 64, color: kBorder),
                   SizedBox(height: 12),
-                  Text('No hay nóminas', style: TextStyle(color: kTextMuted, fontSize: 16)),
+                  Text('No hay registros', style: TextStyle(color: kTextMuted, fontSize: 16)),
                 ]))
               : RefreshIndicator(
                   color: kPrimary, onRefresh: prov.cargar,
@@ -100,7 +100,7 @@ class _NominaPageState extends State<NominaPage> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: kPrimary,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nueva nómina', style: TextStyle(color: Colors.white)),
+        label: const Text('Nuevo pago', style: TextStyle(color: Colors.white)),
         onPressed: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const NominaFormPage())),
       ),
