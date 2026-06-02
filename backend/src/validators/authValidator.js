@@ -6,11 +6,11 @@
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-// Contraseña: mínimo 8 chars, 1 mayúscula, 2 números, 1 especial
+// Contraseña: mínimo 8 chars, 1 mayúscula, 1 número, 1 especial
 const PASSWORD_RULES = [
   { test: (p) => p.length >= 8,                              msg: 'La contraseña debe tener al menos 8 caracteres' },
   { test: (p) => /[A-Z]/.test(p),                            msg: 'La contraseña debe contener al menos una letra mayúscula' },
-  { test: (p) => (p.match(/\d/g) || []).length >= 2,         msg: 'La contraseña debe contener al menos 2 números' },
+  { test: (p) => /\d/.test(p),                              msg: 'La contraseña debe contener al menos un número' },
   { test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p),          msg: 'La contraseña debe contener al menos un carácter especial (!@#$%^&*...)' },
 ];
 
@@ -118,16 +118,18 @@ function validateRegisterBody(body) {
 
 function validateResetPasswordBody(body) {
   const errors = [];
-  errors.push(...validateEmail(body?.email));
-
-  const code = String(body?.code || '').trim();
-  if (!code) {
-    errors.push('El código de verificación es obligatorio');
-  } else if (!/^\d{6}$/.test(code)) {
-    errors.push('El código debe ser de 6 dígitos numéricos');
+  if (!body?.resetToken || !String(body.resetToken).trim()) {
+    errors.push('El token de recuperación es obligatorio');
   }
 
   errors.push(...validatePassword(body?.newPassword, 'La nueva contraseña'));
+
+  if (!body?.confirmPassword || !String(body.confirmPassword).trim()) {
+    errors.push('La confirmación de contraseña es obligatoria');
+  } else if (body.newPassword !== body.confirmPassword) {
+    errors.push('Las contraseñas no coinciden');
+  }
+
   return errors;
 }
 

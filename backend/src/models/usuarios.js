@@ -17,15 +17,14 @@ email: {
     type: DataTypes.STRING(255),
     allowNull: false,
     defaultValue: null,
-    validate: {
-    notEmpty: { msg: 'El email no puede estar vacío' },
-    isEmail:  { msg: 'El email no tiene un formato válido' },
-    contieneArroba(value) {
-        if (!value.includes('@')) {
-        throw new Error('El email debe contener el símbolo @');
-        }
+    unique: {
+        name: 'unique_usuario_email',
+        msg:  'Este correo electrónico ya está registrado'
     },
-    len: { args: [0, 255], msg: 'El email debe tener máximo 255 caracteres' }
+    validate: {
+        notEmpty: { msg: 'El email no puede estar vacío' },
+        isEmail:  { msg: 'El email no tiene un formato válido' },
+        len: { args: [0, 255], msg: 'El email debe tener máximo 255 caracteres' }
     }
 },
 estado: {

@@ -1,4 +1,5 @@
-const { Roles } = require('../models/index.js');
+const { Roles, Usuarios } = require('../models/index.js');
+const { validateCreateRol, validateUpdateRol, validateSetPermisos } = require('../validators/rolesValidator');
 
 // GET - listar roles (incluye permisos de cada rol)
 const getRoles = async (_req, res) => {
@@ -29,14 +30,11 @@ const getRolesById = async (req, res) => {
 // POST - crear rol (requiere al menos un permiso)
 const createRoles = async (req, res) => {
     try {
+        const errores = await validateCreateRol(req.body);
+        if (errores.length) return res.status(400).json({ message: 'Error de validación', errores });
+
         const { name, description, permisosIds } = req.body;
-
-        // Validación: debe tener al menos un permiso
-        if (!Array.isArray(permisosIds) || permisosIds.length === 0) {
-            return res.status(400).json({ message: 'Un rol debe tener al menos un permiso asignado' });
-        }
-
-        const role = await Roles.create({ name, description });
+        const role = await Roles.create({ name: String(name).trim(), description: description?.trim() || null });
 
         // Asignar permisos al rol recién creado
         await role.setPermisos(permisosIds);
@@ -58,13 +56,19 @@ const createRoles = async (req, res) => {
 // PUT - actualizar rol
 const updateRoles = async (req, res) => {
     try {
+        const errores = await validateUpdateRol(req.body, Number(req.params.id));
+        if (errores.length) return res.status(400).json({ message: 'Error de validación', errores });
+
         const { id } = req.params;
         const role = await Roles.findByPk(id);
         if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado'});
+            return res.status(404).json({ message: 'Rol no encontrado' });
         }
         const { name, description } = req.body;
-        await role.update({ name, description });
+        await role.update({
+            ...(name        !== undefined ? { name:        String(name).trim()              } : {}),
+            ...(description !== undefined ? { description: description?.trim() || null      } : {}),
+        });
         return res.status(200).json({ message: 'Rol actualizado correctamente', role });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -85,14 +89,23 @@ const deleteRoles = async (req, res) => {
             return res.status(404).json({ message: 'Rol no encontrado' });
         }
 
+        // Verificar explícitamente si hay usuarios con este rol antes de intentar borrar
+        const totalUsuarios = await Usuarios.count({ where: { rolesId: id } });
+        if (totalUsuarios > 0) {
+            return res.status(409).json({
+                message: `No se puede eliminar el rol porque tiene ${totalUsuarios} usuario(s) asignado(s). Reasigna o elimina esos usuarios primero.`
+            });
+        }
+
+        // Limpiar permisos del rol antes de eliminar (evita FK en tabla rol_permisos)
+        await role.setPermisos([]);
         await role.destroy();
         res.status(200).json({ message: 'Rol eliminado correctamente' });
 
     } catch (error) {
-        // Restricción de llave foránea: el rol tiene usuarios asignados
         if (
             error.name === 'SequelizeForeignKeyConstraintError' ||
-            (error.parent && error.parent.code === '23503') // PostgreSQL FK violation
+            (error.parent && error.parent.code === '23503')
         ) {
             return res.status(409).json({
                 message: 'No se puede eliminar el rol porque tiene usuarios asignados. Reasigna o elimina esos usuarios primero.'
@@ -130,9 +143,8 @@ const setRolPermisos = async (req, res) => {
         const { permisosIds } = req.body;
         // permisosIds es un array de IDs: [1, 2, 3]
 
-        if (!Array.isArray(permisosIds)) {
-            return res.status(400).json({ message: 'permisosIds debe ser un array' });
-        }
+        const erroresPermisos = validateSetPermisos(req.body);
+        if (erroresPermisos.length) return res.status(400).json({ message: 'Error de validación', errores: erroresPermisos });
 
         const role = await Roles.findByPk(id);
         if (!role) {

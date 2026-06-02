@@ -22,6 +22,7 @@ import { CartButton }   from '@/shared/components/CartButton';
 import { ProductionModule } from '@/features/production/pages/ProductionModule';
 import { NewsModule } from '@/features/employed/pages/NewsModule';
 import { PayrollModule } from '@/features/nomina/pages/nomina';
+import { getModulesByRole, MODULE_KEY_MAP } from '@/shared/services/modulesService';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +69,20 @@ export default function App() {
   const [productionExpanded, setProductionExpanded] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesClientFilter, setSalesClientFilter] = useState<any>(null);
+  const [allowedModuleKeys, setAllowedModuleKeys] = useState<string[]>([]);
+
+  // Cargar módulos permitidos cuando el usuario cambia
+  useEffect(() => {
+    if (user && user.rolesId) {
+      loadUserModules(user.rolesId);
+    }
+  }, [user?.rolesId]);
+
+  const loadUserModules = async (rolesId: number) => {
+    const modules = await getModulesByRole(rolesId);
+    const moduleKeys = modules.map(m => m.moduleKey || m.name.toLowerCase()).filter(Boolean);
+    setAllowedModuleKeys(moduleKeys);
+  };
 
   const handleLogin = (userData: AppUser) => {
     setUser(userData);
@@ -96,6 +111,7 @@ export default function App() {
     setIsClientPreview(false);
     setSalesClientFilter(null);
     setShowLandingFirst(true);
+    setAllowedModuleKeys([]);
     localStorage.removeItem('jrepuestos_user');
     localStorage.removeItem('jrepuestos_token');
   };
@@ -163,43 +179,66 @@ export default function App() {
   }
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-  { id: 'catalog',   label: 'Productos',  icon: <Package size={18} /> },
-];
+      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+      { id: 'catalog',   label: 'Productos',  icon: <Package size={18} /> },
+    ];
 
     if (isClientPreview) return baseModules;
 
+    // Función auxiliar para verificar si un módulo está permitido
+    const isModuleAllowed = (moduleId: string): boolean => {
+      // Si no hay módulos cargados aún, permitir lo básico según el tipo de usuario
+      if (allowedModuleKeys.length === 0) {
+        if (u.userType === 'client') {
+          return moduleId === 'catalog';
+        }
+        return moduleId === 'dashboard' || moduleId === 'catalog';
+      }
+      // Verificar si el módulo está en la lista permitida
+      return allowedModuleKeys.some(key => 
+        MODULE_KEY_MAP[key] === moduleId || key === moduleId
+      );
+    };
+
     if (u.userType === 'admin') {
-      return [
-  ...baseModules,
-  { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
-  {
-    id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true,
-    submenu: [
-      { id: 'users',       label: 'Usuarios',         icon: <Users size={16} /> },
-      { id: 'roles',       label: 'Roles y Permisos', icon: <Lock size={16} /> },
-    ],
-  },
-  { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
-  { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={18} /> },
-  { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
-  { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
-  { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
-  { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
-  { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
-  { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
-  { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
-  { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
-];
+      const adminModules = [
+        ...baseModules,
+        { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
+        {
+          id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true as const,
+          submenu: [
+            { id: 'users',       label: 'Usuarios',         icon: <Users size={16} /> },
+            { id: 'roles',       label: 'Roles y Permisos', icon: <Lock size={16} /> },
+          ].filter(sub => isModuleAllowed(sub.id)),
+        },
+        { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
+        { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={18} /> },
+        { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
+        { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
+        { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
+        { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
+        { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
+        { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
+        { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
+        { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
+      ].filter((module): module is ModuleItem => {
+        // Filtrar el submenu si existe y es vacío
+        if (module.hasSubmenu && module.submenu.length === 0) return false;
+        // Filtrar módulos no permitidos
+        return isModuleAllowed(module.id);
+      }) as ModuleItem[];
+
+      return adminModules;
     }
 
-    // Cliente registrado: Compras (ventas filtradas) + Pedidos + Productos
-    return [
-  { id: 'dashboard',        label: 'Dashboard',        icon: <LayoutDashboard size={18} /> },
-  { id: 'catalog',          label: 'Productos',         icon: <Package size={18} /> },
-  { id: 'client-purchases', label: 'Mis Compras',       icon: <ShoppingCart size={18} /> },
-  { id: 'my-info',          label: 'Mi Información',    icon: <UserIcon size={18} /> },
-];
+    // Cliente registrado: solo los módulos que le fueron asignados
+    const clientModules: ModuleItem[] = [
+      { id: 'catalog',          label: 'Productos',         icon: <Package size={18} /> },
+      { id: 'client-purchases', label: 'Mis Compras',       icon: <ShoppingCart size={18} /> },
+      { id: 'my-info',          label: 'Mi Información',    icon: <UserIcon size={18} /> },
+    ].filter(module => isModuleAllowed(module.id));
+
+    return clientModules;
   };
 
   const renderModule = () => {

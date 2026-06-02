@@ -293,15 +293,10 @@ const resendCode = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const resetPassword = async (req, res) => {
     try {
+        const errors = validateResetPasswordBody(req.body);
+        if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
+
         const { resetToken, newPassword } = req.body;
-
-        if (!resetToken || !newPassword) {
-            return res.status(400).json({ message: 'resetToken y newPassword son requeridos' });
-        }
-
-        // Validar fortaleza de la contraseña
-        const pwdErrors = validatePassword(newPassword, 'La nueva contraseña');
-        if (pwdErrors.length) return res.status(400).json({ message: 'Error de validación', errores: pwdErrors });
 
         // Verificar el resetToken
         let payload;

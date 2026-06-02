@@ -52,45 +52,54 @@ function CountdownTimer({ expiresAt, onExpire }: { expiresAt: Date; onExpire: ()
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 function validateNameField(value: string, label: string): string {
-  if (!value) return `${label} es obligatorio`;
-  if (value !== value.trim()) return `${label} no debe tener espacios al inicio o al final`;
+  if (!value?.trim()) return `${label} es obligatorio`;
   if (value.trim().length < 2) return `${label} debe tener al menos 2 caracteres`;
   if (value.trim().length > 100) return `${label} no puede superar 100 caracteres`;
-  if (!NAME_REGEX.test(value)) return `${label} solo puede contener letras y espacios`;
-  if (/^\s+$/.test(value)) return `${label} no puede ser solo espacios`;
+  if (!NAME_REGEX.test(value.trim())) return `${label} solo puede contener letras y espacios`;
   return '';
 }
 
-function validateDocumentNumber(value: string): string {
-  if (!value) return 'El número de documento es obligatorio';
-  if (/\s/.test(value)) return 'El número de documento no puede contener espacios';
-  if (!/^[a-zA-Z0-9]{4,20}$/.test(value)) return 'Entre 4 y 20 caracteres alfanuméricos';
+function validateBusinessName(value: string): string {
+  if (!value?.trim()) return 'La razón social es obligatoria';
+  if (value.trim().length > 100) return 'La razón social no puede superar 100 caracteres';
+  return '';
+}
+
+function validateDocumentNumber(value: string, documentType: string): string {
+  if (!value?.trim()) return 'El número de documento es obligatorio';
+  const trimmed = value.trim();
+
+  if (documentType?.toLowerCase() === 'nit') {
+    if (!/^[0-9-]+$/.test(trimmed)) return 'Solo se permiten dígitos y guiones';
+    if (!/^[0-9]{9,10}(-[0-9])?$/.test(trimmed)) return 'Formato: 900123456-7';
+    return '';
+  }
+
+  if (!/^[0-9]+$/.test(trimmed)) return 'Solo se permiten dígitos';
+  if (trimmed.length < 5) return 'Mínimo 5 caracteres';
   return '';
 }
 
 function validatePhone(value: string): string {
-  if (!value) return 'El teléfono es obligatorio';
-  if (!/^\+?[\d\s\-]{7,20}$/.test(value)) return 'Formato no válido (7-20 dígitos)';
+  if (!value?.trim()) return 'El teléfono es obligatorio';
+  if (value.trim().length < 7) return 'Mínimo 7 dígitos';
   return '';
 }
 
 function validateEmail(value: string): string {
-  if (!value) return 'El correo electrónico es obligatorio';
-  if (value !== value.trim()) return 'El correo no debe tener espacios';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Correo electrónico inválido';
+  if (!value?.trim()) return 'El correo electrónico es obligatorio';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) return 'Correo electrónico inválido';
   return '';
 }
 
 function validateCity(value: string): string {
-  if (!value) return 'La ciudad es obligatoria';
-  if (value.trim().length < 2) return 'Mínimo 2 caracteres';
-  if (value.trim().length > 100) return 'Máximo 100 caracteres';
-  if (!NAME_REGEX.test(value)) return 'Solo letras y espacios';
+  if (!value?.trim()) return 'La ciudad es obligatoria';
+  if (!NAME_REGEX.test(value.trim())) return 'Solo letras y espacios';
   return '';
 }
 
 function validateAddress(value: string): string {
-  if (value && value.length > 200) return 'La dirección no puede superar 200 caracteres';
+  if (!value?.trim()) return 'La dirección es obligatoria';
   return '';
 }
 
@@ -98,7 +107,7 @@ function validatePassword(value: string): string {
   if (!value) return 'La contraseña es obligatoria';
   if (value.length < 8) return 'Mínimo 8 caracteres';
   if (!/[A-Z]/.test(value)) return 'Al menos 1 mayúscula';
-  if ((value.match(/\d/g) || []).length < 2) return 'Al menos 2 números';
+  if (!/\d/.test(value)) return 'Al menos 1 número';
   if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) return 'Al menos 1 carácter especial';
   return '';
 }
@@ -179,7 +188,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     setNewPasswordValidation({
       length:    newPassword.length >= 8,
       uppercase: /[A-Z]/.test(newPassword),
-      numbers:   (newPassword.match(/\d/g) || []).length >= 2,
+      numbers:   (newPassword.match(/\d/g) || []).length >= 1,
       special:   /[!@#$%^&*(),.?":{}|<>]/.test(newPassword),
     });
   }, [newPassword]);
@@ -192,10 +201,10 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       errors.firstName = validateNameField(registerForm.firstName, 'El nombre');
       errors.lastName  = validateNameField(registerForm.lastName, 'Los apellidos');
     } else {
-      errors.businessName = validateNameField(registerForm.businessName, 'La razón social');
-      if (!registerForm.contacto.trim()) errors.contacto = 'El contacto es obligatorio';
+      errors.businessName = validateBusinessName(registerForm.businessName);
+      errors.contacto     = validateNameField(registerForm.contacto, 'El contacto');
     }
-    errors.documentNumber  = validateDocumentNumber(registerForm.documentNumber);
+    errors.documentNumber  = validateDocumentNumber(registerForm.documentNumber, registerForm.documentType);
     errors.phone           = validatePhone(registerForm.phone);
     errors.email           = validateEmail(registerForm.email);
     errors.city            = validateCity(registerForm.city);
@@ -250,10 +259,10 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       errors.firstName = validateNameField(registerForm.firstName, 'El nombre');
       errors.lastName  = validateNameField(registerForm.lastName, 'Los apellidos');
     } else {
-      errors.businessName = validateNameField(registerForm.businessName, 'La razón social');
-      if (!registerForm.contacto.trim()) errors.contacto = 'El contacto es obligatorio';
+      errors.businessName = validateBusinessName(registerForm.businessName);
+      errors.contacto     = validateNameField(registerForm.contacto, 'El contacto');
     }
-    errors.documentNumber  = validateDocumentNumber(registerForm.documentNumber);
+    errors.documentNumber  = validateDocumentNumber(registerForm.documentNumber, registerForm.documentType);
     errors.phone           = validatePhone(registerForm.phone);
     errors.email           = validateEmail(registerForm.email);
     errors.city            = validateCity(registerForm.city);
@@ -275,7 +284,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
         nombres:          registerForm.personType === 'natural' ? registerForm.firstName  : 'N/A',
         apellidos:        registerForm.personType === 'natural' ? registerForm.lastName   : 'N/A',
         razon_social:     registerForm.personType === 'empresa' ? registerForm.businessName : '',
-        tipo_documento:   registerForm.documentType,
+        tipo_documento:   registerForm.documentType as authService.TipoDocumento,
         numero_documento: registerForm.documentNumber,
         telefono:         registerForm.phone,
         ciudad:           registerForm.city,
@@ -362,9 +371,12 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     if (newPassword !== confirmNewPassword) { toast.error('Las contraseñas no coinciden'); return; }
     setLoading(true);
     try {
-      await authService.resetPassword(resetToken, newPassword);
+      await authService.resetPassword(resetToken, newPassword, confirmNewPassword);
       setRecoveryStep(4);
       toast.success('Contraseña restablecida exitosamente');
+      setTimeout(() => {
+        closeRecoveryModal();
+      }, 2200);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al restablecer contraseña');
     } finally {
@@ -599,10 +611,14 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                       <Input
                         value={registerForm.documentNumber}
                         onChange={(e) => {
-                          setRegisterForm({ ...registerForm, documentNumber: e.target.value });
+                          const raw = e.target.value;
+                          const sanitized = registerForm.documentType === 'NIT'
+                            ? raw.replace(/[^0-9-]/g, '')
+                            : raw.replace(/\D/g, '');
+                          setRegisterForm({ ...registerForm, documentNumber: sanitized });
                           setFieldError('documentNumber', '');
                         }}
-                        onBlur={() => setFieldError('documentNumber', validateDocumentNumber(registerForm.documentNumber))}
+                        onBlur={() => setFieldError('documentNumber', validateDocumentNumber(registerForm.documentNumber, registerForm.documentType))}
                         maxLength={20}
                         placeholder={registerForm.personType === 'empresa' ? '900123456-7' : '1234567890'}
                         className={fieldErrors.documentNumber ? 'border-red-400 focus-visible:ring-red-300' : ''}
@@ -662,7 +678,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                             setRegisterForm({ ...registerForm, businessName: e.target.value.slice(0, 100) });
                             setFieldError('businessName', '');
                           }}
-                          onBlur={() => setFieldError('businessName', validateNameField(registerForm.businessName, 'La razón social'))}
+                          onBlur={() => setFieldError('businessName', validateBusinessName(registerForm.businessName))}
                           maxLength={100}
                           placeholder="Ej: Auto Servicio López S.A.S"
                           className={fieldErrors.businessName ? 'border-red-400 focus-visible:ring-red-300' : ''}
@@ -679,9 +695,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                             setRegisterForm({ ...registerForm, contacto: onlyLetters(e.target.value) });
                             setFieldError('contacto', '');
                           }}
-                          onBlur={() => {
-                            if (!registerForm.contacto.trim()) setFieldError('contacto', 'El contacto es obligatorio');
-                          }}
+                          onBlur={() => setFieldError('contacto', validateNameField(registerForm.contacto, 'El contacto'))}
                           maxLength={100}
                           placeholder="Ej: María García"
                           className={fieldErrors.contacto ? 'border-red-400 focus-visible:ring-red-300' : ''}
@@ -837,7 +851,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                         {[
                           { ok: passwordValidation.length,    label: 'Mínimo 8 caracteres' },
                           { ok: passwordValidation.uppercase, label: '1 mayúscula'          },
-                          { ok: passwordValidation.numbers,   label: '2 números'            },
+                          { ok: passwordValidation.numbers,   label: '1 número'             },
                           { ok: passwordValidation.special,   label: '1 especial (!@#$)'    },
                         ].map(({ ok, label }) => (
                           <div key={label} className="flex items-center gap-2 text-xs">
@@ -879,7 +893,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
           MODAL RECUPERACIÓN DE CONTRASEÑA — 4 pasos
       ═══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={isRecoveryModalOpen} onOpenChange={closeRecoveryModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyIcon className="w-5 h-5 text-blue-600" />Recuperar Contraseña
@@ -1068,7 +1082,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                       {[
                         { ok: newPasswordValidation.length,    label: 'Mínimo 8 caracteres' },
                         { ok: newPasswordValidation.uppercase, label: '1 mayúscula'          },
-                        { ok: newPasswordValidation.numbers,   label: '2 números'            },
+                        { ok: newPasswordValidation.numbers,   label: '1 número'             },
                         { ok: newPasswordValidation.special,   label: '1 especial (!@#$)'    },
                       ].map(({ ok, label }) => (
                         <div key={label} className="flex items-center gap-2 text-xs">

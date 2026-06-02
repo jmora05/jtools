@@ -24,14 +24,26 @@ export function buildAuthHeaders(extra?: Record<string, string>) {
 }
 
 export async function handleResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json()) as any;
+  const text = await response.text();
+
+  let data: any;
+  try {
+    data = text.trim() ? JSON.parse(text) : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Error del servidor (${response.status}): respuesta no válida`);
+    }
+    throw new Error('La respuesta del servidor no tiene el formato esperado');
+  }
+
   if (!response.ok) {
     const err = data as ApiErrorShape;
     const errorMessage = err?.errores?.length
       ? err.errores.join(', ')
-      : err?.message || err?.error || 'Error desconocido';
+      : err?.message || err?.error || `Error del servidor (${response.status})`;
     throw new Error(errorMessage);
   }
+
   return data as T;
 }
 

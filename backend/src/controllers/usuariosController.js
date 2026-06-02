@@ -63,14 +63,11 @@ const getUsuariosById = async (req, res) => {
 // POST - crear usuario
 const createUsuarios = async (req, res) => {
     try {
-        const errors = validateCreateUsuario(req.body);
+        const errors = await validateCreateUsuario(req.body);
         if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
 
         const { rolesId, email, password } = req.body;
         const normalizedEmail = String(email).trim().toLowerCase();
-
-        const existing = await Usuarios.findOne({ where: { email: normalizedEmail } });
-        if (existing) return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
 
         const rol = await Roles.findByPk(rolesId);
         if (!rol) return res.status(404).json({ message: 'El rol especificado no existe' });
@@ -91,7 +88,9 @@ const createUsuarios = async (req, res) => {
                     nombres:          'N/A',
                     apellidos:        'N/A',
                     tipo_documento:   'cedula',
-                    numero_documento: '0000000000',
+                    numero_documento: String(Date.now()),
+                    telefono:         '0000000',
+                    ciudad:           'N/A',
                     estado:           'activo',
                 }, { transaction: t });
             }
@@ -112,7 +111,7 @@ const createUsuarios = async (req, res) => {
 // PUT - actualizar usuario
 const updateUsuarios = async (req, res) => {
     try {
-        const errors = validateUpdateUsuario(req.body);
+        const errors = await validateUpdateUsuario(req.body, Number(req.params.id));
         if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
 
         const { id } = req.params;
@@ -120,14 +119,6 @@ const updateUsuarios = async (req, res) => {
         if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         const { rolesId, email, password } = req.body;
-
-        if (email !== undefined && email !== null) {
-            const normalizedEmail = String(email).trim().toLowerCase();
-            const duplicate = await Usuarios.findOne({ where: { email: normalizedEmail } });
-            if (duplicate && duplicate.id !== Number(id)) {
-                return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
-            }
-        }
 
         if (rolesId !== undefined && rolesId !== null) {
             const rol = await Roles.findByPk(rolesId);

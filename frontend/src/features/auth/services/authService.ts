@@ -242,7 +242,7 @@ export async function verifyCode(
   code: string,
 ): Promise<{ message: string; resetToken?: string; remainingAttempts?: number }> {
   if (!email?.trim() || !code?.trim()) throw new Error('Email y código son requeridos');
-  const response = await fetch(`${getApiBaseUrl()}/auth/verify-code`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/verify-reset-code`, {
     method: 'POST', headers: buildAuthHeaders(),
     body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
   });
@@ -255,7 +255,7 @@ export async function resendCode(
   email: string,
 ): Promise<{ message: string; devCode?: string }> {
   if (!email?.trim()) throw new Error('El email es requerido');
-  const response = await fetch(`${getApiBaseUrl()}/auth/resend-code`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/resend-reset-code`, {
     method: 'POST', headers: buildAuthHeaders(),
     body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
@@ -268,11 +268,12 @@ export async function resendCode(
 export async function resetPassword(
   resetToken: string,
   newPassword: string,
+  confirmPassword: string,
 ): Promise<{ message: string }> {
-  if (!resetToken || !newPassword) throw new Error('resetToken y nueva contrasena son requeridos');
+  if (!resetToken || !newPassword || !confirmPassword) throw new Error('resetToken, nueva contrasena y confirmacion son requeridos');
   const response = await fetch(`${getApiBaseUrl()}/auth/reset-password`, {
     method: 'POST', headers: buildAuthHeaders(),
-    body: JSON.stringify({ resetToken, newPassword }),
+    body: JSON.stringify({ resetToken, newPassword, confirmPassword }),
   });
   return handleResponse<{ message: string }>(response);
 }
