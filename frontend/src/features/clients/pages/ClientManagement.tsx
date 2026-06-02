@@ -264,10 +264,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     useEffect(() => { fetchClientes(); }, []);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    const getDisplayName = (client: Cliente) =>
-        client.clientType === 'Empresa' || client.nombres === 'N/A'
-            ? client.razon_social
-            : `${client.nombres} ${client.apellidos}`.trim();
+    const getDisplayName = (client: Cliente): string => {
+        if (client.clientType === 'Empresa' || client.nombres === 'N/A') {
+            return client.razon_social || client.contacto || 'Sin nombre';
+        }
+        return `${client.nombres || ''} ${client.apellidos || ''}`.trim() || 'Sin nombre';
+    };
 
     const getInitials = (name: string) => {
         const parts = name.split(' ');
@@ -447,11 +449,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     // ── Filtros y paginación ──────────────────────────────────────────────────
     const filteredClients = clients.filter((client) => {
         const name = getDisplayName(client);
+        const q = searchTerm.toLowerCase();
         const matchesSearch =
-            name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            client.numero_documento.includes(searchTerm) ||
-            client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            client.telefono.includes(searchTerm);
+            name.toLowerCase().includes(q) ||
+            (client.numero_documento ?? '').includes(searchTerm) ||
+            (client.email ?? '').toLowerCase().includes(q) ||
+            (client.telefono ?? '').includes(searchTerm);
         const matchesStatus =
             statusFilter === 'all' ||
             (statusFilter === 'active'   && client.estado === 'activo') ||

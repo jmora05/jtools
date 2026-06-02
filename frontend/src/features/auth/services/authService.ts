@@ -262,6 +262,23 @@ export async function resendCode(
   return handleResponse<{ message: string; devCode?: string }>(response);
 }
 
+// CHANGE PASSWORD (usuario autenticado)
+// Cambia la contraseña verificando la actual. No requiere OTP.
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  if (!currentPassword || !newPassword || !confirmPassword)
+    throw new Error('Todos los campos son obligatorios');
+  const response = await fetch(`${getApiBaseUrl()}/auth/change-password`, {
+    method: 'POST',
+    headers: buildAuthHeaders(),
+    body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+  });
+  return handleResponse<{ message: string }>(response);
+}
+
 // RESET PASSWORD
 // Cambia la contrasena usando el resetToken JWT obtenido en verifyCode.
 // El token es de un solo uso y expira en 15 minutos.

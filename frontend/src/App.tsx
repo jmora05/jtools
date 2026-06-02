@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { Dashboard } from '@/features/dashboard/pages/Dashboard';
 import LandingPage from '@/features/dashboard/pages/LandingPage';
 import { ConfigurationModule } from '@/features/configuration/pages/ConfigurationModule';
+import { AdminProfile } from '@/features/configuration/pages/AdminProfile';
 import { RoleManagement } from '@/features/roles/pages/RoleManagement';
 import { UserManagement } from '@/features/users/pages/UserManagement';
 import { EmployeeManagement } from '@/features/employed/pages/EmployeeManagement';
@@ -38,7 +39,7 @@ import {
   ChevronRightIcon, MenuIcon, XIcon,
   LayoutDashboard, Package, Tag, Settings, Users, Truck,
   FlaskConical, ShoppingCart, TrendingUp,
-  Newspaper, Factory, HardHat, FileText, Lock, DollarSign,
+  Newspaper, Factory, HardHat, FileText, Lock, DollarSign, HelpCircle,
 } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -70,6 +71,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesClientFilter, setSalesClientFilter] = useState<any>(null);
   const [allowedModuleKeys, setAllowedModuleKeys] = useState<string[]>([]);
+  const [modulesLoaded, setModulesLoaded] = useState(false);
+  const [modulesApiError, setModulesApiError] = useState(false);
 
   // Cargar módulos permitidos cuando el usuario cambia
   useEffect(() => {
@@ -80,8 +83,15 @@ export default function App() {
 
   const loadUserModules = async (rolesId: number) => {
     const modules = await getModulesByRole(rolesId);
+    if (modules === null) {
+      // Error de red o 500: activar modo degradado — mostrar módulos por defecto según rol
+      setModulesApiError(true);
+      setModulesLoaded(true);
+      return;
+    }
     const moduleKeys = modules.map(m => m.moduleKey || m.name.toLowerCase()).filter(Boolean);
     setAllowedModuleKeys(moduleKeys);
+    setModulesLoaded(true);
   };
 
   const handleLogin = (userData: AppUser) => {
@@ -104,6 +114,15 @@ export default function App() {
     }
   }, [currentModule]);
 
+  // RBAC guard: el rol Cliente nunca debe ver el Dashboard.
+  // Si por cualquier motivo currentModule === 'dashboard', redirige al primer módulo disponible.
+  useEffect(() => {
+    if (!isLoggedIn || !user) return;
+    if (user.userType === 'client' && !isClientPreview && currentModule === 'dashboard') {
+      setCurrentModule('client-purchases');
+    }
+  }, [isLoggedIn, user?.userType, isClientPreview, currentModule]);
+
   const handleLogout = () => {
     setUser(null);
     setIsLoggedIn(false);
@@ -112,6 +131,8 @@ export default function App() {
     setSalesClientFilter(null);
     setShowLandingFirst(true);
     setAllowedModuleKeys([]);
+    setModulesLoaded(false);
+    setModulesApiError(false);
     localStorage.removeItem('jrepuestos_user');
     localStorage.removeItem('jrepuestos_token');
   };
@@ -187,15 +208,25 @@ export default function App() {
 
     // Función auxiliar para verificar si un módulo está permitido
     const isModuleAllowed = (moduleId: string): boolean => {
-      // Si no hay módulos cargados aún, permitir lo básico según el tipo de usuario
-      if (allowedModuleKeys.length === 0) {
-        if (u.userType === 'client') {
-          return moduleId === 'catalog';
-        }
-        return moduleId === 'dashboard' || moduleId === 'catalog';
+      // Mientras la API carga: mostrar conjunto mínimo para no bloquear la UI
+      if (!modulesLoaded) {
+        return u.userType === 'client'
+          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          : ['dashboard', 'catalog'].includes(moduleId);
       }
-      // Verificar si el módulo está en la lista permitida
-      return allowedModuleKeys.some(key => 
+      // Si el API falló (500 / red): degradación graceful — mostrar módulos por defecto
+      if (modulesApiError) {
+        return u.userType === 'client'
+          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          : true; // admin ve todo si no se pudo obtener sus permisos
+      }
+      // Sin permisos configurados: admin ve todo (graceful), cliente solo sus módulos base
+      if (allowedModuleKeys.length === 0) {
+        return u.userType === 'client'
+          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          : true;
+      }
+      return allowedModuleKeys.some(key =>
         MODULE_KEY_MAP[key] === moduleId || key === moduleId
       );
     };
@@ -222,9 +253,9 @@ export default function App() {
         { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
         { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
       ].filter((module): module is ModuleItem => {
-        // Filtrar el submenu si existe y es vacío
-        if (module.hasSubmenu && module.submenu.length === 0) return false;
-        // Filtrar módulos no permitidos
+        // Módulos con submenu: visibles si al menos un hijo está permitido
+        // (no depende de que 'configuration' esté como clave explícita en el rol)
+        if (module.hasSubmenu) return module.submenu.length > 0;
         return isModuleAllowed(module.id);
       }) as ModuleItem[];
 
@@ -250,6 +281,7 @@ export default function App() {
       // Módulos exclusivos del cliente — sin botón eliminar (clientMode=true)
       case 'client-purchases':    return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
+      case 'settings':            return isClient ? <ClientProfile /> : <AdminProfile />;
       case 'my-profile':          return D();
       case 'my-info':             return <ClientProfile />;
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
@@ -294,6 +326,7 @@ export default function App() {
       'my-profile':                   'Mi Perfil',
       'my-info':                      'Mi Información',
       'client-purchases':             'Mis Compras',
+      settings:                       'Ajustes de cuenta',
     };
     return titles[currentModule] ?? 'Panel Principal';
   };
@@ -348,7 +381,7 @@ export default function App() {
             </div>
           </div>
 
-          <nav className="flex-1 mt-6 px-4 pb-6 overflow-y-auto">
+          <nav className="flex-1 mt-6 px-4 pb-2 overflow-y-auto">
             {availableModules.map((item) => (
               <div key={item.id}>
                 {item.hasSubmenu ? (
@@ -412,6 +445,29 @@ export default function App() {
               </div>
             ))}
           </nav>
+
+          {/* ── Footer pinned: Ajustes (perfil personal) + Ayuda ── */}
+          <div className="border-t border-gray-200 px-4 py-3 flex-shrink-0 space-y-1">
+            <button
+              onClick={() => { setCurrentModule('settings'); setSidebarOpen(false); }}
+              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                currentModule === 'settings'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <UserIcon size={18} />
+              <span>Ajustes</span>
+            </button>
+
+            <button
+              onClick={() => toast.info('¿Necesitas ayuda? Escríbenos a soporte@jrepuestos.com')}
+              className="w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm text-gray-600 hover:bg-gray-50"
+            >
+              <HelpCircle size={18} />
+              <span>Ayuda</span>
+            </button>
+          </div>
         </div>
 
         {/* Main Content */}

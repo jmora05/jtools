@@ -8,8 +8,10 @@ const {
     forgotPassword,
     resetPassword,
     verifyCode,
-    resendCode
+    resendCode,
+    changePassword,
 } = require('../controllers/authController.js');
+const { verifyToken } = require('../middleware/authMiddleware.js');
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -44,5 +46,6 @@ router.post('/verify-code',                     verifyCode);
 router.post('/verify-reset-code',               verifyCode);
 router.post('/resend-code',          resendLimiter, resendCode);
 router.post('/resend-reset-code',    resendLimiter, resendCode);
+router.post('/change-password',      verifyToken,   changePassword);
 
 module.exports = router; 

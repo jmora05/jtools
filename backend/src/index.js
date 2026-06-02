@@ -78,12 +78,28 @@ testConnection()
 .then(() => {
     return sequelize.sync();
 })
-.then(() => {
-    console.log("Tablas sincronizadas correctamente");
+.then(async () => {
+    // Migración idempotente: una query por columna para evitar fallo en bloque.
+    // Cubre columnas añadidas al modelo DESPUÉS de que las tablas fueron creadas.
+    const migraciones = [
+        `ALTER TABLE roles     ADD COLUMN IF NOT EXISTS "isSystem"  BOOLEAN     NOT NULL DEFAULT false`,
+        `ALTER TABLE roles     ADD COLUMN IF NOT EXISTS "isActive"  BOOLEAN     NOT NULL DEFAULT true`,
+        `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "isSystem"  BOOLEAN     NOT NULL DEFAULT false`,
+        `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "moduleKey" VARCHAR(50)          DEFAULT NULL`,
+        `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "isActive"  BOOLEAN     NOT NULL DEFAULT true`,
+    ];
+    for (const sql of migraciones) {
+        try {
+            await sequelize.query(sql);
+        } catch (err) {
+            console.warn('[migración]', err.message);
+        }
+    }
+    console.log('Tablas sincronizadas y migradas correctamente');
     app.listen(process.env.PORT, () => {
         console.log(`Servidor corriendo en http://localhost:${process.env.PORT}`);
     });
 })
 .catch(err => {
-    console.error("Error al iniciar:", err.message);
+    console.error('Error al iniciar:', err.message);
 });

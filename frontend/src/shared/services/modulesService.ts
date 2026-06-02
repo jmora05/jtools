@@ -11,9 +11,9 @@ export interface ModulePermission {
   id: number;
   name: string;
   description?: string;
-  isModule: boolean;
+  isSystem: boolean;
   moduleKey?: string;
-  estado: boolean;
+  isActive: boolean;
 }
 
 /**
@@ -21,7 +21,9 @@ export interface ModulePermission {
  * @param rolesId - ID del rol
  * @returns Array de permisos con isModule=true
  */
-export async function getModulesByRole(rolesId: number): Promise<ModulePermission[]> {
+// Retorna null si el API falla (error de red / 500), o [] si el rol no tiene módulos asignados.
+// Esto permite distinguir "error" de "rol sin permisos" en App.tsx.
+export async function getModulesByRole(rolesId: number): Promise<ModulePermission[] | null> {
   try {
     const response = await fetch(`${getApiBaseUrl()}/roles/${rolesId}/permisos`, {
       method: 'GET',
@@ -30,12 +32,11 @@ export async function getModulesByRole(rolesId: number): Promise<ModulePermissio
 
     const allPermisos = await handleResponse<ModulePermission[]>(response);
 
-    // Filtrar solo los módulos (isModule=true)
-    return allPermisos.filter(p => p.isModule && p.estado);
+    // Devolver todos los permisos activos — el filtro de módulos UI lo hace isModuleAllowed en App.tsx
+    return allPermisos.filter(p => p.isActive !== false);
   } catch (err) {
     console.error('Error fetching modules:', err);
-    // Retornar array vacío en caso de error para no romper la UI
-    return [];
+    return null;
   }
 }
 

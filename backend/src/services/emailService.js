@@ -1,8 +1,5 @@
 const brevo = require('@getbrevo/brevo');
 
-const defaultClient = brevo.ApiClient.instance;
-defaultClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY || '';
-
 const transactionalApi = new brevo.TransactionalEmailsApi();
 
 /**
@@ -20,6 +17,9 @@ async function sendOtpEmail({ to, otp, userName }) {
     if (!senderEmail) {
         throw new Error('BREVO_SENDER_EMAIL no está configurada');
     }
+
+    // Autenticación por instancia (patrón correcto en @getbrevo/brevo v2.x)
+    transactionalApi.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
 
     const email = new brevo.SendSmtpEmail();
 

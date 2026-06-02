@@ -143,7 +143,6 @@ const register = async (req, res) => {
 // Siempre responde 200 para no revelar si el email existe (anti-enumeration).
 // ─────────────────────────────────────────────────────────────────────────────
 const forgotPassword = async (req, res) => {
-    const GENERIC_MSG = 'Si el email está registrado, recibirás un código en los próximos minutos.';
     try {
         const emailErrors = validateEmail(req.body?.email);
         if (emailErrors.length) return res.status(400).json({ message: 'Error de validación', errores: emailErrors });
@@ -151,8 +150,9 @@ const forgotPassword = async (req, res) => {
         const email   = normalizeEmail(req.body?.email);
         const usuario = await Usuarios.findOne({ where: { email } });
 
-        // Respuesta neutra — no revelar si el email existe
-        if (!usuario) return res.status(200).json({ message: GENERIC_MSG });
+        if (!usuario) {
+            return res.status(404).json({ message: 'Este correo no está registrado, intenta con uno que ya esté registrado.' });
+        }
 
         // Limpiar OTPs anteriores de este usuario (evitar acumulación)
         await PasswordResetOtp.destroy({ where: { usuarioId: usuario.id } });
@@ -170,17 +170,14 @@ const forgotPassword = async (req, res) => {
             await sendOtpEmail({ to: email, otp, userName });
             console.log(`[OTP] Email enviado a ${email}`);
         } catch (emailErr) {
-            // Loguear el error completo para diagnosticar
             console.error('[OTP] Error al enviar email:', emailErr?.message || emailErr);
             if (emailErr?.response) {
                 console.error('[OTP] Email provider response:', JSON.stringify(emailErr.response));
             }
-            // Siempre devolver devCode cuando el envío falla (independiente del entorno)
-            // Esto permite probar el flujo completo mientras se configura el dominio real
-            return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
+            return res.status(200).json({ message: 'Código enviado. Revisa tu bandeja de entrada.', devCode: otp });
         }
 
-        return res.status(200).json({ message: GENERIC_MSG });
+        return res.status(200).json({ message: 'Código enviado. Revisa tu bandeja de entrada.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al iniciar recuperación', error: error.message });
     }
@@ -256,14 +253,15 @@ const verifyCode = async (req, res) => {
 // Genera un nuevo OTP (invalida el anterior) y lo envía por email.
 // ─────────────────────────────────────────────────────────────────────────────
 const resendCode = async (req, res) => {
-    const GENERIC_MSG = 'Si el email está registrado, recibirás un nuevo código.';
     try {
         const emailErrors = validateEmail(req.body?.email);
         if (emailErrors.length) return res.status(400).json({ message: 'Error de validación', errores: emailErrors });
 
         const email   = normalizeEmail(req.body?.email);
         const usuario = await Usuarios.findOne({ where: { email } });
-        if (!usuario) return res.status(200).json({ message: GENERIC_MSG });
+        if (!usuario) {
+            return res.status(404).json({ message: 'Este correo no está registrado, intenta con uno que ya esté registrado.' });
+        }
 
         // Invalidar OTPs anteriores
         await PasswordResetOtp.destroy({ where: { usuarioId: usuario.id } });
@@ -280,10 +278,10 @@ const resendCode = async (req, res) => {
             console.log(`[OTP] Email reenviado a ${email}`);
         } catch (emailErr) {
             console.error('[OTP] Error al reenviar email:', emailErr?.message || emailErr);
-            return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
+            return res.status(200).json({ message: 'Nuevo código enviado. Revisa tu bandeja de entrada.', devCode: otp });
         }
 
-        return res.status(200).json({ message: GENERIC_MSG });
+        return res.status(200).json({ message: 'Nuevo código enviado. Revisa tu bandeja de entrada.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al reenviar el código', error: error.message });
     }
@@ -335,4 +333,42 @@ const resetPassword = async (req, res) => {
 
 const logout = (_req, res) => res.status(200).json({ message: 'Sesión cerrada correctamente' });
 
-module.exports = { login, register, logout, forgotPassword, resetPassword, verifyCode, resendCode };
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/change-password  (requiere JWT)
+// Body: { currentPassword, newPassword, confirmPassword }
+// ─────────────────────────────────────────────────────────────────────────────
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ message: 'Todos los campos son obligatorios' });
+        }
+
+        const pwdErrors = validatePassword(newPassword, 'La nueva contraseña');
+        if (pwdErrors.length) {
+            return res.status(400).json({ message: 'Error de validación', errores: pwdErrors });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'Las contraseñas nuevas no coinciden' });
+        }
+
+        const usuario = await Usuarios.findByPk(req.usuario.id);
+        if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        const isValid = await bcrypt.compare(currentPassword, usuario.password);
+        if (!isValid) {
+            return res.status(400).json({ message: 'La contraseña actual es incorrecta' });
+        }
+
+        const hash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+        await usuario.update({ password: hash });
+
+        return res.status(200).json({ message: 'Contraseña actualizada correctamente' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al cambiar la contraseña', error: error.message });
+    }
+};
+
+module.exports = { login, register, logout, forgotPassword, resetPassword, verifyCode, resendCode, changePassword };
