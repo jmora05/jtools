@@ -6,7 +6,12 @@ const { sequelize, testConnection } = require("./config/jtools_db.js");
 const db = require("./models/index.js");
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -33,7 +38,7 @@ const authRoutes                   = require('./routes/authRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
 const horasExtraRoutes             = require('./routes/horasExtraRoutes.js');
 const nominaRoutes                 = require('./routes/nominaRoutes.js');
-const { verifyToken, requireAdmin }              = require('./middleware/authMiddleware.js');
+const { verifyToken, requireAdmin } = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
 // ── Rutas PÚBLICAS ──
@@ -71,21 +76,14 @@ app.use('/api/nomina',                  verifyToken, requireAdmin, nominaRoutes)
 // ================= CONEXIÓN + SINCRONIZACIÓN =================
 testConnection()
 .then(() => {
-    // Evitar que Sequelize intente alterar enums/constraints automáticamente
-    // porque puede producir SQL inválido en PostgreSQL en algunos casos.
-    // Usamos sync() sin `alter` para evitar modificaciones automáticas peligrosas.
     return sequelize.sync();
 })
-
 .then(() => {
     console.log("Tablas sincronizadas correctamente");
-
-    // ================= INICIAR SERVIDOR =================
     app.listen(process.env.PORT, () => {
         console.log(`Servidor corriendo en http://localhost:${process.env.PORT}`);
     });
 })
-
 .catch(err => {
     console.error("Error al iniciar:", err.message);
 });

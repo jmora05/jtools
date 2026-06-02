@@ -11,7 +11,7 @@ const sequelize = new Sequelize(
   process.env.DB_PASSWORD,   // contraseña de MySQL
   {
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
+    port: Number(process.env.DB_PORT) || 5432,
     dialect: 'postgres',        // le decimos que usamos PostgreSQL
     logging: console.log,  // cambia false por esto          // cambia a true si quieres ver las queries SQL en consola
     pool: {

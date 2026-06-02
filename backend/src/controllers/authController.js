@@ -164,16 +164,20 @@ const forgotPassword = async (req, res) => {
 
         await PasswordResetOtp.create({ usuarioId: usuario.id, otpHash, expiresAt });
 
-        // Enviar email (si falla el envío, no bloqueamos — logueamos el error)
+        // Enviar email
         try {
             const userName = email.split('@')[0];
             await sendOtpEmail({ to: email, otp, userName });
+            console.log(`[OTP] Email enviado a ${email}`);
         } catch (emailErr) {
-            console.error('Error al enviar email OTP:', emailErr.message);
-            // En desarrollo, devolvemos el código para poder probar sin email real
-            if (process.env.NODE_ENV !== 'production') {
-                return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
+            // Loguear el error completo para diagnosticar
+            console.error('[OTP] Error al enviar email:', emailErr?.message || emailErr);
+            if (emailErr?.response) {
+                console.error('[OTP] Email provider response:', JSON.stringify(emailErr.response));
             }
+            // Siempre devolver devCode cuando el envío falla (independiente del entorno)
+            // Esto permite probar el flujo completo mientras se configura el dominio real
+            return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
         }
 
         return res.status(200).json({ message: GENERIC_MSG });
@@ -273,11 +277,10 @@ const resendCode = async (req, res) => {
         try {
             const userName = email.split('@')[0];
             await sendOtpEmail({ to: email, otp, userName });
+            console.log(`[OTP] Email reenviado a ${email}`);
         } catch (emailErr) {
-            console.error('Error al reenviar email OTP:', emailErr.message);
-            if (process.env.NODE_ENV !== 'production') {
-                return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
-            }
+            console.error('[OTP] Error al reenviar email:', emailErr?.message || emailErr);
+            return res.status(200).json({ message: GENERIC_MSG, devCode: otp });
         }
 
         return res.status(200).json({ message: GENERIC_MSG });

@@ -145,6 +145,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
   const [resetToken, setResetToken]           = useState('');
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [resendCooldown, setResendCooldown]   = useState(0);
+  const [devCodeVisible, setDevCodeVisible]   = useState(''); // código visible en UI para desarrollo
 
   // Login form state
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -325,8 +326,13 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       setRemainingAttempts(5);
       setResendCooldown(60);
       setRecoveryStep(2);
-      if (resp.devCode) toast.info(`[DEV] Código: ${resp.devCode}`);
-      else toast.success(resp.message);
+      if (resp.devCode) {
+        setDevCodeVisible(resp.devCode);
+        toast.info(`[DEV] Email no configurado. Código: ${resp.devCode}`, { duration: 30000 });
+      } else {
+        setDevCodeVisible('');
+        toast.success(resp.message);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al enviar código');
     } finally {
@@ -392,8 +398,13 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
         setRemainingAttempts(5);
         setResendCooldown(60);
         setVerificationCode('');
-        if (resp.devCode) toast.info(`[DEV] Nuevo código: ${resp.devCode}`);
-        else toast.success(resp.message);
+        if (resp.devCode) {
+          setDevCodeVisible(resp.devCode);
+          toast.info(`[DEV] Nuevo código: ${resp.devCode}`, { duration: 30000 });
+        } else {
+          setDevCodeVisible('');
+          toast.success(resp.message);
+        }
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al reenviar código'))
       .finally(() => setLoading(false));
@@ -432,6 +443,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     setResetToken('');
     setRemainingAttempts(5);
     setResendCooldown(0);
+    setDevCodeVisible('');
   };
 
   // Documentos disponibles según tipo de persona
@@ -899,43 +911,31 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
               <KeyIcon className="w-5 h-5 text-blue-600" />Recuperar Contraseña
             </DialogTitle>
             <DialogDescription>
-              {recoveryStep === 1 && 'Te enviaremos un código de verificación a tu correo electrónico'}
-              {recoveryStep === 2 && 'Ingresa el código de verificación que enviamos a tu correo'}
-              {recoveryStep === 3 && 'Crea una nueva contraseña segura'}
-              {recoveryStep === 4 && 'Tu contraseña ha sido restablecida exitosamente'}
+              {recoveryStep === 1 && "Te enviaremos un código de verificación a tu correo electrónico"}
+              {recoveryStep === 2 && "Ingresa el código de verificación que enviamos a tu correo"}
+              {recoveryStep === 3 && "Crea una nueva contraseña segura"}
+              {recoveryStep === 4 && "Tu contraseña ha sido restablecida exitosamente"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-
-            {/* Step 1 — Ingresar email */}
+            {/* Step 1 */}
             {recoveryStep === 1 && (
               <form onSubmit={handleSendRecoveryEmail} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="block text-sm text-gray-700 mb-1">
-                    Correo electrónico <span className="text-red-500">*</span>
-                  </label>
+                  <Label htmlFor="recovery-email" className="text-sm">Correo electrónico <span className="text-red-500">*</span></Label>
                   <div className="relative">
                     <MailIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <Input
-                      type="email"
-                      value={recoveryEmail}
+                    <Input id="recovery-email" type="email" value={recoveryEmail}
                       onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder="tu@correo.com"
-                      className="pl-10 h-9"
-                      required
-                    />
+                      placeholder="tu@correo.com" className="pl-10 h-9" required />
                   </div>
                   <p className="text-xs text-gray-500">Debe ser el correo asociado a tu cuenta</p>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={closeRecoveryModal} className="flex-1">
-                    Cancelar
-                  </Button>
+                  <Button type="button" variant="outline" onClick={closeRecoveryModal} className="flex-1">Cancelar</Button>
                   <Button type="submit" disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                    {loading
-                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Enviando...</>
-                      : 'Enviar Código'}
+                    {loading ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>Enviando...</>) : 'Enviar Código'}
                   </Button>
                 </div>
               </form>
@@ -944,26 +944,41 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
             {/* Step 2 — Verificar OTP */}
             {recoveryStep === 2 && (
               <form onSubmit={handleVerifyCode} className="space-y-4">
+                {/* Email destino */}
                 <div className="text-center p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700">
                     Código enviado a: <span className="font-semibold">{recoveryEmail}</span>
                   </p>
                   {codeExpiry && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Expira en:{' '}
-                      <CountdownTimer
-                        expiresAt={codeExpiry}
-                        onExpire={() => { toast.error('El código expiró. Solicita uno nuevo.'); setRecoveryStep(1); }}
-                      />
+                      Expira en: <CountdownTimer expiresAt={codeExpiry} onExpire={() => { toast.error('El código expiró. Solicita uno nuevo.'); setRecoveryStep(1); }} />
                     </p>
                   )}
                 </div>
 
+                {/* Banner DEV — visible cuando el email no está configurado */}
+                {devCodeVisible && (
+                  <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 text-center space-y-1">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                      ⚠️ Modo desarrollo — email no enviado
+                    </p>
+                    <p className="text-xs text-amber-600">Tu código de verificación es:</p>
+                    <p className="text-3xl font-mono font-bold tracking-[0.4em] text-amber-800 select-all">
+                      {devCodeVisible}
+                    </p>
+                    <p className="text-xs text-amber-500">
+                      Configura RESEND_API_KEY y un dominio verificado para enviar emails reales.
+                    </p>
+                  </div>
+                )}
+
+                {/* Input OTP */}
                 <div className="space-y-2">
-                  <label className="block text-sm text-gray-700 mb-1">
+                  <Label htmlFor="verification-code" className="text-sm">
                     Código de verificación <span className="text-red-500">*</span>
-                  </label>
+                  </Label>
                   <Input
+                    id="verification-code"
                     type="text"
                     inputMode="numeric"
                     value={verificationCode}
@@ -976,9 +991,9 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                   <p className="text-xs text-gray-500">Ingresa el código de 6 dígitos que recibiste por email</p>
                 </div>
 
+                {/* Intentos restantes */}
                 {remainingAttempts < 5 && (
-                  <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg
-                    ${remainingAttempts <= 1 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                  <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${remainingAttempts <= 1 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                     <AlertCircleIcon className="w-3.5 h-3.5 shrink-0" />
                     {remainingAttempts === 0
                       ? 'Sin intentos restantes. Solicita un nuevo código.'
@@ -986,6 +1001,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                   </div>
                 )}
 
+                {/* Reenviar código con cooldown */}
                 <div className="text-center">
                   {resendCooldown > 0 ? (
                     <p className="text-xs text-gray-400">
@@ -1012,71 +1028,49 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     disabled={loading || remainingAttempts === 0 || verificationCode.length !== 6}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
-                    {loading
-                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Verificando...</>
-                      : 'Verificar'}
+                    {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Verificando...</> : 'Verificar'}
                   </Button>
                 </div>
               </form>
             )}
 
-            {/* Step 3 — Nueva contraseña */}
+            {/* Step 3 */}
             {recoveryStep === 3 && (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">
-                      Nueva contraseña <span className="text-red-500">*</span>
-                    </label>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password" className="text-sm">Nueva contraseña <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input
-                        type={showNewPassword ? 'text' : 'password'}
-                        value={newPassword}
+                      <Input id="new-password" type={showNewPassword ? 'text' : 'password'} value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="pr-10 h-9"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                      >
+                        placeholder="••••••••" className="pr-10 h-9" required />
+                      <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
                         {showNewPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 mb-1">
-                      Confirmar nueva contraseña <span className="text-red-500">*</span>
-                    </label>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-new-password" className="text-sm">Confirmar nueva contraseña <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input
-                        type={showConfirmNewPassword ? 'text' : 'password'}
-                        value={confirmNewPassword}
+                      <Input id="confirm-new-password" type={showConfirmNewPassword ? 'text' : 'password'} value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                         placeholder="••••••••"
-                        className={`pr-10 h-9 ${confirmNewPassword && newPassword !== confirmNewPassword ? 'border-red-500' : ''}`}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                      >
+                        className={`pr-10 h-9 ${confirmNewPassword && newPassword !== confirmNewPassword ? 'border-red-500' : ''}`} required />
+                      <button type="button" onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
                         {showConfirmNewPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                       </button>
                     </div>
                     {confirmNewPassword && newPassword !== confirmNewPassword && (
-                      <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                      <p className="text-xs text-red-500 flex items-center gap-1">
                         <AlertCircleIcon className="w-3 h-3" />Las contraseñas no coinciden
                       </p>
                     )}
                   </div>
                 </div>
-
                 {newPassword && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <div className="bg-gray-50 p-3 rounded-lg">
                     <p className="text-xs text-gray-600 mb-2">Requisitos de la contraseña:</p>
                     <div className="grid grid-cols-2 gap-2">
                       {[
@@ -1093,25 +1087,19 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     </div>
                   </div>
                 )}
-
                 <div className="flex gap-2 pt-2">
                   <Button type="button" variant="outline" onClick={() => setRecoveryStep(2)} className="flex-1">
                     <ArrowLeftIcon className="w-4 h-4 mr-2" />Atrás
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={loading || !isNewPasswordValid() || newPassword !== confirmNewPassword}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    {loading
-                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Guardando...</>
-                      : 'Cambiar Contraseña'}
+                  <Button type="submit" disabled={loading || !isNewPasswordValid() || newPassword !== confirmNewPassword}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700">
+                    {loading ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>Guardando...</>) : 'Cambiar Contraseña'}
                   </Button>
                 </div>
               </form>
             )}
 
-            {/* Step 4 — Éxito */}
+            {/* Step 4 */}
             {recoveryStep === 4 && (
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -1119,16 +1107,11 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">¡Contraseña restablecida!</h3>
-                  <p className="text-sm text-gray-600">
-                    Tu contraseña ha sido actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.
-                  </p>
+                  <p className="text-sm text-gray-600">Tu contraseña ha sido actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.</p>
                 </div>
-                <Button onClick={closeRecoveryModal} className="w-full bg-blue-600 hover:bg-blue-700">
-                  Ir a Iniciar Sesión
-                </Button>
+                <Button onClick={closeRecoveryModal} className="w-full bg-blue-600 hover:bg-blue-700">Ir a Iniciar Sesión</Button>
               </div>
             )}
-
           </div>
         </DialogContent>
       </Dialog>
