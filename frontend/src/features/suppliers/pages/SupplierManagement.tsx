@@ -25,6 +25,7 @@ import {
     mapProveedorToSupplier,
     mapSupplierToDTO,
 } from '../services/proveedoresService';
+import { ProveedorDetailModal } from '../components/ProveedorDetailModal';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supplier {
@@ -925,72 +926,11 @@ export function SupplierManagement() {
             </Dialog>
 
             {/* ── MODAL VER DETALLE ───────────────────────────────────────── */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Detalles del Proveedor</DialogTitle>
-                            <DialogDescription>Información completa del proveedor seleccionado.</DialogDescription>
-                        </DialogHeader>
-                        {viewingSupplier && (
-                            <div className="space-y-4 mt-4">
-                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                    <div className="col-span-2 flex items-center gap-4">
-                                        <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-xl">
-                                            {getInitials(viewingSupplier.name)}
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-blue-900 text-lg">{viewingSupplier.name}</p>
-                                            <p className="text-sm text-gray-500">{viewingSupplier.email}</p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Documento</p>
-                                        <p className="font-semibold text-sm">{viewingSupplier.documentType} {viewingSupplier.documentNumber}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Tipo</p>
-                                        <Badge variant="outline">
-                                            {viewingSupplier.type === 'empresa' ? 'Empresa' : 'Persona Natural'}
-                                        </Badge>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Teléfono</p>
-                                        <p className="font-semibold text-sm">{viewingSupplier.phone}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Ciudad</p>
-                                        <p className="font-semibold text-sm">{viewingSupplier.city || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Dirección</p>
-                                        <p className="font-semibold text-sm">{viewingSupplier.address || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500">Estado</p>
-                                        <Badge className={viewingSupplier.isActive
-                                            ? 'bg-blue-100 text-blue-900'
-                                            : 'bg-gray-100 text-gray-500'}>
-                                            {viewingSupplier.isActive ? 'Activo' : 'Inactivo'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                    {viewingSupplier.isActive && (
-                                        <Button
-                                            onClick={() => { handleEdit(viewingSupplier); setShowDetailModal(false); }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                        >
-                                            Editar Proveedor
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ProveedorDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                proveedor={viewingSupplier}
+            />
 
             {/* ── MODAL CONFIRMAR ELIMINACIÓN ─────────────────────────────── */}
             <Dialog open={showDeleteModal} onOpenChange={(open: boolean) => {

@@ -16,6 +16,7 @@ import {
 import {
     getCategorias, getCategoriaById, createCategoria, updateCategoria, deleteCategoria,
 } from '../services/categoriaProductosService';
+import { CategoriaDetailModal } from '../components/CategoriaDetailModal';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Categoria {
@@ -574,72 +575,12 @@ export function ProductCategoryManagement() {
             </Dialog>
 
             {/* MODAL — VER DETALLE */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Detalles de la categoría</DialogTitle>
-                            <DialogDescription>Información completa de la categoría seleccionada.</DialogDescription>
-                        </DialogHeader>
-                        {loadingDetail ? (
-                            <div className="flex justify-center py-10">
-                                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                            </div>
-                        ) : viewingCategory ? (
-                            <div className="space-y-4 mt-4">
-                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">ID</p>
-                                        <p className="font-mono font-semibold">#{viewingCategory.id}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase">Estado</p>
-                                        <Badge className={viewingCategory.estado === 'activo' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-500'}>
-                                            {viewingCategory.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                                        </Badge>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-gray-500 uppercase">Nombre</p>
-                                        <p className="font-semibold text-blue-900 text-lg">{viewingCategory.nombreCategoria}</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-gray-500 uppercase">Descripción</p>
-                                        <p className="text-sm text-gray-700">{viewingCategory.descripcion ?? 'Sin descripción'}</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-700 mb-2">
-                                        Productos asociados ({viewingCategory.productos?.length ?? 0})
-                                    </p>
-                                    {viewingCategory.productos && viewingCategory.productos.length > 0 ? (
-                                        <div className="max-h-36 overflow-y-auto rounded border divide-y">
-                                            {viewingCategory.productos.map((p) => (
-                                                <div key={p.id} className="flex justify-between items-center px-3 py-1.5 text-sm">
-                                                    <span className="font-medium">{p.nombreProducto}</span>
-                                                    <span className="text-gray-500">Stock: {p.stock}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-400 italic">Sin productos asociados</p>
-                                    )}
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                    {viewingCategory.estado === 'activo' && (
-                                        <Button
-                                            onClick={() => { openEditDialog(viewingCategory); setShowDetailModal(false); }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                        >
-                                            Editar categoría
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <CategoriaDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                categoria={viewingCategory}
+                onEdit={(cat) => { openEditDialog(cat); setShowDetailModal(false); }}
+            />
 
             {/* MODAL — ELIMINAR */}
             <Dialog open={showDeleteModal} onOpenChange={(open) => {

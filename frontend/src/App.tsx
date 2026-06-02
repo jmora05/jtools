@@ -289,7 +289,7 @@ export default function App() {
       'production-employees':         'Empleados de Producción',
       'production-orders-sub':        'Órdenes de Producción',
       'production-technical-sheets':  'Fichas Técnicas',
-      nomina:                         'Nómina',
+      nomina:                         'Control de Pagos',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
       'my-info':                      'Mi Información',

@@ -60,17 +60,17 @@ const ESTADO_CONFIG: Record<string, {
     completada: {
         label:       'Completada',
         icon:        <CheckCircleIcon className="w-4 h-4" />,
-        headerBg:    'linear-gradient(135deg, #064e3b 0%, #059669 100%)',
+        headerBg:    'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
         headerText:  '#fff',
-        chipBg:      '#dcfce7',
-        chipText:    '#14532d',
-        chipBorder:  '#86efac',
-        accentColor: '#16a34a',
-        rowHover:    '#f0fdf4',
-        totalBg:     'linear-gradient(135deg, #064e3b 0%, #059669 100%)',
+        chipBg:      '#dbeafe',
+        chipText:    '#1e3a8a',
+        chipBorder:  '#93c5fd',
+        accentColor: '#2563eb',
+        rowHover:    '#eff6ff',
+        totalBg:     'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
         totalText:   '#fff',
-        iconBg:      '#f0fdf4',
-        iconColor:   '#16a34a',
+        iconBg:      '#eff6ff',
+        iconColor:   '#1d4ed8',
     },
     anulada: {
         label:       'Anulada',
@@ -105,7 +105,7 @@ function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
     const paleta: Record<string, { header: [number,number,number]; accent: [number,number,number] }> = {
         pendiente:     { header: [30, 58, 138],  accent: [37, 99, 235]  },
         'en transito': { header: [30, 58, 138],  accent: [37, 99, 235]  },
-        completada:    { header: [6,  78, 59],   accent: [5,  150, 105] },
+        completada:    { header: [29, 78, 216],  accent: [59, 130, 246] },
         anulada:       { header: [69, 10, 10],   accent: [185, 28, 28]  },
     };
     const p = paleta[compra.estado ?? ''] ?? paleta['pendiente'];

@@ -34,6 +34,7 @@ import {
 } from '../services/nominaService';
 // @ts-ignore
 import { generarPdfNomina } from '../utils/generarPdfNomina';
+import { NominaDetailModal } from '../components/NominaDetailModal';
 
 // Constantes para cálculos de nómina en Colombia 2026
 const SALARIO_MINIMO_2026 = 1423500;
@@ -151,7 +152,7 @@ export function PayrollModule() {
       const data = await getNominas();
       setPayrollRecords(data.map(mapNominaToRecord));
     } catch {
-      toast.error('Error al cargar nóminas');
+      toast.error('Error al cargar control de pagos');
     }
   };
 
@@ -219,7 +220,7 @@ export function PayrollModule() {
     if (!record.id) return;
     try {
       await apiMarcarPagada(record.id);
-      toast.success(`Nómina de ${record.employeeName} marcada como pagada`);
+      toast.success(`Control de pagos de ${record.employeeName} marcado como pagado`);
       fetchNominas();
     } catch (err: any) {
       toast.error('Error: ' + (err?.message ?? 'No se pudo marcar como pagada'));
@@ -341,7 +342,7 @@ export function PayrollModule() {
     const maxFriday = addDays(getFriday(new Date()), 7);
     if (selectedFriday > maxFriday) {
       toast.error(
-        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular nómina para semanas tan adelantadas.`
+        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular el control de pagos para semanas tan adelantadas.`
       );
       return;
     }
@@ -354,7 +355,7 @@ export function PayrollModule() {
       (!editingRecord || r.id !== editingRecord.id)
     );
     if (duplicado) {
-      toast.error(`Ya existe una nómina para ${formData.employeeName} en la semana que cierra el ${fechaCorte}`);
+      toast.error(`Ya existe un registro de control de pagos para ${formData.employeeName} en la semana que cierra el ${fechaCorte}`);
       return;
     }
 
@@ -382,10 +383,10 @@ export function PayrollModule() {
     try {
       if (editingRecord) {
         await updateNominaApi(editingRecord.id, payload);
-        toast.success('Nómina actualizada exitosamente');
+        toast.success('Control de pagos actualizado exitosamente');
       } else {
         await createNomina(payload);
-        toast.success('Nómina guardada exitosamente');
+        toast.success('Control de pagos guardado exitosamente');
       }
       await fetchNominas();
       resetForm();
@@ -502,9 +503,9 @@ export function PayrollModule() {
           <div>
             <h1 className="text-3xl text-blue-900 font-bold mb-2 flex items-center gap-3">
               <CalculatorIcon className="w-8 h-8 text-blue-600" />
-              Módulo de Nómina
+              Módulo de Control de Pagos
             </h1>
-            <p className="text-blue-800">Sistema integral de cálculo y gestión de nómina empresarial</p>
+            <p className="text-blue-800">Sistema integral de cálculo y control de pagos empresarial</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -540,7 +541,7 @@ export function PayrollModule() {
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
                 <CalculatorIcon className="w-4 h-4 mr-2" />
-                Calcular Nómina
+                Calcular Pago
               </Button>
             </DialogTrigger>
 
@@ -549,7 +550,7 @@ export function PayrollModule() {
                 <DialogHeader>
                   <DialogTitle className="text-2xl flex items-center gap-2">
                     <CalculatorIcon className="w-6 h-6 text-blue-600" />
-                    {editingRecord ? 'Editar Nómina' : 'Calculadora de Nómina'}
+                    {editingRecord ? 'Editar Control de Pagos' : 'Calculadora de Control de Pagos'}
                   </DialogTitle>
                   <DialogDescription className="flex items-center gap-1">
                     <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
@@ -744,7 +745,7 @@ export function PayrollModule() {
                         <CardHeader>
                           <CardTitle className="text-lg flex items-center gap-2">
                             <DollarSignIcon className="w-5 h-5 text-blue-600" />
-                            Cálculo de Nómina
+                            Cálculo de Control de Pagos
                           </CardTitle>
                           <CardDescription>Vista previa del cálculo automático</CardDescription>
                         </CardHeader>
@@ -959,7 +960,7 @@ export function PayrollModule() {
                     </Button>
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                       {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                      {editingRecord ? 'Actualizar Nómina' : 'Guardar Nómina'}
+                      {editingRecord ? 'Actualizar Control de Pagos' : 'Guardar Control de Pagos'}
                     </Button>
                   </div>
                 </form>
@@ -974,9 +975,9 @@ export function PayrollModule() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileTextIcon className="w-5 h-5 text-blue-600" />
-              Registro de Nóminas
+              Registro de Control de Pagos
             </CardTitle>
-            <CardDescription>Historial completo de cálculos de nómina realizados</CardDescription>
+            <CardDescription>Historial completo de registros de control de pagos</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -997,7 +998,7 @@ export function PayrollModule() {
                   {currentRecords.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                        No hay registros de nómina. Usa "Calcular Nómina" para registrar el pago semanal.
+                        No hay registros. Usa "Calcular Pago" para registrar el pago semanal.
                       </td>
                     </tr>
                   ) : (
@@ -1060,7 +1061,7 @@ export function PayrollModule() {
                                     <EditIcon className="w-4 h-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent><p>Editar nómina</p></TooltipContent>
+                                <TooltipContent><p>Editar control de pagos</p></TooltipContent>
                               </Tooltip>
                             )}
 
@@ -1146,140 +1147,11 @@ export function PayrollModule() {
         </Card>
 
         {/* Modal de detalle */}
-        <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl flex items-center gap-2">
-                <FileTextIcon className="w-6 h-6 text-blue-600" />
-                Detalle de Nómina
-              </DialogTitle>
-              <DialogDescription>Desglose completo del cálculo de nómina</DialogDescription>
-            </DialogHeader>
-
-            {viewingRecord && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Información del Empleado</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <Label className="text-gray-600">Nombre</Label>
-                        <p className="font-medium text-gray-900">{viewingRecord.employeeName}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Documento</Label>
-                        <p className="font-medium text-gray-900">{viewingRecord.employeeDocument}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Cargo</Label>
-                        <p className="font-medium text-gray-900">{viewingRecord.position}</p>
-                      </div>
-                      <div>
-                        <Label className="text-gray-600">Fecha</Label>
-                        <p className="font-medium text-gray-900">{viewingRecord.createdAt}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-blue-50">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
-                      <TrendingUpIcon className="w-5 h-5" />
-                      Devengos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Salario proporcional</span>
-                      <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.proportionalSalary)}</span>
-                    </div>
-                    {viewingRecord.calculatedValues.recargoNocturno > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Recargo Nocturno (+35%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturno)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.recargoDiurnoDominical > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Recargo Diurno Dominical (+75%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoDiurnoDominical)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.recargoNocturnoDominical > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Recargo Nocturno Dominical (+110%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.recargoNocturnoDominical)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.horaExtraDiurna > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Hora Extra Diurna (+25%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurna)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.horaExtraNocturna > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Hora Extra Nocturna (+75%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturna)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.horaExtraDiurnaDominical > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Hora Extra Diurna Dominical (+100%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraDiurnaDominical)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.horaExtraNocturnaDominical > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Hora Extra Nocturna Dominical (+150%)</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.horaExtraNocturnaDominical)}</span>
-                      </div>
-                    )}
-                    {viewingRecord.calculatedValues.transportAllowance > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Auxilio transporte</span>
-                        <span className="font-medium">{formatCurrency(viewingRecord.calculatedValues.transportAllowance)}</span>
-                      </div>
-                    )}
-                    <Separator className="my-2" />
-                    <div className="flex justify-between text-base font-bold text-blue-700">
-                      <span>Neto a pagar</span>
-                      <span>{formatCurrency(viewingRecord.calculatedValues.netPay)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm opacity-90 mb-2">Neto a pagar</p>
-                        <p className="text-4xl font-bold">{formatCurrency(viewingRecord.calculatedValues.netPay)}</p>
-                      </div>
-                      <DollarSignIcon className="w-16 h-16 opacity-30" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setShowDetailModal(false)}>
-                    Cerrar
-                  </Button>
-                  <Button
-                    className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
-                    onClick={() => generatePDF(viewingRecord)}
-                  >
-                    <FileTextIcon className="w-4 h-4 mr-2" />
-                    Descargar Desprendible PDF
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <NominaDetailModal
+          open={showDetailModal}
+          onClose={() => setShowDetailModal(false)}
+          record={viewingRecord}
+        />
       </div>
     </TooltipProvider>
   );

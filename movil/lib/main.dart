@@ -1,299 +1,203 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'pedidos/pedido_controller.dart';
-import 'pedidos/pedidos_page.dart';
 
-// Importa tus módulos existentes
-import 'clientes/client_controller.dart';
-import 'clientes/client_list_page.dart';
+import 'core/constants.dart';
+import 'core/auth_provider.dart';
+import 'screens/login_page.dart';
 
-import 'screens/recuperar.dart';
+import 'empleados/empleado_provider.dart';
+import 'empleados/empleados_page.dart';
 
-// =========================================================
-// MÓDULOS DEL CATÁLOGO DE REPUESTOS (Nuevas Importaciones)
-// =========================================================
-import 'screens/home_screen.dart'; // Tu nueva pantalla de inicio de repuestos
-import 'screens/catalog_screen.dart';
-import 'screens/cart_screen.dart';
-// Note: product.dart y product_detail_screen.dart no necesitan importarse aquí
-// ya que solo se llaman desde otras screens.
+import 'proveedores/proveedor_provider.dart';
+import 'proveedores/proveedores_page.dart';
 
-// Define un controlador de estado simple para el carrito (opcional, pero buena práctica)
-// Si no quieres crear un archivo aparte, puedes usar este placeholder:
-class CartController with ChangeNotifier {
-  // Aquí iría la lógica de añadir/eliminar productos del carrito
-  int get itemCount => 0; // Ejemplo
-}
+import 'insumos/insumo_provider.dart';
+import 'insumos/insumos_page.dart';
 
-// Color corporativo de repuestos (Azul Claro)
-const Color primaryColorParts = Color(0xFF81D4FA);
+import 'compras/compra_provider.dart';
+import 'compras/compras_page.dart';
 
+import 'nomina/nomina_provider.dart';
+import 'nomina/nomina_page.dart';
 
 void main() {
   runApp(
     MultiProvider(
       providers: [
-        // Proveedores existentes
-        ChangeNotifierProvider(create: (_) => ClientController()),
-        ChangeNotifierProvider(create: (_) => PedidoController()),
-        // Nuevo Proveedor para el Carrito/Catálogo
-        ChangeNotifierProvider(create: (_) => CartController()), 
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => EmpleadoProvider()),
+        ChangeNotifierProvider(create: (_) => ProveedorProvider()),
+        ChangeNotifierProvider(create: (_) => InsumoProvider()),
+        ChangeNotifierProvider(create: (_) => CompraProvider()),
+        ChangeNotifierProvider(create: (_) => NominaProvider()),
       ],
-      child: const MainApp(),
+      child: const JToolsApp(),
     ),
   );
 }
 
-class MainApp extends StatefulWidget {
-  const MainApp({super.key});
-
-  @override
-  State<MainApp> createState() => _MainAppState();
-}
-
-class _MainAppState extends State<MainApp> {
-  // Ajustamos el índice si la vista del catálogo es la que quieres por defecto
-  int currentIndex = 0; 
-  
-  // Puedes usar 0 para 'Inicio' (la vista de dulces) o 1 para 'Catálogo' (si ese es el foco)
+class JToolsApp extends StatelessWidget {
+  const JToolsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Definimos las páginas, reemplazando tus placeholders con las pantallas reales.
-    final pages = [
-      _homeView(), // Tu pantalla original
-      _placeholder("Menú"),
-      _placeholder("Carrito"),
-      PedidosPage(), // Módulo de Pedidos
-      ClientListPage(), // Vista de clientes funcionando
-      // 0. Pestaña de 'Inicio' (Tu vista original de 'Dulce Delicia' - No repuestos)
-      _homeView(), 
-      
-      // 1. Pestaña 'Menú' -> Ahora será el Catálogo de Repuestos
-      const CatalogScreen(),
-      
-      // 2. Pestaña 'Carrito' -> Ahora será la Pantalla de Carrito de Repuestos
-      const CartScreen(),
-      
-      // 3. Pestaña 'Pedidos'
-      _placeholder("Pedidos"),
-    ];
-
     return MaterialApp(
+      title: 'JTools',
       debugShowCheckedModeBanner: false,
-      // Aplicamos el tema general aquí. Puedes usar el color de dulces (pink) o el de repuestos (blue)
       theme: ThemeData(
-        primaryColor: Colors.pink, // Mantenemos el color rosa para la app general
+        colorScheme: ColorScheme.fromSeed(seedColor: kPrimary),
+        useMaterial3: true,
+        fontFamily: 'Roboto',
+        scaffoldBackgroundColor: kBg,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          backgroundColor: kPrimaryDark,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kPrimary, foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        cardTheme: CardThemeData(
           elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: Colors.white,
         ),
-      ),
-      home: Scaffold(
-        backgroundColor: const Color.fromARGB(255, 245, 245, 245),
-        appBar: AppBar(
-          title: Text(
-            // Título dinámico basado en la pestaña
-            _getAppTitle(currentIndex),
-            style: TextStyle(
-              color: currentIndex == 0 ? Colors.black : primaryColorParts,
-              fontWeight: FontWeight.bold,
-            ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: kPrimary, foregroundColor: Colors.white,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: kPrimary, width: 2),
           ),
         ),
+      ),
+      home: const _AuthGate(),
+    );
+  }
+}
 
-        body: pages[currentIndex],
+// ─── Auth gate: muestra login o app según token ───────────────────────────────
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+  @override State<_AuthGate> createState() => _AuthGateState();
+}
 
-        // Navegación inferior
-        bottomNavigationBar: BottomNavigationBar(
+class _AuthGateState extends State<_AuthGate> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) =>
+      context.read<AuthProvider>().checkAuth());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return auth.isLoggedIn ? const MainShell() : const LoginPage();
+  }
+}
+
+// ─── Shell principal con bottom nav ──────────────────────────────────────────
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+  @override State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _idx = 0;
+
+  static const _pages = [
+    EmpleadosPage(),
+    ProveedoresPage(),
+    InsumosPage(),
+    ComprasPage(),
+    NominaPage(),
+  ];
+
+  static const _items = [
+    BottomNavigationBarItem(icon: Icon(Icons.people_outlined), activeIcon: Icon(Icons.people), label: 'Empleados'),
+    BottomNavigationBarItem(icon: Icon(Icons.business_outlined), activeIcon: Icon(Icons.business), label: 'Proveedores'),
+    BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2), label: 'Insumos'),
+    BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart), label: 'Compras'),
+    BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'Control de Pagos'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(index: _idx, children: _pages),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: kBorder, width: 1)),
+        ),
+        child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
-          currentIndex: currentIndex,
-          selectedItemColor: Colors.pink, // Color seleccionado de dulces
-          unselectedItemColor: Colors.black54,
-          onTap: (i) => setState(() => currentIndex = i),
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.cake), label: 'Dulces'), // Cambié el icono
-            BottomNavigationBarItem(icon: Icon(Icons.car_repair), label: 'Repuestos'), // Catálogo
-            BottomNavigationBarItem(
-                icon: Icon(Icons.shopping_cart_outlined), label: 'Carrito'), // Carrito
-            BottomNavigationBarItem(
-                icon: Icon(Icons.receipt_long), label: 'Pedidos'),
-            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Clientes'),
-          ],
+          currentIndex: _idx,
+          selectedItemColor: kPrimary,
+          unselectedItemColor: kTextMuted,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontSize: 11),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          onTap: (i) => setState(() => _idx = i),
+          items: _items,
         ),
       ),
+      // Botón de cerrar sesión en drawer
+      drawer: _drawer(context),
     );
   }
-  
-  // Función para título dinámico
-  String _getAppTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'Dulce Delicia';
-      case 1:
-        return 'Catálogo de Repuestos';
-      case 2:
-        return 'Mi Carrito';
-      case 3:
-        return 'Historial de Pedidos';
-      case 4:
-        return 'Gestión de Clientes';
-      default:
-        return 'Jtools app';
-    }
-  }
 
-  // =======================================================================
-  // === 1. TU PANTALLA ORIGINAL DE INICIO (DULCES) ========================
-  // =======================================================================
-
-  Widget _homeView() {
-    // Nota: Mantuve el código original de tu _homeView aquí.
-    // Si quieres un enfoque más limpio, idealmente crearías un archivo
-    // 'screens/sweets_home_screen.dart' y lo importarías, como hicimos con los repuestos.
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Eliminamos la cabecera ya que ahora el AppBar lo maneja.
-                  const Text(
-                    'Categorías de Dulces',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // === CARD 1 ===
-                  buildCard(
-                    imageUrl:
-                        'https://www.recetasnestle.com.co/sites/default/files/styles/recipe_detail_desktop_new/public/srh_recipes/8b80d005d2b35d7a583470e3f19c9c1f.jpeg?itok=7TbncD74',
-                    title: 'Pasteles',
-                    description: 'Celebra con nuestros exquisitos pasteles',
-                    price: '12000 ',
-                  ),
-                  const SizedBox(height: 16),
-
-                  // === CARD 2 ===
-                  buildCard(
-                    imageUrl:
-                        'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvjx3vebg4PX1WCOOVOnQ2vG3zDuTs_TU-3Q&s',
-                    title: 'Galletas',
-                    description: 'Disfruta de nuestras deliciosas galletas',
-                    price: '10000',
-                  ),
-                  const SizedBox(height: 16),
-
-                  // === CARD 3 ===
-                  buildCard(
-                    imageUrl:
-                        'https://images.ctfassets.net/naglem4vigsd/3ghnulN27uzMoUucb6Bhrw/25e6313d2060e0847c1aa677d6243344/easy_flan2_0-en-us?fm=webp&w=3840',
-                    title: 'Postres Individuales',
-                    description: 'Prueba nuestros postres individuales',
-                    price: '7000',
-                  ),
-                ],
-              ),
+  Widget _drawer(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return Drawer(
+      child: Column(children: [
+        DrawerHeader(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
           ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const CircleAvatar(
+              radius: 28, backgroundColor: Colors.white24,
+              child: Icon(Icons.person, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 12),
+            Text(auth.userName ?? 'Usuario',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+            if (auth.userRole?.isNotEmpty ?? false)
+              Text(auth.userRole!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          ]),
         ),
-      ],
-    );
-  }
-
-  // =======================================================================
-  // === COMPARTIDO PARA TARJETAS (DULCES) =================================
-  // =======================================================================
-
-  static Widget buildCard({
-    required String imageUrl,
-    required String title,
-    required String description,
-    required String price,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white, // Fondo blanco para la tarjeta
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.grey.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.network(
-              imageUrl,
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        description,
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-                // Botón de Ver Más
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.pink,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
-                  child: const Text(
-                    'Ver más',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  // =======================================================================
-  // === PLACEHOLDER (Para pantallas no implementadas) ======================
-  // =======================================================================
-
-  Widget _placeholder(String text) {
-    return Center(
-      child: Text(
-        'Página de $text en desarrollo...',
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-      ),
+        const Spacer(),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.logout, color: kError),
+          title: const Text('Cerrar sesión', style: TextStyle(color: kError)),
+          onTap: () async {
+            Navigator.pop(context);
+            await context.read<AuthProvider>().logout();
+          },
+        ),
+        const SizedBox(height: 20),
+      ]),
     );
   }
 }

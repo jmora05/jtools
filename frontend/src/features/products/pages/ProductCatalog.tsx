@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { getProductos, getProductoById, createProducto, updateProducto, deleteProducto, getCategorias } from '../services/productosService';
 import { ProductFormModal } from '../components/ProductFormModal';
 import type { Categoria, Producto, ProductoForm } from '../components/ProductFormModal';
+import { ProductoDetailModal } from '../components/ProductoDetailModal';
 
 import { useCart } from '@/shared/hooks/useCart';
 
@@ -310,121 +311,14 @@ function ClientCatalogView() {
             )}
 
             {/* ── Modal detalle cliente ── */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="p-0 gap-0 overflow-y-auto" style={{ width: '520px', maxWidth: '90vw', maxHeight: '85vh' }}>
-                    {loadingDetail ? (
-                        <div className="flex flex-col items-center justify-center py-20 gap-3">
-                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                            <span className="text-sm text-gray-500">Cargando...</span>
-                        </div>
-                    ) : viewingProduct ? (
-                        <div className="flex flex-col">
-                            {/* Header */}
-                            <div className="px-6 py-4 bg-blue-900 flex-shrink-0">
-                                <DialogHeader>
-                                    <DialogTitle className="text-white text-lg font-bold flex items-center gap-2">
-                                        <Package className="w-5 h-5" /> Detalle del producto
-                                    </DialogTitle>
-                                    <DialogDescription className="text-blue-200 text-xs">
-                                        Información completa del producto
-                                    </DialogDescription>
-                                </DialogHeader>
-                            </div>
-
-                            {/* Imagen */}
-                            <div className="bg-gray-50 p-6 flex items-center justify-center border-b">
-                                <ProductImage
-                                    src={viewingProduct.imagenUrl}
-                                    alt={viewingProduct.nombreProducto}
-                                    className="w-full max-w-xs max-h-60 object-cover rounded-xl border border-gray-200 shadow"
-                                />
-                            </div>
-
-                            {/* Info */}
-                            <div className="p-6 space-y-4">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge className="bg-blue-50 text-blue-700 border border-blue-200 text-xs">
-                                        <Tag className="w-3 h-3 mr-1" />
-                                        {viewingProduct.categoria?.nombreCategoria ?? 'Sin categoría'}
-                                    </Badge>
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-blue-900">{viewingProduct.nombreProducto}</h2>
-                                    <p className="text-xs text-gray-400 font-mono mt-1">Ref: {viewingProduct.referencia}</p>
-                                </div>
-
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                                    <p className="text-xs text-blue-600 font-bold uppercase tracking-widest mb-1">Precio unitario</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-3xl font-extrabold text-blue-900">
-                                            ${Number(viewingProduct.precio).toLocaleString('es-CO')}
-                                        </span>
-                                        <span className="text-sm text-blue-600">COP</span>
-                                    </div>
-                                </div>
-
-                                {/* Stock con estado visual */}
-                                <div className={`border rounded-xl p-4 ${viewingProduct.stock === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Boxes className="w-3.5 h-3.5 text-gray-500" />
-                                        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Stock disponible</p>
-                                    </div>
-                                    {viewingProduct.stock === 0 ? (
-                                        <div className="flex items-center gap-2">
-                                            <AlertTriangle className="w-4 h-4 text-red-500" />
-                                            <span className="text-lg font-bold text-red-500">Sin stock</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <span className="text-xl font-bold text-gray-900">{viewingProduct.stock}</span>
-                                            <span className="text-sm text-gray-500 ml-1">unidades</span>
-                                        </>
-                                    )}
-                                </div>
-
-                                {viewingProduct.descripcion && (
-                                    <div className="border-t pt-4">
-                                        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Descripción</p>
-                                        <p className="text-sm text-gray-700 leading-relaxed">{viewingProduct.descripcion}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Footer modal */}
-                            <div className="border-t bg-gray-50 px-6 py-3 flex justify-between items-center gap-3 flex-shrink-0">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowDetailModal(false)}
-                                    className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                                >
-                                    Cerrar
-                                </Button>
-                                <Button
-                                    disabled={viewingProduct.stock <= 0}
-                                    onClick={() => {
-                                        handleAddToCart(viewingProduct);
-                                        if (viewingProduct.stock > 0) setShowDetailModal(false);
-                                    }}
-                                    className={`${
-                                        viewingProduct.stock <= 0
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : isInCart(viewingProduct.id)
-                                                ? 'bg-blue-900 hover:bg-blue-800 text-white'
-                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
-                                    }`}
-                                >
-                                    <ShoppingCart className="w-4 h-4 mr-2" />
-                                    {viewingProduct.stock <= 0
-                                        ? 'Producto agotado'
-                                        : isInCart(viewingProduct.id)
-                                            ? 'Agregar otra unidad'
-                                            : 'Agregar al carrito'}
-                                </Button>
-                            </div>
-                        </div>
-                    ) : null}
-                </DialogContent>
-            </Dialog>
+            <ProductoDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                producto={viewingProduct}
+                loadingDetail={loadingDetail}
+                onAddToCart={handleAddToCart}
+                isInCart={isInCart}
+            />
         </div>
     );
 }
@@ -890,86 +784,12 @@ function AdminCatalogView() {
             />
 
             {/* Modal detalle */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="p-0 overflow-y-auto gap-0" style={{ width: '600px', maxWidth: '90vw', maxHeight: '85vh' }}>
-                    {loadingDetail ? (
-                        <div className="flex flex-col justify-center items-center py-24 gap-3">
-                            <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-                            <span className="text-sm text-gray-500">Cargando información del producto...</span>
-                        </div>
-                    ) : viewingProduct ? (
-                        <div className="flex flex-col">
-                            <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-blue-700 flex-shrink-0">
-                                <DialogHeader>
-                                    <DialogTitle className="text-blue-900 text-lg font-bold flex items-center gap-2">
-                                        <Package className="w-5 h-5" />Detalle del Producto
-                                    </DialogTitle>
-                                    <DialogDescription className="text-blue-800 text-xs">
-                                        Información completa del producto seleccionado
-                                    </DialogDescription>
-                                </DialogHeader>
-                            </div>
-                            <div className="overflow-y-auto flex-1">
-                                <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center border-b border-gray-200">
-                                    <ProductImage src={viewingProduct.imagenUrl} alt={viewingProduct.nombreProducto} className="w-full h-auto object-cover rounded-2xl border-2 border-white shadow-lg max-w-xs max-h-64" />
-                                </div>
-                                <div className="p-6 space-y-4">
-                                    <div>
-                                        <div className="flex items-center flex-wrap gap-2 mb-3">
-                                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                                <Tag className="w-3 h-3" />{viewingProduct.categoria?.nombreCategoria ?? `Cat. #${viewingProduct.categoriaProductoId}`}
-                                            </Badge>
-                                            <Badge className={viewingProduct.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-100'}>
-                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 inline-block ${viewingProduct.estado === 'activo' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                                                {viewingProduct.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                                            </Badge>
-                                        </div>
-                                        <h2 className="text-2xl font-bold text-gray-900 leading-tight">{viewingProduct.nombreProducto}</h2>
-                                        <div className="mt-2 flex items-center gap-3 text-sm text-gray-500 flex-wrap">
-                                            <span className="font-mono">Ref: {viewingProduct.referencia}</span>
-                                            <span className="text-gray-300">•</span>
-                                            <span className="font-mono">ID #{viewingProduct.id}</span>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-blue-700 mb-1">Precio unitario</p>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-3xl font-extrabold text-blue-900">${Number(viewingProduct.precio).toLocaleString('es-CO')}</span>
-                                            <span className="text-sm text-blue-600 font-medium">COP</span>
-                                        </div>
-                                    </div>
-                                    <div className={`border rounded-xl p-4 ${viewingProduct.stock === 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Boxes className="w-3.5 h-3.5 text-gray-500" />
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-600">Stock disponible</p>
-                                        </div>
-                                        {viewingProduct.stock === 0 ? (
-                                            <div className="flex items-center gap-2">
-                                                <AlertTriangle className="w-4 h-4 text-red-500" />
-                                                <span className="text-lg font-bold text-red-500">Sin stock</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="text-xl font-bold text-gray-900">{Number(viewingProduct.stock).toLocaleString()}</span>
-                                                <span className="text-sm text-gray-600">unidades</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {viewingProduct.descripcion && (
-                                        <div className="border-t pt-4">
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2">Descripción</p>
-                                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{viewingProduct.descripcion}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="border-t bg-gray-50 px-6 py-3 flex justify-end flex-shrink-0">
-                                <Button variant="outline" onClick={() => setShowDetailModal(false)} className="border-blue-900 text-blue-900 hover:bg-blue-50">Cerrar</Button>
-                            </div>
-                        </div>
-                    ) : null}
-                </DialogContent>
-            </Dialog>
+            <ProductoDetailModal
+                open={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                producto={viewingProduct}
+                loadingDetail={loadingDetail}
+            />
 
             {/* Modal eliminar */}
             <Dialog open={showDeleteModal} onOpenChange={open => { if (!open) { setShowDeleteModal(false); setDeletingProduct(null); setDeleteConfirmed(false); } }}>

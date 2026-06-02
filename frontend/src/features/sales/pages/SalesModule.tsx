@@ -58,6 +58,7 @@ import {
   toTipoVenta,
   mapVentaToSale,
 } from '@/features/sales/services/ventasService';
+import { VentaDetailModal } from '../components/VentaDetailModal';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1178,101 +1179,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         </div>
 
         {/* ── MODAL DETALLE ─────────────────────────────────────────────── */}
-        <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-visible p-0">
-            <div className="overflow-y-auto max-h-[90vh] p-6">
-              <DialogHeader>
-                <DialogTitle>Detalles de la Venta #{viewingSale?.id}</DialogTitle>
-                <DialogDescription>Información completa de la venta seleccionada.</DialogDescription>
-              </DialogHeader>
-
-              {viewingSale && (
-                <div className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                    <div className="col-span-2 flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                        <ShoppingCartIcon className="w-8 h-8 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-blue-900 text-lg leading-tight">{viewingSale.clientName}</p>
-                        <p className="text-sm text-gray-500">Venta #{viewingSale.id}</p>
-                        <div className="mt-1">{getStatusBadge(viewingSale.status)}</div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">Fecha</p>
-                      <p className="font-semibold text-sm mt-0.5">{viewingSale.date}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total</p>
-                      <p className="font-semibold text-sm mt-0.5 text-blue-600">${viewingSale.total.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Método de Pago</p>
-                      <p className="font-semibold text-sm mt-0.5">{viewingSale.paymentMethod}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Tipo</p>
-                      <div className="mt-0.5">{getTypeBadge(viewingSale.type)}</div>
-                    </div>
-                    {viewingSale.clientDocument && (
-                      <div>
-                        <p className="text-xs text-gray-500">Documento</p>
-                        <p className="font-semibold text-sm mt-0.5">{viewingSale.clientDocument}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-xs text-gray-500">Productos</p>
-                      <p className="font-semibold text-sm mt-0.5">{viewingSale.items.length} ítem(s)</p>
-                    </div>
-                  </div>
-
-                  {viewingSale.items.length > 0 && (
-                    <div className="rounded-lg border border-gray-200 overflow-hidden">
-                      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700">Productos de la venta</p>
-                      </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-gray-500 bg-white">
-                            <th className="text-left px-4 py-2">Producto</th>
-                            <th className="text-right px-4 py-2">Cant.</th>
-                            <th className="text-right px-4 py-2">P. Unitario</th>
-                            <th className="text-right px-4 py-2">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {viewingSale.items.map((item, index) => (
-                            <tr key={index} className="bg-white hover:bg-gray-50">
-                              <td className="px-4 py-2">
-                                <p>{item.name}</p>
-                                <p className="text-xs text-gray-500">{item.code}</p>
-                              </td>
-                              <td className="text-right px-4 py-2">{item.quantity}</td>
-                              <td className="text-right px-4 py-2">${item.price.toLocaleString()}</td>
-                              <td className="text-right px-4 py-2 font-semibold">${(item.quantity * item.price).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-blue-50 border-t border-blue-100">
-                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-700 text-right">Total</td>
-                            <td className="px-4 py-2 font-semibold text-blue-600">${viewingSale.total.toLocaleString()}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <VentaDetailModal
+          open={showDetailModal}
+          onClose={() => setShowDetailModal(false)}
+          viewingSale={viewingSale}
+        />
 
         {/* ── MODAL PDF ─────────────────────────────────────────────────── */}
         <Dialog open={showPDFModal} onOpenChange={setShowPDFModal}>

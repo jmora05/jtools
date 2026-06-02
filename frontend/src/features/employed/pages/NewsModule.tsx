@@ -19,7 +19,7 @@ import {
 import {
   PlusIcon, EditIcon, TrashIcon, CalendarIcon, AlertCircleIcon,
   ChevronLeftIcon, ChevronRightIcon, EyeIcon, UserIcon, Loader2Icon, XIcon, Lock, X,
-  SearchIcon, CheckIcon,
+  SearchIcon, CheckIcon, Hash,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -337,6 +337,24 @@ function EmpleadoAutocomplete({
         )}
       </div>
     </Field>
+  );
+}
+
+// ─── Helper detalle novedad ───────────────────────────────────────────────────
+function NInfoItem({ icon, label, value, iconBg, iconColor }: {
+  icon: React.ReactNode; label: string; value: string;
+  iconBg: string; iconColor: string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 160px' }}>
+      <div style={{ background: iconBg, borderRadius: 8, padding: 8, display: 'flex', color: iconColor }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+      </div>
+    </div>
   );
 }
 
@@ -1096,79 +1114,84 @@ export function NewsModule() {
 
         {/* ── Diálogo Ver detalle ─────────────────────────────────────────── */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-            <div className="overflow-y-auto max-h-[90vh] p-6">
-              <DialogHeader>
-                <DialogTitle>Detalles de la Novedad</DialogTitle>
-                <DialogDescription>Información completa de la novedad registrada</DialogDescription>
-              </DialogHeader>
-              {selectedNovedad && (
-                <div className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-
-                    {/* Cabecera */}
-                    <div className="col-span-2 flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                        <AlertCircleIcon className="w-8 h-8 text-blue-600" />
-                      </div>
+          <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+            {selectedNovedad && (() => {
+              const chipMap: Record<string, { bg: string; text: string; border: string }> = {
+                registrada:                { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
+                aprobada_remunera:         { bg: '#dcfce7', text: '#166534', border: '#86efac' },
+                aprobada_sin_remuneracion: { bg: '#dbeafe', text: '#1e3a8a', border: '#93c5fd' },
+                rechazada:                 { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+              };
+              const chip = chipMap[selectedNovedad.estado] ?? { bg: '#dbeafe', text: '#1e3a8a', border: '#93c5fd' };
+              const iconBg = '#eff6ff'; const iconColor = '#1d4ed8';
+              return (
+                <>
+                  {/* Header */}
+                  <div style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                    <button onClick={() => setIsViewDialogOpen(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
                       <div>
-                        <p className="font-semibold text-blue-900 text-lg leading-tight">{selectedNovedad.titulo}</p>
-                        <Badge className={`mt-1 ${ESTADO_COLORS[selectedNovedad.estado]}`}>
-                          {ESTADO_LABELS[selectedNovedad.estado]}
-                        </Badge>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <AlertCircleIcon className="w-4 h-4" style={{ opacity: 0.75 }} />
+                          <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            Ficha de la novedad
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                          {selectedNovedad.titulo}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
+                          {nombreCompleto(selectedNovedad.empleadoAfectado)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: chip.bg, border: `1.5px solid ${chip.border}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: chip.text, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                        {ESTADO_LABELS[selectedNovedad.estado]}
                       </div>
                     </div>
-
-                    {/* Fecha de registro */}
-                    <div>
-                      <p className="text-xs text-gray-500">Fecha de registro</p>
-                      <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                        <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
-                        {formatFecha(selectedNovedad.fecha_registro)}
-                      </p>
-                    </div>
-
-                    {/* Fecha inicio */}
-                    <div>
-                      <p className="text-xs text-gray-500">Fecha de inicio</p>
-                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_inicio)}</p>
-                    </div>
-
-                    {/* Fecha fin */}
-                    <div>
-                      <p className="text-xs text-gray-500">Fecha de finalización</p>
-                      <p className="font-semibold text-sm mt-0.5">{formatFecha(selectedNovedad.fecha_finalizacion)}</p>
-                    </div>
-
-                    {/* Horas de ausencia */}
-                    {selectedNovedad.horas_ausencia != null && (
-                      <div>
-                        <p className="text-xs text-gray-500">Horas de ausencia</p>
-                        <p className="font-semibold text-sm mt-0.5">{selectedNovedad.horas_ausencia} h</p>
-                      </div>
-                    )}
-
-                    {/* Afectado */}
-                    <div>
-                      <p className="text-xs text-gray-500">Empleado afectado</p>
-                      <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                        <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                        {nombreCompleto(selectedNovedad.empleadoAfectado)}
-                      </p>
-                    </div>
-
-                    {/* Descripción */}
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-500">Descripción detallada</p>
-                      <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
-                        {selectedNovedad.descripcion_detallada}
-                      </p>
-                    </div>
-
                   </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Cerrar</Button>
+                  {/* Body */}
+                  <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                    {/* Fechas */}
+                    <div style={{ padding: '16px 24px 0' }}>
+                      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Fechas</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                          <NInfoItem icon={<CalendarIcon className="w-4 h-4" />} label="Fecha de registro"     value={formatFecha(selectedNovedad.fecha_registro)}    iconBg={iconBg} iconColor={iconColor} />
+                          <NInfoItem icon={<CalendarIcon className="w-4 h-4" />} label="Fecha de inicio"       value={formatFecha(selectedNovedad.fecha_inicio)}       iconBg={iconBg} iconColor={iconColor} />
+                          <NInfoItem icon={<CalendarIcon className="w-4 h-4" />} label="Fecha de finalización" value={formatFecha(selectedNovedad.fecha_finalizacion)}  iconBg={iconBg} iconColor={iconColor} />
+                          {selectedNovedad.horas_ausencia != null && (
+                            <NInfoItem icon={<Hash className="w-4 h-4" />} label="Horas de ausencia" value={`${selectedNovedad.horas_ausencia} h`} iconBg={iconBg} iconColor={iconColor} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Información */}
+                    <div style={{ padding: '12px 24px 0' }}>
+                      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                          <NInfoItem icon={<UserIcon className="w-4 h-4" />} label="Empleado afectado" value={nombreCompleto(selectedNovedad.empleadoAfectado)} iconBg={iconBg} iconColor={iconColor} />
+                        </div>
+                        {selectedNovedad.descripcion_detallada && (
+                          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>Descripción detallada</div>
+                            <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                              {selectedNovedad.descripcion_detallada}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                      <span style={{ fontSize: 11, color: '#cbd5e1' }}>Novedad ID #{selectedNovedad.id}</span>
+                    </div>
+                  </div>
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                    <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} style={{ fontSize: 13 }}>Cerrar</Button>
                     {canEdit(selectedNovedad) && (
                       <Button
                         onClick={() => {
@@ -1182,9 +1205,9 @@ export function NewsModule() {
                       </Button>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
@@ -2143,80 +2166,83 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
 
       {/* Dialog Ver */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-          <div className="overflow-y-auto max-h-[90vh] p-6">
-            <DialogHeader>
-              <DialogTitle>Detalle del Registro</DialogTitle>
-              <DialogDescription>Información del recargo u hora extra registrada</DialogDescription>
-            </DialogHeader>
-            {selected && (
-              <div className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-
-                  {/* Cabecera */}
-                  <div className="col-span-2 flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <CalendarIcon className="w-8 h-8 text-blue-600" />
-                    </div>
+        <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+          {selected && (() => {
+            const chipMap: Record<string, { bg: string; text: string; border: string }> = {
+              registrada: { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' },
+              aprobada:   { bg: '#dcfce7', text: '#166534', border: '#86efac' },
+              rechazada:  { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+            };
+            const chip = chipMap[selected.estado] ?? { bg: '#dbeafe', text: '#1e3a8a', border: '#93c5fd' };
+            const iconBg = '#eff6ff'; const iconColor = '#1d4ed8';
+            const empleadoNombre = selected.empleado
+              ? `${selected.empleado.nombres} ${selected.empleado.apellidos}`
+              : '—';
+            return (
+              <>
+                {/* Header */}
+                <div style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                  <button onClick={() => setIsViewOpen(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
                     <div>
-                      <p className="font-semibold text-blue-900 text-lg leading-tight">{selected.tipo}</p>
-                      <Badge className={`mt-1 ${
-                        selected.estado === 'aprobada'
-                          ? 'bg-gray-100 text-gray-900 border-gray-200'
-                          : 'bg-amber-100 text-amber-900 border-amber-200'
-                      }`}>
-                        {HE_ESTADO_LABELS[selected.estado] ?? selected.estado}
-                      </Badge>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <CalendarIcon className="w-4 h-4" style={{ opacity: 0.75 }} />
+                        <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          Ficha de hora extra / recargo
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                        {selected.tipo}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
+                        {empleadoNombre}{selected.empleado?.cargo ? ` · ${selected.empleado.cargo}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: chip.bg, border: `1.5px solid ${chip.border}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: chip.text, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                      {HE_ESTADO_LABELS[selected.estado] ?? selected.estado}
                     </div>
                   </div>
-
-                  {/* Fecha de registro */}
-                  <div>
-                    <p className="text-xs text-gray-500">Fecha de registro</p>
-                    <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                      <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
-                      {formatFecha(selected.createdAt)}
-                    </p>
-                  </div>
-
-                  {/* Fecha */}
-                  <div>
-                    <p className="text-xs text-gray-500">Fecha</p>
-                    <p className="font-semibold text-sm mt-0.5">{selected.fecha}</p>
-                  </div>
-
-                  {/* Horas */}
-                  <div>
-                    <p className="text-xs text-gray-500">Horas</p>
-                    <p className="font-semibold text-sm mt-0.5">{Number(selected.horas)} h</p>
-                  </div>
-
-                  {/* Empleado */}
-                  <div>
-                    <p className="text-xs text-gray-500">Empleado</p>
-                    <p className="font-semibold text-sm mt-0.5 flex items-center gap-1">
-                      <UserIcon className="w-3.5 h-3.5 text-blue-600" />
-                      {selected.empleado ? `${selected.empleado.nombres} ${selected.empleado.apellidos}` : '—'}
-                    </p>
-                    {selected.empleado?.cargo && (
-                      <p className="text-xs text-gray-400 mt-0.5">{selected.empleado.cargo}</p>
-                    )}
-                  </div>
-
-                  {/* Observaciones */}
-                  {selected.observaciones && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-500">Observaciones</p>
-                      <p className="font-semibold text-sm mt-0.5 whitespace-pre-line text-gray-700 leading-relaxed">
-                        {selected.observaciones}
-                      </p>
-                    </div>
-                  )}
-
                 </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsViewOpen(false)}>Cerrar</Button>
+                {/* Body */}
+                <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                  {/* Fechas */}
+                  <div style={{ padding: '16px 24px 0' }}>
+                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Fechas y horas</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                        <NInfoItem icon={<CalendarIcon className="w-4 h-4" />} label="Fecha de registro" value={formatFecha(selected.createdAt)} iconBg={iconBg} iconColor={iconColor} />
+                        <NInfoItem icon={<CalendarIcon className="w-4 h-4" />} label="Fecha"             value={selected.fecha}                  iconBg={iconBg} iconColor={iconColor} />
+                        <NInfoItem icon={<Hash className="w-4 h-4" />}         label="Horas"             value={`${Number(selected.horas)} h`}   iconBg={iconBg} iconColor={iconColor} />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Información */}
+                  <div style={{ padding: '12px 24px 0' }}>
+                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                        <NInfoItem icon={<UserIcon className="w-4 h-4" />} label="Empleado" value={empleadoNombre} iconBg={iconBg} iconColor={iconColor} />
+                      </div>
+                      {selected.observaciones && (
+                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+                          <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>Observaciones</div>
+                          <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                            {selected.observaciones}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                    <span style={{ fontSize: 11, color: '#cbd5e1' }}>Registro ID #{selected.id}</span>
+                  </div>
+                </div>
+                {/* Footer */}
+                <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                  <Button variant="outline" onClick={() => setIsViewOpen(false)} style={{ fontSize: 13 }}>Cerrar</Button>
                   {canEditHE(selected) && (
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={() => { setIsViewOpen(false); openEdit(selected); }}>
@@ -2224,9 +2250,9 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                     </Button>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

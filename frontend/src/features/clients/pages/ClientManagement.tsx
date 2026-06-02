@@ -17,6 +17,7 @@ import {
     Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight,
     AlertTriangle, User, X, Search, Loader2,
     CheckCircle2, Info, Lock,
+    Mail, Phone, MapPin, Hash, FileText, Tag, Building2, XCircle,
 } from 'lucide-react';
 import {
     getClientes, createCliente, updateCliente,
@@ -164,6 +165,24 @@ const bannerIcons: Record<BannerVariant, React.ReactNode> = {
 function FieldError({ msg }: { msg?: string }) {
     if (!msg) return null;
     return <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{msg}</p>;
+}
+
+// ─── Helper detalle cliente ───────────────────────────────────────────────────
+function ClientInfoItem({ icon, label, value, iconBg, iconColor }: {
+    icon: React.ReactNode; label: string; value: string;
+    iconBg: string; iconColor: string;
+}) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 160px' }}>
+            <div style={{ background: iconBg, borderRadius: 8, padding: 8, display: 'flex', color: iconColor }}>
+                {icon}
+            </div>
+            <div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+            </div>
+        </div>
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -958,75 +977,97 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
             {/* ── MODAL VER DETALLE ───────────────────────────────────────── */}
             <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-visible p-0">
-                    <div className="overflow-y-auto max-h-[90vh] p-6">
-                        <DialogHeader>
-                            <DialogTitle>Detalles del Cliente</DialogTitle>
-                            <DialogDescription>Información completa del cliente seleccionado.</DialogDescription>
-                        </DialogHeader>
-                        {viewingClient && (
-                            <div className="space-y-4 mt-4">
-                                <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
-                                    <div className="col-span-2 flex items-center gap-4">
-                                        <Avatar className="w-16 h-16">
-                                            <AvatarFallback className="bg-blue-100 text-blue-600 text-xl">
-                                                {getInitials(getDisplayName(viewingClient))}
-                                            </AvatarFallback>
-                                        </Avatar>
+                <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+                    {viewingClient && (() => {
+                        const isActive = viewingClient.estado === 'activo';
+                        const cfg = isActive ? {
+                            headerBg: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+                            chipBg: '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
+                            iconBg: '#eff6ff', iconColor: '#1d4ed8',
+                        } : {
+                            headerBg: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                            chipBg: '#f1f5f9', chipText: '#475569', chipBorder: '#cbd5e1',
+                            iconBg: '#f8fafc', iconColor: '#64748b',
+                        };
+                        const tipoLabel = viewingClient.clientType === 'Empresa' ? 'Empresa' : 'Persona Natural';
+                        return (
+                            <>
+                                {/* Header */}
+                                <div style={{ background: cfg.headerBg, color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                                    <button onClick={() => setShowDetailModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
                                         <div>
-                                            <p className="font-semibold text-blue-900 text-lg">{getDisplayName(viewingClient)}</p>
-                                            <p className="text-sm text-gray-500">{viewingClient.email}</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                <User className="w-4 h-4" style={{ opacity: 0.75 }} />
+                                                <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                                    Ficha del cliente
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                                                {getDisplayName(viewingClient)}
+                                            </div>
+                                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
+                                                {tipoLabel}{viewingClient.ciudad ? ` · ${viewingClient.ciudad}` : ''}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 capitalize">Documento</p>
-                                        <p className="font-semibold text-sm">{viewingClient.tipo_documento} {viewingClient.numero_documento}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 capitalize">Tipo</p>
-                                        <Badge variant="outline">{viewingClient.clientType ?? 'Persona natural'}</Badge>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 capitalize">Teléfono</p>
-                                        <p className="font-semibold text-sm">{viewingClient.telefono}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 capitalize">Ciudad</p>
-                                        <p className="font-semibold text-sm">{viewingClient.ciudad}</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-gray-500 capitalize">Dirección</p>
-                                        <p className="font-semibold text-sm">{viewingClient.direccion}</p>
-                                    </div>
-                                    {viewingClient.clientType === 'Empresa' && viewingClient.contacto && (
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-gray-500 capitalize">Persona de contacto</p>
-                                            <p className="font-semibold text-sm">{viewingClient.contacto}</p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                                            {isActive ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                            {isActive ? 'Activo' : 'Inactivo'}
                                         </div>
-                                    )}
-                                    <div>
-                                        <p className="text-xs text-gray-500 capitalize">Estado</p>
-                                        <Badge className={viewingClient.estado === 'activo'
-                                            ? 'bg-blue-100 text-blue-900'
-                                            : 'bg-gray-100 text-gray-500'}>
-                                            {viewingClient.estado}
-                                        </Badge>
                                     </div>
                                 </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                                    {viewingClient.estado === 'activo' && (
-                                        <Button
-                                            onClick={() => { handleEdit(viewingClient); setShowDetailModal(false); }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                        >
+                                {/* Body */}
+                                <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                                    {!isActive && (
+                                        <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                                            <XCircle className="w-4 h-4 shrink-0" />
+                                            Este cliente está inactivo y no puede realizar compras en el sistema.
+                                        </div>
+                                    )}
+                                    {/* Identificación */}
+                                    <div style={{ padding: '16px 24px 0' }}>
+                                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Identificación</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                                                <ClientInfoItem icon={<Tag className="w-4 h-4" />}  label="Tipo"      value={tipoLabel}                                                            iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                                <ClientInfoItem icon={<Hash className="w-4 h-4" />} label="Documento" value={`${viewingClient.tipo_documento} ${viewingClient.numero_documento}`}  iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                                {viewingClient.clientType === 'Empresa' && viewingClient.contacto && (
+                                                    <ClientInfoItem icon={<User className="w-4 h-4" />} label="Persona de contacto" value={viewingClient.contacto} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Contacto */}
+                                    <div style={{ padding: '12px 24px 0' }}>
+                                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Contacto</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                                                {viewingClient.email     && <ClientInfoItem icon={<Mail className="w-4 h-4" />}     label="Correo"    value={viewingClient.email}     iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                                {viewingClient.telefono  && <ClientInfoItem icon={<Phone className="w-4 h-4" />}    label="Teléfono"  value={viewingClient.telefono}  iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                                {viewingClient.ciudad    && <ClientInfoItem icon={<MapPin className="w-4 h-4" />}   label="Ciudad"    value={viewingClient.ciudad}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                                {viewingClient.direccion && <ClientInfoItem icon={<FileText className="w-4 h-4" />} label="Dirección" value={viewingClient.direccion} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                                        <span style={{ fontSize: 11, color: '#cbd5e1' }}>Cliente ID #{viewingClient.id}</span>
+                                    </div>
+                                </div>
+                                {/* Footer */}
+                                <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                                    <Button variant="outline" onClick={() => setShowDetailModal(false)} style={{ fontSize: 13 }}>Cerrar</Button>
+                                    {isActive && (
+                                        <Button onClick={() => { handleEdit(viewingClient); setShowDetailModal(false); }} className="bg-blue-600 hover:bg-blue-700 text-white">
                                             Editar Cliente
                                         </Button>
                                     )}
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            </>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 
