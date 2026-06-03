@@ -1,47 +1,541 @@
 import React from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
+import { toast } from 'sonner';
 import {
-    X, Package, CheckCircleIcon, XCircleIcon,
-    DollarSign, Hash, Building2, Layers,
+    Loader2, FileDown, BanIcon, CheckCircleIcon, TruckIcon,
+    ClockIcon, X, Building2, Phone, Mail, User, Calendar,
+    CreditCard, Hash, Package, ShoppingBag, PackageX,
 } from 'lucide-react';
-
-// ─── Tipo ─────────────────────────────────────────────────────────────────────
-
-export interface Supply {
-    id: number;
-    name: string;
-    description: string;
-    price: number;
-    unit: string;
-    cantidad: number | null;
-    proveedores: { id: number; nombre: string }[];
-    proveedoresIds: number[];
-    proveedorNombre: string | null;
-    status: boolean;
-}
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import type { Compra } from '../types/compra.types';
 
 // ─── Config por estado ────────────────────────────────────────────────────────
-
-const ESTADO_CONFIG = {
-    activo: {
-        label: 'Activo', icon: <CheckCircleIcon className="w-4 h-4" />,
-        headerBg: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', headerText: '#fff',
-        chipBg: '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
-        accentColor: '#2563eb', rowHover: '#eff6ff',
-        iconBg: '#eff6ff', iconColor: '#1d4ed8',
+const ESTADO_CONFIG: Record<string, {
+    label:       string;
+    icon:        React.ReactNode;
+    headerBg:    string;
+    headerText:  string;
+    chipBg:      string;
+    chipText:    string;
+    chipBorder:  string;
+    accentColor: string;
+    rowHover:    string;
+    totalBg:     string;
+    totalText:   string;
+    iconBg:      string;
+    iconColor:   string;
+}> = {
+    pendiente: {
+        label:       'Pendiente',
+        icon:        <ClockIcon className="w-4 h-4" />,
+        headerBg:    'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+        headerText:  '#fff',
+        chipBg:      '#fef9c3',
+        chipText:    '#713f12',
+        chipBorder:  '#fde047',
+        accentColor: '#ca8a04',
+        rowHover:    '#fefce8',
+        totalBg:     'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+        totalText:   '#fff',
+        iconBg:      '#eff6ff',
+        iconColor:   '#1d4ed8',
     },
-    inactivo: {
-        label: 'Inactivo', icon: <XCircleIcon className="w-4 h-4" />,
-        headerBg: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)', headerText: '#fff',
-        chipBg: '#f1f5f9', chipText: '#475569', chipBorder: '#cbd5e1',
-        accentColor: '#64748b', rowHover: '#f8fafc',
-        iconBg: '#f8fafc', iconColor: '#64748b',
+    'en transito': {
+        label:       'En tránsito',
+        icon:        <TruckIcon className="w-4 h-4" />,
+        headerBg:    'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+        headerText:  '#fff',
+        chipBg:      '#dbeafe',
+        chipText:    '#1e3a8a',
+        chipBorder:  '#93c5fd',
+        accentColor: '#2563eb',
+        rowHover:    '#eff6ff',
+        totalBg:     'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+        totalText:   '#fff',
+        iconBg:      '#eff6ff',
+        iconColor:   '#1d4ed8',
+    },
+    completada: {
+        label:       'Completada',
+        icon:        <CheckCircleIcon className="w-4 h-4" />,
+        headerBg:    'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+        headerText:  '#fff',
+        chipBg:      '#dbeafe',
+        chipText:    '#1e3a8a',
+        chipBorder:  '#93c5fd',
+        accentColor: '#2563eb',
+        rowHover:    '#eff6ff',
+        totalBg:     'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+        totalText:   '#fff',
+        iconBg:      '#eff6ff',
+        iconColor:   '#1d4ed8',
+    },
+    anulada: {
+        label:       'Anulada',
+        icon:        <BanIcon className="w-4 h-4" />,
+        headerBg:    'linear-gradient(135deg, #450a0a 0%, #b91c1c 100%)',
+        headerText:  '#fff',
+        chipBg:      '#fee2e2',
+        chipText:    '#7f1d1d',
+        chipBorder:  '#fca5a5',
+        accentColor: '#dc2626',
+        rowHover:    '#fff1f2',
+        totalBg:     'linear-gradient(135deg, #450a0a 0%, #b91c1c 100%)',
+        totalText:   '#fff',
+        iconBg:      '#fff1f2',
+        iconColor:   '#dc2626',
     },
 };
 
-// ─── Helper InfoItem ──────────────────────────────────────────────────────────
+const DEFAULT_CFG = ESTADO_CONFIG['pendiente'];
 
+// ─── PDF ──────────────────────────────────────────────────────────────────────
+const IVA_DEFAULT = 19;
+
+function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
+    const doc      = new jsPDF();
+    const pageW    = doc.internal.pageSize.getWidth();
+    const pageH    = doc.internal.pageSize.getHeight();
+    const margin   = 14;
+    const ivaDecimal = ivaRate / 100;
+
+    const paleta: Record<string, { header: [number,number,number]; accent: [number,number,number] }> = {
+        pendiente:     { header: [30, 58, 138],  accent: [37, 99, 235]  },
+        'en transito': { header: [30, 58, 138],  accent: [37, 99, 235]  },
+        completada:    { header: [29, 78, 216],  accent: [59, 130, 246] },
+        anulada:       { header: [69, 10, 10],   accent: [185, 28, 28]  },
+    };
+    const p = paleta[compra.estado ?? ''] ?? paleta['pendiente'];
+    const grisTexto: [number,number,number] = [55, 65, 81];
+    const grisClaro: [number,number,number] = [243, 244, 246];
+    const azulClaro: [number,number,number] = [219, 234, 254];
+
+    doc.setFillColor(...p.header);
+    doc.rect(0, 0, pageW, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+    doc.text('COMPRA DE INSUMOS', margin, 18);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, margin, 28);
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text(`Factura #${compra.id}`, pageW - margin, 20, { align: 'right' });
+
+    const estadoLabel: Record<string, string> = {
+        pendiente: 'Pendiente', 'en transito': 'En tránsito',
+        completada: 'Completada', anulada: 'ANULADA',
+    };
+    doc.setFillColor(...p.accent);
+    doc.roundedRect(pageW - margin - 48, 26, 48, 10, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text(estadoLabel[compra.estado ?? ''] ?? (compra.estado ?? ''), pageW - margin - 24, 32.5, { align: 'center' });
+
+    let y = 50;
+    doc.setFillColor(...azulClaro);
+    doc.roundedRect(margin, y, pageW - margin * 2, 42, 3, 3, 'F');
+    doc.setTextColor(...grisTexto);
+    const c1 = margin + 4, c2 = pageW / 2 + 4;
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    doc.text('PROVEEDOR', c1, y + 7); doc.text('FECHA', c2, y + 7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    doc.text(compra.proveedor?.nombreEmpresa ?? `ID #${compra.proveedoresId}`, c1, y + 15);
+    doc.text(new Date(compra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO'), c2, y + 15);
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    doc.text('CONTACTO', c1, y + 25); doc.text('MÉTODO DE PAGO', c2, y + 25);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    const contacto = [compra.proveedor?.personaContacto, compra.proveedor?.telefono].filter(Boolean).join(' · ') || '—';
+    doc.text(contacto, c1, y + 33);
+    doc.text((compra.metodoPago ?? '').charAt(0).toUpperCase() + (compra.metodoPago ?? '').slice(1), c2, y + 33);
+
+    y += 52;
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...p.header);
+    doc.text('Detalle de Insumos', margin, y);
+    y += 5;
+
+    if (compra.detalles && compra.detalles.length > 0) {
+        const subtotal = compra.detalles.reduce((s, d) => s + Number(d.cantidad) * Number(d.precioUnitario), 0);
+        const iva   = subtotal * ivaDecimal;
+        const total = subtotal + iva;
+
+        const rows = compra.detalles.map((d, i) => [
+            (i + 1).toString(),
+            d.insumo?.nombreInsumo ?? `ID #${d.insumosId}`,
+            d.insumo?.unidadMedida ?? '—',
+            String(d.cantidad),
+            `$${Number(d.precioUnitario).toLocaleString('es-CO')}`,
+            `$${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO')}`,
+        ]);
+
+        autoTable(doc, {
+            startY: y,
+            head: [['#', 'Insumo', 'Unidad', 'Cant.', 'Precio unit.', 'Subtotal']],
+            body: rows,
+            foot: [
+                ['', '', '', '', 'Subtotal',          `$${subtotal.toLocaleString('es-CO')}`],
+                ['', '', '', '', `IVA (${ivaRate}%)`, `$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+                ['', '', '', '', 'TOTAL',             `$${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+            ],
+            margin: { left: margin, right: margin },
+            styles:             { fontSize: 9, cellPadding: 4, textColor: grisTexto },
+            headStyles:         { fillColor: p.header, textColor: [255,255,255], fontStyle: 'bold', fontSize: 9 },
+            footStyles:         { fillColor: p.accent, textColor: [255,255,255], fontStyle: 'bold', fontSize: 9 },
+            alternateRowStyles: { fillColor: grisClaro },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                3: { halign: 'center' },
+                4: { halign: 'right' },
+                5: { halign: 'right', fontStyle: 'bold' },
+            },
+        });
+
+        if (compra.estado === 'anulada') {
+            const finalY = (doc as any).lastAutoTable?.finalY ?? y + 60;
+            doc.setTextColor(185, 28, 28);
+            doc.setFontSize(48); doc.setFont('helvetica', 'bold');
+            doc.setGState(new (doc as any).GState({ opacity: 0.12 }));
+            doc.text('ANULADA', pageW / 2, finalY / 2 + 30, { align: 'center', angle: 30 });
+            doc.setGState(new (doc as any).GState({ opacity: 1 }));
+        }
+    }
+
+    doc.setFillColor(...p.header);
+    doc.rect(0, pageH - 14, pageW, 14, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text('Documento generado automáticamente — Sistema de Compras', pageW / 2, pageH - 5, { align: 'center' });
+
+    doc.save(`compra_${compra.id}.pdf`);
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface CompraDetailModalProps {
+    open:          boolean;
+    onClose:       () => void;
+    viewingCompra: Compra | null;
+    loadingDetail: boolean;
+    ivaRate:       number;
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail, ivaRate }: CompraDetailModalProps) {
+    const ivaDecimal = ivaRate / 100;
+    const cfg = ESTADO_CONFIG[viewingCompra?.estado ?? ''] ?? DEFAULT_CFG;
+
+    const sub   = viewingCompra?.detalles?.reduce((s, d) => s + Number(d.cantidad) * Number(d.precioUnitario), 0) ?? 0;
+    const iva   = sub * ivaDecimal;
+    const total = sub + iva;
+
+    // Aplanar todas las mermas de todos los registros en una sola lista de ítems descontados
+    const insumosDescontados = viewingCompra?.mermas?.flatMap((m) =>
+        m.mermaRegistrada.map((r) => ({ ...r, motivo: m.motivo }))
+    ) ?? [];
+
+    const handleDescargarPDF = () => {
+        if (!viewingCompra) return;
+        try {
+            generarPDFCompra(viewingCompra, ivaRate);
+            toast.success(`PDF de la compra #${viewingCompra.id} descargado.`);
+        } catch (error: any) {
+            toast.error(`Error al generar PDF: ${error.message}`);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+
+                {/* ── Header ── */}
+                <div style={{ background: cfg.headerBg, color: cfg.headerText, padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                    <button
+                        onClick={onClose}
+                        style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <ShoppingBag className="w-4 h-4" style={{ opacity: 0.75 }} />
+                                <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                    Detalle de compra
+                                </span>
+                            </div>
+                            <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                                #{viewingCompra?.id ?? '—'}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
+                                {viewingCompra
+                                    ? new Date(viewingCompra.fecha.split('T')[0] + 'T12:00:00')
+                                        .toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+                                    : ''}
+                            </div>
+                        </div>
+
+                        {viewingCompra && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                background: cfg.chipBg,
+                                border: `1.5px solid ${cfg.chipBorder}`,
+                                borderRadius: 999, padding: '6px 14px',
+                                fontSize: 13, fontWeight: 700, color: cfg.chipText,
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+                            }}>
+                                {cfg.icon}
+                                {cfg.label}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Cuerpo ── */}
+                <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                    {loadingDetail ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px 0' }}>
+                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: cfg.accentColor }} />
+                        </div>
+                    ) : viewingCompra ? (
+                        <>
+                            {/* Aviso anulada */}
+                            {viewingCompra.estado === 'anulada' && (
+                                <div style={{ margin: '16px 24px 0', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#991b1b' }}>
+                                    <BanIcon className="w-4 h-4 shrink-0" />
+                                    Esta compra fue anulada. Si estaba completada, los insumos fueron devueltos al inventario.
+                                </div>
+                            )}
+
+                            {/* Aviso completada */}
+                            {viewingCompra.estado === 'completada' && (
+                                <div style={{ margin: '16px 24px 0', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#166534' }}>
+                                    <CheckCircleIcon className="w-4 h-4 shrink-0" />
+                                    Compra completada. Los insumos fueron agregados al inventario.
+                                </div>
+                            )}
+
+                            {/* ── Aviso + detalle de insumos descontados (merma) ── */}
+                            {insumosDescontados.length > 0 && (
+                                <div style={{ margin: '12px 24px 0' }}>
+                                    {/* Cabecera de sección */}
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 8,
+                                        background: '#fff7ed', border: '1px solid #fed7aa',
+                                        borderRadius: '10px 10px 0 0', padding: '10px 16px',
+                                        fontSize: 13, color: '#9a3412',
+                                    }}>
+                                        <PackageX className="w-4 h-4 shrink-0" />
+                                        <span style={{ fontWeight: 600 }}>Insumos descontados por defectuosos</span>
+                                        <span style={{
+                                            marginLeft: 'auto',
+                                            background: '#fed7aa', color: '#9a3412',
+                                            borderRadius: 999, padding: '1px 10px',
+                                            fontSize: 12, fontWeight: 700,
+                                        }}>
+                                            {insumosDescontados.length}
+                                        </span>
+                                    </div>
+
+                                    {/* Filas de insumos descontados */}
+                                    <div style={{ background: '#fff', border: '1px solid #fed7aa', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+                                        {/* Cabecera de columnas */}
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 80px 80px 80px',
+                                            padding: '6px 16px',
+                                            background: '#fff7ed',
+                                            borderBottom: '1px solid #fed7aa',
+                                            fontSize: 10, fontWeight: 700,
+                                            color: '#c2410c', letterSpacing: '0.05em',
+                                            textTransform: 'uppercase',
+                                        }}>
+                                            <span>Insumo</span>
+                                            <span style={{ textAlign: 'center' }}>Descontado</span>
+                                            <span style={{ textAlign: 'center' }}>Anterior</span>
+                                            <span style={{ textAlign: 'center' }}>Nuevo stock</span>
+                                        </div>
+
+                                        {insumosDescontados.map((ins, i) => (
+                                            <div
+                                                key={`${ins.id}-${i}`}
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1fr 80px 80px 80px',
+                                                    padding: '10px 16px',
+                                                    alignItems: 'center',
+                                                    borderBottom: i < insumosDescontados.length - 1 ? '1px solid #fff7ed' : 'none',
+                                                    background: i % 2 === 0 ? '#fff' : '#fffbf7',
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
+                                                        {ins.nombreInsumo}
+                                                    </div>
+                                                    {ins.motivo && ins.motivo !== 'Sin motivo especificado' && (
+                                                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1, fontStyle: 'italic' }}>
+                                                            {ins.motivo}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <span style={{
+                                                        background: '#fee2e2', color: '#b91c1c',
+                                                        border: '1px solid #fecaca',
+                                                        borderRadius: 6, padding: '3px 8px',
+                                                        fontSize: 12, fontWeight: 700,
+                                                    }}>
+                                                        −{ins.cantidadDefectuosa}
+                                                    </span>
+                                                </div>
+                                                <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', textDecoration: 'line-through' }}>
+                                                    {ins.cantidadAnterior}
+                                                </div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <span style={{
+                                                        background: '#dbeafe', color: '#1e40af',
+                                                        borderRadius: 6, padding: '3px 8px',
+                                                        fontSize: 12, fontWeight: 700,
+                                                    }}>
+                                                        {ins.cantidadNueva}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Info proveedor */}
+                            <div style={{ padding: '16px 24px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16, gridColumn: '1 / -1' }}>
+                                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Proveedor</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                                        <InfoItem icon={<Building2 className="w-4 h-4" />} label="Empresa"  value={viewingCompra.proveedor?.nombreEmpresa ?? '—'} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                        {viewingCompra.proveedor?.personaContacto && <InfoItem icon={<User className="w-4 h-4" />}     label="Contacto" value={viewingCompra.proveedor.personaContacto} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                        {viewingCompra.proveedor?.telefono        && <InfoItem icon={<Phone className="w-4 h-4" />}    label="Teléfono" value={viewingCompra.proveedor.telefono}        iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                        {viewingCompra.proveedor?.email           && <InfoItem icon={<Mail className="w-4 h-4" />}     label="Email"    value={viewingCompra.proveedor.email}           iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                    </div>
+                                </div>
+
+                                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{ background: cfg.iconBg, borderRadius: 8, padding: 8, display: 'flex' }}>
+                                        <Calendar className="w-4 h-4" style={{ color: cfg.iconColor }} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fecha</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                                            {new Date(viewingCompra.fecha.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{ background: cfg.iconBg, borderRadius: 8, padding: 8, display: 'flex' }}>
+                                        <CreditCard className="w-4 h-4" style={{ color: cfg.iconColor }} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Método de pago</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', textTransform: 'capitalize' }}>
+                                            {viewingCompra.metodoPago}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tabla insumos */}
+                            <div style={{ padding: '16px 24px 0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                    <Package className="w-4 h-4" style={{ color: cfg.accentColor }} />
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Insumos adquiridos</span>
+                                    <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '1px 10px', fontSize: 12, fontWeight: 700 }}>
+                                        {viewingCompra.detalles?.length ?? 0}
+                                    </span>
+                                </div>
+
+                                {viewingCompra.detalles && viewingCompra.detalles.length > 0 ? (
+                                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                        {/* Cabecera */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', padding: '8px 16px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                            <span>Insumo</span>
+                                            <span style={{ textAlign: 'center', minWidth: 60 }}>Cant.</span>
+                                            <span style={{ textAlign: 'right', minWidth: 90 }}>Precio u.</span>
+                                            <span style={{ textAlign: 'right', minWidth: 100 }}>Subtotal</span>
+                                        </div>
+
+                                        {viewingCompra.detalles.map((d, i) => (
+                                            <div
+                                                key={i}
+                                                style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', padding: '12px 16px', alignItems: 'center', borderBottom: i < viewingCompra.detalles!.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.12s' }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = cfg.rowHover)}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                            >
+                                                <div>
+                                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                                                        {d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{d.insumo?.unidadMedida ?? ''}</div>
+                                                </div>
+                                                <div style={{ textAlign: 'center', minWidth: 60 }}>
+                                                    <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
+                                                        ×{d.cantidad}
+                                                    </span>
+                                                </div>
+                                                <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>
+                                                    ${Number(d.precioUnitario).toLocaleString('es-CO')}
+                                                </div>
+                                                <div style={{ textAlign: 'right', minWidth: 100, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
+                                                    ${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO')}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Totales */}
+                                        <div style={{ borderTop: '2px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <div style={{ minWidth: 230 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', fontSize: 13, color: '#64748b' }}>
+                                                    <span>Subtotal</span><span>${sub.toLocaleString('es-CO')}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: 13, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
+                                                    <span>IVA ({ivaRate}%)</span>
+                                                    <span>${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: cfg.totalBg, color: cfg.totalText, borderRadius: '0 0 12px 0' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Total con IVA</span>
+                                                    <span style={{ fontWeight: 800, fontSize: 16 }}>${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>
+                                        Sin insumos registrados.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Factura al pie */}
+                            <div style={{ padding: '12px 24px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                                <span style={{ fontSize: 11, color: '#cbd5e1' }}>Factura N° {viewingCompra.id}</span>
+                            </div>
+                        </>
+                    ) : null}
+                </div>
+
+                {/* ── Footer ── */}
+                {viewingCompra && !loadingDetail && (
+                    <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                        <Button variant="outline" onClick={onClose} style={{ fontSize: 13 }}>Cerrar</Button>
+                        <Button onClick={handleDescargarPDF} style={{ background: cfg.accentColor, color: '#fff', fontSize: 13, border: 'none' }}>
+                            <FileDown className="w-4 h-4 mr-2" />Descargar PDF
+                        </Button>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─── Helper InfoItem ──────────────────────────────────────────────────────────
 function InfoItem({ icon, label, value, iconBg, iconColor }: {
     icon: React.ReactNode; label: string; value: string;
     iconBg: string; iconColor: string;
@@ -56,150 +550,5 @@ function InfoItem({ icon, label, value, iconBg, iconColor }: {
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
             </div>
         </div>
-    );
-}
-
-// ─── Props ────────────────────────────────────────────────────────────────────
-
-interface InsumoDetailModalProps {
-    open: boolean;
-    onClose: () => void;
-    insumo: Supply | null;
-}
-
-// ─── Componente ───────────────────────────────────────────────────────────────
-
-export function InsumoDetailModal({ open, onClose, insumo }: InsumoDetailModalProps) {
-    const cfg = insumo?.status ? ESTADO_CONFIG.activo : ESTADO_CONFIG.inactivo;
-
-    const stockBajo = (insumo?.cantidad ?? 0) < 5;
-
-    return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
-
-                {/* Header */}
-                <div style={{ background: cfg.headerBg, color: cfg.headerText, padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
-                    <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
-                        <X className="w-4 h-4" />
-                    </button>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                <Package className="w-4 h-4" style={{ opacity: 0.75 }} />
-                                <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                    Ficha del insumo
-                                </span>
-                            </div>
-                            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-                                {insumo?.name ?? '—'}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
-                                {insumo?.unit ?? ''}
-                            </div>
-                        </div>
-                        {insumo && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
-                                {cfg.icon}{cfg.label}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Cuerpo */}
-                <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
-                    {insumo ? (
-                        <>
-                            {!insumo.status && (
-                                <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
-                                    <XCircleIcon className="w-4 h-4 shrink-0" />
-                                    Este insumo está inactivo y no aparece en el formulario de compras.
-                                </div>
-                            )}
-                            {stockBajo && insumo.status && (
-                                <div style={{ margin: '16px 24px 0', background: '#fef9c3', border: '1px solid #fde047', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#713f12' }}>
-                                    <Package className="w-4 h-4 shrink-0" />
-                                    Stock bajo. Se recomienda realizar una compra pronto.
-                                </div>
-                            )}
-
-                            {/* Info general */}
-                            <div style={{ padding: '16px 24px 0' }}>
-                                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
-                                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>General</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                                        <InfoItem icon={<Layers className="w-4 h-4" />}  label="Unidad de medida"    value={insumo.unit}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
-                                        <InfoItem icon={<Package className="w-4 h-4" />} label="Stock disponible"    value={insumo.cantidad !== null ? String(insumo.cantidad) : '—'} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
-                                    </div>
-                                    {insumo.description && (
-                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
-                                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Descripción</div>
-                                            <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, margin: 0 }}>{insumo.description}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Precio */}
-                            <div style={{ padding: '12px 24px 0' }}>
-                                <div style={{ background: cfg.headerBg, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: 8, display: 'flex' }}>
-                                            <DollarSign className="w-4 h-4" style={{ color: '#fff' }} />
-                                        </div>
-                                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            Precio unitario
-                                        </div>
-                                    </div>
-                                    <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>
-                                        ${insumo.price.toLocaleString('es-CO')}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Proveedores */}
-                            <div style={{ padding: '12px 24px 0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                    <Building2 className="w-4 h-4" style={{ color: cfg.accentColor }} />
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Proveedores</span>
-                                    <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '1px 10px', fontSize: 12, fontWeight: 700 }}>
-                                        {insumo.proveedores.length}
-                                    </span>
-                                </div>
-
-                                {insumo.proveedores.length > 0 ? (
-                                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                                        {insumo.proveedores.map((prov, i) => (
-                                            <div key={prov.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < insumo.proveedores.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.12s' }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = cfg.rowHover)}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                                <div style={{ background: cfg.iconBg, borderRadius: 8, padding: 8, display: 'flex', color: cfg.iconColor, flexShrink: 0 }}>
-                                                    <Building2 className="w-4 h-4" />
-                                                </div>
-                                                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{prov.nombre}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>Sin proveedores asignados.</div>
-                                )}
-                            </div>
-
-                            <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
-                                <span style={{ fontSize: 11, color: '#cbd5e1' }}>Insumo ID #{insumo.id}</span>
-                            </div>
-                        </>
-                    ) : null}
-                </div>
-
-                {/* Footer */}
-                {insumo && (
-                    <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
-                        <Button variant="outline" onClick={onClose} style={{ fontSize: 13 }}>Cerrar</Button>
-                    </div>
-                )}
-            </DialogContent>
-        </Dialog>
     );
 }

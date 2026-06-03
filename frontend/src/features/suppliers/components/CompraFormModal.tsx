@@ -91,6 +91,10 @@ const PAYMENT_METHODS = [
     { value: 'efectivo',      label: 'Efectivo',      icon: Banknote },
 ];
 
+// Altura fija por fila del carrito (padding 12px top+bottom + contenido ~41px)
+const CART_ROW_HEIGHT = 65;
+const CART_MAX_VISIBLE_ROWS = 3;
+
 interface CompraFormModalProps {
     open: boolean;
     editingCompra: Compra | null;
@@ -251,8 +255,13 @@ export function CompraFormModal({
         onSave(formData, carrito);
     };
 
-    const today    = new Date().toISOString().split('T')[0];
+    const today     = new Date().toISOString().split('T')[0];
     const hace7dias = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();
+
+    // Altura dinámica del carrito: máximo 3 filas visibles, scroll para el resto
+    const carritoMaxHeight = carrito.length > CART_MAX_VISIBLE_ROWS
+        ? CART_ROW_HEIGHT * CART_MAX_VISIBLE_ROWS
+        : undefined;
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -629,8 +638,16 @@ export function CompraFormModal({
                             </div>
                         )}
 
-                        {/* Tabla / vacío */}
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {/* ── Tabla / vacío ── */}
+                        <div style={{
+                            overflowY: 'auto',
+                            maxHeight: carritoMaxHeight,
+                            // Cuando hay más de 3 ítems mostramos un borde sutil abajo
+                            // para indicar que hay más contenido con scroll
+                            borderBottom: carrito.length > CART_MAX_VISIBLE_ROWS
+                                ? '1px solid #e5e7eb'
+                                : undefined,
+                        }}>
                             {carrito.length === 0 ? (
                                 <div style={{
                                     margin: 24, display: 'flex', flexDirection: 'column',
@@ -645,148 +662,167 @@ export function CompraFormModal({
                                     <p style={{ fontSize: 12, marginTop: 4, margin: 0 }}>Usa el botón "Agregar productos / insumos"</p>
                                 </div>
                             ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                            <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producto / Insumo</th>
-                                            <th style={{ textAlign: 'center', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 130 }}>Cantidad</th>
-                                            <th style={{ textAlign: 'right', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 145 }}>Precio Unitario</th>
-                                            <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 130 }}>Subtotal</th>
-                                            <th style={{ width: 40 }} />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {carrito.map((item) => {
-                                            const itemErr = carritoErrors[item.insumoId];
-                                            return (
-                                                <tr key={item.insumoId} style={{
-                                                    borderBottom: '1px solid #f3f4f6',
-                                                    background: itemErr ? '#fef2f2' : 'transparent',
-                                                }}>
-                                                    <td style={{ padding: '12px 24px' }}>
-                                                        <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</p>
-                                                        <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
-                                                            {item.unidad}{item.unidad ? ' · ' : ''}SKU: {item.insumoId}
-                                                        </p>
-                                                    </td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                                            <div style={{
-                                                                display: 'flex', alignItems: 'center',
-                                                                border: '1px solid #e5e7eb', borderRadius: 8,
-                                                                overflow: 'hidden', background: '#fff',
+                                <>
+                                    {/* Contador cuando hay más de 3 ítems */}
+                                    {carrito.length > CART_MAX_VISIBLE_ROWS && (
+                                        <div style={{
+                                            padding: '6px 24px',
+                                            background: '#eff6ff',
+                                            borderBottom: '1px solid #dbeafe',
+                                            fontSize: 11,
+                                            color: '#2563eb',
+                                            fontWeight: 500,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                        }}>
+                                            <ShoppingCart style={{ width: 13, height: 13 }} />
+                                            {carrito.length} insumos · desplaza para ver todos
+                                        </div>
+                                    )}
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                                        <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: '#fff' }}>
+                                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                                <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producto / Insumo</th>
+                                                <th style={{ textAlign: 'center', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 130 }}>Cantidad</th>
+                                                <th style={{ textAlign: 'right', padding: '12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 145 }}>Precio Unitario</th>
+                                                <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', width: 130 }}>Subtotal</th>
+                                                <th style={{ width: 40 }} />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {carrito.map((item) => {
+                                                const itemErr = carritoErrors[item.insumoId];
+                                                return (
+                                                    <tr key={item.insumoId} style={{
+                                                        borderBottom: '1px solid #f3f4f6',
+                                                        background: itemErr ? '#fef2f2' : 'transparent',
+                                                    }}>
+                                                        <td style={{ padding: '12px 24px' }}>
+                                                            <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</p>
+                                                            <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                                                                {item.unidad}{item.unidad ? ' · ' : ''}SKU: {item.insumoId}
+                                                            </p>
+                                                        </td>
+                                                        <td style={{ padding: '12px' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                                                <div style={{
+                                                                    display: 'flex', alignItems: 'center',
+                                                                    border: '1px solid #e5e7eb', borderRadius: 8,
+                                                                    overflow: 'hidden', background: '#fff',
+                                                                }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
+                                                                        disabled={item.cantidad <= 1}
+                                                                        style={{
+                                                                            width: 28, height: 32, display: 'flex',
+                                                                            alignItems: 'center', justifyContent: 'center',
+                                                                            color: '#6b7280', background: 'transparent',
+                                                                            border: 'none', fontSize: 16, fontWeight: 500,
+                                                                            cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer',
+                                                                            opacity: item.cantidad <= 1 ? 0.3 : 1,
+                                                                        }}
+                                                                    >−</button>
+                                                                    <Input
+                                                                        type="text" inputMode="numeric"
+                                                                        value={getCantidadDisplay(item.insumoId, item.cantidad)}
+                                                                        onKeyDown={blockNonInteger}
+                                                                        onChange={(e) => {
+                                                                            const raw = e.target.value;
+                                                                            setCantidadInputs(prev => ({ ...prev, [item.insumoId]: raw }));
+                                                                            if (raw === '' || raw === '0') return;
+                                                                            const parsed = parseInt(raw, 10);
+                                                                            if (!isNaN(parsed) && parsed > 0) actualizarCantidad(item.insumoId, parsed);
+                                                                        }}
+                                                                        onBlur={(e) => {
+                                                                            const parsed = parseInt(e.target.value, 10);
+                                                                            if (isNaN(parsed)) {
+                                                                                setCarritoErrors(prev => ({ ...prev, [item.insumoId]: { ...prev[item.insumoId], cantidad: 'Mínimo 1.' } }));
+                                                                            } else {
+                                                                                actualizarCantidad(item.insumoId, parsed);
+                                                                            }
+                                                                            setCantidadInputs(prev => { const n = { ...prev }; delete n[item.insumoId]; return n; });
+                                                                        }}
+                                                                        style={{
+                                                                            width: 40, height: 32, textAlign: 'center',
+                                                                            fontSize: 14, fontWeight: 600, padding: '0 4px',
+                                                                            border: 'none', borderLeft: '1px solid #e5e7eb',
+                                                                            borderRight: '1px solid #e5e7eb', borderRadius: 0,
+                                                                        }}
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
+                                                                        disabled={item.cantidad >= CANTIDAD_MAX}
+                                                                        style={{
+                                                                            width: 28, height: 32, display: 'flex',
+                                                                            alignItems: 'center', justifyContent: 'center',
+                                                                            color: '#6b7280', background: 'transparent',
+                                                                            border: 'none', fontSize: 16, fontWeight: 500,
+                                                                            cursor: item.cantidad >= CANTIDAD_MAX ? 'not-allowed' : 'pointer',
+                                                                            opacity: item.cantidad >= CANTIDAD_MAX ? 0.3 : 1,
+                                                                        }}
+                                                                    >+</button>
+                                                                </div>
+                                                                {itemErr?.cantidad && (
+                                                                    <p style={{ color: '#ef4444', fontSize: 10, lineHeight: 1.2, textAlign: 'center', margin: 0 }}>{itemErr.cantidad}</p>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ padding: '12px' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                    <span style={{ fontSize: 11, color: '#9ca3af' }}>$</span>
+                                                                    <Input
+                                                                        type="number"
+                                                                        value={item.precio === 0 ? '' : item.precio}
+                                                                        onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
+                                                                        onKeyDown={blockNonNumeric}
+                                                                        placeholder="0.00"
+                                                                        min="0.01" max={PRECIO_MAX} step="0.01"
+                                                                        style={{
+                                                                            width: 96, height: 32, fontSize: 14, textAlign: 'right',
+                                                                            borderColor: itemErr?.precio ? '#f87171' : undefined,
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                {itemErr?.precio && (
+                                                                    <p style={{ color: '#ef4444', fontSize: 10, lineHeight: 1.2, textAlign: 'right', margin: 0 }}>{itemErr.precio}</p>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ padding: '12px 24px', textAlign: 'right' }}>
+                                                            <span style={{
+                                                                fontSize: 14, fontWeight: 700,
+                                                                color: itemErr ? '#d1d5db' : '#111827',
                                                             }}>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => actualizarCantidad(item.insumoId, item.cantidad - 1)}
-                                                                    disabled={item.cantidad <= 1}
-                                                                    style={{
-                                                                        width: 28, height: 32, display: 'flex',
-                                                                        alignItems: 'center', justifyContent: 'center',
-                                                                        color: '#6b7280', background: 'transparent',
-                                                                        border: 'none', fontSize: 16, fontWeight: 500,
-                                                                        cursor: item.cantidad <= 1 ? 'not-allowed' : 'pointer',
-                                                                        opacity: item.cantidad <= 1 ? 0.3 : 1,
-                                                                    }}
-                                                                >−</button>
-                                                                <Input
-                                                                    type="text" inputMode="numeric"
-                                                                    value={getCantidadDisplay(item.insumoId, item.cantidad)}
-                                                                    onKeyDown={blockNonInteger}
-                                                                    onChange={(e) => {
-                                                                        const raw = e.target.value;
-                                                                        setCantidadInputs(prev => ({ ...prev, [item.insumoId]: raw }));
-                                                                        if (raw === '' || raw === '0') return;
-                                                                        const parsed = parseInt(raw, 10);
-                                                                        if (!isNaN(parsed) && parsed > 0) actualizarCantidad(item.insumoId, parsed);
-                                                                    }}
-                                                                    onBlur={(e) => {
-                                                                        const parsed = parseInt(e.target.value, 10);
-                                                                        if (isNaN(parsed)) {
-                                                                            setCarritoErrors(prev => ({ ...prev, [item.insumoId]: { ...prev[item.insumoId], cantidad: 'Mínimo 1.' } }));
-                                                                        } else {
-                                                                            actualizarCantidad(item.insumoId, parsed);
-                                                                        }
-                                                                        setCantidadInputs(prev => { const n = { ...prev }; delete n[item.insumoId]; return n; });
-                                                                    }}
-                                                                    style={{
-                                                                        width: 40, height: 32, textAlign: 'center',
-                                                                        fontSize: 14, fontWeight: 600, padding: '0 4px',
-                                                                        border: 'none', borderLeft: '1px solid #e5e7eb',
-                                                                        borderRight: '1px solid #e5e7eb', borderRadius: 0,
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => actualizarCantidad(item.insumoId, item.cantidad + 1)}
-                                                                    disabled={item.cantidad >= CANTIDAD_MAX}
-                                                                    style={{
-                                                                        width: 28, height: 32, display: 'flex',
-                                                                        alignItems: 'center', justifyContent: 'center',
-                                                                        color: '#6b7280', background: 'transparent',
-                                                                        border: 'none', fontSize: 16, fontWeight: 500,
-                                                                        cursor: item.cantidad >= CANTIDAD_MAX ? 'not-allowed' : 'pointer',
-                                                                        opacity: item.cantidad >= CANTIDAD_MAX ? 0.3 : 1,
-                                                                    }}
-                                                                >+</button>
-                                                            </div>
-                                                            {itemErr?.cantidad && (
-                                                                <p style={{ color: '#ef4444', fontSize: 10, lineHeight: 1.2, textAlign: 'center', margin: 0 }}>{itemErr.cantidad}</p>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '12px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                <span style={{ fontSize: 11, color: '#9ca3af' }}>$</span>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={item.precio === 0 ? '' : item.precio}
-                                                                    onChange={(e) => actualizarPrecio(item.insumoId, e.target.value)}
-                                                                    onKeyDown={blockNonNumeric}
-                                                                    placeholder="0.00"
-                                                                    min="0.01" max={PRECIO_MAX} step="0.01"
-                                                                    style={{
-                                                                        width: 96, height: 32, fontSize: 14, textAlign: 'right',
-                                                                        borderColor: itemErr?.precio ? '#f87171' : undefined,
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                            {itemErr?.precio && (
-                                                                <p style={{ color: '#ef4444', fontSize: 10, lineHeight: 1.2, textAlign: 'right', margin: 0 }}>{itemErr.precio}</p>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '12px 24px', textAlign: 'right' }}>
-                                                        <span style={{
-                                                            fontSize: 14, fontWeight: 700,
-                                                            color: itemErr ? '#d1d5db' : '#111827',
-                                                        }}>
-                                                            {item.precio > 0 && !itemErr
-                                                                ? `$${(item.precio * item.cantidad).toLocaleString('es-CO')}`
-                                                                : '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ paddingRight: 12, paddingTop: 12, paddingBottom: 12 }}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => eliminarDelCarrito(item.insumoId)}
-                                                            style={{
-                                                                color: '#9ca3af', background: 'transparent',
-                                                                border: 'none', cursor: 'pointer',
-                                                            }}
-                                                            title="Quitar"
-                                                            onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
-                                                        >
-                                                            <X style={{ width: 16, height: 16 }} />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                                {item.precio > 0 && !itemErr
+                                                                    ? `$${(item.precio * item.cantidad).toLocaleString('es-CO')}`
+                                                                    : '—'}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ paddingRight: 12, paddingTop: 12, paddingBottom: 12 }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => eliminarDelCarrito(item.insumoId)}
+                                                                style={{
+                                                                    color: '#9ca3af', background: 'transparent',
+                                                                    border: 'none', cursor: 'pointer',
+                                                                }}
+                                                                title="Quitar"
+                                                                onMouseEnter={(e) => e.currentTarget.style.color = '#f87171'}
+                                                                onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+                                                            >
+                                                                <X style={{ width: 16, height: 16 }} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </>
                             )}
                         </div>
 

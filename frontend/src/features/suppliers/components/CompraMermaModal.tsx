@@ -25,12 +25,11 @@ interface CompraMermaModalProps {
 }
 
 export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMermaModalProps) {
-    const [items, setItems]       = useState<MermaItem[]>([]);
-    const [motivo, setMotivo]     = useState('');
-    const [saving, setSaving]     = useState(false);
+    const [items, setItems]         = useState<MermaItem[]>([]);
+    const [motivo, setMotivo]       = useState('');
+    const [saving, setSaving]       = useState(false);
     const [resultado, setResultado] = useState<any>(null);
 
-    // Inicializar items desde los detalles de la compra
     useEffect(() => {
         if (open && compra?.detalles) {
             setItems(
@@ -70,7 +69,6 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
     const handleSubmit = async () => {
         if (!compra) return;
 
-        // Validar cantidades
         for (const it of itemsConDefecto) {
             if ((it.cantidadDefectuosa as number) > it.cantidadComprada) {
                 toast.error(
@@ -98,7 +96,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
             setResultado(res);
             onSuccess();
         } catch (error: any) {
-            const msg = error?.message ?? error?.errores?.[0]?.mensaje ?? 'Error al registrar la merma';
+            const msg = error?.message ?? error?.errores?.[0]?.mensaje ?? 'Error al registrar el descuento';
             toast.error(msg);
         } finally {
             setSaving(false);
@@ -114,7 +112,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2 text-blue-900">
                                 <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                Merma registrada
+                                Insumos descontados
                             </DialogTitle>
                             <DialogDescription>
                                 Los insumos defectuosos fueron descontados del inventario.
@@ -130,7 +128,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                                 <div key={ins.id} className="flex items-center justify-between px-4 py-3 bg-white">
                                     <div>
                                         <p className="text-sm font-medium text-gray-800">{ins.nombreInsumo}</p>
-                                        <p className="text-xs text-red-500">−{ins.cantidadDefectuosa} defectuosos eliminados</p>
+                                        <p className="text-xs text-red-500">−{ins.cantidadDefectuosa} defectuosos descontados</p>
                                     </div>
                                     <div className="text-right text-xs text-gray-500">
                                         <span className="line-through text-gray-400">{ins.cantidadAnterior}</span>
@@ -161,7 +159,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-blue-900">
                             <PackageX className="w-5 h-5" />
-                            Registrar insumos defectuosos
+                            Descontar insumos defectuosos
                         </DialogTitle>
                         <DialogDescription>
                             Compra #{compra?.id} · Ingresa la cantidad defectuosa por insumo. Se descontará del inventario.
@@ -216,7 +214,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                         {/* Resumen de selección */}
                         {itemsConDefecto.length > 0 && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 space-y-1">
-                                <p className="font-semibold">Se eliminarán del inventario:</p>
+                                <p className="font-semibold">Se descontarán del inventario:</p>
                                 {itemsConDefecto.map((it) => (
                                     <p key={it.insumosId} className="text-xs">
                                         · {it.nombreInsumo}: <strong>{it.cantidadDefectuosa}</strong> {it.unidadMedida}
@@ -254,7 +252,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                     >
                         {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                         <PackageX className="w-4 h-4 mr-2" />
-                        Registrar merma
+                        Descontar insumos
                     </Button>
                 </div>
             </DialogContent>

@@ -24,6 +24,19 @@ export interface DetalleCompra {
     insumo?: Insumo;
 }
 
+export interface MermaRegistrada {
+    id:                 number;
+    nombreInsumo:       string;
+    cantidadDefectuosa: number;
+    cantidadAnterior:   number;
+    cantidadNueva:      number;
+}
+
+export interface MermaCompra {
+    motivo?:         string;
+    mermaRegistrada: MermaRegistrada[];
+}
+
 export interface Compra {
     id: number;
     proveedoresId: number;
@@ -32,6 +45,7 @@ export interface Compra {
     estado?: string;
     proveedor?: Proveedor;
     detalles?: DetalleCompra[];
+    mermas?: MermaCompra[];
 }
 
 export interface ItemCarrito {
