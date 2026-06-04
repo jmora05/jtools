@@ -143,3 +143,33 @@ export const deleteVenta = async (id: number): Promise<{ message: string }> => {
   if (!res.ok) throw new Error(body.message ?? 'Error al anular la venta');
   return body;
 };
+
+export interface CreateDetalleVentaDTO {
+  ventasId: number;
+  productosId: number;
+  cantidad: number;
+  precioUnitario: number;
+}
+
+export const createDetalleVenta = async (
+  dto: CreateDetalleVentaDTO
+): Promise<{ message: string; detalle: any }> => {
+  const res = await fetch(`${BASE_URL}/detalle-ventas`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(dto),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message ?? 'Error al agregar el detalle de venta');
+  return body;
+};
+
+export const deleteDetalleVenta = async (id: number): Promise<{ message: string }> => {
+  const res = await fetch(`${BASE_URL}/detalle-ventas/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message ?? 'Error al eliminar el detalle de venta');
+  return body;
+};

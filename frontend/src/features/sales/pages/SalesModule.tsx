@@ -54,6 +54,8 @@ import {
   getVentas,
   createVenta,
   deleteVenta,
+  createDetalleVenta,
+  deleteDetalleVenta,
   toMetodoPago,
   toTipoVenta,
   mapVentaToSale,
@@ -399,10 +401,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const handleAddProduct = (product: any) => {
     const existing = saleForm.items.find(i => i.id === product.id);
+    const newQty = existing ? existing.quantity + 1 : 1;
+    if (newQty > product.stock) {
+      toast.error(`Stock insuficiente para "${product.name}". Disponible: ${product.stock}`);
+      return;
+    }
     setSaleForm({
       ...saleForm,
       items: existing
-        ? saleForm.items.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
+        ? saleForm.items.map(i => i.id === product.id ? { ...i, quantity: newQty } : i)
         : [...saleForm.items, { id: product.id, name: product.name, code: product.code, quantity: 1, price: product.price }],
     });
     toast.success(`${product.name} agregado al carrito`);
@@ -413,6 +420,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const handleUpdateQuantity = (productId: string, newQty: number) => {
     if (newQty < 1) { handleRemoveProduct(productId); return; }
+    const product = products.find(p => p.id === productId);
+    if (product && newQty > product.stock) {
+      toast.error(`Stock máximo disponible: ${product.stock}`);
+      return;
+    }
     setSaleForm({ ...saleForm, items: saleForm.items.map(i => i.id === productId ? { ...i, quantity: newQty } : i) });
   };
 
@@ -438,6 +450,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     if (saleForm.descuento !== '' && descuentoVal < 0) { toast.error('El descuento no puede ser negativo'); return; }
     if (descuentoVal > calculateSubtotal()) { toast.error('El descuento no puede ser mayor al subtotal'); return; }
 
+    // Pre-validar stock de todos los items antes de enviar
+    for (const item of saleForm.items) {
+      const product = products.find(p => p.id === item.id);
+      if (!product || product.stock < item.quantity) {
+        toast.error(`Stock insuficiente para "${item.name}". Disponible: ${product?.stock ?? 0}`);
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const dto = {
@@ -448,6 +469,34 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         total:      calculateTotal(),
       };
       const { venta } = await createVenta(dto);
+
+      // Crear detalles de venta — esto descuenta el stock en el backend
+      const createdDetalleIds: number[] = [];
+      try {
+        for (const item of saleForm.items) {
+          const { detalle } = await createDetalleVenta({
+            ventasId:       venta.id,
+            productosId:    Number(item.id),
+            cantidad:       item.quantity,
+            precioUnitario: item.price,
+          });
+          createdDetalleIds.push(detalle.id);
+        }
+      } catch (detalleError: any) {
+        // Rollback: eliminar detalles creados (restaura stock) y la cabecera
+        for (const id of createdDetalleIds) {
+          try { await deleteDetalleVenta(id); } catch (_) {}
+        }
+        try { await deleteVenta(venta.id); } catch (_) {}
+        throw detalleError;
+      }
+
+      // Actualizar stock local para reflejar el descuento sin recargar
+      setProducts(prev => prev.map(p => {
+        const item = saleForm.items.find(i => i.id === p.id);
+        return item ? { ...p, stock: p.stock - item.quantity } : p;
+      }));
+
       const newSale: Sale = {
         id:             venta.id,
         clientName:     saleForm.clientName,
@@ -717,9 +766,16 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       </div>
                       {/* Descuento */}
                       <div style={{ marginBottom: 18 }}>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, display: 'block' }}>
-                          Descuento <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
-                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Descuento <span style={{ fontSize: 10, fontWeight: 400, color: '#9ca3af', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                          </label>
+                          {subtotal > 0 && (
+                            <span style={{ fontSize: 10, color: '#9ca3af' }}>
+                              Máx. ${subtotal.toLocaleString('es-CO')}
+                            </span>
+                          )}
+                        </div>
                         <div style={{ position: 'relative' }}>
                           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', fontSize: 14, fontWeight: 600, pointerEvents: 'none' }}>$</span>
                           <input
@@ -727,6 +783,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             inputMode="numeric"
                             placeholder="0"
                             value={saleForm.descuento}
+                            disabled={subtotal === 0}
                             onChange={(e) => {
                               const raw = e.target.value.replace(/[^0-9]/g, '');
                               const formatted = raw ? Number(raw).toLocaleString('es-CO') : '';
@@ -736,12 +793,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               width: '100%', boxSizing: 'border-box',
                               paddingLeft: 26, paddingRight: 12, height: 36,
                               border: `1px solid ${
-                                saleForm.descuento !== '' && parseDescuento() > subtotal
+                                saleForm.descuento !== '' && parseDescuento() > subtotal && subtotal > 0
                                   ? '#f87171'
                                   : '#e5e7eb'
                               }`,
                               borderRadius: 8, fontSize: 14, color: '#111827',
-                              outline: 'none', background: '#fff',
+                              outline: 'none',
+                              background: subtotal === 0 ? '#f9fafb' : '#fff',
+                              cursor: subtotal === 0 ? 'not-allowed' : 'text',
+                              opacity: subtotal === 0 ? 0.6 : 1,
                             }}
                           />
                         </div>
@@ -809,16 +869,17 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                 <p style={{ fontSize: 12, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                                   {product.name}
                                 </p>
-                                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
-                                  {product.code} · ${product.price.toLocaleString()} · Stock: {product.stock}
+                                <p style={{ fontSize: 11, margin: 0, color: product.stock === 0 ? '#f87171' : '#9ca3af' }}>
+                                  {product.code} · ${product.price.toLocaleString()} · Stock: {product.stock === 0 ? 'Sin stock' : product.stock}
                                 </p>
                               </div>
                               <Button type="button" size="sm"
                                 onClick={() => handleAddProduct(product)}
-                                style={{ marginLeft: 12, flexShrink: 0, height: 28, fontSize: 11, padding: '0 10px', background: '#2563eb', color: '#fff' }}
+                                disabled={product.stock === 0}
+                                style={{ marginLeft: 12, flexShrink: 0, height: 28, fontSize: 11, padding: '0 10px', background: product.stock === 0 ? '#e5e7eb' : '#2563eb', color: product.stock === 0 ? '#9ca3af' : '#fff', cursor: product.stock === 0 ? 'not-allowed' : 'pointer' }}
                               >
                                 <PlusIcon style={{ width: 12, height: 12, marginRight: 4 }} />
-                                Agregar
+                                {product.stock === 0 ? 'Sin stock' : 'Agregar'}
                               </Button>
                             </div>
                           ))}
@@ -850,11 +911,19 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             </tr>
                           </thead>
                           <tbody>
-                            {saleForm.items.map(item => (
+                            {saleForm.items.map(item => {
+                              const stockDisponible = products.find(p => p.id === item.id)?.stock ?? 0;
+                              const enLimite = item.quantity >= stockDisponible;
+                              return (
                               <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                 <td style={{ padding: '12px 24px' }}>
                                   <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
                                   <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString()} c/u</p>
+                                  {enLimite && (
+                                    <p style={{ fontSize: 10, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
+                                      Stock máximo alcanzado ({stockDisponible})
+                                    </p>
+                                  )}
                                 </td>
                                 <td style={{ padding: '12px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', background: '#fff', width: 'fit-content', margin: '0 auto' }}>
@@ -866,6 +935,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                     <input
                                       type="number"
                                       min={1}
+                                      max={stockDisponible}
                                       value={item.quantity}
                                       onChange={(e) => {
                                         const v = parseInt(e.target.value, 10);
@@ -881,7 +951,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                     />
                                     <button type="button"
                                       onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: 'pointer' }}
+                                      disabled={enLimite}
+                                      style={{ width: 28, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: enLimite ? '#d1d5db' : '#6b7280', background: 'transparent', border: 'none', fontSize: 16, cursor: enLimite ? 'not-allowed' : 'pointer' }}
                                     >+</button>
                                   </div>
                                 </td>
@@ -901,7 +972,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                   </button>
                                 </td>
                               </tr>
-                            ))}
+                            );
+                            })}
                           </tbody>
                         </table>
                       )}

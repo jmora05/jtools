@@ -503,14 +503,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                     <h1 className="text-2xl text-blue-900 font-bold mb-2">Gestión de Clientes</h1>
                     <p className="text-blue-800">Administra la base de datos de clientes</p>
                 </div>
-                {isAdmin && (
-                    <Button
-                        onClick={() => { resetForm(); setShowModal(true); }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                        <Plus className="w-4 h-4 mr-2" />Nuevo Cliente
-                    </Button>
-                )}
+                <Button
+                    onClick={() => { resetForm(); setShowModal(true); }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                    <Plus className="w-4 h-4 mr-2" />Nuevo Cliente
+                </Button>
             </div>
 
             {/* ── Filtros ─────────────────────────────────────────────────── */}

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const bcrypt = require('bcryptjs');
 
 const {
@@ -362,4 +364,4 @@ async function seed() {
     }
 }
 
-module.exports = seed;
+seed();
