@@ -97,7 +97,8 @@ export default function App() {
   const handleLogin = (userData: AppUser) => {
     setUser(userData);
     setIsLoggedIn(true);
-    // El cliente entra directo a Mis Compras; el admin al dashboard
+    setShowLandingPage(false);
+    setShowLandingFirst(false);
     setCurrentModule(userData.userType === 'client' ? 'client-purchases' : 'dashboard');
     localStorage.setItem('jrepuestos_user', JSON.stringify(userData));
   };
@@ -182,19 +183,12 @@ export default function App() {
     return (
       <>
         <Toaster richColors position="top-right" />
-        <div className="relative">
-          {u.userType === 'admin' && (
-            <div className="fixed top-4 right-4 z-50">
-              <Button onClick={toggleLandingPage} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg">
-                Ver Sistema Admin
-              </Button>
-            </div>
-          )}
-          <LandingPage
-            onGoToSystem={toggleLandingPage}
-            userType={u.userType}
-          />
-        </div>
+        <LandingPage
+          onGoToSystem={toggleLandingPage}
+          userType={u.userType}
+          currentUser={{ name: u.name, email: u.email, userType: u.userType }}
+          onLogout={handleLogout}
+        />
       </>
     );
   }
@@ -346,7 +340,11 @@ export default function App() {
         <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white shadow-lg border-r border-gray-200 transform transition-transform duration-300 ease-in-out flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="p-4 lg:p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+              <button
+                onClick={toggleLandingPage}
+                className="flex items-center space-x-3 hover:opacity-75 transition-opacity"
+                title="Ir al Landing Page"
+              >
                 <div className="w-8 lg:w-10 h-8 lg:h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-lg lg:text-xl">J</span>
                 </div>
@@ -354,13 +352,13 @@ export default function App() {
                   <h1 className="text-lg lg:text-xl text-gray-900">Jrepuestos</h1>
                   <p className="text-xs lg:text-sm text-gray-500">Medellín</p>
                 </div>
-              </div>
+              </button>
               <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
                 <XIcon className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4">
               <Badge
                 variant={u.userType === 'admin' ? 'default' : 'secondary'}
                 className={u.userType === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}
@@ -371,13 +369,6 @@ export default function App() {
                   <><UserIcon className="w-3 h-3 mr-1" />Cliente</>
                 )}
               </Badge>
-
-              {u.userType === 'admin' && (
-                <Button onClick={toggleLandingPage} variant="outline" className="w-full text-sm border-blue-200 hover:border-blue-300 hover:bg-blue-50">
-                  <EyeIcon className="w-4 h-4 mr-2" />
-                  Ver Landing Page
-                </Button>
-              )}
             </div>
           </div>
 

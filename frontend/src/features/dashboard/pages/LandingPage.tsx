@@ -1,29 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import maquinaImg from '@/assets/imagenes/maquina.jpeg';
+import logoImg from '@/assets/imagenes/logo.jpeg';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { ImageWithFallback } from '@/shared/components/figma/ImageWithFallback';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
 import { toast } from 'sonner@2.0.3';
 import { getApiBaseUrl } from '@/services/http';
 import {
   MenuIcon,
   XIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   PhoneIcon,
   MapPinIcon,
   MailIcon,
-  FacebookIcon,
-  InstagramIcon,
   ShoppingCartIcon,
   UsersIcon,
   AwardIcon,
   ClockIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   Loader2Icon,
+  TagIcon,
+  LogOutIcon,
+  UserIcon,
 } from 'lucide-react';
+
+const FacebookIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
+
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const CATEGORY_COLORS = [
+  { bg: 'bg-blue-50',   border: 'border-blue-200',   iconBg: 'bg-blue-100',   icon: 'text-blue-600',   count: 'text-blue-500'   },
+  { bg: 'bg-orange-50', border: 'border-orange-200', iconBg: 'bg-orange-100', icon: 'text-orange-600', count: 'text-orange-500' },
+  { bg: 'bg-green-50',  border: 'border-green-200',  iconBg: 'bg-green-100',  icon: 'text-green-600',  count: 'text-green-500'  },
+  { bg: 'bg-purple-50', border: 'border-purple-200', iconBg: 'bg-purple-100', icon: 'text-purple-600', count: 'text-purple-500' },
+  { bg: 'bg-red-50',    border: 'border-red-200',    iconBg: 'bg-red-100',    icon: 'text-red-600',    count: 'text-red-500'    },
+  { bg: 'bg-teal-50',   border: 'border-teal-200',   iconBg: 'bg-teal-100',   icon: 'text-teal-600',   count: 'text-teal-500'   },
+];
 
 interface Producto {
   id: number;
@@ -35,15 +70,32 @@ interface Producto {
   categoria?: { nombreCategoria: string };
 }
 
+interface Categoria {
+  id: number;
+  nombreCategoria: string;
+  descripcion?: string;
+  estado?: string;
+}
+
+interface CurrentUser {
+  name: string;
+  email: string;
+  userType: string;
+}
+
 interface LandingPageProps {
   onGoToSystem?: () => void;
   userType?: string;
+  currentUser?: CurrentUser;
+  onLogout?: () => void;
 }
 
-export default function LandingPage({ onGoToSystem, userType }: LandingPageProps) {
-  const [isMenuOpen, setIsMenuOpen]     = useState(false);
-  const [products, setProducts]         = useState<Producto[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+export default function LandingPage({ onGoToSystem, userType, currentUser, onLogout }: LandingPageProps) {
+  const [isMenuOpen, setIsMenuOpen]             = useState(false);
+  const [products, setProducts]                 = useState<Producto[]>([]);
+  const [categories, setCategories]             = useState<Categoria[]>([]);
+  const [loadingProducts, setLoadingProducts]   = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [contactForm, setContactForm] = useState({
     name: '',
     email: '',
@@ -51,7 +103,21 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
   });
 
   useEffect(() => {
-    fetch(`${getApiBaseUrl()}/public/productos`)
+    const base = getApiBaseUrl();
+
+    fetch(`${base}/public/categorias`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCategories(data.filter((c: Categoria) => !c.estado || c.estado === 'activo'));
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${base}/public/productos`)
       .then(async r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -61,6 +127,19 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
           ? data.filter((p: Producto) => p.estado === 'activo')
           : [];
         setProducts(activos);
+        setCategories(prev => {
+          if (prev.length > 0) return prev;
+          const seen = new Set<string>();
+          const derived: Categoria[] = [];
+          activos.forEach((p: Producto) => {
+            const name = p.categoria?.nombreCategoria;
+            if (name && !seen.has(name)) {
+              seen.add(name);
+              derived.push({ id: derived.length + 1, nombreCategoria: name });
+            }
+          });
+          return derived;
+        });
       })
       .catch(err => {
         console.error('Landing productos error:', err.message);
@@ -103,7 +182,10 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+            >
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-xl">J</span>
               </div>
@@ -111,34 +193,77 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 <div className="text-xl font-bold text-gray-900">Jrepuestos</div>
                 <div className="text-sm text-gray-600">Medellín</div>
               </div>
-            </div>
+            </button>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
-              <button 
+              <button
                 onClick={() => scrollToSection('catalogo')}
+                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+              >
+                Categorías
+              </button>
+              <button
+                onClick={() => scrollToSection('productos')}
                 className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
               >
                 Catálogo
               </button>
-              <button 
+              <button
                 onClick={() => scrollToSection('nosotros')}
                 className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
               >
                 Acércate a nosotros
               </button>
-              <button 
+              <button
                 onClick={() => scrollToSection('contacto')}
                 className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
               >
                 Contacto
               </button>
-              <Button
-                onClick={onGoToSystem ?? (() => scrollToSection('catalogo'))}
-                className="bg-blue-600 hover:bg-blue-700 text-white "
-              >
-                Iniciar Sesión
-              </Button>
+              {currentUser ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                      <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold">
+                        {currentUser.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-medium">{currentUser.name}</span>
+                      <ChevronDownIcon className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60">
+                    <DropdownMenuLabel>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-900">{currentUser.name}</p>
+                        <p className="text-xs text-gray-500 font-normal">{currentUser.email}</p>
+                        <Badge className={`text-xs mt-1 ${currentUser.userType === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                          {currentUser.userType === 'admin' ? 'Administrador' : 'Cliente'}
+                        </Badge>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {onGoToSystem && (
+                      <DropdownMenuItem onClick={onGoToSystem} className="cursor-pointer">
+                        <UserIcon className="w-4 h-4 mr-2" />
+                        Ver Sistema
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600 focus:text-red-600">
+                      <LogOutIcon className="w-4 h-4 mr-2" />
+                      Cerrar sesión
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  onClick={onGoToSystem ?? (() => scrollToSection('catalogo'))}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Iniciar Sesión
+                </Button>
+              )}
             </div>
 
             {/* Mobile menu button */}
@@ -154,37 +279,58 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
           {isMenuOpen && (
             <div className="md:hidden py-4 border-t border-gray-200 bg-white">
               <div className="flex flex-col space-y-3">
-                <button 
+                <button
                   onClick={() => scrollToSection('catalogo')}
+                  className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                >
+                  Categorías
+                </button>
+                <button
+                  onClick={() => scrollToSection('productos')}
                   className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
                 >
                   Catálogo
                 </button>
-                <button 
+                <button
                   onClick={() => scrollToSection('nosotros')}
                   className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
                 >
                   Acércate a nosotros
                 </button>
-                <button 
+                <button
                   onClick={() => scrollToSection('contacto')}
                   className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
                 >
                   Contacto
                 </button>
-                {onGoToSystem ? (
-                  <Button 
-                    onClick={onGoToSystem}
-                    className="mx-4 bg-orange-500 hover:bg-orange-600 text-white"
-                  >
-                    Ver Sistema
-                  </Button>
+                {currentUser ? (
+                  <div className="mx-4 border border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                        {currentUser.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{currentUser.name}</p>
+                        <p className="text-xs text-gray-500">{currentUser.email}</p>
+                      </div>
+                    </div>
+                    {onGoToSystem && (
+                      <Button onClick={onGoToSystem} variant="outline" className="w-full text-sm">
+                        <UserIcon className="w-4 h-4 mr-2" />
+                        Ver Sistema
+                      </Button>
+                    )}
+                    <Button onClick={onLogout} variant="outline" className="w-full text-sm text-red-600 border-red-200 hover:bg-red-50">
+                      <LogOutIcon className="w-4 h-4 mr-2" />
+                      Cerrar sesión
+                    </Button>
+                  </div>
                 ) : (
-                  <Button 
-                    onClick={() => scrollToSection('catalogo')}
-                    className="mx-4 bg-orange-500 hover:bg-orange-600 text-white"
+                  <Button
+                    onClick={onGoToSystem ?? (() => scrollToSection('catalogo'))}
+                    className="mx-4 bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    Ver Productos
+                    Iniciar Sesión
                   </Button>
                 )}
               </div>
@@ -249,7 +395,7 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             <div className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1642399299924-c9c97617bf86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdXRvbW90aXZlJTIwcGFydHMlMjB3YXJlaG91c2UlMjBwcm9mZXNzaW9uYWx8ZW58MXx8fHwxNzU2NzU0NDcxfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
+                  src={logoImg}
                   alt="Jrepuestos Warehouse"
                   className="w-full h-96 lg:h-[500px] object-cover"
                 />
@@ -278,28 +424,168 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16">
             <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-              Productos Destacados
+              {selectedCategory ? selectedCategory : 'Categorías'}
             </Badge>
             <h2 className="text-3xl lg:text-5xl font-bold text-gray-900">
-              Nuestro Catálogo de Repuestos
+              {selectedCategory ? `Productos en "${selectedCategory}"` : 'Nuestras Categorías'}
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Contamos con una amplia variedad de repuestos para todas las marcas y modelos. 
-              Calidad garantizada y precios competitivos.
+              {selectedCategory
+                ? `Mostrando los productos disponibles en esta categoría.`
+                : 'Explora nuestras categorías y encuentra el repuesto que necesitas.'}
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {loadingProducts ? (
-              <div className="col-span-4 flex justify-center py-16">
-                <Loader2Icon className="w-8 h-8 animate-spin text-blue-600" />
-              </div>
-            ) : products.length === 0 ? (
-              <div className="col-span-4 text-center text-gray-500 py-16">
-                No hay productos disponibles en este momento.
+          {selectedCategory && (
+            <div className="mb-8">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedCategory(null)}
+                className="border-gray-300 text-gray-700 hover:border-blue-600 hover:text-blue-600"
+              >
+                <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                Ver todas las categorías
+              </Button>
+            </div>
+          )}
+
+          {loadingProducts ? (
+            <div className="flex justify-center py-16">
+              <Loader2Icon className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : !selectedCategory ? (
+            categories.length === 0 ? (
+              <div className="text-center text-gray-500 py-16">
+                No hay categorías disponibles en este momento.
               </div>
             ) : (
-              products.map((product) => (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {categories.map((cat, idx) => {
+                  const colors = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+                  const count = products.filter(p => p.categoria?.nombreCategoria === cat.nombreCategoria).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.nombreCategoria)}
+                      className={`group text-left ${colors.bg} border-2 ${colors.border} rounded-2xl p-8 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}
+                    >
+                      <div className="space-y-4">
+                        <div className={`w-14 h-14 ${colors.iconBg} rounded-xl flex items-center justify-center`}>
+                          <TagIcon className={`w-7 h-7 ${colors.icon}`} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {cat.nombreCategoria}
+                          </h3>
+                          <p className={`text-sm mt-1 ${colors.count}`}>
+                            {count} producto{count !== 1 ? 's' : ''} disponible{count !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center text-sm font-medium text-blue-600">
+                          Ver productos
+                          <ArrowRightIcon className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            products.filter(p => p.categoria?.nombreCategoria === selectedCategory).length === 0 ? (
+              <div className="text-center text-gray-500 py-16">
+                No hay productos disponibles en esta categoría.
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {products.filter(p => p.categoria?.nombreCategoria === selectedCategory).map((product) => (
+                  <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
+                    <div className="relative overflow-hidden rounded-t-lg">
+                      <ImageWithFallback
+                        src={product.imagenUrl || ''}
+                        alt={product.nombreProducto}
+                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                    <CardContent className="p-6 space-y-4">
+                      <div>
+                        <Badge variant="outline" className="text-xs mb-2">
+                          {product.categoria?.nombreCategoria ?? 'Sin categoría'}
+                        </Badge>
+                        <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
+                          {product.nombreProducto}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                          {product.descripcion || '—'}
+                        </p>
+                      </div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        ${Number(product.precio).toLocaleString('es-CO')}
+                      </div>
+                      <Button
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => {
+                          if (!userType) {
+                            toast.error('Debes iniciar sesión para agregar productos al carrito.', {
+                              action: { label: 'Iniciar sesión', onClick: () => onGoToSystem?.() },
+                            });
+                            return;
+                          }
+                          toast.success('Te contactaremos pronto para más detalles.');
+                        }}
+                      >
+                        <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                        Agregar al Carrito
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )
+          )}
+
+          {!selectedCategory && (
+            <div className="text-center mt-12">
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-8 py-3"
+                onClick={onGoToSystem ?? (() => scrollToSection('catalogo'))}
+              >
+                Ver Catálogo Completo
+                <ChevronRightIcon className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Products Section */}
+      <section id="productos" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center space-y-4 mb-16">
+            <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+              Productos Disponibles
+            </Badge>
+            <h2 className="text-3xl lg:text-5xl font-bold text-gray-900">
+              Nuestro Catálogo
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Calidad garantizada y precios competitivos en todos nuestros repuestos.
+            </p>
+          </div>
+
+          {loadingProducts ? (
+            <div className="flex justify-center py-16">
+              <Loader2Icon className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center text-gray-500 py-16">
+              No hay productos disponibles en este momento.
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {products.map((product) => (
                 <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
                   <div className="relative overflow-hidden rounded-t-lg">
                     <ImageWithFallback
@@ -320,20 +606,15 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                         {product.descripcion || '—'}
                       </p>
                     </div>
-
                     <div className="text-2xl font-bold text-gray-900">
                       ${Number(product.precio).toLocaleString('es-CO')}
                     </div>
-
                     <Button
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={() => {
                         if (!userType) {
                           toast.error('Debes iniciar sesión para agregar productos al carrito.', {
-                            action: {
-                              label: 'Iniciar sesión',
-                              onClick: () => onGoToSystem?.(),
-                            },
+                            action: { label: 'Iniciar sesión', onClick: () => onGoToSystem?.() },
                           });
                           return;
                         }
@@ -345,21 +626,9 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                     </Button>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </div>
-
-          <div className="text-center mt-12">
-            <Button 
-              size="lg"
-              variant="outline"
-              className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-8 py-3"
-              onClick={() => toast.info('Catálogo completo próximamente disponible')}
-            >
-              Ver Catálogo Completo
-              <ChevronRightIcon className="w-5 h-5 ml-2" />
-            </Button>
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -487,15 +756,35 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
 
           {/* Contact Information - horizontal layout */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {/* Teléfonos */}
+            {/* Teléfonos / WhatsApp */}
             <div className="bg-white rounded-2xl shadow-md p-8 flex flex-col items-center text-center">
               <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                 <PhoneIcon className="w-7 h-7 text-blue-600" />
               </div>
               <h4 className="font-bold text-gray-900 text-lg mb-2">Teléfonos</h4>
-              <div className="space-y-1 text-gray-600">
-                <p>+57 3044470797</p>
-                <p>+57 3008287819</p>
+              <div className="space-y-2 text-gray-600">
+                <a
+                  href="https://wa.me/573044470797"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 hover:text-green-600 transition-colors font-medium"
+                >
+                  <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  +57 3044470797
+                </a>
+                <a
+                  href="https://wa.me/573008287819"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 hover:text-green-600 transition-colors font-medium"
+                >
+                  <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  +57 3008287819
+                </a>
                 <p className="text-sm text-gray-400 mt-2">Lun - Vie: 7:00 AM - 6:00 PM</p>
               </div>
             </div>
@@ -535,43 +824,94 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
             </a>
           </div>
 
-          {/* Social Media */}
-          <div className="pt-6 border-t border-gray-200">
-            <h4 className="font-bold text-gray-900 mb-4">Síguenos en redes sociales</h4>
-            <div className="flex space-x-4">
-              <Button variant="outline" size="sm" className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white">
-                <FacebookIcon className="w-4 h-4 mr-2" />
-                Facebook
-              </Button>
-              <Button variant="outline" size="sm" className="border-2 border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white">
-                <InstagramIcon className="w-4 h-4 mr-2" />
-                Instagram
-              </Button>
-            </div>
-          </div>
+          
         </div>
       </section>
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-4 gap-10">
             {/* Company Info */}
             <div className="space-y-4">
-              <div className="flex items-center space-x-3">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="flex items-center space-x-3 hover:opacity-75 transition-opacity"
+              >
                 <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-xl">J</span>
                 </div>
-                <div>
+                <div className="text-left">
                   <div className="text-xl font-bold">Jrepuestos</div>
                   <div className="text-sm text-gray-400">Medellín</div>
                 </div>
-              </div>
-              <p className="text-gray-300 text-sm leading-relaxed">
-                Más de 5 años brindando soluciones integrales en repuestos automotrices 
-                con la más alta calidad y precios competitivos.
-              </p>
-              <div className="flex space-x-4">
+              </button>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Enlaces Rápidos</h4>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <button
+                    onClick={() => scrollToSection('catalogo')}
+                    className="text-gray-300 hover:text-white transition-colors"
+                  >
+                    Categorías
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => scrollToSection('productos')}
+                    className="text-gray-300 hover:text-white transition-colors"
+                  >
+                    Catálogo
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => scrollToSection('nosotros')}
+                    className="text-gray-300 hover:text-white transition-colors"
+                  >
+                    Acércate a nosotros
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => scrollToSection('contacto')}
+                    className="text-gray-300 hover:text-white transition-colors"
+                  >
+                    Contacto
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Dynamic Categories */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Categorías</h4>
+              {categories.length === 0 ? (
+                <p className="text-gray-400 text-sm">Cargando categorías...</p>
+              ) : (
+                <ul className="space-y-3 text-sm">
+                  {categories.slice(0, 6).map(cat => (
+                    <li key={cat.id}>
+                      <button
+                        onClick={() => { setSelectedCategory(cat.nombreCategoria); scrollToSection('catalogo'); }}
+                        className="text-gray-300 hover:text-white transition-colors text-left"
+                      >
+                        {cat.nombreCategoria}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Social Media — vertical, beside categories */}
+            <div>
+              <h4 className="font-bold mb-4 text-lg">Síguenos</h4>
+              <div className="flex flex-col space-y-3">
                 <button className="w-10 h-10 bg-gray-800 hover:bg-blue-600 rounded-lg flex items-center justify-center transition-colors">
                   <FacebookIcon className="w-5 h-5" />
                 </button>
@@ -580,94 +920,9 @@ export default function LandingPage({ onGoToSystem, userType }: LandingPageProps
                 </button>
               </div>
             </div>
-
-            {/* Quick Links */}
-            <div>
-              <h4 className="font-bold mb-4">Enlaces Rápidos</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <button 
-                    onClick={() => scrollToSection('catalogo')}
-                    className="text-gray-300 hover:text-white transition-colors"
-                  >
-                    Catálogo de Productos
-                  </button>
-                </li>
-                <li>
-                  <button 
-                    onClick={() => scrollToSection('nosotros')}
-                    className="text-gray-300 hover:text-white transition-colors"
-                  >
-                    Acércate a nosotros
-                  </button>
-                </li>
-                <li>
-                  <button 
-                    onClick={() => scrollToSection('contacto')}
-                    className="text-gray-300 hover:text-white transition-colors"
-                  >
-                    Contacto
-                  </button>
-                </li>
-                
-              </ul>
-            </div>
-
-            {/* Categories */}
-            <div>
-              <h4 className="font-bold mb-4">Categorías</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Sistema de Frenos</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Motor</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Suspensión</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Llantas y Neumáticos</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Transmisión</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-white transition-colors">Sistema Eléctrico</a></li>
-              </ul>
-            </div>
-
-            {/* Contact Info */}
-            {/* <div>
-              <h4 className="font-bold mb-4">Contacto</h4>
-              <ul className="space-y-3 text-sm">
-                <li className="flex items-start space-x-2">
-                  <a
-                    href="https://www.google.com/maps/search/?api=1&query=Carrera+70a+%2394-18%2C+Medell%C3%ADn%2C+Antioquia%2C+Colombia"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start space-x-2 hover:opacity-80 transition-opacity"
-                  >
-                    <MapPinIcon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-300">
-                      Carrera 70a #94-18<br />
-                      Medellín, Antioquia
-                    </span>
-                  </a>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <PhoneIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-300">+57 3044470797</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <PhoneIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-300">+57 3008287819</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <a
-                    href="https://mail.google.com/mail/?view=cm&to=ventas@jrepuestosmedellin.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-                  >
-                    <MailIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-300">jrepuestosmed@hotmail.com</span>
-                  </a>
-                </li>
-              </ul>
-            </div> */}
           </div>
 
-          <div className="border-t border-gray-800 pt-8 mt-8 text-center text-sm text-gray-400">
+          <div className="border-t border-gray-800 pt-8 mt-12 text-center text-sm text-gray-400">
             <p>&copy; 2026 Jrepuestos Medellín. Todos los derechos reservados.</p>
             <p className="mt-2">Desarrollado con ❤️ para brindar la mejor experiencia a nuestros clientes.</p>
           </div>
