@@ -15,7 +15,7 @@ const { verifyToken } = require('../middleware/authMiddleware.js');
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Demasiadas solicitudes. Intenta de nuevo en 15 minutos.' },
