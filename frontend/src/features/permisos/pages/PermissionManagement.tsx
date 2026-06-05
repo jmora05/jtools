@@ -13,7 +13,25 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
 import { toast }       from 'sonner';
-import { Plus, Edit, Trash2, Shield, AlertTriangle, Lock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Trash2, Shield, AlertTriangle, Lock, Search, ChevronLeft, ChevronRight, Eye, X, CheckCircle2, XCircle, Hash, FileText } from 'lucide-react';
+
+// ─── Helper para el modal de detalle ─────────────────────────────────────────
+function PermisoInfoItem({ icon, label, value, iconBg, iconColor }: {
+  icon: React.ReactNode; label: string; value: string;
+  iconBg: string; iconColor: string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 160px' }}>
+      <div style={{ background: iconBg, borderRadius: 8, padding: 8, display: 'flex', color: iconColor }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+      </div>
+    </div>
+  );
+}
 import * as permisosService from '@/features/permisos/services/permisosService';
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -22,6 +40,8 @@ export function PermissionManagement() {
   // ── Estado principal ────────────────────────────────────────────────────────
   const [permisos, setPermisos]               = useState<permisosService.Permiso[]>([]);
   const [showModal, setShowModal]             = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewingPermiso, setViewingPermiso]   = useState<permisosService.Permiso | null>(null);
   const [editingPermiso, setEditingPermiso]   = useState<permisosService.Permiso | null>(null);
   const [permisoToDelete, setPermisoToDelete] = useState<permisosService.Permiso | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -292,7 +312,7 @@ export function PermissionManagement() {
                   <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
                   <th className="text-left py-4 px-6 text-black font-semibold">Tipo</th>
                   <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
-                  <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                  <th className="text-left py-4 px-6 text-black font-semibold" style={{ minWidth: 130 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,6 +377,15 @@ export function PermissionManagement() {
                       {/* Acciones */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2">
+                          {/* Ver detalle */}
+                          <Button
+                            size="sm"
+                            onClick={() => { setViewingPermiso(p); setShowDetailModal(true); }}
+                            className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50"
+                            title="Ver detalle"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                           {/* Editar */}
                           <Button
                             size="sm"
@@ -433,6 +462,99 @@ export function PermissionManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Modal detalle ── */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="p-0 max-w-xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+          {viewingPermiso && (() => {
+            const isActive    = viewingPermiso.isActive !== false;
+            const isSystem    = viewingPermiso.isSystem === true;
+            const cfg = isActive ? {
+              headerBg:  'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+              chipBg:    '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
+              iconBg:    '#eff6ff', iconColor: '#1d4ed8',
+            } : {
+              headerBg:  'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+              chipBg:    '#f1f5f9', chipText: '#475569', chipBorder: '#cbd5e1',
+              iconBg:    '#f8fafc', iconColor: '#64748b',
+            };
+            return (
+              <>
+                {/* Header */}
+                <div style={{ background: cfg.headerBg, color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                  <button onClick={() => setShowDetailModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <Shield className="w-4 h-4" style={{ opacity: 0.75 }} />
+                        <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          Ficha del permiso
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                          {viewingPermiso.name}
+                        </div>
+                        {isSystem && (
+                          <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(251,191,36,0.25)', color: '#fde68a', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 999, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Lock className="w-3 h-3" />Sistema
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {viewingPermiso.description || 'Sin descripción'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                      {isActive ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                      {isActive ? 'Activo' : 'Inactivo'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cuerpo */}
+                <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                  {!isActive && (
+                    <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      Este permiso está inactivo y no puede asignarse a roles.
+                    </div>
+                  )}
+
+                  {/* Detalles */}
+                  <div style={{ padding: '16px 24px 0' }}>
+                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                        <PermisoInfoItem icon={<Shield className="w-4 h-4" />}   label="Nombre"      value={viewingPermiso.name}                              iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                        <PermisoInfoItem icon={<FileText className="w-4 h-4" />} label="Descripción" value={viewingPermiso.description || '—'}               iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                        <PermisoInfoItem icon={<Lock className="w-4 h-4" />}     label="Tipo"        value={isSystem ? 'Sistema (solo lectura)' : 'Personalizado'} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                    <span style={{ fontSize: 11, color: '#cbd5e1' }}>Permiso ID #{viewingPermiso.id}</span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                  <Button variant="outline" onClick={() => setShowDetailModal(false)} style={{ fontSize: 13 }}>Cerrar</Button>
+                  {isActive && !isSystem && (
+                    <Button onClick={() => { handleEdit(viewingPermiso); setShowDetailModal(false); }} style={{ background: '#2563eb', color: '#fff', fontSize: 13, border: 'none' }}>
+                      <Edit className="w-4 h-4 mr-2" />Editar permiso
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── AlertDialog confirmar eliminación ── */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

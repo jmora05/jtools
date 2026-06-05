@@ -14,7 +14,7 @@ import {
     Plus, Eye, Edit, Trash2, Users, Search,
     AlertTriangle, ChevronLeft, ChevronRight,
     Briefcase, Calendar, Phone, Mail, MapPin,
-    Loader2, CheckCircle2, Info, Lock, X,
+    Loader2, CheckCircle2, Info, Lock, X, KeyRound, EyeOff,
 } from 'lucide-react';
 import {
     getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado, getRoles,
@@ -46,6 +46,8 @@ type FormState = {
     fechaIngreso: string;
     salario: string;
     estado: 'activo' | 'inactivo';
+    password: string;
+    confirmPassword: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -62,6 +64,8 @@ const EMPTY_FORM: FormState = {
     fechaIngreso: new Date().toISOString().split('T')[0],
     salario: '',
     estado: 'activo',
+    password: '',
+    confirmPassword: '',
 };
 
 // ─── FieldError ───────────────────────────────────────────────────────────────
@@ -118,6 +122,9 @@ function FormFields({
     roles?: Rol[];
     isEditing?: boolean;
 }) {
+    const [showPwd, setShowPwd]     = React.useState(false);
+    const [showConfirm, setShowConfirm] = React.useState(false);
+
     function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
         const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
         setForm(nuevoForm);
@@ -254,6 +261,72 @@ function FormFields({
                                 maxLength={200}
                             />
                             <FieldError mensaje={errores.direccion} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Acceso al sistema */}
+            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                <div className="bg-blue-50 py-3 px-4 flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-blue-700" />
+                    <p className="text-sm font-semibold text-blue-900">
+                        Acceso al Sistema
+                        <span className="text-xs font-normal text-blue-600 ml-2">
+                            ({isEditing ? 'deja en blanco para no cambiar' : 'opcional — crea una cuenta de usuario'})
+                        </span>
+                    </p>
+                </div>
+                <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Contraseña</label>
+                            <div className="relative">
+                                <Input
+                                    type={showPwd ? 'text' : 'password'}
+                                    placeholder="Mín. 8 caract., mayúscula, número y especial"
+                                    value={form.password}
+                                    onChange={e => update('password', e.target.value)}
+                                    onBlur={() => {
+                                        blur('password');
+                                        if (form.confirmPassword) blur('confirmPassword');
+                                    }}
+                                    className={`pr-10 ${errores.password ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                                    autoComplete="new-password"
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    onClick={() => setShowPwd(v => !v)}
+                                    tabIndex={-1}
+                                >
+                                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                            <FieldError mensaje={errores.password} />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-gray-700 mb-2">Confirmar Contraseña</label>
+                            <div className="relative">
+                                <Input
+                                    type={showConfirm ? 'text' : 'password'}
+                                    placeholder="Repite la contraseña"
+                                    value={form.confirmPassword}
+                                    onChange={e => update('confirmPassword', e.target.value)}
+                                    onBlur={() => blur('confirmPassword')}
+                                    className={`pr-10 ${errores.confirmPassword ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                                    autoComplete="new-password"
+                                />
+                                <button
+                                    type="button"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    onClick={() => setShowConfirm(v => !v)}
+                                    tabIndex={-1}
+                                >
+                                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                            <FieldError mensaje={errores.confirmPassword} />
                         </div>
                     </div>
                 </div>
@@ -456,7 +529,8 @@ export function EmployeeManagement() {
                 fechaIngreso:    form.fechaIngreso,
                 salario:         parseFloat(form.salario),
                 estado:          form.estado,
-            });
+                ...(form.password ? { password: form.password, confirmPassword: form.confirmPassword } : {}),
+            } as any);
             showFeedback('✓ Empleado registrado exitosamente');
             toast.success('Empleado registrado exitosamente');
             resetForm();
@@ -505,7 +579,8 @@ export function EmployeeManagement() {
                 fechaIngreso:    form.fechaIngreso,
                 salario:         parseFloat(form.salario),
                 estado:          form.estado,
-            });
+                ...(form.password ? { password: form.password, confirmPassword: form.confirmPassword } : {}),
+            } as any);
             showFeedback('✓ Empleado actualizado correctamente');
             toast.success('Empleado actualizado correctamente');
             resetForm();
@@ -562,6 +637,8 @@ export function EmployeeManagement() {
             fechaIngreso:    emp.fechaIngreso,
             salario:         emp.salario?.toString() ?? '',
             estado:          emp.estado,
+            password:        '',
+            confirmPassword: '',
         });
         setShowModal(true);
     };

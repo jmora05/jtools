@@ -187,10 +187,17 @@ const sumarStockDeCompra = async (compraId, proveedoresId) => {
         if (!insumo) continue;
 
         const nuevaCantidad = (Number(insumo.cantidad) || 0) + Number(d.cantidad);
+
+        // Regla de negocio: conservar siempre el precio más alto histórico
+        const precioActual = Number(insumo.precioUnitario) || 0;
+        const precioCompra = Number(d.precioUnitario) || 0;
+        const precioFinal  = precioCompra > precioActual ? precioCompra : precioActual;
+
         await insumo.update({
-            cantidad:      nuevaCantidad,
-            proveedoresId: proveedoresId,
-            estado:        'disponible',
+            cantidad:       nuevaCantidad,
+            precioUnitario: precioFinal,
+            proveedoresId:  proveedoresId,
+            estado:         'disponible',
         });
 
         // Actualizar relación many-to-many con proveedor
@@ -335,6 +342,18 @@ const registrarMerma = async (req, res) => {
                     cantidad: cantidadNueva,
                     estado: cantidadNueva === 0 ? 'agotado' : 'disponible',
                 });
+
+                // Registrar la merma en el detalle de compra para trazabilidad
+                const detalle = await DetalleCompraInsumo.findOne({
+                    where: { comprasId: id, insumosId: item.insumosId },
+                });
+                if (detalle) {
+                    const mermaAcumulada = Number(detalle.cantidadMerma) || 0;
+                    await detalle.update({
+                        cantidadMerma: mermaAcumulada + Number(item.cantidad),
+                    });
+                }
+
                 mermaRegistrada.push({
                     id: insumo.id,
                     nombreInsumo: insumo.nombreInsumo,

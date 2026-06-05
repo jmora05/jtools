@@ -26,6 +26,11 @@ const REGEX_SALARIO = /^\d+(?:\.\d{1,2})?$/;
  * @param {boolean} esActualizacion - Si es PUT, los campos obligatorios son opcionales
  * @returns {string[]} Array de mensajes de error. Si está vacío, no hay errores.
  */
+// Regex de seguridad para contraseña
+const REGEX_PASSWORD_UPPER   = /[A-Z]/;
+const REGEX_PASSWORD_NUMBER  = /[0-9]/;
+const REGEX_PASSWORD_SPECIAL = /[!@#$%^&*()\-_=+\[\]{};':",.<>?/\\|`~]/;
+
 function validarEmpleado(data, esActualizacion = false) {
   const errores = [];
   const {
@@ -42,6 +47,8 @@ function validarEmpleado(data, esActualizacion = false) {
     direccion,
     ciudad,
     salario,
+    password,
+    confirmPassword,
   } = data;
 
   // ── 1. Campos obligatorios (solo en creación) ──────────────────────────────
@@ -185,7 +192,26 @@ function validarEmpleado(data, esActualizacion = false) {
     }
   }
 
-  // ── 13. Dirección (opcional) ───────────────────────────────────────────────
+  // ── 13. Contraseña (opcional — solo si se proporciona) ─────────────────────
+  if (password !== undefined && password !== null && String(password).trim() !== '') {
+    const pwd = String(password);
+    if (pwd.length < 8) {
+      errores.push('La contraseña debe tener al menos 8 caracteres');
+    } else {
+      if (!REGEX_PASSWORD_UPPER.test(pwd))
+        errores.push('La contraseña debe contener al menos una letra mayúscula');
+      if (!REGEX_PASSWORD_NUMBER.test(pwd))
+        errores.push('La contraseña debe contener al menos un número');
+      if (!REGEX_PASSWORD_SPECIAL.test(pwd))
+        errores.push('La contraseña debe contener al menos un carácter especial (!@#$%...)');
+      if (confirmPassword !== undefined && confirmPassword !== null && password !== confirmPassword)
+        errores.push('Las contraseñas no coinciden');
+    }
+  } else if (confirmPassword !== undefined && confirmPassword !== null && String(confirmPassword).trim() !== '') {
+    errores.push('Debes ingresar la contraseña antes de confirmarla');
+  }
+
+  // ── 14. Dirección (opcional) ───────────────────────────────────────────────
   if (direccion !== undefined && direccion !== null && String(direccion).trim() !== '') {
     const dir = String(direccion).trim();
     if (dir.length > 200) {

@@ -18,6 +18,7 @@ import {
     AlertTriangle, User, X, Search, Loader2,
     CheckCircle2, Info, Lock,
     Mail, Phone, MapPin, Hash, FileText, Tag, Building2, XCircle,
+    KeyRound, EyeOff,
 } from 'lucide-react';
 import {
     getClientes, createCliente, updateCliente,
@@ -66,6 +67,8 @@ interface FormData {
     clientType: 'Persona natural' | 'Empresa';
     estado: 'activo' | 'inactivo';
     contacto: string;
+    password: string;
+    confirmPassword: string;
 }
 
 // ── Validación de formulario en el frontend ───────────────────────────────────
@@ -79,6 +82,8 @@ interface FormErrors {
     telefono?: string;
     ciudad?: string;
     direccion?: string;
+    password?: string;
+    confirmPassword?: string;
 }
 
 function validarFormulario(data: FormData): FormErrors {
@@ -135,6 +140,23 @@ function validarFormulario(data: FormData): FormErrors {
 
     if (!data.direccion.trim())
         errs.direccion = 'La dirección es obligatoria';
+
+    // Contraseña (opcional — solo si se proporciona)
+    if (data.password.trim()) {
+        if (data.password.length < 8)
+            errs.password = 'Mínimo 8 caracteres';
+        else if (!/[A-Z]/.test(data.password))
+            errs.password = 'Debe contener al menos una mayúscula';
+        else if (!/[0-9]/.test(data.password))
+            errs.password = 'Debe contener al menos un número';
+        else if (!/[!@#$%^&*()\-_=+[\]{};':",.<>?/\\|`~]/.test(data.password))
+            errs.password = 'Debe contener al menos un carácter especial';
+
+        if (!errs.password && data.password !== data.confirmPassword)
+            errs.confirmPassword = 'Las contraseñas no coinciden';
+    } else if (data.confirmPassword.trim()) {
+        errs.password = 'Ingresa la contraseña primero';
+    }
 
     return errs;
 }
@@ -195,6 +217,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     const [loading, setLoading]         = useState(true);
     const [saving, setSaving]           = useState(false);
     const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+    const [showPwd, setShowPwd]         = useState(false);
+    const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
     const [showModal, setShowModal]             = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
@@ -235,7 +259,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         tipo_documento: 'cedula', numero_documento: '',
         telefono: '', email: '', direccion: '', ciudad: '',
         clientType: 'Persona natural', estado: 'activo',
-        contacto: '',
+        contacto: '', password: '', confirmPassword: '',
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -322,6 +346,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             ciudad:           formData.ciudad,
             estado:           formData.estado,
             ...(isEmpresa ? { contacto: formData.contacto } : {}),
+            ...(formData.password ? { password: formData.password, confirmPassword: formData.confirmPassword } : {}),
         };
 
         try {
@@ -395,6 +420,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             clientType:       isEmpresa ? 'Empresa' : 'Persona natural',
             estado:           client.estado ?? 'activo',
             contacto:         client.contacto || '',
+            password:         '',
+            confirmPassword:  '',
         });
         setFormErrors({});
         setSubmitAttempted(false);
@@ -945,6 +972,65 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                     className={formErrors.direccion ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                 />
                                 <FieldError msg={formErrors.direccion} />
+                            </div>
+
+                            {/* Acceso al sistema — contraseña */}
+                            <div className="border border-blue-100 rounded-lg overflow-hidden">
+                                <div className="bg-blue-50 py-3 px-4 flex items-center gap-2">
+                                    <KeyRound className="w-4 h-4 text-blue-700" />
+                                    <p className="text-sm font-semibold text-blue-900">
+                                        Acceso al Sistema
+                                        <span className="text-xs font-normal text-blue-600 ml-2">
+                                            ({editingClient ? 'deja en blanco para no cambiar' : 'opcional — crea cuenta de acceso'})
+                                        </span>
+                                    </p>
+                                </div>
+                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">Contraseña</label>
+                                        <div className="relative">
+                                            <Input
+                                                type={showPwd ? 'text' : 'password'}
+                                                placeholder="Mín. 8 caract., mayúscula, número y especial"
+                                                value={formData.password}
+                                                onChange={e => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                                                className={`pr-10 ${formErrors.password ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                                                autoComplete="new-password"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                onClick={() => setShowPwd(v => !v)}
+                                                tabIndex={-1}
+                                            >
+                                                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <FieldError msg={formErrors.password} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-700 mb-2">Confirmar Contraseña</label>
+                                        <div className="relative">
+                                            <Input
+                                                type={showConfirmPwd ? 'text' : 'password'}
+                                                placeholder="Repite la contraseña"
+                                                value={formData.confirmPassword}
+                                                onChange={e => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                                className={`pr-10 ${formErrors.confirmPassword ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
+                                                autoComplete="new-password"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                onClick={() => setShowConfirmPwd(v => !v)}
+                                                tabIndex={-1}
+                                            >
+                                                {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <FieldError msg={formErrors.confirmPassword} />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Estado — solo al editar y solo administrador */}

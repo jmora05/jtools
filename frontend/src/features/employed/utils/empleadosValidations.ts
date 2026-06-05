@@ -17,6 +17,8 @@ export type FormState = {
   fechaIngreso: string;
   salario: string;
   estado: 'activo' | 'inactivo';
+  password: string;
+  confirmPassword: string;
 };
 
 /** Mapa de campo → mensaje de error */
@@ -28,6 +30,10 @@ const SOLO_DIGITOS   = /^\d+$/;
 const ALFANUM        = /^[a-zA-Z0-9]+$/;
 const REGEX_EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REGEX_TELEFONO = /^[+]?[\d\s\-(). ]{7,20}$/;
+
+const REGEX_PWD_UPPER   = /[A-Z]/;
+const REGEX_PWD_NUMBER  = /[0-9]/;
+const REGEX_PWD_SPECIAL = /[!@#$%^&*()\-_=+[\]{};':",.<>?/\\|`~]/;
 
 // ─── Sanitizadores en tiempo real ────────────────────────────────────────
 
@@ -187,6 +193,22 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       if (v && v.length > 200) return 'Máximo 200 caracteres';
       return '';
 
+    case 'password': {
+      if (!v) return ''; // campo opcional
+      if (v.length < 8) return 'Mínimo 8 caracteres';
+      if (!REGEX_PWD_UPPER.test(v))   return 'Debe contener al menos una mayúscula';
+      if (!REGEX_PWD_NUMBER.test(v))  return 'Debe contener al menos un número';
+      if (!REGEX_PWD_SPECIAL.test(v)) return 'Debe contener al menos un carácter especial';
+      return '';
+    }
+
+    case 'confirmPassword': {
+      if (!form.password && !v) return ''; // ambos vacíos → OK
+      if (form.password && !v) return 'Confirma la contraseña';
+      if (v !== form.password) return 'Las contraseñas no coinciden';
+      return '';
+    }
+
     default:
       return '';
   }
@@ -200,6 +222,7 @@ export function validarFormEmpleado(form: FormState): FormErrors {
   const campos: (keyof FormState)[] = [
     'nombres', 'apellidos', 'numeroDocumento', 'email',
     'telefono', 'cargo', 'area', 'fechaIngreso', 'salario', 'ciudad', 'direccion',
+    'password', 'confirmPassword',
   ];
   const errores: FormErrors = {};
   for (const campo of campos) {

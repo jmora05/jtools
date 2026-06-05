@@ -1,6 +1,22 @@
 const { Op } = require('sequelize');
-const { Empleados, Novedades, OrdenesProduccion, FichaTecnica } = require('../models/index.js');
+const bcrypt  = require('bcryptjs');
+const { Empleados, Novedades, OrdenesProduccion, FichaTecnica, Usuarios, Roles } = require('../models/index.js');
+const { sequelize } = require('../config/jtools_db');
 const { validarEmpleado } = require('../validators/empleadosValidator');
+
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 12);
+
+// Busca el rol adecuado para empleados (Administrador primero, si no cualquier rol no-cliente)
+async function resolverRolEmpleado() {
+  let rol = await Roles.findOne({
+    where: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), 'administrador'),
+  });
+  if (!rol) {
+    const todos = await Roles.findAll();
+    rol = todos.find(r => r.name.toLowerCase() !== 'cliente') ?? todos[0] ?? null;
+  }
+  return rol;
+}
 
 // ────────────────────────────────────────────────────────────
 //  GET /empleados  —  listar todos
@@ -61,6 +77,7 @@ const createEmpleado = async (req, res) => {
       fechaIngreso,
       estado,
       salario,
+      password,
     } = req.body;
 
     const docNorm   = numeroDocumento.trim();
@@ -104,6 +121,18 @@ const createEmpleado = async (req, res) => {
       salario:          parseFloat(salario),
       estado:           estado             || 'activo',
     });
+
+    // 5. Vincular o crear Usuario si se proporcionó contraseña
+    if (password && String(password).trim() !== '') {
+      const usuarioExistente = await Usuarios.findOne({ where: { email: emailNorm } });
+      if (!usuarioExistente) {
+        const rol = await resolverRolEmpleado();
+        if (rol) {
+          const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+          await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash });
+        }
+      }
+    }
 
     res.status(201).json({ message: 'Empleado creado correctamente', empleado });
 
@@ -155,6 +184,7 @@ const updateEmpleado = async (req, res) => {
       fechaIngreso,
       estado,
       salario,
+      password,
     } = req.body;
 
     // 2. Verificar que el nuevo documento no pertenezca a otro empleado (activo o inactivo)
@@ -207,6 +237,23 @@ const updateEmpleado = async (req, res) => {
       salario:         salario !== undefined ? parseFloat(salario) : undefined,
       estado,
     });
+
+    // 5. Actualizar contraseña del Usuario vinculado (si se proporciona)
+    if (password && String(password).trim() !== '') {
+      const emailBuscar = (email?.trim().toLowerCase()) || empleado.email;
+      let usuario = await Usuarios.findOne({ where: { email: emailBuscar } });
+      if (!usuario) {
+        // Crear usuario si no existe todavía
+        const rol = await resolverRolEmpleado();
+        if (rol) {
+          const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+          await Usuarios.create({ rolesId: rol.id, email: emailBuscar, password: hash });
+        }
+      } else {
+        const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+        await usuario.update({ password: hash });
+      }
+    }
 
     res.status(200).json({ message: 'Empleado actualizado correctamente', empleado });
 

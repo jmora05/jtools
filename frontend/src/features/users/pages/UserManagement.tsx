@@ -27,7 +27,27 @@ import {
   PlusIcon, EyeIcon, EyeOffIcon, EditIcon, TrashIcon,
   UserIcon, AlertTriangleIcon, ChevronLeftIcon, ChevronRightIcon,
   CheckIcon, XIcon, LockIcon, Loader2Icon, ShieldOffIcon,
+  MailIcon, PhoneIcon, MapPinIcon, HashIcon,
+  CheckCircleIcon, XCircleIcon, ShieldIcon,
 } from 'lucide-react';
+
+// ─── Helper reutilizable para el modal de detalle ─────────────────────────────
+function InfoItem({ icon, label, value, iconBg, iconColor }: {
+  icon: React.ReactNode; label: string; value: string;
+  iconBg: string; iconColor: string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 160px' }}>
+      <div style={{ background: iconBg, borderRadius: 8, padding: 8, display: 'flex', color: iconColor }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+      </div>
+    </div>
+  );
+}
 import * as usuariosService from '@/features/users/services/usuariosService';
 import * as rolesService from '@/features/roles/services/rolesService';
 
@@ -815,64 +835,100 @@ export function UserManagement() {
 
         {/* ── Modal detalle ── */}
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Detalles del Usuario</DialogTitle>
-              <DialogDescription>Información completa del usuario seleccionado.</DialogDescription>
-            </DialogHeader>
-            {viewingUser && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 bg-blue-50 p-4 rounded-lg">
-                  <div>
-                    <Label className="text-xs text-gray-500">Nombre</Label>
-                    <p className="text-sm font-medium">{viewingUser.displayName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Tipo de usuario</Label>
-                    <Badge variant={viewingUser.userType === ROLE_ADMINISTRADOR ? 'default' : 'secondary'}>
-                      {viewingUser.userType}
-                    </Badge>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs text-gray-500">Email</Label>
-                    <p className="text-sm">{viewingUser.email}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Estado</Label>
-                    <Badge
-                      className={
-                        viewingUser.estado === 'activo'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }
-                    >
-                      {viewingUser.estado === 'activo' ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </div>
-                  {viewingUser.documento && (
-                    <div>
-                      <Label className="text-xs text-gray-500">Documento</Label>
-                      <p className="text-sm">{viewingUser.documento}</p>
+          <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+            {viewingUser && (() => {
+              const isActive = viewingUser.estado === 'activo';
+              const cfg = isActive ? {
+                headerBg:  'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+                chipBg:    '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
+                iconBg:    '#eff6ff', iconColor: '#1d4ed8', accentColor: '#2563eb',
+              } : {
+                headerBg:  'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                chipBg:    '#f1f5f9', chipText: '#475569', chipBorder: '#cbd5e1',
+                iconBg:    '#f8fafc', iconColor: '#64748b', accentColor: '#64748b',
+              };
+              const hasContacto = viewingUser.telefono || viewingUser.ciudad || viewingUser.documento;
+              return (
+                <>
+                  {/* Header */}
+                  <div style={{ background: cfg.headerBg, color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                    <button onClick={() => setShowDetailModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <UserIcon className="w-4 h-4" style={{ opacity: 0.75 }} />
+                          <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            Ficha del usuario
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                          {viewingUser.displayName}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
+                          {viewingUser.userType}{viewingUser.ciudad ? ` · ${viewingUser.ciudad}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                        {isActive ? <CheckCircleIcon className="w-4 h-4" /> : <XCircleIcon className="w-4 h-4" />}
+                        {isActive ? 'Activo' : 'Inactivo'}
+                      </div>
                     </div>
-                  )}
-                  {viewingUser.ciudad && (
-                    <div>
-                      <Label className="text-xs text-gray-500">Ciudad</Label>
-                      <p className="text-sm">{viewingUser.ciudad}</p>
+                  </div>
+
+                  {/* Cuerpo */}
+                  <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                    {!isActive && (
+                      <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                        <XCircleIcon className="w-4 h-4 shrink-0" />
+                        Este usuario está inactivo y no puede acceder al sistema.
+                      </div>
+                    )}
+
+                    {/* Cuenta */}
+                    <div style={{ padding: '16px 24px 0' }}>
+                      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Cuenta</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                          <InfoItem icon={<MailIcon className="w-4 h-4" />}   label="Correo electrónico" value={viewingUser.email}       iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                          <InfoItem icon={<ShieldIcon className="w-4 h-4" />} label="Rol"                 value={viewingUser.userType}   iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {viewingUser.telefono && (
-                    <div>
-                      <Label className="text-xs text-gray-500">Teléfono</Label>
-                      <p className="text-sm">{viewingUser.telefono}</p>
+
+                    {/* Contacto (solo si existe info del cliente vinculado) */}
+                    {hasContacto && (
+                      <div style={{ padding: '12px 24px 0' }}>
+                        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Contacto</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                            {viewingUser.telefono && <InfoItem icon={<PhoneIcon className="w-4 h-4" />}  label="Teléfono"   value={viewingUser.telefono}  iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                            {viewingUser.ciudad   && <InfoItem icon={<MapPinIcon className="w-4 h-4" />} label="Ciudad"     value={viewingUser.ciudad}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                            {viewingUser.documento && <InfoItem icon={<HashIcon className="w-4 h-4" />}  label="Documento"  value={viewingUser.documento} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <HashIcon className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                      <span style={{ fontSize: 11, color: '#cbd5e1' }}>Usuario ID #{viewingUser.id}</span>
                     </div>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                </div>
-              </div>
-            )}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                    <Button variant="outline" onClick={() => setShowDetailModal(false)} style={{ fontSize: 13 }}>Cerrar</Button>
+                    {isActive && (
+                      <Button onClick={() => { handleEdit(viewingUser); setShowDetailModal(false); }} style={{ background: cfg.accentColor, color: '#fff', fontSize: 13, border: 'none' }}>
+                        <EditIcon className="w-4 h-4 mr-2" />Editar usuario
+                      </Button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 

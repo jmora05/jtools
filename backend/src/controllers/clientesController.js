@@ -1,5 +1,15 @@
-const { Clientes, Ventas, Pedidos } = require('../models/index.js');
-const { validarCliente }            = require('../validators/clientesValidator.js');
+const bcrypt = require('bcryptjs');
+const { Clientes, Ventas, Pedidos, Usuarios, Roles } = require('../models/index.js');
+const { sequelize } = require('../config/jtools_db');
+const { validarCliente } = require('../validators/clientesValidator.js');
+
+const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 12);
+
+async function resolverRolCliente() {
+  return Roles.findOne({
+    where: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), 'cliente'),
+  });
+}
 
 // GET - listar todos los clientes
 const getClientes = async (req, res) => {
@@ -63,14 +73,28 @@ const createCliente = async (req, res) => {
         const {
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            nombres, apellidos, contacto,
+            nombres, apellidos, contacto, password,
         } = req.body;
+
+        const emailNorm = email?.trim().toLowerCase();
 
         const cliente = await Clientes.create({
             razon_social, tipo_documento, numero_documento,
-            direccion, ciudad, telefono, email, estado,
+            direccion, ciudad, telefono, email: emailNorm, estado,
             nombres, apellidos, contacto,
         });
+
+        // Vincular o crear Usuario si se proporcionó contraseña
+        if (password && String(password).trim() !== '') {
+            const usuarioExistente = await Usuarios.findOne({ where: { email: emailNorm } });
+            if (!usuarioExistente) {
+                const rol = await resolverRolCliente();
+                if (rol) {
+                    const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+                    await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash });
+                }
+            }
+        }
 
         res.status(201).json({ message: 'Cliente creado correctamente', cliente });
     } catch (error) {
@@ -101,7 +125,7 @@ const updateCliente = async (req, res) => {
         const {
             razon_social, tipo_documento, numero_documento,
             direccion, ciudad, telefono, email, estado,
-            nombres, apellidos, contacto,
+            nombres, apellidos, contacto, password,
         } = req.body;
 
         await cliente.update({
@@ -109,6 +133,22 @@ const updateCliente = async (req, res) => {
             direccion, ciudad, telefono, email, estado,
             nombres, apellidos, contacto,
         });
+
+        // Actualizar contraseña del Usuario vinculado si se proporciona
+        if (password && String(password).trim() !== '') {
+            const emailBuscar = (email?.trim().toLowerCase()) || cliente.email;
+            let usuario = await Usuarios.findOne({ where: { email: emailBuscar } });
+            if (!usuario) {
+                const rol = await resolverRolCliente();
+                if (rol) {
+                    const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+                    await Usuarios.create({ rolesId: rol.id, email: emailBuscar, password: hash });
+                }
+            } else {
+                const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+                await usuario.update({ password: hash });
+            }
+        }
 
         res.status(200).json({ message: 'Cliente actualizado correctamente', cliente });
     } catch (error) {

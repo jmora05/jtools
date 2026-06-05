@@ -8,6 +8,10 @@ const { Clientes }  = require('../models/index.js');
 
 const TIPOS_DOCUMENTO = ['cedula', 'nit', 'cedula de extranjeria', 'pasaporte', 'rut'];
 
+const REGEX_PASSWORD_UPPER   = /[A-Z]/;
+const REGEX_PASSWORD_NUMBER  = /[0-9]/;
+const REGEX_PASSWORD_SPECIAL = /[!@#$%^&*()\-_=+\[\]{};':",.<>?/\\|`~]/;
+
 /**
  * Valida los datos de un cliente.
  * @param {object}   data            - Cuerpo de la petición (req.body)
@@ -20,6 +24,7 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     const {
         nombres, apellidos, tipo_documento, numero_documento,
         telefono, email, direccion, ciudad, razon_social, estado, foto,
+        password, confirmPassword,
     } = data;
 
     // ── 1. Campos obligatorios (solo en creación) ──────────────────────
@@ -121,7 +126,26 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     if (estado && !['activo', 'inactivo'].includes(estado))
         errores.push('El estado solo puede ser "activo" o "inactivo"');
 
-    // ── 12. Foto ───────────────────────────────────────────────────────
+    // ── 12. Contraseña (opcional — solo si se proporciona)
+    if (password !== undefined && password !== null && String(password).trim() !== '') {
+        const pwd = String(password);
+        if (pwd.length < 8) {
+            errores.push('La contraseña debe tener al menos 8 caracteres');
+        } else {
+            if (!REGEX_PASSWORD_UPPER.test(pwd))
+                errores.push('La contraseña debe contener al menos una letra mayúscula');
+            if (!REGEX_PASSWORD_NUMBER.test(pwd))
+                errores.push('La contraseña debe contener al menos un número');
+            if (!REGEX_PASSWORD_SPECIAL.test(pwd))
+                errores.push('La contraseña debe contener al menos un caracter especial (!@#$%...)');
+            if (confirmPassword !== undefined && confirmPassword !== null && password !== confirmPassword)
+                errores.push('Las contraseñas no coinciden');
+        }
+    } else if (confirmPassword !== undefined && confirmPassword !== null && String(confirmPassword).trim() !== '') {
+        errores.push('Debes ingresar la contraseña antes de confirmarla');
+    }
+
+    // ── 13. Foto ───────────────────────────────────────────────────────
     if (foto) {
         const extensionesValidas = ['.jpg', '.jpeg', '.png', '.webp'];
         if (!extensionesValidas.some(ext => foto.toLowerCase().endsWith(ext)))

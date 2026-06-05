@@ -21,6 +21,7 @@ export interface DetalleCompra {
     insumosId: number;
     cantidad: number;
     precioUnitario: number;
+    cantidadMerma?: number;
     insumo?: Insumo;
 }
 

@@ -37,7 +37,18 @@ const DetalleCompraInsumo = sequelize.define('DetalleCompraInsumo', {
         defaultValue: 0.00,
         validate: {
             isDecimal: { msg: 'El precio unitario debe ser un número decimal válido' },
-            min: { args: [0], msg: 'El precio unitario no puede ser negativo' } 
+            min: { args: [0], msg: 'El precio unitario no puede ser negativo' }
+        }
+    },
+
+    cantidadMerma: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0.00,
+        comment: 'Cantidad mermada (defectuosa) descontada del inventario para este ítem',
+        validate: {
+            isDecimal: { msg: 'La cantidad de merma debe ser un número decimal válido' },
+            min: { args: [0], msg: 'La cantidad de merma no puede ser negativa' }
         }
     }
 },

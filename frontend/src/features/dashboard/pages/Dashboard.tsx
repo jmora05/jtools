@@ -178,7 +178,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
   // ── Datos derivados para "Ventas del período" (card 3) ────────────────────
   const ventasPeriodoCard = useMemo(() => {
     if (!ventasM) return { total: 0, variacion: 0, mensaje: '' };
-    const arr    = ventasM.data;
+    const arr    = ventasM.data;l
     const n      = arr.length;
     const actual = periodoCarta === 'hoy'
       ? (stats?.dailySalesAmount ?? 0)
@@ -411,6 +411,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-100">
+         <div className="p-4">
           {[
             {
               label: 'Total período',
@@ -472,6 +473,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
               </ResponsiveContainer>
             </div>
           )}
+        </div>
         </div>
       </div>
 

@@ -25,7 +25,26 @@ import { toast } from 'sonner';
 import {
   Plus, Edit, Trash2, Shield, Eye, AlertTriangle,
   Search, RefreshCw, Lock, ChevronLeft, ChevronRight, X,
+  CheckCircle2, XCircle, Hash, FileText, User,
 } from 'lucide-react';
+
+// ─── Helper para el modal de detalle ─────────────────────────────────────────
+function RoleInfoItem({ icon, label, value, iconBg, iconColor }: {
+  icon: React.ReactNode; label: string; value: string;
+  iconBg: string; iconColor: string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 160px' }}>
+      <div style={{ background: iconBg, borderRadius: 8, padding: 8, display: 'flex', color: iconColor }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Roles protegidos del sistema ─────────────────────────────────────────────
 const PROTECTED_ROLES = ['Administrador', 'Cliente', 'Asistente'] as const;
@@ -840,61 +859,123 @@ export function RoleManagement() {
 
         {/* ── Modal detalle ── */}
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-blue-900 text-xl uppercase">Detalles del Rol</DialogTitle>
-              <DialogDescription>Información completa del rol y sus permisos asignados.</DialogDescription>
-            </DialogHeader>
-            {viewingRole && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-500 uppercase">Nombre</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-gray-900 font-semibold">{viewingRole.name}</p>
-                      {isProtectedRole(viewingRole.name) && (
-                        <Badge className="bg-blue-100 text-blue-700 border border-blue-200 gap-1 text-xs">
-                          <Lock className="w-3 h-3" />Sistema
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500 uppercase">Descripción</Label>
-                    <p className="text-gray-700 mt-1">{viewingRole.description || '—'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500 uppercase">Estado</Label>
-                    <Badge className={`mt-1 ${viewingRole.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {viewingRole.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500 uppercase mb-3 block">
-                    Permisos asignados ({viewingRole.permissionsData?.length ?? viewingRole.permissionCount})
-                  </Label>
-                  {!viewingRole.permissionsData ? (
-                    <p className="text-sm text-gray-500">Cargando...</p>
-                  ) : viewingRole.permissionsData.length === 0 ? (
-                    <p className="text-sm text-gray-500">Sin permisos asignados</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {viewingRole.permissionsData.map((perm) => (
-                        <div key={perm.id}
-                          className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                          <Shield className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="text-sm text-gray-900">{perm.name}</span>
+          <DialogContent className="p-0 max-w-2xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+            {viewingRole && (() => {
+              const isActive    = viewingRole.isActive !== false;
+              const isProtected = isProtectedRole(viewingRole.name);
+              const cfg = isActive ? {
+                headerBg:    'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+                chipBg:      '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
+                iconBg:      '#eff6ff', iconColor: '#1d4ed8', accentColor: '#2563eb',
+                permBg:      '#eff6ff', permBorder: '#bfdbfe', permText: '#1e40af',
+              } : {
+                headerBg:    'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                chipBg:      '#f1f5f9', chipText: '#475569', chipBorder: '#cbd5e1',
+                iconBg:      '#f8fafc', iconColor: '#64748b', accentColor: '#64748b',
+                permBg:      '#f8fafc', permBorder: '#e2e8f0', permText: '#64748b',
+              };
+              const permCount = viewingRole.permissionsData?.length ?? viewingRole.permissionCount;
+              return (
+                <>
+                  {/* Header */}
+                  <div style={{ background: cfg.headerBg, color: '#fff', padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
+                    <button onClick={() => setShowDetailModal(false)} style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '4px 6px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center' }}>
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginRight: 36 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <Shield className="w-4 h-4" style={{ opacity: 0.75 }} />
+                          <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            Ficha del rol
+                          </span>
                         </div>
-                      ))}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                            {viewingRole.name}
+                          </div>
+                          {isProtected && (
+                            <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(251,191,36,0.25)', color: '#fde68a', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 999, padding: '2px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Lock className="w-3 h-3" />Sistema
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+                          {permCount} permiso(s) asignado(s)
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
+                        {isActive ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                        {isActive ? 'Activo' : 'Inactivo'}
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
-                </div>
-              </div>
-            )}
+                  </div>
+
+                  {/* Cuerpo */}
+                  <div style={{ overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+                    {!isActive && (
+                      <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                        <XCircle className="w-4 h-4 shrink-0" />
+                        Este rol está inactivo. Los usuarios con este rol no pueden acceder al sistema.
+                      </div>
+                    )}
+
+                    {/* Información general */}
+                    <div style={{ padding: '16px 24px 0' }}>
+                      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                          <RoleInfoItem icon={<Shield className="w-4 h-4" />}   label="Nombre del rol"  value={viewingRole.name}                   iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                          <RoleInfoItem icon={<FileText className="w-4 h-4" />} label="Descripción"     value={viewingRole.description || '—'}     iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                          <RoleInfoItem icon={<User className="w-4 h-4" />}     label="Tipo"            value={isProtected ? 'Sistema' : 'Personalizado'} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Permisos asignados */}
+                    <div style={{ padding: '12px 24px 0' }}>
+                      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>
+                          Permisos asignados
+                          <span style={{ marginLeft: 8, background: cfg.permBg, color: cfg.permText, border: `1px solid ${cfg.permBorder}`, borderRadius: 999, padding: '1px 10px', fontSize: 11, fontWeight: 700 }}>
+                            {permCount}
+                          </span>
+                        </div>
+                        {!viewingRole.permissionsData ? (
+                          <p style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Cargando permisos...</p>
+                        ) : viewingRole.permissionsData.length === 0 ? (
+                          <p style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Sin permisos asignados</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {viewingRole.permissionsData.map((perm) => (
+                              <span key={perm.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: cfg.permBg, border: `1px solid ${cfg.permBorder}`, color: cfg.permText, borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 600 }}>
+                                <Shield className="w-3.5 h-3.5" style={{ flexShrink: 0 }} />
+                                {perm.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                      <span style={{ fontSize: 11, color: '#cbd5e1' }}>Rol ID #{viewingRole.id}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff', flexShrink: 0 }}>
+                    <Button variant="outline" onClick={() => setShowDetailModal(false)} style={{ fontSize: 13 }}>Cerrar</Button>
+                    {isActive && !isProtected && (
+                      <Button onClick={() => { handleEdit(viewingRole); setShowDetailModal(false); }} style={{ background: cfg.accentColor, color: '#fff', fontSize: 13, border: 'none' }}>
+                        <Edit className="w-4 h-4 mr-2" />Editar rol
+                      </Button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 

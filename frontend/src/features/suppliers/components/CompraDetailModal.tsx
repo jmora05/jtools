@@ -316,6 +316,19 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                 </div>
                             )}
 
+                            {/* Aviso de mermas registradas */}
+                            {viewingCompra.estado === 'completada' &&
+                             viewingCompra.detalles?.some(d => Number(d.cantidadMerma) > 0) && (
+                                <div style={{ margin: '8px 24px 0', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#9a3412' }}>
+                                    <BanIcon className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#ea580c' }} />
+                                    <div>
+                                        <strong>Mermas registradas:</strong> esta compra tiene insumos con cantidades
+                                        defectuosas descontadas del inventario.
+                                        Los detalles se muestran en cada línea de insumo (en rojo).
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Info proveedor */}
                             <div style={{ padding: '16px 24px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                 <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16, gridColumn: '1 / -1' }}>
@@ -373,7 +386,10 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                             <span style={{ textAlign: 'right', minWidth: 100 }}>Subtotal</span>
                                         </div>
 
-                                        {viewingCompra.detalles.map((d, i) => (
+                                        {viewingCompra.detalles.map((d, i) => {
+                                            const merma = Number(d.cantidadMerma) || 0;
+                                            const cantEfectiva = Number(d.cantidad) - merma;
+                                            return (
                                             <div
                                                 key={i}
                                                 style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', padding: '12px 16px', alignItems: 'center', borderBottom: i < viewingCompra.detalles!.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.12s' }}
@@ -385,6 +401,16 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                                         {d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}
                                                     </div>
                                                     <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{d.insumo?.unidadMedida ?? ''}</div>
+                                                    {merma > 0 && (
+                                                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 7px' }}>
+                                                                −{merma} mermados
+                                                            </span>
+                                                            <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 7px' }}>
+                                                                {cantEfectiva} efectivos
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div style={{ textAlign: 'center', minWidth: 60 }}>
                                                     <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
@@ -398,7 +424,8 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                                     ${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO')}
                                                 </div>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
 
                                         {/* Totales */}
                                         <div style={{ borderTop: '2px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
