@@ -35,11 +35,11 @@ const ESTADO_CONFIG: Record<string, {
     },
     Pausada: {
         label: 'Pausada', icon: <PauseCircle className="w-4 h-4" />,
-        headerBg: 'linear-gradient(135deg, #78350f 0%, #d97706 100%)', headerText: '#fff',
-        chipBg: '#fef3c7', chipText: '#78350f', chipBorder: '#fcd34d',
-        accentColor: '#d97706', rowHover: '#fffbeb',
-        totalBg: 'linear-gradient(135deg, #78350f 0%, #d97706 100%)', totalText: '#fff',
-        iconBg: '#fffbeb', iconColor: '#d97706',
+        headerBg: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', headerText: '#fff',
+        chipBg: '#dbeafe', chipText: '#1e3a8a', chipBorder: '#93c5fd',
+        accentColor: '#2563eb', rowHover: '#eff6ff',
+        totalBg: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)', totalText: '#fff',
+        iconBg: '#eff6ff', iconColor: '#1d4ed8',
     },
     Finalizada: {
         label: 'Finalizada', icon: <CheckCircleIcon className="w-4 h-4" />,

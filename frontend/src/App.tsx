@@ -550,8 +550,8 @@ export default function App() {
           </div>
         </div>
       </div>
-      <CartDrawer />
-      <CartButton />
+      {user?.userType === 'client' && <CartDrawer />}
+      {user?.userType === 'client' && <CartButton />}
     </CartProvider>
   );
 }

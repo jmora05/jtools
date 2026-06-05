@@ -358,27 +358,6 @@ function AdminCatalogView() {
         setTimeout(() => setFeedbackMsg(null), 4000);
     };
 
-    const { addItem, items: cartItems } = useCart();
-
-    // ── Agregar al carrito con validación de stock ────────────────────────────
-    const handleAddToCart = (product: Producto) => {
-        if (product.stock <= 0) {
-            toast.error('Producto agotado — no hay unidades disponibles');
-            return;
-        }
-        addItem({
-            id:             product.id,
-            nombreProducto: product.nombreProducto,
-            referencia:     product.referencia,
-            precio:         Number(product.precio),
-            imagenUrl:      product.imagenUrl,
-            stock:          product.stock,   // ← necesario para el reducer
-        });
-        toast.success(`"${product.nombreProducto}" agregado al carrito`);
-    };
-
-    const isInCart = (id: number) => cartItems.some(i => i.id === id);
-
     const fetchProductos = useCallback(async () => {
         try {
             setLoading(true);
@@ -590,9 +569,6 @@ function AdminCatalogView() {
                                     {currentProducts.map(product => {
                                         const inactive   = product.estado === 'inactivo';
                                         const outOfStock = product.stock === 0;
-                                        const inCart     = isInCart(product.id);
-                                        // Botón carrito deshabilitado si inactivo O sin stock
-                                        const cartDisabled = inactive || outOfStock;
 
                                         return (
                                             <React.Fragment key={product.id}>
@@ -649,32 +625,13 @@ function AdminCatalogView() {
                                                                 onClick={() => inactive ? handleBlockedClick(product.id) : openDeleteModal(product)}
                                                                 className={`border ${inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white text-blue-900 border-blue-900 hover:bg-blue-50'}`}
                                                             ><Trash2 className="w-4 h-4" /></Button>
-
-                                                            {/* Carrito: deshabilitado si inactivo O sin stock */}
-                                                            <Button size="sm"
-                                                                disabled={cartDisabled}
-                                                                onClick={() => !cartDisabled && handleAddToCart(product)}
-                                                                title={
-                                                                    inactive    ? 'Producto inactivo'
-                                                                    : outOfStock ? 'Producto agotado'
-                                                                    : inCart     ? 'Agregar otra unidad'
-                                                                    :              'Agregar al carrito'
-                                                                }
-                                                                className={`border ${
-                                                                    cartDisabled
-                                                                        ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                        : inCart
-                                                                            ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                                                                            : 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50'
-                                                                }`}
-                                                            ><ShoppingCart className="w-4 h-4" /></Button>
                                                         </div>
                                                     </td>
                                                 </tr>
                                                 {blockedAlertId === product.id && (
                                                     <tr><td colSpan={7} className="px-6 pb-3 pt-0">
                                                         <BlockedAlert
-                                                            message="Producto inactivo: Actívalo primero para editar, eliminar o agregar al carrito."
+                                                            message="Producto inactivo: Actívalo primero para editar o eliminar."
                                                             onClose={() => setBlockedAlertId(null)}
                                                         />
                                                     </td></tr>
@@ -707,8 +664,6 @@ function AdminCatalogView() {
                     {currentProducts.map(product => {
                         const inactive   = product.estado === 'inactivo';
                         const outOfStock = product.stock === 0;
-                        const inCart     = isInCart(product.id);
-                        const cartDisabled = inactive || outOfStock;
 
                         return (
                             <Card key={product.id} className="overflow-hidden">
@@ -735,7 +690,7 @@ function AdminCatalogView() {
                                     <p className={`text-sm mb-3 font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
                                         {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
                                     </p>
-                                    <div className="flex space-x-2 mb-2">
+                                    <div className="flex space-x-2">
                                         <Button variant="outline" size="sm" onClick={() => viewDetails(product)} className="flex-1"><Eye className="w-4 h-4 mr-1" /> Ver</Button>
                                         <Button variant="outline" size="sm"
                                             onClick={() => inactive ? handleBlockedClick(product.id) : openEditDialog(product)}
@@ -746,24 +701,6 @@ function AdminCatalogView() {
                                             className={inactive ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'text-blue-900 border-blue-900 hover:bg-blue-50'}
                                         ><Trash2 className="w-4 h-4" /></Button>
                                     </div>
-                                    {/* Botón carrito en grid — deshabilitado si inactivo O sin stock */}
-                                    <Button size="sm"
-                                        disabled={cartDisabled}
-                                        onClick={() => !cartDisabled && handleAddToCart(product)}
-                                        className={`w-full ${
-                                            cartDisabled
-                                                ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed'
-                                                : inCart
-                                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                                    : 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'
-                                        }`}
-                                    >
-                                        <ShoppingCart className="w-4 h-4 mr-2" />
-                                        {outOfStock    ? 'Agotado'
-                                         : inactive    ? 'Inactivo'
-                                         : inCart      ? 'Agregar otra unidad'
-                                         :               'Agregar al carrito'}
-                                    </Button>
                                     {blockedAlertId === product.id && (
                                         <div className="mt-2">
                                             <BlockedAlert message="Producto inactivo: Actívalo primero." onClose={() => setBlockedAlertId(null)} />

@@ -387,7 +387,7 @@ const anularOrdenProduccion = async (req, res) => {
       if (Array.isArray(insumosADevolver) && insumosADevolver.length > 0) {
         const override = insumosADevolver.find(d => Number(d.insumosId) === Number(item.insumosId));
         if (override !== undefined) {
-          cantidadARestaurar = Math.max(0, Math.min(Number(override.cantidadADevolver) || 0, item.cantidadDescontada));
+          cantidadARestaurar = Math.floor(Math.max(0, Math.min(Number(override.cantidadADevolver) || 0, item.cantidadDescontada)));
         }
       }
 

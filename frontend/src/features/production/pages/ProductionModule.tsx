@@ -356,8 +356,8 @@ function ProductionOrdersSubmodule() {
         .map(i => ({
           insumosId: i.insumosId,
           nombre: i.nombre,
-          cantidadDescontada: i.cantidadDescontada,
-          cantidadADevolver: String(i.cantidadDescontada),
+          cantidadDescontada: Math.floor(i.cantidadDescontada),
+          cantidadADevolver: String(Math.floor(i.cantidadDescontada)),
         }))
     );
     setIsAnulOpen(true);
@@ -1185,11 +1185,16 @@ function ProductionOrdersSubmodule() {
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                             <input
                               type="text"
-                              inputMode="decimal"
+                              inputMode="numeric"
+                              step="1"
                               value={dev.cantidadADevolver}
+                              onKeyDown={e => {
+                                if (e.key === '.' || e.key === ',') e.preventDefault();
+                              }}
                               onChange={e => {
-                                const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                                setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: raw } : d));
+                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                const num = raw === '' ? '' : String(Math.floor(Number(raw)));
+                                setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: num } : d));
                               }}
                               style={{
                                 flex: 1, height: 32, textAlign: 'right', fontSize: 13, fontWeight: 600,
@@ -1201,7 +1206,7 @@ function ProductionOrdersSubmodule() {
                             <button
                               type="button"
                               title="Devolver todo"
-                              onClick={() => setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: String(d.cantidadDescontada) } : d))}
+                              onClick={() => setDevoluciones(prev => prev.map((d, j) => j === i ? { ...d, cantidadADevolver: String(Math.floor(d.cantidadDescontada)) } : d))}
                               style={{ flexShrink: 0, height: 32, padding: '0 6px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}
                             >
                               Todo

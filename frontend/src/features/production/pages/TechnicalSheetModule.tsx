@@ -303,15 +303,14 @@ function InsumosSection({ insumos, setInsumos, catalogoInsumos, loadingInsumos, 
                         <FieldError mensaje={insErrors.quantity} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                            <label style={{ ...lbl, marginBottom: 0 }}>Unidad *</label>
-                            <CharCounter valor={newInsUnit} limite={30} />
-                        </div>
-                        <input placeholder="litros, kg, ml" value={newInsUnit}
-                            onChange={e => updateInsField('unit', e.target.value)}
-                            style={insErrors.unit ? inpErrStyle : inpStyle}
+                        <label style={{ ...lbl, marginBottom: 4 }}>Unidad</label>
+                        <input
+                            type="text"
+                            readOnly
+                            disabled
+                            value={newInsUnit ?? ''}
+                            style={{ ...inpStyle, background: '#f3f4f6', cursor: 'not-allowed', opacity: 0.7 }}
                         />
-                        <FieldError mensaje={insErrors.unit} />
                     </div>
                 </div>
                 <Button type="button" variant="outline" onClick={addIns} className="w-full text-blue-700 border-blue-300 hover:bg-blue-50">

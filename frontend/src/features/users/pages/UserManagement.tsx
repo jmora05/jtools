@@ -822,7 +822,7 @@ export function UserManagement() {
             </DialogHeader>
             {viewingUser && (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-lg">
+                <div className="grid grid-cols-2 gap-3 bg-blue-50 p-4 rounded-lg">
                   <div>
                     <Label className="text-xs text-gray-500">Nombre</Label>
                     <p className="text-sm font-medium">{viewingUser.displayName}</p>

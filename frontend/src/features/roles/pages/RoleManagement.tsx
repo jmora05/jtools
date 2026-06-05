@@ -853,7 +853,7 @@ export function RoleManagement() {
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-gray-900 font-semibold">{viewingRole.name}</p>
                       {isProtectedRole(viewingRole.name) && (
-                        <Badge className="bg-amber-100 text-amber-700 border border-amber-200 gap-1 text-xs">
+                        <Badge className="bg-blue-100 text-blue-700 border border-blue-200 gap-1 text-xs">
                           <Lock className="w-3 h-3" />Sistema
                         </Badge>
                       )}
