@@ -204,12 +204,6 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                 Categorías
               </button>
               <button
-                onClick={() => scrollToSection('productos')}
-                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
-              >
-                Catálogo
-              </button>
-              <button
                 onClick={() => scrollToSection('nosotros')}
                 className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
               >
@@ -284,12 +278,6 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                   className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
                 >
                   Categorías
-                </button>
-                <button
-                  onClick={() => scrollToSection('productos')}
-                  className="text-left px-4 py-2 text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-                >
-                  Catálogo
                 </button>
                 <button
                   onClick={() => scrollToSection('nosotros')}
@@ -560,78 +548,6 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
         </div>
       </section>
 
-      {/* Products Section */}
-      <section id="productos" className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
-            <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-              Productos Disponibles
-            </Badge>
-            <h2 className="text-3xl lg:text-5xl font-bold text-gray-900">
-              Nuestro Catálogo
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Calidad garantizada y precios competitivos en todos nuestros repuestos.
-            </p>
-          </div>
-
-          {loadingProducts ? (
-            <div className="flex justify-center py-16">
-              <Loader2Icon className="w-8 h-8 animate-spin text-blue-600" />
-            </div>
-          ) : products.length === 0 ? (
-            <div className="text-center text-gray-500 py-16">
-              No hay productos disponibles en este momento.
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {products.map((product) => (
-                <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
-                  <div className="relative overflow-hidden rounded-t-lg">
-                    <ImageWithFallback
-                      src={product.imagenUrl || ''}
-                      alt={product.nombreProducto}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-                  <CardContent className="p-6 space-y-4">
-                    <div>
-                      <Badge variant="outline" className="text-xs mb-2">
-                        {product.categoria?.nombreCategoria ?? 'Sin categoría'}
-                      </Badge>
-                      <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                        {product.nombreProducto}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {product.descripcion || '—'}
-                      </p>
-                    </div>
-                    <div className="text-2xl font-bold text-gray-900">
-                      ${Number(product.precio).toLocaleString('es-CO')}
-                    </div>
-                    <Button
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => {
-                        if (!userType) {
-                          toast.error('Debes iniciar sesión para agregar productos al carrito.', {
-                            action: { label: 'Iniciar sesión', onClick: () => onGoToSystem?.() },
-                          });
-                          return;
-                        }
-                        toast.success('Te contactaremos pronto para más detalles.');
-                      }}
-                    >
-                      <ShoppingCartIcon className="w-4 h-4 mr-2" />
-                      Agregar al Carrito
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* About Section */}
       <section id="nosotros" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -858,14 +774,6 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                     className="text-gray-300 hover:text-white transition-colors"
                   >
                     Categorías
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => scrollToSection('productos')}
-                    className="text-gray-300 hover:text-white transition-colors"
-                  >
-                    Catálogo
                   </button>
                 </li>
                 <li>
