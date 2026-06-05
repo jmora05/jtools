@@ -1,36 +1,34 @@
-// src/config/database.js
-
-// Importamos Sequelize y las variables de entorno
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Creamos la instancia de Sequelize con los datos de la BD
 const sequelize = new Sequelize(
-  process.env.DB_NAME,       // nombre de la base de datos
-  process.env.DB_USER,       // usuario de MySQL
-  process.env.DB_PASSWORD,   // contraseña de MySQL
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
   {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT) || 5432,
-    dialect: 'postgres',        // le decimos que usamos PostgreSQL
-    logging: console.log,  // cambia false por esto          // cambia a true si quieres ver las queries SQL en consola
+    dialect: 'postgres',
+    logging: false,
     pool: {
-      max: 5,                // máximo de conexiones simultáneas
+      max: 5,
       min: 0,
-      acquire: 30000,        // tiempo máximo para obtener conexión (ms)
-      idle: 10000            // tiempo antes de liberar conexión inactiva (ms)|
-    }
+      acquire: 30000,
+      idle: 10000
+    },
+    dialectOptions: process.env.NODE_ENV === 'production' ? {
+      ssl: { require: true, rejectUnauthorized: false }
+    } : {}
   }
 );
 
-// Función para probar la conexión (la usaremos en index.js)
 const testConnection = async () => {
   try {
     await sequelize.authenticate();
     console.log('PostgreSQL conectado correctamente');
   } catch (error) {
     console.error(' No se pudo conectar a la base de datos:', error.message);
-    process.exit(1); // detenemos el servidor si no hay conexión
+    process.exit(1);
   }
 };
 
