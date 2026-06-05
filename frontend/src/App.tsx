@@ -101,7 +101,7 @@ export default function App() {
     setShowLandingFirst(false);
     setCurrentModule(userData.userType === 'client' ? 'client-purchases' : 'dashboard');
     localStorage.setItem('jrepuestos_user', JSON.stringify(userData));
-  };
+};
 
   useEffect(() => {
     if (['users', 'roles'].includes(currentModule)) {
