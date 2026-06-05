@@ -55,7 +55,11 @@ app.use('/api/productos',               verifyToken, productosRoutes);
 app.use('/api/ventas',                  verifyToken, ventasRoutes);
 app.use('/api/categorias',              verifyToken, categoriaProductosRoutes);
 app.use('/api/cliente',                 verifyToken, clienteMeRoutes);
-
+// Permite a cualquier usuario autenticado ver los permisos de su propio rol
+app.use('/api/roles/:id/permisos', verifyToken, (req, res, next) => {
+    const rolesController = require('./controllers/rolesController.js');
+    return rolesController.getRolPermisos(req, res);
+});
 // ── Rutas SOLO ADMIN (bloquean el perfil 'client') ──
 app.use('/api/usuarios',                verifyToken, requireAdmin, usuariosRoutes);
 app.use('/api/roles',                   verifyToken, requireAdmin, rolesRoutes);
