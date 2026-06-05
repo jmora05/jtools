@@ -1,6 +1,6 @@
 // Validaciones de negocio — Módulo Usuarios
-const { Op }       = require('sequelize');
-const { Usuarios } = require('../models/index.js');
+const { Op }             = require('sequelize');
+const { Usuarios, Roles } = require('../models/index.js');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -45,8 +45,15 @@ async function validateCreateUsuario(body) {
             if (!rule.test(pass)) errores.push(rule.msg);
 
     // ── 4. Rol ──────────────────────────────────────────────────────────
-    if (!Number.isInteger(Number(body.rolesId)) || Number(body.rolesId) <= 0)
+    if (!Number.isInteger(Number(body.rolesId)) || Number(body.rolesId) <= 0) {
         errores.push('El rol debe ser un identificador numérico válido');
+    } else if (errores.length === 0) {
+        const rol = await Roles.findByPk(Number(body.rolesId));
+        if (!rol)
+            errores.push('El rol especificado no existe');
+        else if (rol.isActive === false)
+            errores.push('No se puede asignar un rol inactivo a un usuario');
+    }
 
     // ── 5. Estado (si viene) ────────────────────────────────────────────
     if (body?.estado !== undefined && body?.estado !== null) {
@@ -100,8 +107,15 @@ async function validateUpdateUsuario(body, idExcluir = null) {
 
     // ── 3. Rol (opcional en update) ─────────────────────────────────────
     if (body?.rolesId !== undefined && body?.rolesId !== null) {
-        if (!Number.isInteger(Number(body.rolesId)) || Number(body.rolesId) <= 0)
+        if (!Number.isInteger(Number(body.rolesId)) || Number(body.rolesId) <= 0) {
             errores.push('El rol debe ser un identificador numérico válido');
+        } else if (errores.length === 0) {
+            const rol = await Roles.findByPk(Number(body.rolesId));
+            if (!rol)
+                errores.push('El rol especificado no existe');
+            else if (rol.isActive === false)
+                errores.push('No se puede asignar un rol inactivo a un usuario');
+        }
     }
 
     // ── 4. Estado (opcional en update) ─────────────────────────────────

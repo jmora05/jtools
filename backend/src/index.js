@@ -35,6 +35,7 @@ const usuariosRoutes               = require('./routes/usuariosRoutes.js');
 const permisosRoutes               = require('./routes/permisosRoutes.js');
 const rolesRoutes                  = require('./routes/rolesRoutes.js');
 const authRoutes                   = require('./routes/authRoutes.js');
+const dashboardRoutes              = require('./routes/dashboardRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
 const horasExtraRoutes             = require('./routes/horasExtraRoutes.js');
 const nominaRoutes                 = require('./routes/nominaRoutes.js');
@@ -42,7 +43,8 @@ const { verifyToken, requireAdmin } = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
 // ── Rutas PÚBLICAS ──
-app.use('/api/auth', authRoutes);
+app.use('/api/auth',      authRoutes);
+app.use('/api/dashboard', verifyToken, dashboardRoutes);
 
 // ── Ruta pública de productos (para el landing, sin autenticación) ──
 const { getProductos: getPublicProductos } = require('./controllers/productosController');
@@ -87,6 +89,7 @@ testConnection()
         `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "isSystem"  BOOLEAN     NOT NULL DEFAULT false`,
         `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "moduleKey" VARCHAR(50)          DEFAULT NULL`,
         `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "isActive"  BOOLEAN     NOT NULL DEFAULT true`,
+        `ALTER TABLE usuarios  ADD COLUMN IF NOT EXISTS "estado"    VARCHAR(10) NOT NULL DEFAULT 'activo'`,
     ];
     for (const sql of migraciones) {
         try {

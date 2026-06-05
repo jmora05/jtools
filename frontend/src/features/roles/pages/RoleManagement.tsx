@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 // ─── Roles protegidos del sistema ─────────────────────────────────────────────
-const PROTECTED_ROLES = ['Administrador', 'Cliente'] as const;
+const PROTECTED_ROLES = ['Administrador', 'Cliente', 'Asistente'] as const;
 type ProtectedRole = (typeof PROTECTED_ROLES)[number];
 
 const isProtectedRole = (name: string): boolean =>
@@ -60,19 +60,26 @@ interface FormErrors {
   permissions?: string;
 }
 
+function contarEspeciales(s: string): number {
+  return (s.match(/[\d_\-()+]/g) ?? []).length;
+}
+
 function validarFormulario(data: FormState): FormErrors {
   const errs: FormErrors = {};
   const NAME_REGEX = /^[\w\sáéíóúÁÉÍÓÚñÑüÜ\-()+]+$/;
+  const nombre = data.name.trim();
 
   // Nombre
-  if (!data.name.trim())
+  if (!nombre)
     errs.name = 'El nombre del rol es obligatorio';
-  else if (data.name.trim().length < 2 || data.name.trim().length > 50)
-    errs.name = 'El nombre debe tener entre 2 y 50 caracteres';
-  else if (!NAME_REGEX.test(data.name.trim()))
+  else if (nombre.length < 2 || nombre.length > 20)
+    errs.name = 'El nombre debe tener entre 2 y 20 caracteres';
+  else if (!NAME_REGEX.test(nombre))
     errs.name = 'Solo letras, números, espacios y guiones';
-  else if (isProtectedRole(data.name.trim()))
-    errs.name = `"${data.name.trim()}" es un nombre reservado del sistema`;
+  else if (contarEspeciales(nombre) > 2)
+    errs.name = 'El nombre no puede tener más de 2 números o caracteres especiales';
+  else if (isProtectedRole(nombre))
+    errs.name = `"${nombre}" es un nombre reservado del sistema`;
 
   // Descripción (opcional)
   if (data.description.trim().length > 200)
@@ -522,11 +529,11 @@ export function RoleManagement() {
                                   </Badge>
                                 </td>
 
-                                {/* Switch de estado */}
+                                {/* Toggle estado — siempre visible, deshabilitado si protegido */}
                                 <td className="py-4 px-6">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span>
+                                      <span className="inline-flex">
                                         <Switch
                                           checked={role.isActive}
                                           onCheckedChange={() => !isProtected && toggleStatus(role)}
@@ -535,21 +542,22 @@ export function RoleManagement() {
                                         />
                                       </span>
                                     </TooltipTrigger>
-                                    {isProtected && (
-                                      <TooltipContent><p>Rol del sistema — no se puede desactivar</p></TooltipContent>
-                                    )}
+                                    <TooltipContent>
+                                      <p>{isProtected ? 'Rol del sistema — el estado no puede cambiarse' : role.isActive ? 'Desactivar rol' : 'Activar rol'}</p>
+                                    </TooltipContent>
                                   </Tooltip>
                                 </td>
 
-                                {/* Acciones */}
+                                {/* Acciones — los 3 botones siempre visibles */}
                                 <td className="py-4 px-6">
                                   <div className="flex items-center gap-2">
 
+                                    {/* Ver detalle — siempre activo */}
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <Button variant="outline" size="sm"
                                           onClick={() => handleViewDetail(role)}
-                                          className="border-blue-900 text-blue-900 hover:bg-blue-900 hover:border-blue-900"
+                                          className="border-blue-900 text-blue-900 hover:bg-blue-900 hover:text-white"
                                         >
                                           <Eye className="w-4 h-4" />
                                         </Button>
@@ -557,16 +565,17 @@ export function RoleManagement() {
                                       <TooltipContent><p>Ver detalle</p></TooltipContent>
                                     </Tooltip>
 
+                                    {/* Editar — visible pero deshabilitado si protegido o inactivo */}
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span>
+                                        <span className="inline-flex">
                                           <Button variant="outline" size="sm"
                                             onClick={() => !isProtected && !isInactive && handleEdit(role)}
                                             disabled={isProtected || isInactive}
                                             className={
                                               isProtected || isInactive
                                                 ? 'opacity-40 cursor-not-allowed border-blue-900 text-blue-900'
-                                                : 'border-blue-900 text-blue-900 hover:bg-blue-900 hover:border-blue-900'
+                                                : 'border-blue-900 text-blue-900 hover:bg-blue-900 hover:text-white'
                                             }
                                           >
                                             {isProtected ? <Lock className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
@@ -574,20 +583,21 @@ export function RoleManagement() {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p>{isProtected ? 'Rol del sistema — no editable' : isInactive ? 'Rol inactivo — actívalo primero' : 'Editar rol'}</p>
+                                        <p>{isProtected ? 'Rol del sistema — no se puede editar' : isInactive ? 'Rol inactivo — actívalo primero' : 'Editar rol'}</p>
                                       </TooltipContent>
                                     </Tooltip>
 
+                                    {/* Eliminar — visible pero deshabilitado si protegido o inactivo */}
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span>
+                                        <span className="inline-flex">
                                           <Button variant="outline" size="sm"
                                             onClick={() => !isProtected && !isInactive && handleDelete(role)}
                                             disabled={isProtected || isInactive}
                                             className={
                                               isProtected || isInactive
                                                 ? 'opacity-40 cursor-not-allowed border-blue-900 text-blue-900'
-                                                : 'border-blue-900 text-blue-900 hover:bg-blue-900 hover:border-blue-900'
+                                                : 'border-blue-900 text-blue-900 hover:bg-blue-900 hover:text-white'
                                             }
                                           >
                                             {isProtected ? <Lock className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
@@ -595,7 +605,7 @@ export function RoleManagement() {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p>{isProtected ? 'Rol del sistema — no eliminable' : isInactive ? 'Rol inactivo — no se puede eliminar' : 'Eliminar rol'}</p>
+                                        <p>{isProtected ? 'Rol del sistema — no se puede eliminar' : isInactive ? 'Rol inactivo — no se puede eliminar' : 'Eliminar rol'}</p>
                                       </TooltipContent>
                                     </Tooltip>
 
@@ -730,12 +740,23 @@ export function RoleManagement() {
                   id="role-name"
                   value={formData.name}
                   onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Ej: Vendedor, Gerente, Supervisor"
-                  maxLength={50}
+                  placeholder="Ej: Vendedor, Gerente"
+                  maxLength={20}
                   className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
                 />
-                <FieldError msg={formErrors.name} />
-                {/* Advertencia nombre reservado (en tiempo real, antes del submit) */}
+                <div className="flex items-center justify-between">
+                  <FieldError msg={formErrors.name} />
+                  <p className={`text-xs ml-auto tabular-nums ${formData.name.trim().length > 18 ? 'text-amber-500' : 'text-gray-400'}`}>
+                    {formData.name.trim().length}/20
+                  </p>
+                </div>
+                {/* Advertencias en tiempo real */}
+                {!formErrors.name && contarEspeciales(formData.name.trim()) === 2 && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Límite de 2 números/caracteres especiales alcanzado.
+                  </p>
+                )}
                 {!formErrors.name && isProtectedRole(formData.name.trim()) && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />

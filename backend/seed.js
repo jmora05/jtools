@@ -5,363 +5,172 @@ const bcrypt = require('bcryptjs');
 const {
     Usuarios,
     Roles,
-    Permisos
+    Permisos,
 } = require('./src/models/index.js');
 
-const {
-    SYSTEM_MODULES
-} = require('./src/controllers/permisosController.js');
+const { sequelize }   = require('./src/config/jtools_db');
+const { SYSTEM_MODULES } = require('./src/controllers/permisosController.js');
 
 /**
  * =========================================================
  * SEED PRINCIPAL DEL SISTEMA
  * =========================================================
- * Este archivo:
- *
- * 1. Sincroniza permisos base del sistema
- * 2. Crea roles protegidos del sistema
- * 3. Asigna permisos automáticamente
- * 4. Crea usuarios iniciales
- * 5. Garantiza que el sistema siempre tenga
- *    roles críticos funcionales
+ * Roles protegidos (isSystem = true):
+ *   Administrador → acceso total
+ *   Asistente     → acceso intermedio (sin usuarios/roles)
+ *   Cliente       → acceso restringido al portal
  * =========================================================
  */
 
+const PERMISOS_EXCLUIDOS_ASISTENTE = ['users', 'roles'];
+const PERMISOS_CLIENTE             = ['catalog', 'orders', 'sales', 'dashboard'];
+
+/**
+ * Busca un rol por nombre de forma CASE-INSENSITIVE.
+ * Si lo encuentra → actualiza nombre canónico + flags de sistema.
+ * Si no existe   → lo crea.
+ * Devuelve la instancia final.
+ */
+async function upsertSystemRole({ canonicalName, description }) {
+    const existing = await Roles.findOne({
+        where: sequelize.where(
+            sequelize.fn('LOWER', sequelize.col('name')),
+            canonicalName.toLowerCase()
+        ),
+    });
+
+    if (existing) {
+        await existing.update({
+            name:        canonicalName,
+            description,
+            isSystem:    true,
+            isActive:    true,
+        });
+        return existing;
+    }
+
+    return Roles.create({
+        name:        canonicalName,
+        description,
+        isSystem:    true,
+        isActive:    true,
+    });
+}
+
 async function seed() {
-
     try {
-
         console.log('\n===================================');
         console.log('INICIANDO SEED DEL SISTEMA');
         console.log('===================================\n');
 
-        /**
-         * =========================================================
-         * 1. CREAR / SINCRONIZAR PERMISOS DEL SISTEMA
-         * =========================================================
-         *
-         * Recorremos todos los módulos definidos en
-         * SYSTEM_MODULES y garantizamos que existan
-         * en la base de datos.
-         */
-
+        // ── 1. Sincronizar permisos del sistema ──────────────────────────
         console.log('Sincronizando permisos del sistema...\n');
-
         const permisosCreados = [];
 
         for (const mod of SYSTEM_MODULES) {
-
             const [permiso, created] = await Permisos.findOrCreate({
-
-                where: {
-                    moduleKey: mod.moduleKey
-                },
-
+                where: { moduleKey: mod.moduleKey },
                 defaults: {
-                    name: mod.name,
+                    name:        mod.name,
                     description: mod.description,
-                    moduleKey: mod.moduleKey,
-
-                    // Permiso protegido del sistema
-                    isSystem: true
-                }
+                    moduleKey:   mod.moduleKey,
+                    isSystem:    true,
+                },
             });
-
-            /**
-             * Si ya existía pero no era del sistema,
-             * lo convertimos en permiso protegido.
-             */
-
             if (!created && !permiso.isSystem) {
-
-                await permiso.update({
-                    isSystem: true
-                });
+                await permiso.update({ isSystem: true });
             }
-
-            if (created) {
-                permisosCreados.push(permiso.name);
-            }
+            if (created) permisosCreados.push(permiso.name);
         }
-
-        if (permisosCreados.length > 0) {
-
-            console.log(
-                `Permisos creados: ${permisosCreados.join(', ')}\n`
-            );
-
-        } else {
-
-            console.log(
-                'Todos los permisos del sistema ya existen.\n'
-            );
-        }
-
-        /**
-         * =========================================================
-         * 2. OBTENER TODOS LOS PERMISOS DEL SISTEMA
-         * =========================================================
-         *
-         * Estos permisos serán asignados automáticamente
-         * a los roles principales.
-         */
-
-        const todosLosPermisos = await Permisos.findAll({
-            where: {
-                isSystem: true
-            }
-        });
-
-        /**
-         * =========================================================
-         * 3. CREAR ROL SUPER_ADMIN
-         * =========================================================
-         *
-         * Este rol:
-         * - Tiene acceso total
-         * - No debe eliminarse
-         * - No debe modificarse
-         * - Es un rol crítico del sistema
-         */
-
-        const [rolSuperAdmin] = await Roles.findOrCreate({
-
-            where: {
-                name: 'SUPER_ADMIN'
-            },
-
-            defaults: {
-
-                name: 'SUPER_ADMIN',
-
-                description:
-                    'Super administrador con acceso total al sistema',
-
-                isSystem: true
-            }
-        });
-
-        /**
-         * Si el rol ya existía pero no era protegido,
-         * lo convertimos en rol del sistema.
-         */
-
-        if (!rolSuperAdmin.isSystem) {
-
-            await rolSuperAdmin.update({
-                isSystem: true
-            });
-        }
-
-        /**
-         * Asignamos TODOS los permisos del sistema
-         * al SUPER_ADMIN.
-         */
-
-        await rolSuperAdmin.setPermisos(
-            todosLosPermisos.map(p => p.id)
-        );
 
         console.log(
-            `Rol SUPER_ADMIN configurado con ${todosLosPermisos.length} permisos.\n`
+            permisosCreados.length > 0
+                ? `Permisos creados: ${permisosCreados.join(', ')}\n`
+                : 'Todos los permisos del sistema ya existen.\n'
         );
 
-        /**
-         * =========================================================
-         * 4. CREAR ROL ADMIN
-         * =========================================================
-         *
-         * Rol administrativo principal.
-         */
+        // ── 2. Obtener todos los permisos del sistema ────────────────────
+        const todosLosPermisos = await Permisos.findAll({ where: { isSystem: true } });
 
-        const [rolAdmin] = await Roles.findOrCreate({
-
-            where: {
-                name: 'ADMIN'
-            },
-
-            defaults: {
-
-                name: 'ADMIN',
-
-                description:
-                    'Administrador principal del sistema',
-
-                isSystem: true
-            }
+        // ── 3. ROL: Administrador ────────────────────────────────────────
+        const rolAdmin = await upsertSystemRole({
+            canonicalName: 'Administrador',
+            description:   'Acceso total al sistema',
         });
+        await rolAdmin.setPermisos(todosLosPermisos.map(p => p.id));
+        console.log(`Rol Administrador configurado con ${todosLosPermisos.length} permisos.\n`);
 
-        if (!rolAdmin.isSystem) {
-
-            await rolAdmin.update({
-                isSystem: true
-            });
-        }
-
-        /**
-         * También recibe todos los permisos.
-         * Puedes limitar permisos más adelante
-         * si deseas.
-         */
-
-        await rolAdmin.setPermisos(
-            todosLosPermisos.map(p => p.id)
+        // ── 4. ROL: Asistente ────────────────────────────────────────────
+        const permisosAsistente = todosLosPermisos.filter(
+            p => !PERMISOS_EXCLUIDOS_ASISTENTE.includes(p.moduleKey)
         );
-
-        console.log(
-            `Rol ADMIN configurado con ${todosLosPermisos.length} permisos.\n`
-        );
-
-        /**
-         * =========================================================
-         * 5. CREAR USUARIO SUPER ADMIN
-         * =========================================================
-         *
-         * Usuario principal del sistema.
-         */
-
-        const existingSuperAdmin = await Usuarios.findOne({
-
-            where: {
-                email: 'admin@jrepuestos.com'
-            }
+        const rolAsistente = await upsertSystemRole({
+            canonicalName: 'Asistente',
+            description:   'Acceso intermedio sin gestión de usuarios ni roles',
         });
+        await rolAsistente.setPermisos(permisosAsistente.map(p => p.id));
+        console.log(`Rol Asistente configurado con ${permisosAsistente.length} permisos.\n`);
 
-        if (!existingSuperAdmin) {
-
-            const hash = await bcrypt.hash('123456', 10);
-
-            await Usuarios.create({
-
-                rolesId: rolSuperAdmin.id,
-
-                email: 'admin@jrepuestos.com',
-
-                password: hash
-            });
-
-            console.log(
-                'SuperAdmin creado: admin@jrepuestos.com / 123456\n'
-            );
-
-        } else {
-
-            console.log(
-                'El usuario SUPER_ADMIN ya existe.\n'
-            );
-        }
-
-        /**
-         * =========================================================
-         * 6. CREAR USUARIO ADMIN
-         * =========================================================
-         */
-
-        const existingAdmin = await Usuarios.findOne({
-
-            where: {
-                email: 'admin@example.com'
-            }
-        });
-
-        if (!existingAdmin) {
-
-            const hash = await bcrypt.hash('123456', 10);
-
-            await Usuarios.create({
-
-                rolesId: rolAdmin.id,
-
-                email: 'admin@example.com',
-
-                password: hash
-            });
-
-            console.log(
-                'Usuario ADMIN creado: admin@example.com / 123456\n'
-            );
-
-        } else {
-
-            console.log(
-                'El usuario ADMIN ya existe.\n'
-            );
-        }
-
-        /**
-         * =========================================================
-         * 7. CREAR ROL CLIENTE
-         * =========================================================
-         *
-         * Rol normal del sistema.
-         * Este sí puede modificarse.
-         */
-
-        const [rolCliente] = await Roles.findOrCreate({
-
-            where: {
-                name: 'CLIENTE'
-            },
-
-            defaults: {
-
-                name: 'CLIENTE',
-
-                description:
-                    'Acceso restringido para clientes',
-
-                isSystem: false
-            }
-        });
-
-        /**
-         * Buscar permisos específicos para clientes.
-         */
-
+        // ── 5. ROL: Cliente ──────────────────────────────────────────────
         const permisosCliente = await Permisos.findAll({
-
-            where: {
-
-                moduleKey: [
-                    'catalog',
-                    'orders',
-                    'sales',
-                    'dashboard'
-                ]
-            }
+            where: { moduleKey: PERMISOS_CLIENTE },
         });
+        const rolCliente = await upsertSystemRole({
+            canonicalName: 'Cliente',
+            description:   'Acceso restringido para clientes del portal',
+        });
+        await rolCliente.setPermisos(permisosCliente.map(p => p.id));
+        console.log(`Rol Cliente configurado con ${permisosCliente.length} permisos.\n`);
 
-        /**
-         * Asignar permisos al cliente.
-         */
+        // ── 6. Usuario Administrador principal ───────────────────────────
+        const existingAdmin = await Usuarios.findOne({
+            where: { email: 'admin@jrepuestos.com' },
+        });
+        if (!existingAdmin) {
+            const hash = await bcrypt.hash('Admin123!', 10);
+            await Usuarios.create({
+                rolesId:  rolAdmin.id,
+                email:    'admin@jrepuestos.com',
+                password: hash,
+            });
+            console.log('Usuario Administrador creado: admin@jrepuestos.com / Admin123!\n');
+        } else {
+            if (existingAdmin.rolesId !== rolAdmin.id) {
+                await existingAdmin.update({ rolesId: rolAdmin.id });
+            }
+            console.log('El usuario Administrador ya existe.\n');
+        }
 
-        await rolCliente.setPermisos(
-            permisosCliente.map(p => p.id)
-        );
-
-        console.log(
-            `Rol CLIENTE configurado con ${permisosCliente.length} permisos.\n`
-        );
-
-        /**
-         * =========================================================
-         * FIN DEL SEED
-         * =========================================================
-         */
+        // ── 7. Usuario Asistente de ejemplo ─────────────────────────────
+        const existingAsistente = await Usuarios.findOne({
+            where: { email: 'asistente@jrepuestos.com' },
+        });
+        if (!existingAsistente) {
+            const hash = await bcrypt.hash('Asistente123!', 10);
+            await Usuarios.create({
+                rolesId:  rolAsistente.id,
+                email:    'asistente@jrepuestos.com',
+                password: hash,
+            });
+            console.log('Usuario Asistente creado: asistente@jrepuestos.com / Asistente123!\n');
+        } else {
+            console.log('El usuario Asistente ya existe.\n');
+        }
 
         console.log('===================================');
         console.log('SEED COMPLETADO CORRECTAMENTE');
         console.log('===================================\n');
 
         process.exit(0);
-
     } catch (error) {
-
         console.error('\nERROR EN EL SEED:\n');
-
         console.error(error);
-        throw error;
+        process.exit(1);
     }
 }
 
-seed();
+module.exports = seed;
+
+if (require.main === module) {
+    seed();
+}

@@ -150,8 +150,31 @@ const updateUsuarios = async (req, res) => {
 const deleteUsuarios = async (req, res) => {
     try {
         const { id } = req.params;
-        const usuario = await Usuarios.findByPk(id);
+        const usuario = await Usuarios.findByPk(id, { include: includeBase });
         if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        // No puede eliminarse a sí mismo
+        if (req.usuario && Number(req.usuario.id) === Number(id)) {
+            return res.status(409).json({ message: 'No puedes eliminar tu propia cuenta.' });
+        }
+
+        // Verificar que no sea el último administrador activo del sistema
+        const rolNombre = usuario.rol?.name?.toUpperCase() ?? '';
+        if (['SUPER_ADMIN', 'ADMIN', 'ADMINISTRADOR'].includes(rolNombre)) {
+            const otrosAdmins = await Usuarios.count({
+                where: {
+                    id:      { [require('sequelize').Op.ne]: id },
+                    estado:  'activo',
+                    rolesId: usuario.rolesId,
+                },
+            });
+            if (otrosAdmins === 0) {
+                return res.status(409).json({
+                    message: 'No se puede eliminar al único administrador activo del sistema.',
+                });
+            }
+        }
+
         await usuario.destroy();
         res.status(200).json({ message: 'Usuario eliminado correctamente' });
     } catch (error) {
@@ -163,8 +186,32 @@ const deleteUsuarios = async (req, res) => {
 const toggleUsuarioEstado = async (req, res) => {
     try {
         const { id } = req.params;
-        const usuario = await Usuarios.findByPk(id);
+        const usuario = await Usuarios.findByPk(id, { include: includeBase });
         if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        // No puede desactivarse a sí mismo
+        if (req.usuario && Number(req.usuario.id) === Number(id) && usuario.estado === 'activo') {
+            return res.status(409).json({ message: 'No puedes desactivar tu propia cuenta.' });
+        }
+
+        // Verificar que no sea el último administrador activo
+        if (usuario.estado === 'activo') {
+            const rolNombre = usuario.rol?.name?.toUpperCase() ?? '';
+            if (['SUPER_ADMIN', 'ADMIN', 'ADMINISTRADOR'].includes(rolNombre)) {
+                const otrosAdmins = await Usuarios.count({
+                    where: {
+                        id:      { [require('sequelize').Op.ne]: id },
+                        estado:  'activo',
+                        rolesId: usuario.rolesId,
+                    },
+                });
+                if (otrosAdmins === 0) {
+                    return res.status(409).json({
+                        message: 'No se puede desactivar al único administrador activo del sistema.',
+                    });
+                }
+            }
+        }
 
         const nuevoEstado = usuario.estado === 'activo' ? 'inactivo' : 'activo';
         await usuario.update({ estado: nuevoEstado });

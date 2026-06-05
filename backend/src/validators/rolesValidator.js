@@ -4,10 +4,15 @@ const { sequelize } = require('../config/jtools_db');
 const { Roles }     = require('../models/index.js');
 
 // Nombres reservados que no pueden usarse como nombre de rol personalizado
-const PROTECTED_ROLES = ['administrador', 'cliente'];
+const PROTECTED_ROLES = ['administrador', 'cliente', 'asistente'];
 
 // Solo letras, números, espacios, guiones y paréntesis (acentos incluidos)
 const NAME_REGEX = /^[\w\sáéíóúÁÉÍÓÚñÑüÜ\-()+]+$/;
+
+// Cuenta dígitos y caracteres especiales permitidos en el nombre
+function contarEspeciales(nombre) {
+    return (nombre.match(/[\d_\-()+]/g) || []).length;
+}
 
 /**
  * Valida los datos para crear un rol.
@@ -25,10 +30,12 @@ async function validateCreateRol(body) {
 
     // ── 2. Nombre ───────────────────────────────────────────────────────
     const nombre = String(body.name).trim();
-    if (nombre.length < 2 || nombre.length > 50)
-        errores.push('El nombre del rol debe tener entre 2 y 50 caracteres');
+    if (nombre.length < 2 || nombre.length > 20)
+        errores.push('El nombre del rol debe tener entre 2 y 20 caracteres');
     else if (!NAME_REGEX.test(nombre))
         errores.push('El nombre solo puede contener letras, números, espacios y guiones');
+    else if (contarEspeciales(nombre) > 2)
+        errores.push('El nombre no puede tener más de 2 números o caracteres especiales');
     else if (PROTECTED_ROLES.includes(nombre.toLowerCase()))
         errores.push(`El nombre "${nombre}" está reservado para roles del sistema y no puede usarse`);
 
@@ -77,10 +84,12 @@ async function validateUpdateRol(body, idExcluir = null) {
             errores.push('El nombre del rol no puede estar vacío');
         } else {
             const nombre = String(body.name).trim();
-            if (nombre.length < 2 || nombre.length > 50)
-                errores.push('El nombre del rol debe tener entre 2 y 50 caracteres');
+            if (nombre.length < 2 || nombre.length > 20)
+                errores.push('El nombre del rol debe tener entre 2 y 20 caracteres');
             else if (!NAME_REGEX.test(nombre))
                 errores.push('El nombre solo puede contener letras, números, espacios y guiones');
+            else if (contarEspeciales(nombre) > 2)
+                errores.push('El nombre no puede tener más de 2 números o caracteres especiales');
             else if (PROTECTED_ROLES.includes(nombre.toLowerCase()))
                 errores.push(`El nombre "${nombre}" está reservado para roles del sistema y no puede usarse`);
         }

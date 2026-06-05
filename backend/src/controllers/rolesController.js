@@ -1,6 +1,17 @@
 const { Roles, Usuarios } = require('../models/index.js');
 const { validateCreateRol, validateUpdateRol, validateSetPermisos } = require('../validators/rolesValidator');
 
+// ── Helper: rechaza cualquier operación sobre un rol del sistema ──────────────
+function guardaIsSystem(role, res) {
+    if (role.isSystem) {
+        res.status(403).json({
+            message: `El rol "${role.name}" es un rol protegido del sistema y no puede modificarse ni eliminarse.`,
+        });
+        return true;
+    }
+    return false;
+}
+
 // GET - listar roles (incluye permisos de cada rol)
 const getRoles = async (_req, res) => {
     try {
@@ -18,12 +29,10 @@ const getRolesById = async (req, res) => {
     try {
         const { id } = req.params;
         const role = await Roles.findByPk(id);
-        if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado'});
-        }
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
         res.status(200).json(role);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener el rol', error:error.message});
+        res.status(500).json({ message: 'Error al obtener el rol', error: error.message });
     }
 };
 
@@ -36,7 +45,6 @@ const createRoles = async (req, res) => {
         const { name, description, permisosIds } = req.body;
         const role = await Roles.create({ name: String(name).trim(), description: description?.trim() || null });
 
-        // Asignar permisos al rol recién creado
         await role.setPermisos(permisosIds);
 
         const created = await Roles.findByPk(role.id, {
@@ -56,18 +64,20 @@ const createRoles = async (req, res) => {
 // PUT - actualizar rol
 const updateRoles = async (req, res) => {
     try {
-        const errores = await validateUpdateRol(req.body, Number(req.params.id));
-        if (errores.length) return res.status(400).json({ message: 'Error de validación', errores });
-
         const { id } = req.params;
         const role = await Roles.findByPk(id);
-        if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado' });
-        }
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+
+        // ── Guardia: roles del sistema no se pueden editar ──────────────
+        if (guardaIsSystem(role, res)) return;
+
+        const errores = await validateUpdateRol(req.body, Number(id));
+        if (errores.length) return res.status(400).json({ message: 'Error de validación', errores });
+
         const { name, description } = req.body;
         await role.update({
-            ...(name        !== undefined ? { name:        String(name).trim()              } : {}),
-            ...(description !== undefined ? { description: description?.trim() || null      } : {}),
+            ...(name        !== undefined ? { name:        String(name).trim()         } : {}),
+            ...(description !== undefined ? { description: description?.trim() || null } : {}),
         });
         return res.status(200).json({ message: 'Rol actualizado correctamente', role });
     } catch (error) {
@@ -84,12 +94,11 @@ const deleteRoles = async (req, res) => {
     try {
         const { id } = req.params;
         const role = await Roles.findByPk(id);
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
 
-        if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado' });
-        }
+        // ── Guardia: roles del sistema no se pueden eliminar ────────────
+        if (guardaIsSystem(role, res)) return;
 
-        // Verificar explícitamente si hay usuarios con este rol antes de intentar borrar
         const totalUsuarios = await Usuarios.count({ where: { rolesId: id } });
         if (totalUsuarios > 0) {
             return res.status(409).json({
@@ -97,18 +106,16 @@ const deleteRoles = async (req, res) => {
             });
         }
 
-        // Limpiar permisos del rol antes de eliminar (evita FK en tabla rol_permisos)
         await role.setPermisos([]);
         await role.destroy();
         res.status(200).json({ message: 'Rol eliminado correctamente' });
-
     } catch (error) {
         if (
             error.name === 'SequelizeForeignKeyConstraintError' ||
             (error.parent && error.parent.code === '23503')
         ) {
             return res.status(409).json({
-                message: 'No se puede eliminar el rol porque tiene usuarios asignados. Reasigna o elimina esos usuarios primero.'
+                message: 'No se puede eliminar el rol porque tiene usuarios asignados.'
             });
         }
         res.status(500).json({ message: 'Error al eliminar el rol', error: error.message });
@@ -122,17 +129,10 @@ const getRolPermisos = async (req, res) => {
         const role = await Roles.findByPk(id, {
             include: [{ association: 'permisos' }]
         });
-
-        if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado' });
-        }
-
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
         return res.status(200).json(role.permisos);
     } catch (error) {
-        return res.status(500).json({ 
-            message: 'Error al obtener permisos del rol', 
-            error: error.message 
-        });
+        return res.status(500).json({ message: 'Error al obtener permisos del rol', error: error.message });
     }
 };
 
@@ -140,35 +140,24 @@ const getRolPermisos = async (req, res) => {
 const setRolPermisos = async (req, res) => {
     try {
         const { id } = req.params;
-        const { permisosIds } = req.body;
-        // permisosIds es un array de IDs: [1, 2, 3]
+        const role = await Roles.findByPk(id);
+        if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+
+        // ── Guardia: roles del sistema no se pueden modificar ───────────
+        if (guardaIsSystem(role, res)) return;
 
         const erroresPermisos = validateSetPermisos(req.body);
         if (erroresPermisos.length) return res.status(400).json({ message: 'Error de validación', errores: erroresPermisos });
 
-        const role = await Roles.findByPk(id);
-        if (!role) {
-            return res.status(404).json({ message: 'Rol no encontrado' });
-        }
+        await role.setPermisos(req.body.permisosIds);
 
-        // setPermisos reemplaza toda la lista de una vez
-        // Sequelize elimina los anteriores e inserta los nuevos automáticamente
-        await role.setPermisos(permisosIds);
-
-        // Devolver el rol con sus permisos actualizados
         const updated = await Roles.findByPk(id, {
             include: [{ association: 'permisos' }]
         });
 
-        return res.status(200).json({ 
-            message: 'Permisos actualizados correctamente', 
-            role: updated 
-        });
+        return res.status(200).json({ message: 'Permisos actualizados correctamente', role: updated });
     } catch (error) {
-        return res.status(500).json({ 
-            message: 'Error al actualizar permisos del rol', 
-            error: error.message 
-        });
+        return res.status(500).json({ message: 'Error al actualizar permisos del rol', error: error.message });
     }
 };
 
@@ -178,8 +167,25 @@ const toggleRolActivo = async (req, res) => {
         const { id } = req.params;
         const role = await Roles.findByPk(id);
         if (!role) return res.status(404).json({ message: 'Rol no encontrado' });
+
+        // ── Guardia: roles del sistema no se pueden desactivar ──────────
+        if (guardaIsSystem(role, res)) return;
+
+        // Si se intenta desactivar, verificar que no haya usuarios con este rol
+        if (role.isActive) {
+            const totalUsuarios = await Usuarios.count({ where: { rolesId: id } });
+            if (totalUsuarios > 0) {
+                return res.status(409).json({
+                    message: `No se puede desactivar el rol porque tiene ${totalUsuarios} usuario(s) asignado(s). Reasigna esos usuarios primero.`,
+                });
+            }
+        }
+
         await role.update({ isActive: !role.isActive });
-        return res.status(200).json({ message: `Rol ${role.isActive ? 'activado' : 'desactivado'}`, role });
+        return res.status(200).json({
+            message: `Rol ${role.isActive ? 'desactivado' : 'activado'} correctamente`,
+            role,
+        });
     } catch (error) {
         return res.status(500).json({ message: 'Error al cambiar estado del rol', error: error.message });
     }

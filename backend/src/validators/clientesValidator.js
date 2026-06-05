@@ -2,8 +2,9 @@
 //  JRepuestos Medellín
 // ============================================================
 
-const { Op }      = require('sequelize');
-const { Clientes } = require('../models/index.js');
+const { Op }       = require('sequelize');
+const { sequelize } = require('../config/jtools_db');
+const { Clientes }  = require('../models/index.js');
 
 const TIPOS_DOCUMENTO = ['cedula', 'nit', 'cedula de extranjeria', 'pasaporte', 'rut'];
 
@@ -131,19 +132,25 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
 
     // ── 13. Duplicados — solo si no hay errores previos ────────────────
     if (errores.length === 0) {
-        const whereExcluir = idExcluir ? { id: { [Op.ne]: idExcluir } } : {};
+        const excluirId = idExcluir ? [{ id: { [Op.ne]: idExcluir } }] : [];
 
         if (email) {
+            // Case-insensitive: LOWER(email) = LOWER(:valor)
+            const condEmail = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('email')),
+                email.trim().toLowerCase()
+            );
             const emailExiste = await Clientes.findOne({
-                where: { ...whereExcluir, email: email.trim() },
+                where: { [Op.and]: [condEmail, ...excluirId] },
             });
             if (emailExiste)
                 errores.push('Ya existe un cliente registrado con ese correo electrónico');
         }
 
-        if (numero_documento) {
+        if (numero_documento && !errores.length) {
+            // Número de documento: comparación exacta (ya está normalizado)
             const docExiste = await Clientes.findOne({
-                where: { ...whereExcluir, numero_documento: String(numero_documento).trim() },
+                where: { [Op.and]: [{ numero_documento: String(numero_documento).trim() }, ...excluirId] },
             });
             if (docExiste)
                 errores.push('Ya existe un cliente registrado con ese número de documento');

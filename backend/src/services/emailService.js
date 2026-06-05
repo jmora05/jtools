@@ -1,6 +1,4 @@
-const brevo = require('@getbrevo/brevo');
-
-const transactionalApi = new brevo.TransactionalEmailsApi();
+const { BrevoClient } = require('@getbrevo/brevo');
 
 /**
  * Envía el OTP de recuperación de contraseña al email del usuario usando Brevo.
@@ -18,15 +16,13 @@ async function sendOtpEmail({ to, otp, userName }) {
         throw new Error('BREVO_SENDER_EMAIL no está configurada');
     }
 
-    // Autenticación por instancia (patrón correcto en @getbrevo/brevo v2.x)
-    transactionalApi.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
+    const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
-    const email = new brevo.SendSmtpEmail();
-
-    email.sender  = { name: senderName, email: senderEmail };
-    email.to      = [{ email: to }];
-    email.subject = 'Código de recuperación de contraseña — Jrepuestos';
-    email.htmlContent = `
+    const email = {
+        sender:  { name: senderName, email: senderEmail },
+        to:      [{ email: to }],
+        subject: 'Código de recuperación de contraseña — Jrepuestos',
+        htmlContent: `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -73,10 +69,11 @@ async function sendOtpEmail({ to, otp, userName }) {
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`,
+    };
 
     try {
-        const result = await transactionalApi.sendTransacEmail(email);
+        const result = await client.transactionalEmails.sendTransacEmail(email);
         console.log(`[Brevo] Email enviado a ${to} — messageId: ${result?.body?.messageId || result?.messageId || 'OK'}`);
         return result;
     } catch (err) {

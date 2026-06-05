@@ -1,5 +1,8 @@
-// src/validators/productoValidator.js  (o donde lo tengas actualmente)
+// src/validators/productoValidator.js
 const { body, validationResult } = require('express-validator');
+const { Op }        = require('sequelize');
+const { sequelize } = require('../config/jtools_db');
+const { Productos } = require('../models/index.js');
 
 // ─── Manejador de errores ─────────────────────────────────────────────────────
 const manejarErrores = (req, res, next) => {
@@ -102,6 +105,32 @@ const validarCrearProducto = [
         .withMessage('El estado solo puede ser "activo" o "inactivo".'),
 
     validarImagen,
+
+    // ── Duplicado nombre (case-insensitive) ───────────────────────────────────
+    body('nombreProducto').custom(async (value) => {
+        if (!value) return true;
+        const existe = await Productos.findOne({
+            where: sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('nombreProducto')),
+                String(value).trim().toLowerCase()
+            ),
+        });
+        if (existe) throw new Error('Ya existe un producto con ese nombre');
+        return true;
+    }),
+
+    // ── Duplicado referencia (case-insensitive) ───────────────────────────────
+    body('referencia').custom(async (value) => {
+        if (!value) return true;
+        const existe = await Productos.findOne({
+            where: sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('referencia')),
+                String(value).trim().toLowerCase()
+            ),
+        });
+        if (existe) throw new Error('Ya existe un producto con esa referencia');
+        return true;
+    }),
 ];
 
 // ─── Actualizar producto ──────────────────────────────────────────────────────
@@ -150,6 +179,40 @@ const validarActualizarProducto = [
         .withMessage('El estado solo puede ser "activo" o "inactivo".'),
 
     validarImagen,
+
+    // ── Duplicado nombre (case-insensitive, excluyendo el producto actual) ────
+    body('nombreProducto').optional().custom(async (value, { req }) => {
+        if (!value) return true;
+        const idActual = Number(req.params?.id);
+        const where = sequelize.where(
+            sequelize.fn('LOWER', sequelize.col('nombreProducto')),
+            String(value).trim().toLowerCase()
+        );
+        const existe = await Productos.findOne({
+            where: idActual
+                ? { [Op.and]: [where, { id: { [Op.ne]: idActual } }] }
+                : where,
+        });
+        if (existe) throw new Error('Ya existe un producto con ese nombre');
+        return true;
+    }),
+
+    // ── Duplicado referencia (case-insensitive, excluyendo el producto actual) ─
+    body('referencia').optional().custom(async (value, { req }) => {
+        if (!value) return true;
+        const idActual = Number(req.params?.id);
+        const where = sequelize.where(
+            sequelize.fn('LOWER', sequelize.col('referencia')),
+            String(value).trim().toLowerCase()
+        );
+        const existe = await Productos.findOne({
+            where: idActual
+                ? { [Op.and]: [where, { id: { [Op.ne]: idActual } }] }
+                : where,
+        });
+        if (existe) throw new Error('Ya existe un producto con esa referencia');
+        return true;
+    }),
 ];
 
 module.exports = { validarCrearProducto, validarActualizarProducto, manejarErrores };
