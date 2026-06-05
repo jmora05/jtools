@@ -46,9 +46,11 @@ const { verifyToken, requireAdmin } = require('./middleware/authMiddleware.js');
 app.use('/api/auth',      authRoutes);
 app.use('/api/dashboard', verifyToken, dashboardRoutes);
 
-// ── Ruta pública de productos (para el landing, sin autenticación) ──
+// ── Rutas públicas (para el landing, sin autenticación) ──
 const { getProductos: getPublicProductos } = require('./controllers/productosController');
+const { getCategorias: getPublicCategorias } = require('./controllers/categoriaProductosController');
 app.get('/api/public/productos', getPublicProductos);
+app.get('/api/public/categorias', getPublicCategorias);
 
 // ── Rutas PROTEGIDAS (cualquier usuario autenticado) ──
 app.use('/api/productos',               verifyToken, productosRoutes);
