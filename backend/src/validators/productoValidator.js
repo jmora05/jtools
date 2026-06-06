@@ -66,7 +66,12 @@ const validarCrearProducto = [
         .notEmpty().withMessage('El nombre es obligatorio.')
         .isLength({ min: 2, max: 30 }).withMessage('El nombre debe tener entre 2 y 30 caracteres.')
         .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
-        .withMessage('El nombre no puede contener caracteres especiales.'),
+        .withMessage('El nombre no puede contener caracteres especiales.')
+        .custom((v) => {
+            if ((v.match(/[0-9]/g) || []).length > 2) throw new Error('El nombre no puede contener más de 2 números.');
+            if ((v.match(/[-.,()]/g) || []).length > 1) throw new Error('El nombre no puede contener más de 1 carácter especial (-, ., ,, paréntesis).');
+            return true;
+        }),
 
     body('referencia')
         .trim()
@@ -139,6 +144,11 @@ const validarActualizarProducto = [
         .optional()
         .trim()
         .isLength({ min: 2, max: 30 }).withMessage('El nombre debe tener entre 2 y 30 caracteres.')
+        .custom((v) => {
+            if ((v.match(/[0-9]/g) || []).length > 2) throw new Error('El nombre no puede contener más de 2 números.');
+            if ((v.match(/[-.,()]/g) || []).length > 1) throw new Error('El nombre no puede contener más de 1 carácter especial (-, ., ,, paréntesis).');
+            return true;
+        })
         .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
         .withMessage('El nombre no puede contener caracteres especiales.'),
 

@@ -42,10 +42,14 @@ function validateCategoryForm(form: FormData): FormErrors {
         errors.nombreCategoria = 'El nombre es obligatorio.';
     else if (form.nombreCategoria.trim().length < 2)
         errors.nombreCategoria = 'Mínimo 2 caracteres.';
-    else if (form.nombreCategoria.trim().length > 50)
-        errors.nombreCategoria = 'El nombre no puede superar 50 caracteres.';
+    else if (form.nombreCategoria.trim().length > 30)
+        errors.nombreCategoria = 'El nombre no puede superar 30 caracteres.';
     else if (!SOLO_TEXTO_REGEX.test(form.nombreCategoria))
         errors.nombreCategoria = 'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.';
+    else if ((form.nombreCategoria.match(/[0-9]/g) || []).length > 2)
+        errors.nombreCategoria = 'El nombre no puede contener más de 2 números.';
+    else if ((form.nombreCategoria.match(/[-.,()]/g) || []).length > 1)
+        errors.nombreCategoria = 'El nombre no puede contener más de 1 carácter especial (-, ., ,, paréntesis).';
 
     if (form.descripcion && form.descripcion.trim().length > 0 && form.descripcion.trim().length < 5)
         errors.descripcion = 'La descripción debe tener al menos 5 caracteres si se ingresa.';
@@ -117,7 +121,7 @@ const CategoryForm = ({ formData, onChange, errors, touched, onBlur, duplicateOf
                 onChange={(e) => onChange('nombreCategoria', e.target.value)}
                 onBlur={() => onBlur('nombreCategoria')}
                 onKeyDown={bloquearCaracteresTexto}
-                maxLength={50}
+                maxLength={30}
                 autoFocus
                 className={
                     (touched.nombreCategoria && errors.nombreCategoria) || duplicateOf

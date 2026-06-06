@@ -9,7 +9,9 @@ const MSG = {
     nombreReq:    'El nombre de la categoría es obligatorio.',
     nombreCarEsp: 'El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.',
     nombreMin:    'El nombre debe tener al menos 2 caracteres.',
-    nombreMax:    'El nombre no puede superar los 50 caracteres.',
+    nombreMax:    'El nombre no puede superar los 30 caracteres.',
+    nombreNumeros: 'El nombre no puede contener más de 2 números.',
+    nombreEspeciales: 'El nombre no puede contener más de 1 carácter especial (-, ., ,, paréntesis).',
 
     descCarEsp:   'La descripción contiene caracteres no permitidos ($, %, @, #, &, *, etc.).',
     descMax:      'La descripción no puede superar los 255 caracteres.',
@@ -23,8 +25,13 @@ const validarCrearCategoria = [
         .trim()
         .notEmpty().withMessage(MSG.nombreReq)
         .isLength({ min: 2 }).withMessage(MSG.nombreMin)
-        .isLength({ max: 50 }).withMessage(MSG.nombreMax)
-        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp),
+        .isLength({ max: 30 }).withMessage(MSG.nombreMax)
+        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp)
+        .custom((v) => {
+            if ((v.match(/[0-9]/g) || []).length > 2) throw new Error(MSG.nombreNumeros);
+            if ((v.match(/[-.,()]/g) || []).length > 1) throw new Error(MSG.nombreEspeciales);
+            return true;
+        }),
 
     body('descripcion')
         .optional({ nullable: true, checkFalsy: true })
@@ -44,8 +51,13 @@ const validarActualizarCategoria = [
         .trim()
         .notEmpty().withMessage(MSG.nombreReq)
         .isLength({ min: 2 }).withMessage(MSG.nombreMin)
-        .isLength({ max: 50 }).withMessage(MSG.nombreMax)
-        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp),
+        .isLength({ max: 30 }).withMessage(MSG.nombreMax)
+        .matches(SOLO_TEXTO).withMessage(MSG.nombreCarEsp)
+        .custom((v) => {
+            if ((v.match(/[0-9]/g) || []).length > 2) throw new Error(MSG.nombreNumeros);
+            if ((v.match(/[-.,()]/g) || []).length > 1) throw new Error(MSG.nombreEspeciales);
+            return true;
+        }),
 
     body('descripcion')
         .optional({ nullable: true, checkFalsy: true })

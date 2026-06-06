@@ -56,10 +56,14 @@ function validateProductoForm(form: ProductoForm): FormErrors {
         errors.nombreProducto = 'El nombre es obligatorio.';
     else if (form.nombreProducto.trim().length < 2)
         errors.nombreProducto = 'Mínimo 2 caracteres.';
-    else if (form.nombreProducto.trim().length > 100)
-        errors.nombreProducto = 'Máximo 100 caracteres.';
+    else if (form.nombreProducto.trim().length > 30)
+        errors.nombreProducto = 'Máximo 30 caracteres.';
     else if (!SOLO_TEXTO_REGEX.test(form.nombreProducto))
         errors.nombreProducto = 'No puede contener caracteres especiales.';
+    else if ((form.nombreProducto.match(/[0-9]/g) || []).length > 2)
+        errors.nombreProducto = 'El nombre no puede contener más de 2 números.';
+    else if ((form.nombreProducto.match(/[-.,()]/g) || []).length > 1)
+        errors.nombreProducto = 'El nombre no puede contener más de 1 carácter especial (-, ., ,, paréntesis).';
 
     if (!form.referencia.trim())
         errors.referencia = 'La referencia es obligatoria.';
