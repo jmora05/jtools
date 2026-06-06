@@ -10,7 +10,7 @@ const Novedades = sequelize.define('Novedades', {
     },
 
     titulo: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false
     },
 

@@ -22,7 +22,7 @@ const Productos = sequelize.define(
         },
 
         nombreProducto: {
-            type: DataTypes.STRING(100),
+            type: DataTypes.STRING(30),
             allowNull: false,
             unique: {
                 name: 'unique_product_name',
@@ -30,7 +30,7 @@ const Productos = sequelize.define(
             },
             validate: {
                 notEmpty: { msg: 'El nombre del producto no puede estar vacío.' },
-                len: { args: [2, 100], msg: 'El nombre del producto debe tener entre 2 y 100 caracteres.' },
+                len: { args: [2, 30], msg: 'El nombre del producto debe tener entre 2 y 30 caracteres.' },
                 sinCaracteresEspeciales(value) {
                     if (!SOLO_TEXTO.test(value)) {
                         throw new Error('El nombre no puede contener caracteres especiales como $, %, @, #, &, *, etc.');
@@ -40,7 +40,7 @@ const Productos = sequelize.define(
         },
 
         referencia: {
-            type: DataTypes.STRING(50),
+            type: DataTypes.STRING(30),
             allowNull: false,
             unique: {
                 name: 'unique_product_reference',
@@ -69,7 +69,7 @@ const Productos = sequelize.define(
         },
 
         descripcion: {
-            type: DataTypes.STRING(255),
+            type: DataTypes.STRING(100),
             allowNull: true,
             defaultValue: null,
             validate: {

@@ -23,7 +23,7 @@ const Insumos = sequelize.define('Insumos', {
     },
 
     descripcion: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(100),
         allowNull: true,
         defaultValue: null,
         validate: {

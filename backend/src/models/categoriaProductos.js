@@ -13,7 +13,7 @@ const CategoriaProductos = sequelize.define('CategoriaProductos', {
     },
 
     nombreCategoria: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         unique: {
             name: 'unique_category_name',
@@ -24,8 +24,8 @@ const CategoriaProductos = sequelize.define('CategoriaProductos', {
                 msg: 'El nombre de la categoría no puede estar vacío.',
             },
             len: {
-                args: [2, 50],
-                msg: 'El nombre debe tener entre 2 y 50 caracteres.',
+                args: [2, 30],
+                msg: 'El nombre debe tener entre 2 y 30 caracteres.',
             },
             sinCaracteresEspeciales(value) {
                 if (!SOLO_TEXTO.test(value)) {
@@ -38,7 +38,7 @@ const CategoriaProductos = sequelize.define('CategoriaProductos', {
     },
 
     descripcion: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(100),
         allowNull: true,
         defaultValue: null,
         validate: {

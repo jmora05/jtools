@@ -10,7 +10,7 @@ const Proveedores = sequelize.define('Proveedores', {
     },
 
     nombreEmpresa: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: false,
         unique: {
             name: 'unique_nombre_empresa',
@@ -18,7 +18,7 @@ const Proveedores = sequelize.define('Proveedores', {
         },
         validate: {
             notEmpty: { msg: 'El nombre de la empresa no puede estar vacío' },
-            len: { args: [2, 100], msg: 'El nombre de la empresa debe tener entre 2 y 100 caracteres' }
+            len: { args: [2, 30], msg: 'El nombre de la empresa debe tener entre 2 y 30 caracteres' }
         }
     },
 
@@ -29,7 +29,7 @@ const Proveedores = sequelize.define('Proveedores', {
     },
 
     numeroDocumento: {
-        type: DataTypes.STRING(20),
+        type: DataTypes.STRING(11),
         allowNull: false,
         unique: {
             name: 'unique_numero_documento',
@@ -42,7 +42,7 @@ const Proveedores = sequelize.define('Proveedores', {
     },
 
     personaContacto: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: true,
         defaultValue: null,
     },

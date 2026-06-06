@@ -10,7 +10,7 @@ const Permisos = sequelize.define('Permisos', {
         comment: 'Identificador único del permiso                                           '
     },
     name: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         unique: {
             name: 'unique_permiso_name',
@@ -22,7 +22,7 @@ const Permisos = sequelize.define('Permisos', {
         }
     },
     description: {
-        type: DataTypes.STRING(200),
+        type: DataTypes.STRING(100),
         allowNull: true,
         defaultValue: null
     },
@@ -33,7 +33,7 @@ const Permisos = sequelize.define('Permisos', {
         comment: 'Indica si el permiso corresponde a un módulo del sistema (no eliminable)'
     },
     moduleKey: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: true,
         defaultValue: null,
         comment: 'Clave única del módulo del sistema (ej: dashboard, clients, sales)'

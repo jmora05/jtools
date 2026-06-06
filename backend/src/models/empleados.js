@@ -15,7 +15,7 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     numeroDocumento: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING(11),
         allowNull: false,
         unique: {
             name: 'unique_numero_documento',
@@ -29,25 +29,25 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     nombres: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'Los nombres no pueden estar vacíos' },
-            len: { args: [2, 100], msg: 'Los nombres deben tener entre 2 y 100 caracteres' }
+            len: { args: [2, 30], msg: 'Los nombres deben tener entre 2 y 30 caracteres' }
         }
     },
 
     apellidos: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'Los apellidos no pueden estar vacíos' },
-            len: { args: [2, 100], msg: 'Los apellidos deben tener entre 2 y 100 caracteres' }
+            len: { args: [2, 30], msg: 'Los apellidos deben tener entre 2 y 30 caracteres' }
         }
     },
 
     telefono: {
-        type: DataTypes.STRING(17),
+        type: DataTypes.STRING(11),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'El teléfono no puede estar vacío' }
@@ -55,7 +55,7 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     email: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         // ✅ Eliminado defaultValue: null (contradecía allowNull: false)
         unique: {
@@ -70,11 +70,11 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     cargo: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'El cargo no puede estar vacío' },
-            len: { args: [1, 100], msg: 'El cargo debe tener entre 1 y 100 caracteres' }
+            len: { args: [1, 30], msg: 'El cargo debe tener entre 1 y 30 caracteres' }
         }
     },
 
@@ -93,13 +93,13 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     direccion: {
-        type: DataTypes.STRING(200),
+        type: DataTypes.STRING(100),
         allowNull: true,
         defaultValue: null
     },
 
     ciudad: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(10),
         allowNull: true,
         defaultValue: null
     },

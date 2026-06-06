@@ -18,7 +18,7 @@ const PasswordResetOtp = sequelize.define('PasswordResetOtp', {
     },
     // OTP hasheado con bcrypt
     otpHash: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(100),
         allowNull: false,
     },
     // Cuándo expira

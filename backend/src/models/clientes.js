@@ -10,11 +10,11 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     razon_social: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: true,
         defaultValue: null,
         validate: {
-            len: { args: [0, 100], msg: 'La razón social debe tener máximo 100 caracteres' }
+            len: { args: [0, 30], msg: 'La razón social debe tener máximo 30 caracteres' }
         }
     },
  
@@ -46,12 +46,12 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     nombres: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         validate: {
             notNull:  { msg: 'El nombre es obligatorio' },
             notEmpty: { msg: 'El nombre no puede estar vacío' },
-            len: { args: [2, 50], msg: 'El nombre debe tener entre 2 y 50 caracteres' },
+            len: { args: [2, 30], msg: 'El nombre debe tener entre 2 y 30 caracteres' },
             soloLetras(value) {
                 if (value === 'N/A') return; // ← excepción para clientes tipo Empresa
                 if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
@@ -62,12 +62,12 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     apellidos: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         validate: {
             notNull:  { msg: 'El apellido es obligatorio' },
             notEmpty: { msg: 'El apellido no puede estar vacío' },
-            len: { args: [2, 50], msg: 'El apellido debe tener entre 2 y 50 caracteres' },
+            len: { args: [2, 30], msg: 'El apellido debe tener entre 2 y 30 caracteres' },
             soloLetras(value) {
                 if (value === 'N/A') return; // ← excepción para clientes tipo Empresa
                 if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
@@ -79,11 +79,11 @@ const Clientes = sequelize.define('Clientes', {
 
     // ── NUEVO: Persona de contacto para clientes tipo Empresa ──────────
     contacto: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: true,
         defaultValue: null,
         validate: {
-            len: { args: [0, 100], msg: 'El contacto debe tener máximo 100 caracteres' },
+            len: { args: [0, 30], msg: 'El contacto debe tener máximo 30 caracteres' },
             soloLetras(value) {
                 if (!value) return;
                 if (!/^[a-záéíóúüñA-ZÁÉÍÓÚÜÑ\s]+$/.test(value)) {
@@ -109,7 +109,7 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     email: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: false,
         unique: {
             name: 'unique_email_cliente',
@@ -124,7 +124,7 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     direccion: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(30),
         allowNull: true,
         defaultValue: null,
         validate: {
@@ -133,7 +133,7 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     ciudad: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(10),
         allowNull: false,
         validate: {
             notNull:  { msg: 'La ciudad es obligatoria' },

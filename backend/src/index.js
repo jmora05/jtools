@@ -104,6 +104,18 @@ testConnection()
         `ALTER TABLE insumos ALTER COLUMN "nombreInsumo" TYPE VARCHAR(30)`,
         // Ampliar teléfono de proveedores a 15 dígitos
         `ALTER TABLE proveedores ALTER COLUMN "telefono" TYPE VARCHAR(15)`,
+        // Reducir campos de nombre a VARCHAR(30) en todas las tablas
+        `ALTER TABLE empleados ALTER COLUMN "nombres" TYPE VARCHAR(30) USING SUBSTRING("nombres", 1, 30)`,
+        `ALTER TABLE empleados ALTER COLUMN "apellidos" TYPE VARCHAR(30) USING SUBSTRING("apellidos", 1, 30)`,
+        `ALTER TABLE empleados ALTER COLUMN "cargo" TYPE VARCHAR(30) USING SUBSTRING("cargo", 1, 30)`,
+        `ALTER TABLE clientes ALTER COLUMN "nombres" TYPE VARCHAR(30) USING SUBSTRING("nombres", 1, 30)`,
+        `ALTER TABLE clientes ALTER COLUMN "apellidos" TYPE VARCHAR(30) USING SUBSTRING("apellidos", 1, 30)`,
+        `ALTER TABLE clientes ALTER COLUMN "razon_social" TYPE VARCHAR(30) USING SUBSTRING("razon_social", 1, 30)`,
+        `ALTER TABLE clientes ALTER COLUMN "contacto" TYPE VARCHAR(30) USING SUBSTRING("contacto", 1, 30)`,
+        `ALTER TABLE productos ALTER COLUMN "nombreProducto" TYPE VARCHAR(30) USING SUBSTRING("nombreProducto", 1, 30)`,
+        `ALTER TABLE proveedores ALTER COLUMN "nombreEmpresa" TYPE VARCHAR(30) USING SUBSTRING("nombreEmpresa", 1, 30)`,
+        `ALTER TABLE proveedores ALTER COLUMN "personaContacto" TYPE VARCHAR(30) USING SUBSTRING("personaContacto", 1, 30)`,
+        `ALTER TABLE "categoriaProductos" ALTER COLUMN "nombreCategoria" TYPE VARCHAR(30) USING SUBSTRING("nombreCategoria", 1, 30)`,
     ];
     for (const sql of migraciones) {
         try {

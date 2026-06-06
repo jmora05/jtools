@@ -14,7 +14,7 @@ rolesId: {
     comment: 'ID del rol asociado al usuario'
 },
 email: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.STRING(100),
     allowNull: false,
     defaultValue: null,
     unique: {

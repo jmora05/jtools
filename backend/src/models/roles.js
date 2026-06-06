@@ -10,7 +10,7 @@
         },
 
         name: {
-            type: DataTypes.STRING(50), // ✅ STRING en vez de VARCHAR (Sequelize no tiene VARCHAR)
+            type: DataTypes.STRING(30), // ✅ STRING en vez de VARCHAR (Sequelize no tiene VARCHAR)
             allowNull: false,
             unique: {
                 name: 'unique_role_name',
@@ -23,7 +23,7 @@
         },
 
         description: {
-            type: DataTypes.STRING(200),
+            type: DataTypes.STRING(100),
             allowNull: true,
             defaultValue: null
         },

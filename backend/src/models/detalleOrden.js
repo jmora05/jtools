@@ -47,7 +47,7 @@ const DetalleOrden = sequelize.define('DetalleOrden', {
     },
 
     descripcion: { 
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(100),
         allowNull: true,
         validate: {
             len: { args: [0, 255], msg: 'La descripción debe tener como máximo 255 caracteres' }
