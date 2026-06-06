@@ -19,6 +19,7 @@ const SYSTEM_MODULES = [
   { moduleKey: 'production-employees',        name: 'Empleados de Producción',     description: 'Gestión de empleados de producción' },
   { moduleKey: 'production-orders-sub',       name: 'Órdenes de Producción',       description: 'Gestión de órdenes de producción' },
   { moduleKey: 'production-technical-sheets', name: 'Fichas Técnicas',             description: 'Gestión de fichas técnicas' },
+  { moduleKey: 'payroll',                     name: 'Nómina',                      description: 'Módulo de control de pagos y nómina' },
 ];
 
 // GET /api/permisos — listar todos los permisos del sistema

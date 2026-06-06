@@ -984,14 +984,14 @@ export function PayrollModule() {
               <table className="w-full">
                 <thead className="bg-blue-900">
                   <tr>
-                    <th className="px-6 py-4 text-left text-black font-semibold">Empleado</th>
-                    <th className="px-6 py-4 text-left text-black font-semibold">Cargo</th>
-                    <th className="px-6 py-4 text-left text-black font-semibold">Período</th>
-                    <th className="px-6 py-4 text-right text-black font-semibold">Salario base</th>
-                    <th className="px-6 py-4 text-center text-black font-semibold">Días de trabajo</th>
-                    <th className="px-6 py-4 text-right text-black font-semibold">Neto a pagar</th>
-                    <th className="px-6 py-4 text-center text-black font-semibold">Estado</th>
-                    <th className="px-6 py-4 text-center text-black font-semibold">Acciones</th>
+                    <th className="px-6 py-4 text-left text-white font-semibold">Empleado</th>
+                    <th className="px-6 py-4 text-left text-white font-semibold">Cargo</th>
+                    <th className="px-6 py-4 text-left text-white font-semibold">Período</th>
+                    <th className="px-6 py-4 text-right text-white font-semibold">Salario base</th>
+                    <th className="px-6 py-4 text-center text-white font-semibold">Días de trabajo</th>
+                    <th className="px-6 py-4 text-right text-white font-semibold">Neto a pagar</th>
+                    <th className="px-6 py-4 text-center text-white font-semibold">Estado</th>
+                    <th className="px-6 py-4 text-center text-white font-semibold">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
