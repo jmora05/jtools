@@ -46,8 +46,8 @@ function validarProveedor(data, esActualizacion = false) {
     // ── 2. Nombre de la empresa / persona ──────────────────────────────────────
     if (nombreEmpresa) {
         const ne = nombreEmpresa.trim();
-        if (ne.length < 2 || ne.length > 100) {
-            errores.push('El nombre debe tener entre 2 y 100 caracteres');
+        if (ne.length < 2 || ne.length > 30) {
+            errores.push('El nombre debe tener entre 2 y 30 caracteres');
         }
     }
 

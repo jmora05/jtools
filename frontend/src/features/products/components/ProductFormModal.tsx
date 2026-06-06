@@ -493,7 +493,7 @@ export function ProductFormModal({
                                     onBlur={() => handleBlur('nombreProducto')}
                                     onKeyDown={bloquearTexto}
                                     placeholder="Ej: Filtro de Aceite Toyota"
-                                    maxLength={100} autoFocus
+                                    maxLength={30} autoFocus
                                     style={{
                                         height: 40, fontSize: 14, background: '#fff',
                                         borderColor: (touched.nombreProducto && errors.nombreProducto)

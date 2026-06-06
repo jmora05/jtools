@@ -98,7 +98,7 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="p-0 max-w-lg overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+            <DialogContent hideCloseButton className="p-0 max-w-lg overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
 
                 {/* Header */}
                 <div style={{ background: cfg.headerBg, color: cfg.headerText, padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>

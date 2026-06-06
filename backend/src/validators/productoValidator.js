@@ -64,7 +64,7 @@ const validarCrearProducto = [
     body('nombreProducto')
         .trim()
         .notEmpty().withMessage('El nombre es obligatorio.')
-        .isLength({ min: 2, max: 100 }).withMessage('El nombre debe tener entre 2 y 100 caracteres.')
+        .isLength({ min: 2, max: 30 }).withMessage('El nombre debe tener entre 2 y 30 caracteres.')
         .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
         .withMessage('El nombre no puede contener caracteres especiales.'),
 
@@ -138,7 +138,7 @@ const validarActualizarProducto = [
     body('nombreProducto')
         .optional()
         .trim()
-        .isLength({ min: 2, max: 100 }).withMessage('El nombre debe tener entre 2 y 100 caracteres.')
+        .isLength({ min: 2, max: 30 }).withMessage('El nombre debe tener entre 2 y 30 caracteres.')
         .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-.,()]+$/)
         .withMessage('El nombre no puede contener caracteres especiales.'),
 

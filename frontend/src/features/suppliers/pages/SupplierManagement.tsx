@@ -778,7 +778,7 @@ export function SupplierManagement() {
                                         <Input
                                             value={formData.firstName}
                                             onChange={(e) => setFormData(prev => ({ ...prev, firstName: onlyLetters(e.target.value) }))}
-                                            maxLength={100} placeholder="Juan"
+                                            maxLength={30} placeholder="Juan"
                                             className={formErrors.firstName ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                             style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
@@ -789,7 +789,7 @@ export function SupplierManagement() {
                                         <Input
                                             value={formData.lastName}
                                             onChange={(e) => setFormData(prev => ({ ...prev, lastName: onlyLetters(e.target.value) }))}
-                                            maxLength={100} placeholder="Pérez"
+                                            maxLength={30} placeholder="Pérez"
                                             className={formErrors.lastName ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                             style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
@@ -801,12 +801,12 @@ export function SupplierManagement() {
                                     <div style={{ marginBottom: 18 }}>
                                         <label style={Sf.label}>
                                             Nombre de la empresa <span style={{ color: '#f87171' }}>*</span>
-                                            <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–100 caracteres)</span>
+                                            <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–30 caracteres)</span>
                                         </label>
                                         <Input
                                             value={formData.name}
                                             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                            maxLength={100} placeholder="AutoPartes Central S.A.S."
+                                            maxLength={30} placeholder="AutoPartes Central S.A.S."
                                             className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                             style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
@@ -817,7 +817,7 @@ export function SupplierManagement() {
                                         <Input
                                             value={formData.legalRepresentative}
                                             onChange={(e) => setFormData(prev => ({ ...prev, legalRepresentative: onlyLetters(e.target.value) }))}
-                                            maxLength={100} placeholder="Juan Pérez"
+                                            maxLength={30} placeholder="Juan Pérez"
                                             className={formErrors.legalRepresentative ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                             style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />

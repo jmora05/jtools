@@ -95,8 +95,8 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 4. Nombres ─────────────────────────────────────────────────────────────
   if (nombres) {
     const n = nombres.trim();
-    if (n.length < 2 || n.length > 100) {
-      errores.push('Los nombres deben tener entre 2 y 100 caracteres');
+    if (n.length < 2 || n.length > 30) {
+      errores.push('Los nombres deben tener entre 2 y 30 caracteres');
     } else if (!REGEX_NOMBRE.test(n)) {
       errores.push('Los nombres solo pueden contener letras, espacios, guiones y apóstrofes');
     }
@@ -105,8 +105,8 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 5. Apellidos ───────────────────────────────────────────────────────────
   if (apellidos) {
     const a = apellidos.trim();
-    if (a.length < 2 || a.length > 100) {
-      errores.push('Los apellidos deben tener entre 2 y 100 caracteres');
+    if (a.length < 2 || a.length > 30) {
+      errores.push('Los apellidos deben tener entre 2 y 30 caracteres');
     } else if (!REGEX_NOMBRE.test(a)) {
       errores.push('Los apellidos solo pueden contener letras, espacios, guiones y apóstrofes');
     }
@@ -141,8 +141,8 @@ function validarEmpleado(data, esActualizacion = false) {
     const c = String(cargo).trim();
     if (c.length === 0) {
       errores.push('El cargo no puede estar vacío');
-    } else if (c.length > 100) {
-      errores.push('El cargo no puede superar los 100 caracteres');
+    } else if (c.length > 30) {
+      errores.push('El cargo no puede superar los 30 caracteres');
     }
   }
 

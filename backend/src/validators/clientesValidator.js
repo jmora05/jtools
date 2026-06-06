@@ -44,8 +44,8 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     // ── 2. Nombres ─────────────────────────────────────────────────────
     if (nombres && nombres.trim() !== 'N/A') {
         const n = nombres.trim();
-        if (n.length < 2 || n.length > 50)
-            errores.push('Los nombres deben tener entre 2 y 50 caracteres');
+        if (n.length < 2 || n.length > 30)
+            errores.push('Los nombres deben tener entre 2 y 30 caracteres');
         else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(n))
             errores.push('Los nombres solo pueden contener letras, espacios, guiones y apóstrofes');
     }
@@ -53,8 +53,8 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     // ── 3. Apellidos ───────────────────────────────────────────────────
     if (apellidos && apellidos.trim() !== 'N/A') {
         const a = apellidos.trim();
-        if (a.length < 2 || a.length > 50)
-            errores.push('Los apellidos deben tener entre 2 y 50 caracteres');
+        if (a.length < 2 || a.length > 30)
+            errores.push('Los apellidos deben tener entre 2 y 30 caracteres');
         else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(a))
             errores.push('Los apellidos solo pueden contener letras, espacios, guiones y apóstrofes');
     }

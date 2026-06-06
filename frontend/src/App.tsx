@@ -250,6 +250,8 @@ export default function App() {
         // Módulos con submenu: visibles si al menos un hijo está permitido
         // (no depende de que 'configuration' esté como clave explícita en el rol)
         if (module.hasSubmenu) return module.submenu.length > 0;
+        // Nómina siempre visible para admins (no depende de sincronización de permisos en BD)
+        if (module.id === 'nomina') return true;
         return isModuleAllowed(module.id);
       }) as ModuleItem[];
 

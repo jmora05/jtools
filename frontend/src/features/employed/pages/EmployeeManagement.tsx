@@ -186,7 +186,7 @@ function FormFields({
                                 onChange={e => update('nombres', e.target.value, sanitizarNombre(e.target.value))}
                                 onBlur={() => blur('nombres')}
                                 className={errores.nombres ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={100}
+                                maxLength={30}
                             />
                             <FieldError mensaje={errores.nombres} />
                         </div>
@@ -198,7 +198,7 @@ function FormFields({
                                 onChange={e => update('apellidos', e.target.value, sanitizarNombre(e.target.value))}
                                 onBlur={() => blur('apellidos')}
                                 className={errores.apellidos ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={100}
+                                maxLength={30}
                             />
                             <FieldError mensaje={errores.apellidos} />
                         </div>

@@ -48,6 +48,7 @@ export function InsumoDetailModal({ open, onClose, insumo }: InsumoDetailModalPr
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent
+                hideCloseButton
                 className="p-0 max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
                 style={{ borderRadius: 16 }}
             >

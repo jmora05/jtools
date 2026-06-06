@@ -844,7 +844,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             onChange={(e) =>
                                                 setFormData(prev => ({ ...prev, nombres: onlyLetters(e.target.value) }))
                                             }
-                                            maxLength={50}
+                                            maxLength={30}
                                             placeholder="Ej: Carlos"
                                             className={formErrors.nombres ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         />
@@ -859,7 +859,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             onChange={(e) =>
                                                 setFormData(prev => ({ ...prev, apellidos: onlyLetters(e.target.value) }))
                                             }
-                                            maxLength={50}
+                                            maxLength={30}
                                             placeholder="Ej: Medina López"
                                             className={formErrors.apellidos ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         />
@@ -875,9 +875,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         <Input
                                             value={formData.razon_social}
                                             onChange={(e) =>
-                                                setFormData(prev => ({ ...prev, razon_social: e.target.value.slice(0, 100) }))
+                                                setFormData(prev => ({ ...prev, razon_social: e.target.value.slice(0, 30) }))
                                             }
-                                            maxLength={100}
+                                            maxLength={30}
                                             placeholder="Ej: Auto Servicio López S.A.S"
                                             className={formErrors.razon_social ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         />
@@ -892,7 +892,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             onChange={(e) =>
                                                 setFormData(prev => ({ ...prev, contacto: onlyLetters(e.target.value) }))
                                             }
-                                            maxLength={100}
+                                            maxLength={30}
                                             placeholder="Ej: María García"
                                             className={formErrors.contacto ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         />
