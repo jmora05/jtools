@@ -179,19 +179,7 @@ export default function App() {
   // user está garantizado no-null a partir de aquí
   const u = user!;
 
-  if (showLandingPage) {
-    return (
-      <>
-        <Toaster richColors position="top-right" />
-        <LandingPage
-          onGoToSystem={toggleLandingPage}
-          userType={u.userType}
-          currentUser={{ name: u.name, email: u.email, userType: u.userType }}
-          onLogout={handleLogout}
-        />
-      </>
-    );
-  }
+
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
@@ -333,6 +321,14 @@ export default function App() {
   return (
     <CartProvider>
       <Toaster richColors position="top-right" />
+      {showLandingPage ? (
+        <LandingPage
+          onGoToSystem={toggleLandingPage}
+          userType={u.userType}
+          currentUser={{ name: u.name, email: u.email, userType: u.userType }}
+          onLogout={handleLogout}
+        />
+      ) : (
       <div className="min-h-screen bg-gray-100 flex relative">
         {sidebarOpen && (
           <div className="fixed inset-0 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -552,8 +548,9 @@ export default function App() {
           </div>
         </div>
       </div>
-      {user?.userType === 'client' && <CartDrawer />}
-      {user?.userType === 'client' && <CartButton />}
+      )}
+      {u.userType === 'client' && <CartDrawer />}
+      {u.userType === 'client' && <CartButton />}
     </CartProvider>
   );
 }

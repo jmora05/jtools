@@ -37,18 +37,18 @@ import {
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
 const ESTADO_SELECT_CLASSES: Record<string, string> = {
-  registrada:                'border-amber-300 bg-amber-50 text-amber-900',
-  aprobada_remunera:         'border-green-300 bg-green-50 text-green-900',
-  aprobada_sin_remuneracion: 'border-blue-300 bg-blue-50 text-blue-900',
-  rechazada:                 'border-red-300 bg-red-50 text-red-900',
+  registrada:                'border-gray-300 bg-gray-100 text-gray-600',
+  aprobada_remunera:         'border-gray-300 bg-gray-100 text-gray-600',
+  aprobada_sin_remuneracion: 'border-gray-300 bg-gray-100 text-gray-600',
+  rechazada:                 'border-gray-300 bg-gray-100 text-gray-600',
   anulada:                   'border-gray-300 bg-gray-100 text-gray-600',
 };
 
 const ESTADO_COLORS: Record<string, string> = {
-  registrada:                'bg-amber-100 text-amber-900 border-amber-200',
-  aprobada_remunera:         'bg-green-100 text-green-900 border-green-200',
-  aprobada_sin_remuneracion: 'bg-blue-100 text-blue-900 border-blue-200',
-  rechazada:                 'bg-red-100 text-red-900 border-red-200',
+  registrada:                'bg-gray-100 text-gray-600 border-gray-300',
+  aprobada_remunera:         'bg-gray-100 text-gray-600 border-gray-300',
+  aprobada_sin_remuneracion: 'bg-gray-100 text-gray-600 border-gray-300',
+  rechazada:                 'bg-gray-100 text-gray-600 border-gray-300',
   anulada:                   'bg-gray-100 text-gray-600 border-gray-300',
 };
 
@@ -439,7 +439,32 @@ export function NewsModule() {
     setLoading(true);
     try {
       const data = await getNovedades();
-      setNovedades(data);
+
+      // Auto-rechazar novedades que llevan más de 2 semanas en estado "registrada"
+      const DOS_SEMANAS_MS = 14 * 24 * 60 * 60 * 1000;
+      const ahora = Date.now();
+      const vencidas = data.filter(
+        (n: Novedad) =>
+          n.estado === 'registrada' &&
+          ahora - new Date(n.fecha_registro).getTime() > DOS_SEMANAS_MS
+      );
+
+      let novedadesFinal: Novedad[] = data;
+      if (vencidas.length > 0) {
+        const resultados = await Promise.allSettled(
+          vencidas.map((n: Novedad) => cambiarEstadoNovedad(n.id, 'rechazada'))
+        );
+        const rechazadasIds = new Set<number>(
+          resultados
+            .map((r, i) => (r.status === 'fulfilled' ? vencidas[i].id : null))
+            .filter((id): id is number => id !== null)
+        );
+        novedadesFinal = data.map((n: Novedad) =>
+          rechazadasIds.has(n.id) ? { ...n, estado: 'rechazada' as EstadoNovedad } : n
+        );
+      }
+
+      setNovedades(novedadesFinal);
     } catch (err: any) {
       toast.error(err.message ?? 'Error al cargar las novedades');
     } finally {
@@ -906,24 +931,26 @@ export function NewsModule() {
         </div>
 
         {/* Navegación de vistas */}
-        <div className="flex gap-1 p-1 bg-white rounded-xl border border-gray-200 w-fit shadow-sm">
+        <div className="flex gap-1 p-1 bg-white rounded-xl border border-gray-200 w-fit">
           <button
+            type="button"
             onClick={() => setActiveView('ausencias')}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeView === 'ausencias'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             <AlertCircleIcon className="w-4 h-4" />
             Ausencias
           </button>
           <button
+            type="button"
             onClick={() => setActiveView('horas-extra')}
-            className={`flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeView === 'horas-extra'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-blue-700 hover:bg-blue-50'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             <CalendarIcon className="w-4 h-4" />
@@ -1012,7 +1039,7 @@ export function NewsModule() {
                         
                         <td className="px-6 py-4">
                           <div className="relative inline-flex items-center">
-                            {!ESTADOS_TERMINALES.has(novedad.estado) ? (
+                            {novedad.estado === 'registrada' ? (
                               <select
                                 value={novedad.estado}
                                 onChange={e => handleCambiarEstado(novedad, e.target.value as EstadoNovedad)}
@@ -2056,7 +2083,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
                   <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{Number(r.horas)}h</td>
                   <td className="px-6 py-4">
                     <div className="relative inline-flex items-center">
-                      {r.estado !== 'rechazada' ? (
+                      {r.estado === 'registrada' ? (
                         <select
                           value={r.estado}
                           onChange={e => handleCambiarEstadoHE(r, e.target.value as 'registrada' | 'aprobada' | 'rechazada')}

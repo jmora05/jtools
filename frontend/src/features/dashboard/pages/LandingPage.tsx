@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import maquinaImg from '@/assets/imagenes/maquina.jpeg';
 import logoImg from '@/assets/imagenes/logo.jpeg';
 import { Button } from '@/shared/components/ui/button';
@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { CartContext } from '@/shared/context/CartContext';
 import { getApiBaseUrl } from '@/services/http';
 import {
   MenuIcon,
@@ -63,10 +64,12 @@ const CATEGORY_COLORS = [
 interface Producto {
   id: number;
   nombreProducto: string;
+  referencia?: string;
   descripcion?: string;
   precio: number;
   imagenUrl?: string;
   estado: string;
+  stock?: number;
   categoria?: { nombreCategoria: string };
 }
 
@@ -91,6 +94,7 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onGoToSystem, userType, currentUser, onLogout }: LandingPageProps) {
+  const cartCtx = useContext(CartContext);
   const [isMenuOpen, setIsMenuOpen]             = useState(false);
   const [products, setProducts]                 = useState<Producto[]>([]);
   const [categories, setCategories]             = useState<Categoria[]>([]);
@@ -519,7 +523,18 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                             });
                             return;
                           }
-                          toast.success('Te contactaremos pronto para más detalles.');
+                          if ((product.stock ?? 0) <= 0) {
+                            toast.error('Este producto no tiene stock disponible.');
+                            return;
+                          }
+                          cartCtx?.addItem({
+                            id: product.id,
+                            nombreProducto: product.nombreProducto,
+                            referencia: product.referencia ?? '',
+                            precio: product.precio,
+                            imagenUrl: product.imagenUrl,
+                            stock: product.stock ?? 0,
+                          });
                         }}
                       >
                         <ShoppingCartIcon className="w-4 h-4 mr-2" />
