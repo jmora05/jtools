@@ -410,8 +410,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-100">
-         <div className="p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y p-4 md:divide-y-0 divide-gray-100">
           {[
             {
               label: 'Total período',
@@ -474,7 +473,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
             </div>
           )}
         </div>
-        </div>
+        
       </div>
 
       {/* ── Ventas por período (area chart) ── */}
