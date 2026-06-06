@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { ApiError } from '@/services/http';
 import {
   SearchIcon,
   PlusIcon,
@@ -158,6 +159,11 @@ function ProductionOrdersSubmodule() {
   // Devoluciones de insumos al anular
   type DevolucionUI = { insumosId: number; nombre: string; cantidadDescontada: number; cantidadADevolver: string };
   const [devoluciones, setDevoluciones] = useState<DevolucionUI[]>([]);
+
+  // Diálogo de insumos insuficientes
+  const [isStockErrorOpen, setIsStockErrorOpen] = useState(false);
+  const [stockErrorMsg, setStockErrorMsg] = useState('');
+  const [stockErrorDetails, setStockErrorDetails] = useState<string[]>([]);
 
   const loadOrders = async () => {
     try {
@@ -321,7 +327,13 @@ function ProductionOrdersSubmodule() {
       setSelected(null);
       loadOrders();
     } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar la orden');
+      if (err instanceof ApiError && err.errores?.length) {
+        setStockErrorMsg(err.message || 'Stock insuficiente de insumos');
+        setStockErrorDetails(err.errores);
+        setIsStockErrorOpen(true);
+      } else {
+        toast.error(err.message || 'Error al actualizar la orden');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -340,7 +352,13 @@ function ProductionOrdersSubmodule() {
       toast.success('Estado actualizado correctamente');
       loadOrders();
     } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar el estado');
+      if (err instanceof ApiError && err.errores?.length) {
+        setStockErrorMsg(err.message || 'Stock insuficiente de insumos');
+        setStockErrorDetails(err.errores);
+        setIsStockErrorOpen(true);
+      } else {
+        toast.error(err.message || 'Error al actualizar el estado');
+      }
     }
   };
 
@@ -1284,6 +1302,40 @@ function ProductionOrdersSubmodule() {
             <AlertDialogCancel onClick={() => setSelected(null)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-blue-600 hover:bg-blue-700" disabled={submitting}>
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Diálogo de insumos insuficientes ──────────────────────── */}
+      <AlertDialog open={isStockErrorOpen} onOpenChange={setIsStockErrorOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Stock de insumos insuficiente
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              <span className="block text-gray-700 font-medium mb-3">{stockErrorMsg}</span>
+              <ul className="space-y-1.5">
+                {stockErrorDetails.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-red-700 bg-red-50 rounded px-3 py-1.5">
+                    <span className="mt-0.5 text-red-400 flex-shrink-0">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-gray-500">
+                Realiza una compra de insumos para reponer el stock antes de iniciar esta orden.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => setIsStockErrorOpen(false)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Entendido
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

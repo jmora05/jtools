@@ -4,7 +4,7 @@ const ENDPOINT = `${getApiBaseUrl()}/novedades`;
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type EstadoNovedad = 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada';
+export type EstadoNovedad = 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada' | 'anulada';
 
 type EmpleadoResumen = { id: number; nombres: string; apellidos: string; cargo: string };
 

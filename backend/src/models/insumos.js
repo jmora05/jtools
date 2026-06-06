@@ -10,7 +10,7 @@ const Insumos = sequelize.define('Insumos', {
     },
 
     nombreInsumo: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.STRING(30),
         allowNull: false,
         unique: {
             name: 'unique_insumo_name',
@@ -18,7 +18,7 @@ const Insumos = sequelize.define('Insumos', {
         },
         validate: {
             notEmpty: { msg: 'El nombre del insumo no puede estar vacío' },
-            len: { args: [2, 50], msg: 'El nombre del insumo debe tener entre 2 y 50 caracteres' }
+            len: { args: [2, 30], msg: 'El nombre del insumo debe tener entre 2 y 30 caracteres' }
         }
     },
 

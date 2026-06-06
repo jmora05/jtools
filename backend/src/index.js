@@ -96,6 +96,14 @@ testConnection()
         `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "moduleKey" VARCHAR(50)          DEFAULT NULL`,
         `ALTER TABLE permisos  ADD COLUMN IF NOT EXISTS "isActive"  BOOLEAN     NOT NULL DEFAULT true`,
         `ALTER TABLE usuarios  ADD COLUMN IF NOT EXISTS "estado"    VARCHAR(10) NOT NULL DEFAULT 'activo'`,
+        // Estado 'anulada' en novedades
+        `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'anulada' AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'enum_novedades_estado')) THEN ALTER TYPE "enum_novedades_estado" ADD VALUE 'anulada'; END IF; END $$`,
+        // Campo estado en ventas para soportar anulación
+        `ALTER TABLE ventas ADD COLUMN IF NOT EXISTS "estado" VARCHAR(15) NOT NULL DEFAULT 'activa'`,
+        // Reducir longitud de nombreInsumo a 30 caracteres
+        `ALTER TABLE insumos ALTER COLUMN "nombreInsumo" TYPE VARCHAR(30)`,
+        // Ampliar teléfono de proveedores a 15 dígitos
+        `ALTER TABLE proveedores ALTER COLUMN "telefono" TYPE VARCHAR(15)`,
     ];
     for (const sql of migraciones) {
         try {

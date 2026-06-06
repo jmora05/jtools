@@ -48,11 +48,12 @@ const Proveedores = sequelize.define('Proveedores', {
     },
 
     telefono: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING(15),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'El teléfono no puede estar vacío' },
-            len: { args: [2, 10], msg: 'El teléfono debe tener entre 2 y 10 caracteres' }
+            len: { args: [7, 15], msg: 'El teléfono debe tener entre 7 y 15 dígitos' },
+            isNumeric: { msg: 'El teléfono solo puede contener dígitos numéricos' }
         }
     },
 

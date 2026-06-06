@@ -70,8 +70,8 @@ function validarFormulario(data: FormData): FormErrors {
         errs.name = 'El nombre es obligatorio';
     else if (data.name.trim().length < 2)
         errs.name = 'Mínimo 2 caracteres';
-    else if (data.name.trim().length > 50)
-        errs.name = 'Máximo 50 caracteres';
+    else if (data.name.trim().length > 30)
+        errs.name = 'Máximo 30 caracteres';
 
     if (data.description && data.description.trim().length > 255)
         errs.description = 'Máximo 255 caracteres';
@@ -651,15 +651,20 @@ export function SupplyManagement() {
                             <div style={{ marginBottom: 18 }}>
                                 <label style={Sf.label}>
                                     Nombre del insumo <span style={{ color: '#f87171' }}>*</span>
-                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–50 caracteres)</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(2–30 caracteres)</span>
                                 </label>
                                 <Input
                                     value={formData.name}
                                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                    maxLength={50} placeholder="Ej: Aceite Motor 5W-30"
+                                    maxLength={30} placeholder="Ej: Aceite Motor 5W-30"
                                     className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                     style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
+                                {!formErrors.name && (
+                                    <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                                        {formData.name.length}/30 caracteres
+                                    </p>
+                                )}
                                 <FieldError msg={formErrors.name} />
                             </div>
 
@@ -783,9 +788,13 @@ export function SupplyManagement() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Unidades">Unidades</SelectItem>
-                                        <SelectItem value="Litros">Litros</SelectItem>
                                         <SelectItem value="Kilogramos">Kilogramos</SelectItem>
-                                        <SelectItem value="Cajas">Cajas</SelectItem>
+                                        <SelectItem value="Gramos">Gramos</SelectItem>
+                                        <SelectItem value="Metros">Metros</SelectItem>
+                                        <SelectItem value="Par">Par</SelectItem>
+                                        <SelectItem value="Rollo">Rollo</SelectItem>
+                                        <SelectItem value="Galón">Galón</SelectItem>
+                                        <SelectItem value="Juegos">Juegos</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FieldError msg={formErrors.unit} />

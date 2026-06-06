@@ -112,8 +112,10 @@ function validarFormulario(data: FormData): FormErrors {
 
     if (!data.phone.trim())
         errs.phone = 'El teléfono es obligatorio';
-    else if (data.phone.trim().length < 2 || data.phone.trim().length > 10)
-        errs.phone = 'Entre 2 y 10 caracteres';
+    else if (!/^\d+$/.test(data.phone.trim()))
+        errs.phone = 'Solo se permiten dígitos numéricos';
+    else if (data.phone.trim().length < 7 || data.phone.trim().length > 15)
+        errs.phone = 'El teléfono debe tener entre 7 y 15 dígitos';
 
     if (data.city && data.city.trim().length > 50)
         errs.city = 'Máximo 50 caracteres';
@@ -153,7 +155,7 @@ function FieldError({ msg }: { msg?: string }) {
 
 // ── Helpers de input ──────────────────────────────────────────────────────────
 const onlyLetters = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
-const onlyPhone   = (v: string) => v.replace(/[^0-9+\s\-]/g, '');
+const onlyPhone   = (v: string) => v.replace(/[^0-9]/g, '');
 const onlyDoc     = (v: string, tipo: string) => {
     if (tipo === 'CC' || tipo === 'RUN') return v.replace(/[^0-9]/g, '');
     if (tipo === 'NIT')                  return v.replace(/[^0-9\-]/g, '');
@@ -845,12 +847,12 @@ export function SupplierManagement() {
                                 <div>
                                     <label style={Sf.label}>
                                         Teléfono <span style={{ color: '#f87171' }}>*</span>
-                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(máx. 10)</span>
+                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(7–15 dígitos)</span>
                                     </label>
                                     <Input
                                         type="tel" value={formData.phone}
                                         onChange={(e) => setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))}
-                                        maxLength={10} placeholder="3001234567"
+                                        maxLength={15} placeholder="3001234567"
                                         className={formErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />

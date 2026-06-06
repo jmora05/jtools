@@ -14,6 +14,7 @@ export interface VentaBackend {
   metodoPago: 'efectivo' | 'transferencia';
   tipoVenta: 'directa' | 'pedido';
   total: string | number;
+  estado: 'activa' | 'anulada';
   cliente?: {
     id: number;
     nombres: string;
@@ -72,11 +73,13 @@ export const mapVentaToSale = (v: VentaBackend) => ({
     : `Cliente #${v.clientesId}`,
   clientId: String(v.clientesId),
   clientDocument: '',
+  clientPhone: v.cliente?.telefono ?? '',
+  clientEmail: v.cliente?.email ?? '',
   date: v.fecha.slice(0, 10),
   total: Number(v.total),
   paymentMethod:
     v.metodoPago === 'efectivo' ? 'Efectivo' : 'Transferencia',
-  status: 'Completada',
+  status: v.estado === 'anulada' ? 'Anulada' : 'Completada',
   type: v.tipoVenta === 'directa' ? 'Directa' : 'Pedido',
   items: (v.detalles ?? []).map((d) => ({
     id: String(d.producto?.id ?? d.id),
@@ -137,6 +140,16 @@ export const updateVenta = async (
 export const deleteVenta = async (id: number): Promise<{ message: string }> => {
   const res = await fetch(`${BASE_URL}/ventas/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message ?? 'Error al eliminar la venta');
+  return body;
+};
+
+export const anularVenta = async (id: number): Promise<{ message: string }> => {
+  const res = await fetch(`${BASE_URL}/ventas/${id}/anular`, {
+    method: 'PATCH',
     headers: getAuthHeaders(),
   });
   const body = await res.json().catch(() => ({}));

@@ -765,9 +765,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
             {/* ── MODAL CREAR / EDITAR ────────────────────────────────────── */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) resetForm(); }}>
-                <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '96vw', maxWidth: 1400, height: '92vh', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+                <DialogContent className="p-0 gap-0 overflow-hidden" style={{ width: '95vw', maxWidth: 780, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
                     <div className="overflow-y-auto flex-1 p-6">
-                        <DialogHeader>
+                        <DialogHeader className="mb-4">
                             <DialogTitle>{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
                             <DialogDescription>
                                 {editingClient
@@ -776,26 +776,24 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleSubmit} noValidate className="space-y-5 mt-4">
+                        <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-                            {/* Tipo de cliente */}
-                            <div>
-                                <label className="block text-sm text-gray-700 mb-2">
-                                    Tipo de cliente <span className="text-red-500">*</span>
-                                </label>
-                                <Select value={formData.clientType} onValueChange={handleClientTypeChange}>
-                                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Persona natural">Persona natural</SelectItem>
-                                        <SelectItem value="Empresa">Empresa</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Tipo + Número de documento */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Tipo de cliente + Tipo de documento */}
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                        Tipo de cliente <span className="text-red-500">*</span>
+                                    </label>
+                                    <Select value={formData.clientType} onValueChange={handleClientTypeChange}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Persona natural">Persona natural</SelectItem>
+                                            <SelectItem value="Empresa">Empresa</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                         Tipo de documento <span className="text-red-500">*</span>
                                     </label>
                                     <Select
@@ -812,31 +810,33 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
-                                        Número de documento <span className="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        value={formData.numero_documento}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                numero_documento: onlyDoc(e.target.value, prev.tipo_documento),
-                                            }))
-                                        }
-                                        maxLength={20}
-                                        placeholder={formData.tipo_documento === 'nit' ? '900123456-7' : '123456789'}
-                                        className={formErrors.numero_documento ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    />
-                                    <FieldError msg={formErrors.numero_documento} />
-                                </div>
+                            </div>
+
+                            {/* Número de documento */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                    Número de documento <span className="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    value={formData.numero_documento}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            numero_documento: onlyDoc(e.target.value, prev.tipo_documento),
+                                        }))
+                                    }
+                                    maxLength={20}
+                                    placeholder={formData.tipo_documento === 'nit' ? '900123456-7' : '123456789'}
+                                    className={formErrors.numero_documento ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.numero_documento} />
                             </div>
 
                             {/* Nombre / Razón social + Contacto */}
                             {formData.clientType === 'Persona natural' ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                             Nombres <span className="text-red-500">*</span>
                                         </label>
                                         <Input
@@ -851,7 +851,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         <FieldError msg={formErrors.nombres} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                             Apellidos <span className="text-red-500">*</span>
                                         </label>
                                         <Input
@@ -867,9 +867,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                     </div>
                                 </div>
                             ) : (
-                                <>
+                                <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                             Razón Social <span className="text-red-500">*</span>
                                         </label>
                                         <Input
@@ -884,7 +884,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         <FieldError msg={formErrors.razon_social} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                             Persona de contacto <span className="text-red-500">*</span>
                                         </label>
                                         <Input
@@ -896,17 +896,14 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             placeholder="Ej: María García"
                                             className={formErrors.contacto ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         />
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            Nombre del representante o contacto principal de la empresa
-                                        </p>
                                         <FieldError msg={formErrors.contacto} />
                                     </div>
-                                </>
+                                </div>
                             )}
 
                             {/* Correo */}
                             <div>
-                                <label className="block text-sm text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                     Correo electrónico <span className="text-red-500">*</span>
                                 </label>
                                 <Input
@@ -923,9 +920,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                             </div>
 
                             {/* Teléfono + Ciudad */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                         Teléfono <span className="text-red-500">*</span>
                                     </label>
                                     <Input
@@ -935,13 +932,13 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             setFormData(prev => ({ ...prev, telefono: onlyPhone(e.target.value) }))
                                         }
                                         maxLength={20}
-                                        placeholder="+57 300 123 4567"
+                                        placeholder="3001234567"
                                         className={formErrors.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                     />
                                     <FieldError msg={formErrors.telefono} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-gray-700 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                         Ciudad <span className="text-red-500">*</span>
                                     </label>
                                     <Input
@@ -959,7 +956,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
                             {/* Dirección */}
                             <div>
-                                <label className="block text-sm text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
                                     Dirección <span className="text-red-500">*</span>
                                 </label>
                                 <Input
@@ -985,9 +982,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         </span>
                                     </p>
                                 </div>
-                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="p-4 grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Contraseña</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Contraseña</label>
                                         <div className="relative">
                                             <Input
                                                 type={showPwd ? 'text' : 'password'}
@@ -1009,7 +1006,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                         <FieldError msg={formErrors.password} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Confirmar Contraseña</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirmar Contraseña</label>
                                         <div className="relative">
                                             <Input
                                                 type={showConfirmPwd ? 'text' : 'password'}

@@ -60,6 +60,18 @@ const Ventas = sequelize.define('Ventas', {
             isDecimal: { msg: 'El total debe ser un valor decimal válido' },
             min: { args: [0], msg: 'El total no puede ser negativo' }
         }
+    },
+
+    estado: {
+        type: DataTypes.STRING(15),
+        allowNull: false,
+        defaultValue: 'activa',
+        validate: {
+            isIn: {
+                args: [['activa', 'anulada']],
+                msg: 'El estado de la venta debe ser activa o anulada'
+            }
+        }
     }
 
 }, {

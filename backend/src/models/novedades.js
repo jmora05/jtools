@@ -20,12 +20,12 @@ const Novedades = sequelize.define('Novedades', {
     },
 
     estado: {
-        type: DataTypes.ENUM('registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'),
+        type: DataTypes.ENUM('registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada', 'anulada'),
         allowNull: false,
         defaultValue: 'registrada',
         validate: {
             isIn: {
-                args: [['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada']],
+                args: [['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada', 'anulada']],
                 msg: 'El estado debe ser uno de los valores permitidos'
             }
         }

@@ -1,13 +1,41 @@
 const { Novedades, Empleados } = require('../models/index.js');
+const { Op } = require('sequelize');
 
-// Include base reutilizable con el empleado asociado
+const ESTADOS_VALIDOS = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada', 'anulada'];
+
+// Estados terminales — no pueden cambiar de estado
+const ESTADOS_TERMINALES = ['anulada', 'rechazada'];
+
 const INCLUDE_EMPLEADOS = [
     { model: Empleados, as: 'empleadoAfectado', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
 ];
 
-// GET - listar todas las novedades
+// Novedades con más de 14 días sin gestión se anulan automáticamente
+const DIAS_MAX_SIN_GESTION = 14;
+
+// Anula automáticamente cualquier novedad en estado 'registrada' con más de 14 días
+const anularNovedadesVencidas = async () => {
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() - DIAS_MAX_SIN_GESTION);
+
+    const vencidas = await Novedades.findAll({
+        where: {
+            estado: 'registrada',
+            fecha_registro: { [Op.lt]: fechaLimite }
+        }
+    });
+
+    for (const novedad of vencidas) {
+        await novedad.update({ estado: 'anulada' });
+    }
+
+    return vencidas.length;
+};
+
+// GET - listar todas las novedades (aplica auto-anulación previa)
 const getNovedades = async (req, res) => {
     try {
+        await anularNovedadesVencidas();
         const novedades = await Novedades.findAll({ include: INCLUDE_EMPLEADOS });
         res.status(200).json(novedades);
     } catch (error) {
@@ -35,10 +63,11 @@ const getNovedadById = async (req, res) => {
 const getNovedadesByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'];
 
-        if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada_remunera, aprobada_sin_remuneracion o rechazada' });
+        if (!ESTADOS_VALIDOS.includes(estado)) {
+            return res.status(400).json({
+                message: `Estado no válido. Use: ${ESTADOS_VALIDOS.join(', ')}`
+            });
         }
 
         const novedades = await Novedades.findAll({ where: { estado }, include: INCLUDE_EMPLEADOS });
@@ -62,7 +91,18 @@ const createNovedad = async (req, res) => {
             horas_ausencia
         } = req.body;
 
-        // verificar que el empleado afectado existe si se especificó
+        // Validar rango de fechas (máximo 14 días)
+        if (fecha_inicio && fecha_finalizacion) {
+            const inicio = new Date(fecha_inicio);
+            const fin    = new Date(fecha_finalizacion);
+            const diffDias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24));
+            if (diffDias > DIAS_MAX_SIN_GESTION) {
+                return res.status(400).json({
+                    message: `La duración de la ausencia no puede superar ${DIAS_MAX_SIN_GESTION} días`
+                });
+            }
+        }
+
         if (empleado_afectado) {
             const empleadoAf = await Empleados.findByPk(empleado_afectado);
             if (!empleadoAf) {
@@ -96,7 +136,7 @@ const createNovedad = async (req, res) => {
     }
 };
 
-// PUT - actualizar novedad (solo campos editables, no el estado)
+// PUT - actualizar novedad (solo si está en estado 'registrada')
 const updateNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -107,7 +147,9 @@ const updateNovedad = async (req, res) => {
         }
 
         if (novedad.estado !== 'registrada') {
-            return res.status(400).json({ message: 'No se puede editar una novedad que no está en estado registrada' });
+            return res.status(400).json({
+                message: `No se puede editar una novedad en estado "${novedad.estado}". Solo las novedades en estado "registrada" pueden editarse.`
+            });
         }
 
         const {
@@ -119,7 +161,20 @@ const updateNovedad = async (req, res) => {
             horas_ausencia
         } = req.body;
 
-        // verificar que el empleado afectado existe si se actualizó
+        // Validar rango de fechas (máximo 14 días)
+        const fi = fecha_inicio    || novedad.fecha_inicio;
+        const ff = fecha_finalizacion || novedad.fecha_finalizacion;
+        if (fi && ff) {
+            const inicio = new Date(fi);
+            const fin    = new Date(ff);
+            const diffDias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24));
+            if (diffDias > DIAS_MAX_SIN_GESTION) {
+                return res.status(400).json({
+                    message: `La duración de la ausencia no puede superar ${DIAS_MAX_SIN_GESTION} días`
+                });
+            }
+        }
+
         if (empleado_afectado) {
             const empleadoAf = await Empleados.findByPk(empleado_afectado);
             if (!empleadoAf) {
@@ -148,7 +203,7 @@ const updateNovedad = async (req, res) => {
     }
 };
 
-// PATCH - cambiar estado de la novedad (registrada <-> aprobada)
+// PATCH - cambiar estado de la novedad con reglas de transición
 const cambiarEstadoNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -159,13 +214,20 @@ const cambiarEstadoNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        const estadosValidos = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada'];
-        if (!estadosValidos.includes(estado)) {
-            return res.status(400).json({ message: 'Estado no válido. Use: registrada, aprobada_remunera, aprobada_sin_remuneracion o rechazada' });
+        if (!ESTADOS_VALIDOS.includes(estado)) {
+            return res.status(400).json({
+                message: `Estado no válido. Use: ${ESTADOS_VALIDOS.join(', ')}`
+            });
+        }
+
+        // Bloquear transiciones desde estados terminales
+        if (ESTADOS_TERMINALES.includes(novedad.estado)) {
+            return res.status(400).json({
+                message: `No se puede cambiar el estado de una novedad que está "${novedad.estado}". Este estado es definitivo.`
+            });
         }
 
         await novedad.update({ estado });
-
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
 
         res.status(200).json(novedad);
@@ -184,9 +246,10 @@ const deleteNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
-        // solo se puede eliminar si está en estado registrada
         if (novedad.estado !== 'registrada') {
-            return res.status(400).json({ message: 'No se puede eliminar una novedad que no está en estado registrada' });
+            return res.status(400).json({
+                message: `No se puede eliminar una novedad en estado "${novedad.estado}". Solo las novedades en estado "registrada" pueden eliminarse.`
+            });
         }
 
         await novedad.destroy();

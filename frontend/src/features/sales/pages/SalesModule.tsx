@@ -54,6 +54,7 @@ import {
   getVentas,
   createVenta,
   deleteVenta,
+  anularVenta,
   createDetalleVenta,
   deleteDetalleVenta,
   toMetodoPago,
@@ -77,6 +78,8 @@ interface Sale {
   clientName: string;
   clientId?: string;
   clientDocument?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   date: string;
   total: number;
   paymentMethod: string;
@@ -194,29 +197,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         const data = await getVentas();
         const statuses = getSaleStatuses();
 
-        // Mergear estado de pago persistido con datos del backend
+        // El estado de anulación viene del backend; solo usar localStorage para estados transitorios
         const mapped = data.map(v => {
           const s = mapVentaToSale(v);
-          if (statuses[v.id]) s.status = statuses[v.id];
+          // No sobreescribir 'Anulada' que viene del backend con localStorage
+          if (statuses[v.id] && s.status !== 'Anulada') s.status = statuses[v.id];
           return s;
         });
 
-        // Auto-anular ventas pendientes con más de 30 días
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - 30);
-        const toVoid = mapped.filter(s => s.status === 'Pendiente' && s.type === 'Directa' && new Date(s.date) < cutoff);
-
-        let result = [...mapped];
-        for (const sale of toVoid) {
-          try {
-            await deleteVenta(sale.id);
-            persistSaleStatus(sale.id, 'Anulada');
-            result = result.map(s => s.id === sale.id ? { ...s, status: 'Anulada' } : s);
-            toast.warning(`Venta #${sale.id} anulada automáticamente (pago pendiente más de 30 días)`);
-          } catch {}
-        }
-
-        setSales(result);
+        setSales(mapped);
       } catch (error: any) {
         toast.error(error.message || 'Error al cargar las ventas');
       } finally {
@@ -255,119 +244,164 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const generateSalePDF = (sale: Sale) => {
     const doc = new jsPDF();
+    const emisionDate = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    // Encabezado azul
+    // ── Franja de cabecera ────────────────────────────────────────
+    doc.setFillColor(17, 50, 150);
+    doc.rect(0, 0, 210, 42, 'F');
     doc.setFillColor(29, 78, 216);
-    doc.rect(0, 0, 210, 38, 'F');
+    doc.rect(0, 36, 210, 6, 'F');
 
+    // Logo / Nombre empresa
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
     doc.text('JREPUESTOS MEDELLÍN', 14, 16);
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
-    doc.text('Repuestos de Carros de Alta Calidad  ·  Medellín, Colombia  ·  Tel: (604) 123-4567', 14, 25);
-    doc.text('contacto@jrepuestos.com', 14, 32);
+    doc.text('Repuestos de Alta Calidad para Vehículos', 14, 23);
+    doc.text('Carrera 50 #35-20, Medellín, Colombia', 14, 29.5);
+    doc.text('Tel: (604) 123-4567   ·   contacto@jrepuestos.com', 14, 36);
 
-    doc.setFontSize(10);
+    // Número de factura (esquina derecha)
+    doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
-    doc.text('FACTURA DE VENTA', 196, 14, { align: 'right' });
-    doc.setFontSize(16);
-    doc.text(`#${sale.id}`, 196, 24, { align: 'right' });
-    doc.setFontSize(9);
+    doc.text('FACTURA DE VENTA', 196, 13, { align: 'right' });
+    doc.setFontSize(20);
+    doc.text(`N.° ${String(sale.id).padStart(5, '0')}`, 196, 24, { align: 'right' });
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Fecha: ${sale.date}`, 196, 32, { align: 'right' });
+    doc.text(`NIT: 900.123.456-7`, 196, 31, { align: 'right' });
+    doc.text(`Emisión: ${emisionDate}`, 196, 37, { align: 'right' });
 
-    // Info cliente y pago
+    // ── Bloque de información: Cliente | Venta ────────────────────
+    const infoY = 48;
     doc.setTextColor(0, 0, 0);
-    const y = 50;
 
-    doc.setFillColor(249, 250, 251);
-    doc.setDrawColor(229, 231, 235);
-    doc.rect(14, y, 86, 28, 'FD');
-    doc.rect(110, y, 86, 28, 'FD');
+    // Caja cliente
+    doc.setFillColor(245, 247, 255);
+    doc.setDrawColor(200, 210, 240);
+    doc.setLineWidth(0.3);
+    doc.rect(14, infoY, 89, 36, 'FD');
 
+    // Caja venta
+    doc.rect(109, infoY, 87, 36, 'FD');
+
+    // Encabezados de caja
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(107, 114, 128);
-    doc.text('DATOS DEL CLIENTE', 18, y + 7);
-    doc.text('INFORMACIÓN DE PAGO', 114, y + 7);
+    doc.setTextColor(60, 90, 180);
+    doc.text('DATOS DEL CLIENTE', 18, infoY + 7);
+    doc.text('INFORMACIÓN DE VENTA', 113, infoY + 7);
 
+    // Separador interno
+    doc.setDrawColor(200, 210, 240);
+    doc.line(14, infoY + 10, 103, infoY + 10);
+    doc.line(109, infoY + 10, 196, infoY + 10);
+
+    // Contenido cliente
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(17, 24, 39);
-    doc.setFontSize(10);
-    doc.text(sale.clientName.length > 30 ? sale.clientName.substring(0, 30) + '…' : sale.clientName, 18, y + 16);
-    if (sale.clientDocument) {
-      doc.setFontSize(8);
-      doc.setTextColor(107, 114, 128);
-      doc.text(`Doc: ${sale.clientDocument}`, 18, y + 23);
-    }
-
-    doc.setFontSize(10);
-    doc.setTextColor(17, 24, 39);
-    doc.text(`Método: ${sale.paymentMethod}`, 114, y + 16);
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(9.5);
+    const nameDisplay = sale.clientName.length > 32 ? sale.clientName.substring(0, 32) + '…' : sale.clientName;
+    doc.text(nameDisplay, 18, infoY + 17);
     doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128);
-    doc.text(`Estado: ${sale.status}`, 114, y + 23);
+    doc.setTextColor(80, 80, 80);
+    if (sale.clientDocument) doc.text(`Doc: ${sale.clientDocument}`, 18, infoY + 24);
+    if (sale.clientPhone)    doc.text(`Tel: ${sale.clientPhone}`, 18, infoY + 30);
+    if (sale.clientEmail)    doc.text(sale.clientEmail.length > 30 ? sale.clientEmail.substring(0, 30) + '…' : sale.clientEmail, 18, infoY + 36);
 
-    // Tabla de productos
+    // Contenido venta
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Fecha de venta:', 113, infoY + 17);
+    doc.text('Tipo:', 113, infoY + 23);
+    doc.text('Método de pago:', 113, infoY + 29);
+    doc.text('Estado:', 113, infoY + 35);
+    doc.setTextColor(30, 30, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.text(sale.date, 196, infoY + 17, { align: 'right' });
+    doc.text(sale.type, 196, infoY + 23, { align: 'right' });
+    doc.text(sale.paymentMethod, 196, infoY + 29, { align: 'right' });
+    const estadoColor = sale.status === 'Anulada' ? [200, 50, 50] : [30, 130, 70];
+    doc.setTextColor(estadoColor[0], estadoColor[1], estadoColor[2]);
+    doc.text(sale.status, 196, infoY + 35, { align: 'right' });
+
+    // ── Tabla de productos ────────────────────────────────────────
     doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
     autoTable(doc, {
-      startY: y + 36,
-      head: [['Código', 'Producto', 'Cant.', 'Precio Unit.', 'Subtotal']],
-      body: sale.items.map(item => [
+      startY: infoY + 44,
+      head: [['#', 'Código', 'Producto / Descripción', 'Cant.', 'Precio Unit.', 'Subtotal']],
+      body: sale.items.map((item, idx) => [
+        String(idx + 1),
         item.code || '—',
         item.name,
         item.quantity.toString(),
         `$${item.price.toLocaleString('es-CO')}`,
         `$${(item.quantity * item.price).toLocaleString('es-CO')}`,
       ]),
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [29, 78, 216], textColor: [255, 255, 255], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [239, 246, 255] },
+      styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [30, 30, 30] },
+      headStyles: { fillColor: [17, 50, 150], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [235, 241, 255] },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 85 },
-        2: { cellWidth: 15, halign: 'center' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 33, halign: 'right' },
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 24, halign: 'center' },
+        2: { cellWidth: 80 },
+        3: { cellWidth: 13, halign: 'center' },
+        4: { cellWidth: 32, halign: 'right' },
+        5: { cellWidth: 33, halign: 'right' },
       },
+      tableLineColor: [200, 210, 240],
+      tableLineWidth: 0.2,
     });
 
-    // Totales
-    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    // ── Bloque de totales ─────────────────────────────────────────
+    const finalY = (doc as any).lastAutoTable.finalY + 6;
     const subtotal = Math.round(sale.total / 1.19);
-    const iva = sale.total - subtotal;
+    const iva      = sale.total - subtotal;
 
-    doc.setFillColor(249, 250, 251);
-    doc.setDrawColor(229, 231, 235);
-    doc.rect(120, finalY, 76, 30, 'FD');
+    doc.setFillColor(245, 247, 255);
+    doc.setDrawColor(200, 210, 240);
+    doc.setLineWidth(0.3);
+    doc.rect(118, finalY, 78, 36, 'FD');
 
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(107, 114, 128);
-    doc.text('Subtotal:', 124, finalY + 9);
-    doc.text('IVA (19%):', 124, finalY + 17);
-    doc.setTextColor(17, 24, 39);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Subtotal (sin IVA):', 122, finalY + 9);
+    doc.text('IVA (19%):', 122, finalY + 17);
+    doc.setTextColor(30, 30, 30);
     doc.text(`$${subtotal.toLocaleString('es-CO')}`, 192, finalY + 9, { align: 'right' });
     doc.text(`$${iva.toLocaleString('es-CO')}`, 192, finalY + 17, { align: 'right' });
 
-    doc.setDrawColor(29, 78, 216);
-    doc.line(120, finalY + 21, 196, finalY + 21);
+    doc.setDrawColor(17, 50, 150);
+    doc.setLineWidth(0.5);
+    doc.line(118, finalY + 22, 196, finalY + 22);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(29, 78, 216);
-    doc.text('Total:', 124, finalY + 28);
-    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 28, { align: 'right' });
+    doc.setTextColor(17, 50, 150);
+    doc.text('TOTAL:', 122, finalY + 31);
+    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 31, { align: 'right' });
 
-    // Pie de página
+    // ── Mensaje de cortesía ───────────────────────────────────────
+    const msgY = finalY + 44;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Gracias por preferir JRepuestos Medellín. Este documento es una constancia de compra.', 105, msgY, { align: 'center' });
+
+    // ── Pie de página ─────────────────────────────────────────────
+    doc.setFillColor(17, 50, 150);
+    doc.rect(0, 284, 210, 13, 'F');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.setTextColor(156, 163, 175);
-    doc.text('Gracias por su compra. Documento generado por JTOOLS SOFT.', 105, 280, { align: 'center' });
-    doc.text('JRepuestos Medellín · NIT: 900.123.456-7 · (604) 123-4567 · contacto@jrepuestos.com', 105, 285, { align: 'center' });
+    doc.setTextColor(200, 215, 255);
+    doc.text('JRepuestos Medellín  ·  NIT: 900.123.456-7  ·  Carrera 50 #35-20, Medellín  ·  Tel: (604) 123-4567  ·  contacto@jrepuestos.com', 105, 289, { align: 'center' });
+    doc.setTextColor(150, 175, 230);
+    doc.text(`Documento generado el ${emisionDate} por JTOOLS SOFT`, 105, 294, { align: 'center' });
 
-    doc.save(`venta-${sale.id}.pdf`);
+    doc.save(`factura-JRepuestos-${String(sale.id).padStart(5, '0')}.pdf`);
   };
 
   const handleCancelSale = (sale: Sale) => {
@@ -382,9 +416,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const confirmCancel = async () => {
     if (!saleToCancel) return;
     try {
-      await deleteVenta(saleToCancel.id);
-      setSales(sales.map(s => s.id === saleToCancel.id ? { ...s, status: 'Anulada' } : s));
-      toast.success(`Venta #${saleToCancel.id} anulada exitosamente`);
+      await anularVenta(saleToCancel.id);
+      setSales(prev => prev.map(s => s.id === saleToCancel.id ? { ...s, status: 'Anulada' } : s));
+      // Limpiar cualquier estado local previo de esta venta
+      const map = getSaleStatuses();
+      delete map[saleToCancel.id];
+      localStorage.setItem(SALE_STATUS_KEY, JSON.stringify(map));
+      toast.success(`Venta #${saleToCancel.id} anulada. Stock restaurado.`);
     } catch (error: any) {
       toast.error(error.message || 'Error al anular la venta');
     } finally {

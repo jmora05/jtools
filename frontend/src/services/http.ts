@@ -23,6 +23,18 @@ export function buildAuthHeaders(extra?: Record<string, string>) {
   };
 }
 
+export class ApiError extends Error {
+  errores?: string[];
+  status?: number;
+
+  constructor(message: string, errores?: string[], status?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.errores = errores;
+    this.status = status;
+  }
+}
+
 export async function handleResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
 
@@ -31,17 +43,18 @@ export async function handleResponse<T>(response: Response): Promise<T> {
     data = text.trim() ? JSON.parse(text) : {};
   } catch {
     if (!response.ok) {
-      throw new Error(`Error del servidor (${response.status}): respuesta no válida`);
+      throw new ApiError(`Error del servidor (${response.status}): respuesta no válida`, undefined, response.status);
     }
-    throw new Error('La respuesta del servidor no tiene el formato esperado');
+    throw new ApiError('La respuesta del servidor no tiene el formato esperado');
   }
 
   if (!response.ok) {
     const err = data as ApiErrorShape;
-    const errorMessage = err?.errores?.length
-      ? err.errores.join(', ')
+    const errores = err?.errores?.length ? err.errores : undefined;
+    const errorMessage = errores
+      ? err?.message || `Error del servidor (${response.status})`
       : err?.message || err?.error || `Error del servidor (${response.status})`;
-    throw new Error(errorMessage);
+    throw new ApiError(errorMessage, errores, response.status);
   }
 
   return data as T;

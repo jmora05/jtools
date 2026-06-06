@@ -97,10 +97,10 @@ function validarProveedor(data, esActualizacion = false) {
     // ── 6. Teléfono ────────────────────────────────────────────────────────────
     if (telefono) {
         const tel = String(telefono).trim();
-        if (tel.length < 2 || tel.length > 10) {
-            errores.push('El teléfono debe tener entre 2 y 10 caracteres');
-        } else if (!/^[+]?[\d\s\-(). ]{2,10}$/.test(tel)) {
-            errores.push('El teléfono tiene un formato inválido (ej: 3001234567)');
+        if (!/^\d+$/.test(tel)) {
+            errores.push('El teléfono solo puede contener dígitos numéricos');
+        } else if (tel.length < 7 || tel.length > 15) {
+            errores.push('El teléfono debe tener entre 7 y 15 dígitos');
         }
     }
 

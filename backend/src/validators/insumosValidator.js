@@ -1,7 +1,7 @@
 // Validaciones de negocio — Módulo Insumos
 // ============================================================
 
-const UNIDADES_MEDIDA = ['Unidades', 'Litros', 'Kilogramos', 'Gramos', 'Metros', 'Cajas', 'Par', 'Rollo', 'Galón', 'Juegos'];
+const UNIDADES_MEDIDA = ['Unidades', 'Kilogramos', 'Gramos', 'Metros', 'Par', 'Rollo', 'Galón', 'Juegos'];
 
 /**
  * Valida los datos de un insumo.
@@ -34,8 +34,8 @@ function validarInsumo(data, esActualizacion = false) {
     // ── 2. Nombre ──────────────────────────────────────────────────────
     if (nombreInsumo !== undefined && nombreInsumo !== null && nombreInsumo !== '') {
         const n = String(nombreInsumo).trim();
-        if (n.length < 2 || n.length > 50) {
-            errores.push('El nombre del insumo debe tener entre 2 y 50 caracteres');
+        if (n.length < 2 || n.length > 30) {
+            errores.push('El nombre del insumo debe tener entre 2 y 30 caracteres');
         }
     }
 

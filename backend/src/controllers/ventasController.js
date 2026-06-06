@@ -1,4 +1,5 @@
 const { Ventas, Clientes, DetalleVentas, Productos } = require('../models/index.js');
+const { sequelize } = require('../config/jtools_db.js');
 
 // GET - listar todas las ventas
 const getVentas = async (req, res) => {
@@ -126,10 +127,55 @@ const deleteVenta = async (req, res) => {
     }
 };
 
+// PATCH /:id/anular — Anula la venta y restaura el stock de cada producto
+const anularVenta = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { id } = req.params;
+
+        const venta = await Ventas.findByPk(id, {
+            include: [{
+                model: DetalleVentas, as: 'detalles',
+                include: [{ model: Productos, as: 'producto' }]
+            }],
+            transaction: t
+        });
+
+        if (!venta) {
+            await t.rollback();
+            return res.status(404).json({ message: 'Venta no encontrada' });
+        }
+
+        if (venta.estado === 'anulada') {
+            await t.rollback();
+            return res.status(400).json({ message: 'Esta venta ya está anulada' });
+        }
+
+        // Restaurar stock de cada producto en los detalles
+        for (const detalle of venta.detalles ?? []) {
+            if (detalle.producto) {
+                await detalle.producto.update(
+                    { stock: detalle.producto.stock + detalle.cantidad },
+                    { transaction: t }
+                );
+            }
+        }
+
+        await venta.update({ estado: 'anulada' }, { transaction: t });
+        await t.commit();
+
+        res.status(200).json({ message: `Venta #${id} anulada correctamente. Stock restaurado.` });
+    } catch (error) {
+        await t.rollback();
+        res.status(500).json({ message: 'Error al anular la venta', error: error.message });
+    }
+};
+
 module.exports = {
     getVentas,
     getVentaById,
     createVenta,
     updateVenta,
-    deleteVenta
+    deleteVenta,
+    anularVenta,
 };

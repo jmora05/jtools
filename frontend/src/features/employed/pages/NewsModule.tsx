@@ -38,16 +38,18 @@ import {
 
 const ESTADO_SELECT_CLASSES: Record<string, string> = {
   registrada:                'border-amber-300 bg-amber-50 text-amber-900',
-  aprobada_remunera:         'border-amber-300 bg-amber-50 text-amber-900',
-  aprobada_sin_remuneracion: 'border-amber-300 bg-amber-50 text-amber-900',
-  rechazada:                 'border-amber-300 bg-amber-50 text-amber-900',
+  aprobada_remunera:         'border-green-300 bg-green-50 text-green-900',
+  aprobada_sin_remuneracion: 'border-blue-300 bg-blue-50 text-blue-900',
+  rechazada:                 'border-red-300 bg-red-50 text-red-900',
+  anulada:                   'border-gray-300 bg-gray-100 text-gray-600',
 };
 
 const ESTADO_COLORS: Record<string, string> = {
   registrada:                'bg-amber-100 text-amber-900 border-amber-200',
-  aprobada_remunera:         'bg-amber-100 text-amber-900 border-amber-200',
-  aprobada_sin_remuneracion: 'bg-amber-100 text-amber-900 border-amber-200',
-  rechazada:                 'bg-amber-100 text-amber-900 border-amber-200',
+  aprobada_remunera:         'bg-green-100 text-green-900 border-green-200',
+  aprobada_sin_remuneracion: 'bg-blue-100 text-blue-900 border-blue-200',
+  rechazada:                 'bg-red-100 text-red-900 border-red-200',
+  anulada:                   'bg-gray-100 text-gray-600 border-gray-300',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -55,7 +57,11 @@ const ESTADO_LABELS: Record<string, string> = {
   aprobada_remunera:         'Aprobada con Remuneración',
   aprobada_sin_remuneracion: 'Aprobada sin Remuneración',
   rechazada:                 'Rechazada',
+  anulada:                   'Anulada',
 };
+
+// Estados terminales — el usuario no puede cambiarlos desde el frontend
+const ESTADOS_TERMINALES = new Set(['anulada', 'rechazada']);
 
 const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
   emp ? `${emp.nombres} ${emp.apellidos}` : '—';
@@ -95,7 +101,7 @@ interface FormValues {
   fecha_inicio: string;
   fecha_finalizacion: string;
   empleado_afectado: EmpleadoSeleccionado | null;
-  estado: 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada';
+  estado: 'registrada' | 'aprobada_remunera' | 'aprobada_sin_remuneracion' | 'rechazada' | 'anulada';
   horas_ausencia: string;
 }
 
@@ -386,7 +392,7 @@ export function NewsModule() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   const [bannerNovedadId, setBannerNovedadId] = useState<number | null>(null);
-  const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | null>(null);
+  const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | 'terminal' | null>(null);
   const [togglingIds,     setTogglingIds]     = useState<Set<number>>(new Set());
   const [activeView,      setActiveView]      = useState<'ausencias' | 'horas-extra'>('ausencias');
   const [heIsNewOpen,     setHeIsNewOpen]     = useState(false);
@@ -810,16 +816,23 @@ export function NewsModule() {
           {isEdit && (
             <div className="border-t border-gray-200 pt-4">
               <Field label="Estado">
-                <select
-                  value={form.estado}
-                  onChange={e => setForm(prev => ({ ...prev, estado: e.target.value as FormValues['estado'] }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  <option value="registrada">Registrada</option>
-                  <option value="aprobada_remunera">Aprobada con Remuneración</option>
-                  <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
-                  <option value="rechazada">Rechazada</option>
-                </select>
+                {ESTADOS_TERMINALES.has(form.estado) ? (
+                  <div className={`border rounded-md px-3 py-2 text-sm font-medium ${ESTADO_SELECT_CLASSES[form.estado] ?? 'border-gray-300 bg-gray-100 text-gray-600'}`}>
+                    {ESTADO_LABELS[form.estado] ?? form.estado}
+                    <span className="ml-2 text-xs opacity-70">(estado definitivo, no puede cambiar)</span>
+                  </div>
+                ) : (
+                  <select
+                    value={form.estado}
+                    onChange={e => setForm(prev => ({ ...prev, estado: e.target.value as FormValues['estado'] }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  >
+                    <option value="registrada">Registrada</option>
+                    <option value="aprobada_remunera">Aprobada con Remuneración</option>
+                    <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
+                    <option value="rechazada">Rechazada</option>
+                  </select>
+                )}
               </Field>
             </div>
           )}
@@ -944,6 +957,7 @@ export function NewsModule() {
                 <option value="aprobada_remunera">Aprobada con Remuneración</option>
                 <option value="aprobada_sin_remuneracion">Aprobada sin Remuneración</option>
                 <option value="rechazada">Rechazada</option>
+                <option value="anulada">Anulada</option>
               </select>
 
             </div>
@@ -998,7 +1012,7 @@ export function NewsModule() {
                         
                         <td className="px-6 py-4">
                           <div className="relative inline-flex items-center">
-                            {(novedad.estado === 'registrada' || novedad.estado === 'rechazada') ? (
+                            {!ESTADOS_TERMINALES.has(novedad.estado) ? (
                               <select
                                 value={novedad.estado}
                                 onChange={e => handleCambiarEstado(novedad, e.target.value as EstadoNovedad)}
