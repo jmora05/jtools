@@ -838,7 +838,8 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                 <button className="w-10 h-10 bg-gray-800 hover:bg-blue-600 rounded-lg flex items-center justify-center transition-colors">
                   <FacebookIcon className="w-5 h-5" />
                 </button>
-                <button className="w-10 h-10 bg-gray-800 hover:bg-pink-500 rounded-lg flex items-center justify-center transition-colors">
+                <button className="w-10 h-10 bg-gray-800 hover:bg-pink-500 rounded-lg flex items-center justify-center transition-colors"
+                onClick={() => window.open('https://www.instagram.com/jrepuestosmed?igsh=c2c4N2Vxc2tjdHEw')}>
                   <InstagramIcon className="w-5 h-5" />
                 </button>
               </div>

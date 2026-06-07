@@ -217,7 +217,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   // Filtro de cliente externo
   React.useEffect(() => {
-    if (clientFilter) {
+    if (clientFilter && !clientMode) {
       setSaleForm({
         ...saleForm,
         clientId: clientFilter.id,
@@ -647,11 +647,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
             setShowNewSaleModal(open);
             if (!open) { resetSaleForm(); if (onClearClientFilter) onClearClientFilter(); }
           }}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : 'Nueva Venta'}
-              </Button>
-            </DialogTrigger>
+            {!clientMode && (
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
+                  <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : 'Nueva Venta'}
+                </Button>
+              </DialogTrigger>
+            )}
 
             <DialogContent
               className="p-0 gap-0 overflow-hidden"
