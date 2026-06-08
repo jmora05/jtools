@@ -767,7 +767,7 @@ export function UserManagement() {
                                     className={
                                       inactive
                                         ? 'opacity-40 cursor-not-allowed border-gray-200 text-gray-400'
-                                        : 'text-blue-900 border-blue-900 hover:bg-blue-900'
+                                        : 'text-blue-900 border-blue-900 hover:bg-blue-50'
                                     }
                                   >
                                     {inactive

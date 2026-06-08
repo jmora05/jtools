@@ -2,17 +2,39 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
 import { Badge } from '@/shared/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/shared/components/ui/avatar';
 import { toast } from 'sonner';
 import {
     AlertTriangle, CheckCircle2, Info, X, Loader2, Edit,
     Phone, Mail, MapPin, Building2, FileText, User,
+    Lock, KeyRound, Eye, EyeOff, CheckIcon, XIcon,
 } from 'lucide-react';
 import { getClienteMe, updateClienteMe } from '../services/clientesService';
+import { changePassword } from '@/features/auth/services/authService';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/shared/components/ui/dialog';
+
+// ── Reglas de contraseña ──────────────────────────────────────────────────────
+const PASSWORD_RULES = [
+    { key: 'length',    label: 'Mínimo 8 caracteres',  test: (p: string) => p.length >= 8 },
+    { key: 'uppercase', label: '1 letra mayúscula',     test: (p: string) => /[A-Z]/.test(p) },
+    { key: 'number',    label: '1 número',              test: (p: string) => /\d/.test(p) },
+    { key: 'special',   label: '1 carácter especial',   test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
+];
+
+function RuleItem({ ok, label }: { ok: boolean; label: string }) {
+    return (
+        <div className="flex items-center gap-2 text-xs">
+            {ok
+                ? <CheckIcon className="w-3 h-3 text-green-500 flex-shrink-0" />
+                : <XIcon className="w-3 h-3 text-red-400 flex-shrink-0" />}
+            <span className={ok ? 'text-green-600' : 'text-gray-500'}>{label}</span>
+        </div>
+    );
+}
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface ClienteData {
@@ -126,6 +148,48 @@ export function ClientProfile() {
     const [submitted, setSubmitted] = useState(false);
 
     const [banner, setBanner] = useState<{ text: string; variant: BannerVariant } | null>(null);
+
+    // ── Estado modal cambio de contraseña ─────────────────────────────────────
+    const [showPwdModal, setShowPwdModal]     = useState(false);
+    const [pwdForm, setPwdForm]               = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [showPwdCurrent, setShowPwdCurrent] = useState(false);
+    const [showPwdNew, setShowPwdNew]         = useState(false);
+    const [showPwdConfirm, setShowPwdConfirm] = useState(false);
+    const [savingPwd, setSavingPwd]           = useState(false);
+
+    const pwdValidation = PASSWORD_RULES.reduce((acc, r) => {
+        acc[r.key] = r.test(pwdForm.newPassword);
+        return acc;
+    }, {} as Record<string, boolean>);
+    const pwdValid      = Object.values(pwdValidation).every(Boolean);
+    const pwdMatch      = pwdForm.newPassword === pwdForm.confirmPassword && pwdForm.confirmPassword.length > 0;
+    const sameAsCurrent = pwdForm.currentPassword.length > 0 && pwdForm.newPassword === pwdForm.currentPassword;
+
+    const openPwdModal = () => {
+        setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setShowPwdCurrent(false);
+        setShowPwdNew(false);
+        setShowPwdConfirm(false);
+        setShowPwdModal(true);
+    };
+
+    const handlePwdSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pwdForm.currentPassword) { toast.error('Ingresa tu contraseña actual'); return; }
+        if (sameAsCurrent)            { toast.error('La nueva contraseña no puede ser igual a la contraseña actual'); return; }
+        if (!pwdValid)                { toast.error('La nueva contraseña no cumple los requisitos'); return; }
+        if (!pwdMatch)                { toast.error('Las contraseñas no coinciden'); return; }
+        setSavingPwd(true);
+        try {
+            const resp = await changePassword(pwdForm.currentPassword, pwdForm.newPassword, pwdForm.confirmPassword);
+            toast.success(resp.message || 'Contraseña actualizada');
+            setShowPwdModal(false);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Error al cambiar contraseña');
+        } finally {
+            setSavingPwd(false);
+        }
+    };
     const showBanner = useCallback((text: string, variant: BannerVariant = 'info') => {
         setBanner({ text, variant });
         setTimeout(() => setBanner(null), 5000);
@@ -318,6 +382,143 @@ export function ClientProfile() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Sección Cambiar Contraseña */}
+            <Card>
+                <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                <Lock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
+                                <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
+                            </div>
+                        </div>
+                        <Button onClick={openPwdModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Modal Cambiar Contraseña */}
+            <Dialog open={showPwdModal} onOpenChange={(open) => { if (!open) setShowPwdModal(false); }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <KeyRound className="w-5 h-5 text-blue-600" />Cambiar Contraseña
+                        </DialogTitle>
+                        <DialogDescription>
+                            Ingresa tu contraseña actual y elige una nueva contraseña segura.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handlePwdSubmit} className="space-y-4 mt-2">
+                        {/* Contraseña actual */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="cli-current-pwd" className="text-sm">
+                                Contraseña actual <span className="text-red-500">*</span>
+                            </Label>
+                            <div className="relative">
+                                <input
+                                    id="cli-current-pwd"
+                                    type={showPwdCurrent ? 'text' : 'password'}
+                                    value={pwdForm.currentPassword}
+                                    onChange={e => setPwdForm(f => ({ ...f, currentPassword: e.target.value }))}
+                                    placeholder="••••••••"
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                                <button type="button" onClick={() => setShowPwdCurrent(v => !v)}
+                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                    {showPwdCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Nueva contraseña */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="cli-new-pwd" className="text-sm">
+                                Nueva contraseña <span className="text-red-500">*</span>
+                            </Label>
+                            <div className="relative">
+                                <input
+                                    id="cli-new-pwd"
+                                    type={showPwdNew ? 'text' : 'password'}
+                                    value={pwdForm.newPassword}
+                                    onChange={e => setPwdForm(f => ({ ...f, newPassword: e.target.value }))}
+                                    placeholder="••••••••"
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                                <button type="button" onClick={() => setShowPwdNew(v => !v)}
+                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                    {showPwdNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                            {pwdForm.newPassword && (
+                                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                                    {PASSWORD_RULES.map(r => (
+                                        <RuleItem key={r.key} ok={pwdValidation[r.key]} label={r.label} />
+                                    ))}
+                                </div>
+                            )}
+                            {sameAsCurrent && (
+                                <p className="text-xs text-red-500 flex items-center gap-1">
+                                    <XIcon className="w-3 h-3" />La nueva contraseña no puede ser igual a la contraseña actual
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Confirmar contraseña */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="cli-confirm-pwd" className="text-sm">
+                                Confirmar contraseña <span className="text-red-500">*</span>
+                            </Label>
+                            <div className="relative">
+                                <input
+                                    id="cli-confirm-pwd"
+                                    type={showPwdConfirm ? 'text' : 'password'}
+                                    value={pwdForm.confirmPassword}
+                                    onChange={e => setPwdForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                                    placeholder="••••••••"
+                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                                <button type="button" onClick={() => setShowPwdConfirm(v => !v)}
+                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                    {showPwdConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                            {pwdForm.confirmPassword && !pwdMatch && (
+                                <p className="text-xs text-red-500 flex items-center gap-1">
+                                    <XIcon className="w-3 h-3" />Las contraseñas no coinciden
+                                </p>
+                            )}
+                            {pwdForm.confirmPassword && pwdMatch && (
+                                <p className="text-xs text-green-600 flex items-center gap-1">
+                                    <CheckIcon className="w-3 h-3" />Las contraseñas coinciden
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                            <Button type="button" variant="outline" className="flex-1"
+                                onClick={() => setShowPwdModal(false)} disabled={savingPwd}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={savingPwd || !pwdValid || !pwdMatch || !pwdForm.currentPassword || sameAsCurrent}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            >
+                                {savingPwd
+                                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Guardando...</>
+                                    : 'Actualizar contraseña'}
+                            </Button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* ── Modal Editar ─────────────────────────────────────────────── */}
             <Dialog open={showEdit} onOpenChange={(open) => { if (!open) setShowEdit(false); }}>

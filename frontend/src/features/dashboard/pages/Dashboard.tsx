@@ -40,9 +40,16 @@ const NUM = (n: number) => n.toLocaleString('es-CO');
 async function safeGet<T>(path: string): Promise<T | null> {
   try {
     const r = await fetch(`${API}${path}`, { headers: buildAuthHeaders() });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      console.error(`[Dashboard] ${path} → ${r.status}`, body);
+      return null;
+    }
     return (await r.json()) as T;
-  } catch { return null; }
+  } catch (err) {
+    console.error(`[Dashboard] ${path} → error de red`, err);
+    return null;
+  }
 }
 
 function periodUrl(desde: string, hasta: string) {
@@ -453,9 +460,17 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
         <div className="p-5 pt-2">
           {loading ? (
             <div className="h-52 bg-gray-50 rounded-xl animate-pulse" />
+          ) : barData.length === 0 ? (
+            <div className="h-52 flex flex-col items-center justify-center gap-2 bg-gray-50 rounded-xl">
+              <Package className="w-8 h-8 text-gray-300" />
+              <p className="text-sm text-gray-400">No se pudieron cargar los datos</p>
+            </div>
           ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
+            <>
+              {activeChart && activeChart.data.every(v => v === 0) && (
+                <p className="text-xs text-gray-400 text-center pb-1">Sin actividad registrada en este período</p>
+              )}
+              <ResponsiveContainer width="100%" height={208}>
                 <BarChart data={barData} barSize={28} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
@@ -470,10 +485,10 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
                   <Bar dataKey="value" fill={SECONDARY} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </>
           )}
         </div>
-        
+
       </div>
 
       {/* ── Ventas por período (area chart) ── */}
@@ -523,9 +538,17 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
         <div className="p-5">
           {loading ? (
             <div className="h-52 bg-gray-50 rounded-xl animate-pulse" />
+          ) : areaData.length === 0 ? (
+            <div className="h-52 flex flex-col items-center justify-center gap-2 bg-gray-50 rounded-xl">
+              <TrendingUp className="w-8 h-8 text-gray-300" />
+              <p className="text-sm text-gray-400">No se pudieron cargar los datos</p>
+            </div>
           ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
+            <>
+              {areaData.every(d => d.value === 0) && (
+                <p className="text-xs text-gray-400 text-center pb-1">Sin ventas registradas en este período</p>
+              )}
+              <ResponsiveContainer width="100%" height={208}>
                 <AreaChart data={areaData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="aGrad" x1="0" y1="0" x2="0" y2="1">
@@ -547,7 +570,7 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
                     dot={{ fill: '#fff', stroke: SECONDARY, strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: SECONDARY }} />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
+            </>
           )}
         </div>
       </div>

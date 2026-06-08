@@ -314,6 +314,11 @@ const resetPassword = async (req, res) => {
         const usuario = await Usuarios.findByPk(payload.userId);
         if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
 
+        const sameAsOldPwd = await bcrypt.compare(newPassword, usuario.password);
+        if (sameAsOldPwd) {
+            return res.status(400).json({ message: 'La nueva contraseña debe ser diferente a la contraseña anterior' });
+        }
+
         // Hashear y guardar la nueva contraseña
         const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
         await usuario.update({ password: passwordHash });
@@ -360,6 +365,11 @@ const changePassword = async (req, res) => {
         const isValid = await bcrypt.compare(currentPassword, usuario.password);
         if (!isValid) {
             return res.status(400).json({ message: 'La contraseña actual es incorrecta' });
+        }
+
+        const sameAsCurrentPwd = await bcrypt.compare(newPassword, usuario.password);
+        if (sameAsCurrentPwd) {
+            return res.status(400).json({ message: 'La nueva contraseña no puede ser igual a la contraseña actual' });
         }
 
         const hash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);

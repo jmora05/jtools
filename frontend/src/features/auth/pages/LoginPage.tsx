@@ -145,7 +145,6 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
   const [resetToken, setResetToken]           = useState('');
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [resendCooldown, setResendCooldown]   = useState(0);
-  const [devCodeVisible, setDevCodeVisible]   = useState(''); // código visible en UI para desarrollo
 
   // Login form state
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -326,13 +325,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       setRemainingAttempts(5);
       setResendCooldown(60);
       setRecoveryStep(2);
-      if (resp.devCode) {
-        setDevCodeVisible(resp.devCode);
-        toast.info(`[DEV] Email no configurado. Código: ${resp.devCode}`, { duration: 30000 });
-      } else {
-        setDevCodeVisible('');
-        toast.success(resp.message);
-      }
+      toast.success(resp.message);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al enviar código');
     } finally {
@@ -398,13 +391,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
         setRemainingAttempts(5);
         setResendCooldown(60);
         setVerificationCode('');
-        if (resp.devCode) {
-          setDevCodeVisible(resp.devCode);
-          toast.info(`[DEV] Nuevo código: ${resp.devCode}`, { duration: 30000 });
-        } else {
-          setDevCodeVisible('');
-          toast.success(resp.message);
-        }
+        toast.success(resp.message);
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Error al reenviar código'))
       .finally(() => setLoading(false));
@@ -443,7 +430,6 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     setResetToken('');
     setRemainingAttempts(5);
     setResendCooldown(0);
-    setDevCodeVisible('');
   };
 
   // Documentos disponibles según tipo de persona
@@ -852,6 +838,11 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                         </button>
                       </div>
                       <FieldError msg={fieldErrors.confirmPassword} />
+                      {registerForm.confirmPassword && registerForm.password && !fieldErrors.confirmPassword && (
+                        registerForm.password === registerForm.confirmPassword
+                          ? <p className="text-xs text-green-600 flex items-center gap-1"><CheckIcon className="w-3 h-3" />Las contraseñas coinciden</p>
+                          : <p className="text-xs text-red-500 flex items-center gap-1"><XIcon className="w-3 h-3" />Las contraseñas no coinciden</p>
+                      )}
                     </div>
                   </div>
 
@@ -905,7 +896,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
           MODAL RECUPERACIÓN DE CONTRASEÑA — 4 pasos
       ═══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={isRecoveryModalOpen} onOpenChange={closeRecoveryModal}>
-        <DialogContent className="w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyIcon className="w-5 h-5 text-blue-600" />Recuperar Contraseña
@@ -955,22 +946,6 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     </p>
                   )}
                 </div>
-
-                {/* Banner DEV — visible cuando el email no está configurado */}
-                {devCodeVisible && (
-                  <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4 text-center space-y-1">
-                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-                      ⚠️ Modo desarrollo — email no enviado
-                    </p>
-                    <p className="text-xs text-amber-600">Tu código de verificación es:</p>
-                    <p className="text-3xl font-mono font-bold tracking-[0.4em] text-amber-800 select-all">
-                      {devCodeVisible}
-                    </p>
-                    <p className="text-xs text-amber-500">
-                      Configura RESEND_API_KEY y un dominio verificado para enviar emails reales.
-                    </p>
-                  </div>
-                )}
 
                 {/* Input OTP */}
                 <div className="space-y-2">
@@ -1065,6 +1040,11 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     {confirmNewPassword && newPassword !== confirmNewPassword && (
                       <p className="text-xs text-red-500 flex items-center gap-1">
                         <AlertCircleIcon className="w-3 h-3" />Las contraseñas no coinciden
+                      </p>
+                    )}
+                    {confirmNewPassword && newPassword === confirmNewPassword && (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <CheckIcon className="w-3 h-3" />Las contraseñas coinciden
                       </p>
                     )}
                   </div>

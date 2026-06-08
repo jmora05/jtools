@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -8,11 +8,14 @@ import { Avatar, AvatarFallback } from '@/shared/components/ui/avatar';
 import { toast } from 'sonner';
 import {
     Mail, ShieldCheck, KeyRound, Eye, EyeOff,
-    CheckIcon, XIcon,
+    CheckIcon, XIcon, Lock,
 } from 'lucide-react';
+import {
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/shared/components/ui/dialog';
 import { changePassword } from '@/features/auth/services/authService';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constantes ────────────────────────────────────────────────────────────────
 const PASSWORD_RULES = [
     { key: 'length',    label: 'Mínimo 8 caracteres',  test: (p: string) => p.length >= 8 },
     { key: 'uppercase', label: '1 letra mayúscula',     test: (p: string) => /[A-Z]/.test(p) },
@@ -20,6 +23,7 @@ const PASSWORD_RULES = [
     { key: 'special',   label: '1 carácter especial',   test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
 ];
 
+// ── Auxiliares ────────────────────────────────────────────────────────────────
 function RuleItem({ ok, label }: { ok: boolean; label: string }) {
     return (
         <div className="flex items-center gap-2 text-xs">
@@ -31,17 +35,28 @@ function RuleItem({ ok, label }: { ok: boolean; label: string }) {
     );
 }
 
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+    return (
+        <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
+            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
+                {icon}
+            </div>
+            <div>
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className="text-sm font-semibold text-gray-800 mt-0.5">{value || '—'}</p>
+            </div>
+        </div>
+    );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export function AdminProfile() {
     const [userData, setUserData] = useState<{
         email: string; role: string; userType: string; name: string;
     } | null>(null);
 
-    const [form, setForm] = useState({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-    });
+    const [showModal, setShowModal]     = useState(false);
+    const [form, setForm]               = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [showCurrent, setShowCurrent] = useState(false);
     const [showNew, setShowNew]         = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
@@ -52,8 +67,9 @@ export function AdminProfile() {
         return acc;
     }, {} as Record<string, boolean>);
 
-    const passwordValid = Object.values(validation).every(Boolean);
-    const confirmMatch  = form.newPassword === form.confirmPassword && form.confirmPassword.length > 0;
+    const passwordValid  = Object.values(validation).every(Boolean);
+    const confirmMatch   = form.newPassword === form.confirmPassword && form.confirmPassword.length > 0;
+    const sameAsCurrent  = form.currentPassword.length > 0 && form.newPassword === form.currentPassword;
 
     useEffect(() => {
         try {
@@ -64,21 +80,26 @@ export function AdminProfile() {
 
     const initials = userData?.email?.slice(0, 2).toUpperCase() ?? 'U';
 
+    const openModal = () => {
+        setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setShowCurrent(false);
+        setShowNew(false);
+        setShowConfirm(false);
+        setShowModal(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.currentPassword) { toast.error('Ingresa tu contraseña actual'); return; }
+        if (sameAsCurrent)         { toast.error('La nueva contraseña no puede ser igual a la contraseña actual'); return; }
         if (!passwordValid)        { toast.error('La nueva contraseña no cumple los requisitos'); return; }
         if (!confirmMatch)         { toast.error('Las contraseñas no coinciden'); return; }
 
         setSaving(true);
         try {
-            const resp = await changePassword(
-                form.currentPassword,
-                form.newPassword,
-                form.confirmPassword,
-            );
+            const resp = await changePassword(form.currentPassword, form.newPassword, form.confirmPassword);
             toast.success(resp.message || 'Contraseña actualizada');
-            setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            setShowModal(false);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Error al cambiar contraseña');
         } finally {
@@ -87,60 +108,93 @@ export function AdminProfile() {
     };
 
     return (
-        <div className="p-6 max-w-2xl mx-auto space-y-6">
+        <div className="p-6 space-y-6">
 
-            {/* ── Cabecera ── */}
+            {/* Header */}
             <div>
-                <h1 className="text-2xl font-semibold text-gray-900">Ajustes de cuenta</h1>
-                <p className="text-sm text-gray-500 mt-1">Gestiona tu información personal y seguridad</p>
+                <h1 className="text-2xl text-blue-900 font-bold mb-1">Ajustes de cuenta</h1>
+                <p className="text-blue-800">Gestiona tu información personal y seguridad</p>
             </div>
 
-            {/* ── Tarjeta perfil ── */}
+            {/* Tarjeta perfil */}
             <Card>
-                <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                        <Avatar className="w-16 h-16">
-                            <AvatarFallback className="bg-blue-600 text-white text-xl font-bold">
+                <CardContent className="p-0">
+                    <div className="flex items-center gap-5 p-6 border-b border-gray-100">
+                        <Avatar className="w-20 h-20 shrink-0">
+                            <AvatarFallback className="bg-blue-600 text-white text-2xl font-bold">
                                 {initials}
                             </AvatarFallback>
                         </Avatar>
-                        <div className="flex-1">
-                            <p className="text-lg font-semibold text-gray-900">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xl font-bold text-gray-900 truncate">
                                 {userData?.name || userData?.email || '—'}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                                <Mail className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm text-gray-600">{userData?.email || '—'}</span>
-                            </div>
+                            <p className="text-sm text-gray-500 mt-0.5">{userData?.email || '—'}</p>
                             <div className="flex items-center gap-2 mt-2">
-                                <ShieldCheck className="w-4 h-4 text-blue-500" />
                                 <Badge className="bg-blue-100 text-blue-700 text-xs">
                                     {userData?.role || 'Administrador'}
                                 </Badge>
                             </div>
                         </div>
                     </div>
+
+                    <div className="px-6 py-2">
+                        <InfoRow
+                            icon={<Mail className="w-4 h-4 text-blue-600" />}
+                            label="Correo electrónico"
+                            value={userData?.email || '—'}
+                        />
+                        <InfoRow
+                            icon={<ShieldCheck className="w-4 h-4 text-blue-600" />}
+                            label="Rol"
+                            value={userData?.role || 'Administrador'}
+                        />
+                    </div>
                 </CardContent>
             </Card>
 
-            {/* ── Cambiar contraseña ── */}
+            {/* Sección Cambiar Contraseña */}
             <Card>
                 <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-5">
-                        <KeyRound className="w-5 h-5 text-gray-600" />
-                        <h2 className="text-base font-semibold text-gray-900">Cambiar contraseña</h2>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                <Lock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
+                                <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
+                            </div>
+                        </div>
+                        <Button onClick={openModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
+                        </Button>
                     </div>
+                </CardContent>
+            </Card>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Modal Cambiar Contraseña */}
+            <Dialog open={showModal} onOpenChange={(open) => { if (!open) setShowModal(false); }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <KeyRound className="w-5 h-5 text-blue-600" />Cambiar Contraseña
+                        </DialogTitle>
+                        <DialogDescription>
+                            Ingresa tu contraseña actual y elige una nueva contraseña segura.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSubmit} className="space-y-4 mt-2">
 
                         {/* Contraseña actual */}
                         <div className="space-y-1.5">
-                            <Label htmlFor="current-pwd" className="text-sm">
+                            <Label htmlFor="adm-current-pwd" className="text-sm">
                                 Contraseña actual <span className="text-red-500">*</span>
                             </Label>
                             <div className="relative">
                                 <Input
-                                    id="current-pwd"
+                                    id="adm-current-pwd"
                                     type={showCurrent ? 'text' : 'password'}
                                     value={form.currentPassword}
                                     onChange={e => setForm(f => ({ ...f, currentPassword: e.target.value }))}
@@ -156,12 +210,12 @@ export function AdminProfile() {
 
                         {/* Nueva contraseña */}
                         <div className="space-y-1.5">
-                            <Label htmlFor="new-pwd" className="text-sm">
+                            <Label htmlFor="adm-new-pwd" className="text-sm">
                                 Nueva contraseña <span className="text-red-500">*</span>
                             </Label>
                             <div className="relative">
                                 <Input
-                                    id="new-pwd"
+                                    id="adm-new-pwd"
                                     type={showNew ? 'text' : 'password'}
                                     value={form.newPassword}
                                     onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
@@ -173,8 +227,6 @@ export function AdminProfile() {
                                     {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
-
-                            {/* Indicador de requisitos */}
                             {form.newPassword && (
                                 <div className="grid grid-cols-2 gap-1.5 pt-1">
                                     {PASSWORD_RULES.map(r => (
@@ -182,16 +234,21 @@ export function AdminProfile() {
                                     ))}
                                 </div>
                             )}
+                            {sameAsCurrent && (
+                                <p className="text-xs text-red-500 flex items-center gap-1">
+                                    <XIcon className="w-3 h-3" />La nueva contraseña no puede ser igual a la contraseña actual
+                                </p>
+                            )}
                         </div>
 
                         {/* Confirmar contraseña */}
                         <div className="space-y-1.5">
-                            <Label htmlFor="confirm-pwd" className="text-sm">
+                            <Label htmlFor="adm-confirm-pwd" className="text-sm">
                                 Confirmar contraseña <span className="text-red-500">*</span>
                             </Label>
                             <div className="relative">
                                 <Input
-                                    id="confirm-pwd"
+                                    id="adm-confirm-pwd"
                                     type={showConfirm ? 'text' : 'password'}
                                     value={form.confirmPassword}
                                     onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
@@ -215,11 +272,15 @@ export function AdminProfile() {
                             )}
                         </div>
 
-                        <div className="pt-2">
+                        <div className="flex gap-2 pt-2">
+                            <Button type="button" variant="outline" className="flex-1"
+                                onClick={() => setShowModal(false)} disabled={saving}>
+                                Cancelar
+                            </Button>
                             <Button
                                 type="submit"
-                                disabled={saving || !passwordValid || !confirmMatch || !form.currentPassword}
-                                className="bg-blue-600 hover:bg-blue-700 h-9"
+                                disabled={saving || !passwordValid || !confirmMatch || !form.currentPassword || sameAsCurrent}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700"
                             >
                                 {saving
                                     ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Guardando...</>
@@ -227,8 +288,9 @@ export function AdminProfile() {
                             </Button>
                         </div>
                     </form>
-                </CardContent>
-            </Card>
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 }
