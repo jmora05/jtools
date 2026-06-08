@@ -1,6 +1,13 @@
-const { DetalleVentas, Ventas, Productos } = require('../models/index.js');
+const { DetalleVentas, Ventas, Productos, Clientes } = require('../models/index.js');
 
-// GET - listar detalles por venta
+// Resuelve el clientesId del usuario autenticado; null si no es cliente o no existe registro
+const _resolveClienteId = async (req) => {
+    if (req.usuario?.userType !== 'client') return null;
+    const cliente = await Clientes.findOne({ where: { email: req.usuario.email } });
+    return cliente ? cliente.id : undefined;
+};
+
+// GET - listar detalles por venta (clientes solo pueden ver sus propias ventas)
 const getDetallesByVenta = async (req, res) => {
     try {
         const { ventasId } = req.params;
@@ -8,6 +15,13 @@ const getDetallesByVenta = async (req, res) => {
         const venta = await Ventas.findByPk(ventasId);
         if (!venta) {
             return res.status(404).json({ message: 'Venta no encontrada' });
+        }
+
+        if (req.usuario?.userType === 'client') {
+            const clienteId = await _resolveClienteId(req);
+            if (clienteId === undefined || venta.clientesId !== clienteId) {
+                return res.status(403).json({ message: 'Acceso denegado' });
+            }
         }
 
         const detalles = await DetalleVentas.findAll({
@@ -23,19 +37,26 @@ const getDetallesByVenta = async (req, res) => {
     }
 };
 
-// GET - obtener detalle por ID
+// GET - obtener detalle por ID (clientes solo pueden ver los de sus propias ventas)
 const getDetalleVentaById = async (req, res) => {
     try {
         const { id } = req.params;
         const detalle = await DetalleVentas.findByPk(id, {
             include: [
-                { model: Ventas, as: 'venta', attributes: ['id', 'fecha', 'metodoPago', 'total'] },
+                { model: Ventas, as: 'venta', attributes: ['id', 'clientesId', 'fecha', 'metodoPago', 'total'] },
                 { model: Productos, as: 'producto', attributes: ['id', 'nombreProducto', 'referencia', 'precio'] }
             ]
         });
 
         if (!detalle) {
             return res.status(404).json({ message: 'Detalle de venta no encontrado' });
+        }
+
+        if (req.usuario?.userType === 'client') {
+            const clienteId = await _resolveClienteId(req);
+            if (clienteId === undefined || detalle.venta?.clientesId !== clienteId) {
+                return res.status(403).json({ message: 'Acceso denegado' });
+            }
         }
 
         res.status(200).json(detalle);
@@ -46,6 +67,9 @@ const getDetalleVentaById = async (req, res) => {
 
 // POST - agregar detalle a una venta
 const createDetalleVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { ventasId, productosId, cantidad, precioUnitario } = req.body;
 
@@ -100,6 +124,9 @@ const createDetalleVenta = async (req, res) => {
 
 // PUT - actualizar detalle de venta
 const updateDetalleVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { id } = req.params;
         const detalle = await DetalleVentas.findByPk(id);
@@ -144,6 +171,9 @@ const updateDetalleVenta = async (req, res) => {
 
 // DELETE - eliminar detalle de venta y restaurar stock
 const deleteDetalleVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { id } = req.params;
         const detalle = await DetalleVentas.findByPk(id);

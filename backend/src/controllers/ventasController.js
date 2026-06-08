@@ -1,10 +1,24 @@
 const { Ventas, Clientes, DetalleVentas, Productos } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db.js');
 
-// GET - listar todas las ventas
+// Resuelve el registro Clientes del usuario autenticado; null si no existe
+const _resolveCliente = async (req) => {
+    return Clientes.findOne({ where: { email: req.usuario?.email } });
+};
+
+// GET - listar ventas (clientes solo ven las propias)
 const getVentas = async (req, res) => {
     try {
+        let whereClause = {};
+
+        if (req.usuario?.userType === 'client') {
+            const cliente = await _resolveCliente(req);
+            if (!cliente) return res.status(404).json({ message: 'Perfil de cliente no encontrado' });
+            whereClause = { clientesId: cliente.id };
+        }
+
         const ventas = await Ventas.findAll({
+            where: whereClause,
             include: [
                 { model: Clientes, as: 'cliente', attributes: ['id', 'nombres', 'apellidos', 'email', 'telefono'] },
                 {
@@ -19,7 +33,7 @@ const getVentas = async (req, res) => {
     }
 };
 
-// GET - obtener venta por ID
+// GET - obtener venta por ID (clientes solo pueden ver las propias)
 const getVentaById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -37,6 +51,13 @@ const getVentaById = async (req, res) => {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
+        if (req.usuario?.userType === 'client') {
+            const cliente = await _resolveCliente(req);
+            if (!cliente || venta.clientesId !== cliente.id) {
+                return res.status(403).json({ message: 'Acceso denegado' });
+            }
+        }
+
         res.status(200).json(venta);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener la venta', error: error.message });
@@ -45,6 +66,9 @@ const getVentaById = async (req, res) => {
 
 // POST - crear venta
 const createVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { clientesId, fecha, metodoPago, tipoVenta, total } = req.body;
 
@@ -77,6 +101,9 @@ const createVenta = async (req, res) => {
 
 // PUT - actualizar venta
 const updateVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { id } = req.params;
         const venta = await Ventas.findByPk(id);
@@ -112,6 +139,9 @@ const updateVenta = async (req, res) => {
 
 // DELETE - eliminar venta
 const deleteVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     try {
         const { id } = req.params;
         const venta = await Ventas.findByPk(id);
@@ -129,6 +159,9 @@ const deleteVenta = async (req, res) => {
 
 // PATCH /:id/anular — Anula la venta y restaura el stock de cada producto
 const anularVenta = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
     const t = await sequelize.transaction();
     try {
         const { id } = req.params;
