@@ -712,12 +712,12 @@ export function NewsModule() {
   // ── Render del formulario ──────────────────────────────────────────────────
   const renderForm = (
     onSubmit: (e: React.FormEvent) => void,
-    submitLabel: string,
-    isEdit = false
+    isEdit = false,
+    formId = 'novedad-form'
   ) => {
     const bloqueado = isEdit && selectedNovedad?.estado !== 'registrada';
     return (
-    <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column' }}>
+    <form id={formId} onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column' }}>
 
       {bloqueado && (
         <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
@@ -864,22 +864,6 @@ export function NewsModule() {
         </div>
       </div>
 
-      {/* ── Acciones ── */}
-      <div className="flex gap-4 pt-3 mt-3 border-t border-gray-200">
-        <Button type="button" variant="outline" className="flex-1"
-          onClick={() => {
-            resetForm();
-            setIsNewDialogOpen(false);
-            setIsEditDialogOpen(false);
-            setSelectedNovedad(null);
-          }}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={submitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
-          {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
-          {submitLabel}
-        </Button>
-      </div>
     </form>
     );
   };
@@ -917,8 +901,17 @@ export function NewsModule() {
                     Completa el formulario para registrar una nueva novedad o incidencia.
                   </DialogDescription>
                 </DialogHeader>
-                {renderForm(handleCreate, 'Registrar Novedad', false)}
+                {renderForm(handleCreate, false, 'novedad-form-new')}
                 </div>
+              <footer style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, padding: '16px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+                <Button type="button" variant="outline" onClick={() => { resetForm(); setIsNewDialogOpen(false); setSelectedNovedad(null); }}>
+                  Cancelar
+                </Button>
+                <Button type="submit" form="novedad-form-new" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+                  {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
+                  Registrar Novedad
+                </Button>
+              </footer>
               </DialogContent>
             </Dialog>
           )}
@@ -1269,8 +1262,17 @@ export function NewsModule() {
               <DialogTitle>Editar Novedad</DialogTitle>
               <DialogDescription>Modifica los datos de la novedad y cambia su estado si es necesario.</DialogDescription>
             </DialogHeader>
-            {renderForm(handleUpdate, 'Actualizar Novedad', true)}
+            {renderForm(handleUpdate, true, 'novedad-form-edit')}
             </div>
+          <footer style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, padding: '16px 24px', borderTop: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 }}>
+            <Button type="button" variant="outline" onClick={() => { resetForm(); setIsEditDialogOpen(false); setSelectedNovedad(null); }}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="novedad-form-edit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+              {submitting && <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />}
+              Actualizar Novedad
+            </Button>
+          </footer>
           </DialogContent>
         </Dialog>
 
