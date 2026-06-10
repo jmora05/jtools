@@ -27,6 +27,68 @@ interface ProductCatalogProps {
     userType?: 'admin' | 'client';
 }
 
+// ─── Paginación inteligente ───────────────────────────────────────────────────
+function getPageNumbers(current: number, total: number): (number | '...')[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [1];
+    if (current > 3) pages.push('...');
+    const start = Math.max(2, current - 1);
+    const end   = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (current < total - 2) pages.push('...');
+    pages.push(total);
+    return pages;
+}
+
+function Pagination({ currentPage, totalPages, totalItems, itemsPerPage, onPageChange }: {
+    currentPage: number; totalPages: number; totalItems: number;
+    itemsPerPage: number; onPageChange: (p: number) => void;
+}) {
+    if (totalPages <= 1) return null;
+    const from = (currentPage - 1) * itemsPerPage + 1;
+    const to   = Math.min(currentPage * itemsPerPage, totalItems);
+    return (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 flex-wrap gap-2">
+            <span className="text-xs text-gray-400 select-none">
+                Mostrando {from}–{to} de {totalItems}
+            </span>
+            <div className="flex items-center gap-1">
+                <button
+                    onClick={() => onPageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="h-8 px-2.5 flex items-center gap-1 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+                </button>
+
+                {getPageNumbers(currentPage, totalPages).map((page, idx) =>
+                    page === '...' ? (
+                        <span key={`e${idx}`} className="w-8 text-center text-gray-400 text-sm select-none">…</span>
+                    ) : (
+                        <button
+                            key={page}
+                            onClick={() => onPageChange(page)}
+                            className={`h-8 w-8 text-xs font-semibold rounded-md transition-colors ${
+                                currentPage === page
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >{page}</button>
+                    )
+                )}
+
+                <button
+                    onClick={() => onPageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="h-8 px-2.5 flex items-center gap-1 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                    Siguiente <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ─── Componentes UI locales ───────────────────────────────────────────────────
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
     <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
@@ -284,31 +346,13 @@ function ClientCatalogView() {
             )}
 
             {/* ── Paginación ── */}
-            {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 pt-2">
-                    <Button
-                        variant="outline" size="sm"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                    ><ChevronLeft className="w-4 h-4" /></Button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <Button
-                            key={page} size="sm"
-                            onClick={() => setCurrentPage(page)}
-                            className={currentPage === page
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                : 'border border-blue-900 text-blue-900 hover:bg-blue-50 bg-white'}
-                        >{page}</Button>
-                    ))}
-                    <Button
-                        variant="outline" size="sm"
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="border-blue-900 text-blue-900 hover:bg-blue-50"
-                    ><ChevronRight className="w-4 h-4" /></Button>
-                </div>
-            )}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                <Pagination
+                    currentPage={currentPage} totalPages={totalPages}
+                    totalItems={filtered.length} itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                />
+            </div>
 
             {/* ── Modal detalle cliente ── */}
             <ProductoDetailModal
@@ -645,17 +689,11 @@ function AdminCatalogView() {
                                 <div className="text-center py-12 text-gray-500">No se encontraron productos</div>
                             )}
                         </div>
-                        {totalPages > 1 && (
-                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="w-4 h-4" /></Button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                    <Button key={page} size="sm" variant={currentPage === page ? 'default' : 'outline'} onClick={() => setCurrentPage(page)}
-                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
-                                    >{page}</Button>
-                                ))}
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="w-4 h-4" /></Button>
-                            </div>
-                        )}
+                        <Pagination
+                            currentPage={currentPage} totalPages={totalPages}
+                            totalItems={filteredProducts.length} itemsPerPage={itemsPerPage}
+                            onPageChange={setCurrentPage}
+                        />
                     </CardContent>
                 </Card>
             ) : (
@@ -710,6 +748,17 @@ function AdminCatalogView() {
                             </Card>
                         );
                     })}
+                </div>
+            )}
+
+            {/* ── Paginación grid ── */}
+            {view === 'grid' && (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+                    <Pagination
+                        currentPage={currentPage} totalPages={totalPages}
+                        totalItems={filteredProducts.length} itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
 
