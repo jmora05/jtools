@@ -2,16 +2,6 @@ import { getClientes } from '@/features/clients/services/clientesService';
 import { getProductos } from '@/features/products/services/productosService';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/components/ui/alert-dialog';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -27,7 +17,6 @@ import {
   EyeIcon,
   FileTextIcon,
   XCircleIcon,
-  AlertTriangleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   TruckIcon,
@@ -35,7 +24,6 @@ import {
   XIcon,
   MinusIcon,
   UserIcon,
-  RotateCcwIcon,
   Info,
   Loader2,
   Banknote,
@@ -54,7 +42,6 @@ import {
   getVentas,
   createVenta,
   deleteVenta,
-  anularVenta,
   createDetalleVenta,
   deleteDetalleVenta,
   toMetodoPago,
@@ -110,11 +97,6 @@ const persistSaleStatus = (id: number, status: string) => {
   localStorage.setItem(SALE_STATUS_KEY, JSON.stringify(map));
 };
 
-const getDaysUntilVoid = (dateStr: string) => {
-  const voidDate = new Date(dateStr);
-  voidDate.setDate(voidDate.getDate() + 30);
-  return Math.ceil((voidDate.getTime() - Date.now()) / 86_400_000);
-};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -165,11 +147,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const [showDetailModal, setShowDetailModal]   = useState(false);
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showPDFModal, setShowPDFModal]         = useState(false);
   const [viewingSale, setViewingSale]           = useState<Sale | null>(null);
   const [pdfSale, setPdfSale]                   = useState<Sale | null>(null);
-  const [saleToCancel, setSaleToCancel]         = useState<Sale | null>(null);
   const [pdfBannerId, setPdfBannerId]           = useState<number | null>(null);
   const [searchTerm, setSearchTerm]             = useState('');
   const [currentPage, setCurrentPage]           = useState(1);
@@ -217,14 +197,16 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   // Filtro de cliente externo
   React.useEffect(() => {
-    if (clientFilter && !clientMode) {
-      setSaleForm({
-        ...saleForm,
-        clientId: clientFilter.id,
+    if (clientFilter) {
+      setSaleForm(prev => ({
+        ...prev,
+        clientId: String(clientFilter.id),
         clientName: clientFilter.name,
         clientDocument: clientFilter.document || clientFilter.documentNumber || '',
-      });
-      setShowNewSaleModal(true);
+      }));
+      if (!clientMode) {
+        setShowNewSaleModal(true);
+      }
     }
   }, [clientFilter]);
 
@@ -260,8 +242,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
     doc.text('Repuestos de Alta Calidad para Vehículos', 14, 23);
-    doc.text('Carrera 50 #35-20, Medellín, Colombia', 14, 29.5);
-    doc.text('Tel: (604) 123-4567   ·   contacto@jrepuestos.com', 14, 36);
+    doc.text('Cra 70a #94-18, Medellín, Colombia', 14, 29.5);
+    doc.text('Tel: 3044470797 - 3008287819   ·   jrepuestosmed@hotmail.com', 14, 36);
 
     // Número de factura (esquina derecha)
     doc.setFontSize(8.5);
@@ -271,7 +253,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.text(`N.° ${String(sale.id).padStart(5, '0')}`, 196, 24, { align: 'right' });
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`NIT: 900.123.456-7`, 196, 31, { align: 'right' });
+    doc.text('NIT: 43180602', 196, 31, { align: 'right' });
     doc.text(`Emisión: ${emisionDate}`, 196, 37, { align: 'right' });
 
     // ── Bloque de información: Cliente | Venta ────────────────────
@@ -358,34 +340,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
     // ── Bloque de totales ─────────────────────────────────────────
     const finalY = (doc as any).lastAutoTable.finalY + 6;
-    const subtotal = Math.round(sale.total / 1.19);
-    const iva      = sale.total - subtotal;
 
     doc.setFillColor(245, 247, 255);
     doc.setDrawColor(200, 210, 240);
     doc.setLineWidth(0.3);
-    doc.rect(118, finalY, 78, 36, 'FD');
+    doc.rect(118, finalY, 78, 22, 'FD');
 
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(80, 80, 80);
-    doc.text('Subtotal (sin IVA):', 122, finalY + 9);
-    doc.text('IVA (19%):', 122, finalY + 17);
-    doc.setTextColor(30, 30, 30);
-    doc.text(`$${subtotal.toLocaleString('es-CO')}`, 192, finalY + 9, { align: 'right' });
-    doc.text(`$${iva.toLocaleString('es-CO')}`, 192, finalY + 17, { align: 'right' });
-
-    doc.setDrawColor(17, 50, 150);
-    doc.setLineWidth(0.5);
-    doc.line(118, finalY + 22, 196, finalY + 22);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(17, 50, 150);
-    doc.text('TOTAL:', 122, finalY + 31);
-    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 31, { align: 'right' });
+    doc.text('TOTAL:', 122, finalY + 14);
+    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 14, { align: 'right' });
 
     // ── Mensaje de cortesía ───────────────────────────────────────
-    const msgY = finalY + 44;
+    const msgY = finalY + 30;
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
@@ -397,39 +365,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(200, 215, 255);
-    doc.text('JRepuestos Medellín  ·  NIT: 900.123.456-7  ·  Carrera 50 #35-20, Medellín  ·  Tel: (604) 123-4567  ·  contacto@jrepuestos.com', 105, 289, { align: 'center' });
+    doc.text('JRepuestos Medellín  ·  NIT: 43180602  ·  Cra 70a #94-18, Medellín  ·  Tel: 3044470797 - 3008287819  ·  jrepuestosmed@hotmail.com', 105, 289, { align: 'center' });
     doc.setTextColor(150, 175, 230);
     doc.text(`Documento generado el ${emisionDate} por JTOOLS SOFT`, 105, 294, { align: 'center' });
 
     doc.save(`factura-JRepuestos-${String(sale.id).padStart(5, '0')}.pdf`);
   };
 
-  const handleCancelSale = (sale: Sale) => {
-    if (sale.status === 'Completada' || sale.status === 'Completado') {
-      toast.error(`Los ${sale.type === 'Pedido' ? 'pedidos' : 'ventas'} completados no pueden ser anulados`);
-      return;
-    }
-    setSaleToCancel(sale);
-    setShowCancelDialog(true);
-  };
-
-  const confirmCancel = async () => {
-    if (!saleToCancel) return;
-    try {
-      await anularVenta(saleToCancel.id);
-      setSales(prev => prev.map(s => s.id === saleToCancel.id ? { ...s, status: 'Anulada' } : s));
-      // Limpiar cualquier estado local previo de esta venta
-      const map = getSaleStatuses();
-      delete map[saleToCancel.id];
-      localStorage.setItem(SALE_STATUS_KEY, JSON.stringify(map));
-      toast.success(`Venta #${saleToCancel.id} anulada. Stock restaurado.`);
-    } catch (error: any) {
-      toast.error(error.message || 'Error al anular la venta');
-    } finally {
-      setShowCancelDialog(false);
-      setSaleToCancel(null);
-    }
-  };
 
   const handleChangeStatus = (sale: Sale, newStatus: string) => {
     persistSaleStatus(sale.id, newStatus);
@@ -551,7 +493,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       resetSaleForm();
       setShowNewSaleModal(false);
       if (onClearClientFilter) onClearClientFilter();
-      toast.success('Venta registrada exitosamente');
+      toast.success(clientMode ? 'Compra registrada exitosamente' : 'Venta registrada exitosamente');
     } catch (error: any) {
       toast.error(error.message || 'Error al registrar la venta');
     } finally {
@@ -560,7 +502,14 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
   const resetSaleForm = () => {
-    setSaleForm({ clientId: '', clientName: '', clientDocument: '', paymentMethod: 'Efectivo', descuento: '', items: [] });
+    setSaleForm({
+      clientId:       clientMode && clientFilter ? String(clientFilter.id) : '',
+      clientName:     clientMode && clientFilter ? clientFilter.name : '',
+      clientDocument: clientMode && clientFilter ? (clientFilter.document || clientFilter.documentNumber || '') : '',
+      paymentMethod: 'Efectivo',
+      descuento: '',
+      items: [],
+    });
     setProductSearch('');
     setClientSearch('');
   };
@@ -600,11 +549,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     c.document.includes(clientSearch)
   );
 
-  const allFilteredSales = sales.filter(s =>
-    s.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.id.toString().includes(searchTerm) ||
-    (s.clientDocument && s.clientDocument.includes(searchTerm))
-  );
+  const allFilteredSales = sales
+    .filter(s => !clientMode || !clientFilter || String(s.clientId) === String(clientFilter.id))
+    .filter(s =>
+      s.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.id.toString().includes(searchTerm) ||
+      (s.clientDocument && s.clientDocument.includes(searchTerm))
+    );
   const filteredSales = allFilteredSales.filter(s =>
     activeView === 'ventas' ? s.type === 'Directa' : s.type === 'Pedido'
   );
@@ -650,7 +601,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
             {!clientMode && (
               <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                  <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : 'Nueva Venta'}
+                  <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : clientMode ? 'Nueva Compra' : 'Nueva Venta'}
                 </Button>
               </DialogTrigger>
             )}
@@ -677,10 +628,10 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 </div>
                 <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
                   <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: '#111827', lineHeight: 1.2, margin: 0 }}>
-                    {activeView === 'pedidos' ? 'Registrar Nuevo Pedido' : 'Registrar Nueva Venta'}
+                    {activeView === 'pedidos' ? 'Registrar Nuevo Pedido' : clientMode ? 'Registrar Nueva Compra' : 'Registrar Nueva Venta'}
                   </DialogTitle>
                   <DialogDescription style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                    Selecciona un cliente y agrega productos para {activeView === 'pedidos' ? 'registrar el pedido.' : 'completar la venta.'}
+                    Selecciona un cliente y agrega productos para {activeView === 'pedidos' ? 'registrar el pedido.' : clientMode ? 'realizar tu compra.' : 'completar la venta.'}
                   </DialogDescription>
                 </div>
               </header>
@@ -702,7 +653,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, display: 'block' }}>
                           Cliente <span style={{ color: '#f87171' }}>*</span>
                         </label>
-                        {!saleForm.clientId ? (
+                        {!clientMode && !saleForm.clientId ? (
                           <div>
                             <div style={{ position: 'relative' }}>
                               <SearchIcon style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', width: 14, height: 14, pointerEvents: 'none' }} />
@@ -757,13 +708,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         ) : (
                           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8' }}>Cliente seleccionado</span>
-                              <button type="button"
-                                onClick={() => setSaleForm({ ...saleForm, clientId: '', clientName: '', clientDocument: '' })}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
-                              >
-                                <XIcon style={{ width: 14, height: 14 }} />
-                              </button>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8' }}>{clientMode ? 'Tu perfil' : 'Cliente seleccionado'}</span>
+                              {!clientMode && (
+                                <button type="button"
+                                  onClick={() => setSaleForm({ ...saleForm, clientId: '', clientName: '', clientDocument: '' })}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
+                                >
+                                  <XIcon style={{ width: 14, height: 14 }} />
+                                </button>
+                              )}
                             </div>
                             <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#111827' }}>{saleForm.clientName}</p>
                             {saleForm.clientDocument && <p style={{ margin: 0, fontSize: 12, color: '#6b7280', marginTop: 2 }}>{saleForm.clientDocument}</p>}
@@ -870,7 +823,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     }}>
                       <div style={{ minWidth: 0 }}>
                         <h3 style={{ fontWeight: 700, color: '#111827', fontSize: 16, lineHeight: 1.2, margin: 0 }}>
-                          Carrito de Venta
+                          {clientMode ? 'Carrito de Compra' : 'Carrito de Venta'}
                           {saleForm.items.length > 0 && (
                             <span style={{ marginLeft: 8, fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
                               {saleForm.items.reduce((s, i) => s + i.quantity, 0)} items
@@ -878,7 +831,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           )}
                         </h3>
                         <p style={{ fontSize: 12, color: '#6b7280', marginTop: 2, margin: 0 }}>
-                          Agrega productos para completar la venta.
+                          {clientMode ? 'Agrega productos para realizar tu compra.' : 'Agrega productos para completar la venta.'}
                         </p>
                       </div>
                     </div>
@@ -1069,7 +1022,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
                     >
                       {submitting && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
-                      {activeView === 'pedidos' ? 'Registrar Pedido' : 'Registrar Venta'}
+                      {activeView === 'pedidos' ? 'Registrar Pedido' : clientMode ? 'Registrar Compra' : 'Registrar Venta'}
                     </Button>
                   </div>
                 </footer>
@@ -1105,12 +1058,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex-1">
               <Input
-                placeholder="Buscar ventas por cliente, número o documento..."
+                placeholder={clientMode ? 'Buscar compras por número o producto...' : 'Buscar ventas por cliente, número o documento...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <span className="text-sm text-gray-600">{filteredSales.length} {activeView === 'pedidos' ? 'pedido(s)' : 'venta(s)'}</span>
+            <span className="text-sm text-gray-600">{filteredSales.length} {activeView === 'pedidos' ? 'pedido(s)' : clientMode ? 'compra(s)' : 'venta(s)'}</span>
           </div>
         </Card>
 
@@ -1131,7 +1084,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      Cargando ventas...
+                      {clientMode ? 'Cargando compras...' : 'Cargando ventas...'}
                     </td>
                   </tr>
                 ) : currentSales.length === 0 ? (
@@ -1139,15 +1092,14 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center text-gray-500">
                         <ShoppingCartIcon className="w-12 h-12 mb-3 text-gray-300" />
-                        <p className="text-gray-900">No se encontraron {activeView === 'pedidos' ? 'pedidos' : 'ventas'}</p>
+                        <p className="text-gray-900">No se encontraron {activeView === 'pedidos' ? 'pedidos' : clientMode ? 'compras' : 'ventas'}</p>
                         <p className="text-sm">Intenta ajustar los filtros de búsqueda</p>
                       </div>
                     </td>
                   </tr>
                 ) : currentSales.map((sale) => {
-                  const isAnulada    = sale.status === 'Anulada';
-                  const isCompletada = sale.status === 'Completada';
-                  const isCancelled  = isAnulada || sale.status === 'Cancelado';
+                  const isAnulada   = sale.status === 'Anulada';
+                  const isCancelled = isAnulada || sale.status === 'Cancelado';
                   return (
                     <React.Fragment key={sale.id}>
                     <tr className={`hover:bg-gray-50 transition-colors ${isCancelled ? 'opacity-60' : ''}`}>
@@ -1212,30 +1164,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                 <FileTextIcon className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent><p>{isCancelled ? (isAnulada ? 'Venta anulada' : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
+                            <TooltipContent><p>{isCancelled ? (isAnulada ? (clientMode ? 'Compra anulada' : 'Venta anulada') : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
 
-                          {!isCancelled && !clientMode && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="outline" size="sm"
-                                  onClick={() => handleCancelSale(sale)}
-                                  disabled={isCompletada || sale.status === 'Completado'}
-                                  className={(isCompletada || sale.status === 'Completado')
-                                    ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed"
-                                    : "text-blue-900 border-blue-900 hover:bg-red-50"}>
-                                  <XCircleIcon className="w-4 h-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>
-                                  {isCompletada || sale.status === 'Completado'
-                                    ? `Los ${activeView === 'pedidos' ? 'pedidos' : 'ventas'} completados no se pueden anular`
-                                    : activeView === 'pedidos' ? 'Anular pedido' : 'Anular venta'}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -1245,7 +1176,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           <div className="flex items-center justify-between bg-gray-100 border border-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm">
                             <div className="flex items-center gap-2">
                               <Lock className="w-4 h-4 shrink-0 text-gray-500" />
-                              <span>No puedes generar el PDF de una venta anulada.</span>
+                              <span>No puedes generar el PDF de una {clientMode ? 'compra' : 'venta'} anulada.</span>
                             </div>
                             <button onClick={() => setPdfBannerId(null)} className="text-gray-400 hover:text-gray-600 ml-4">
                               <XCircleIcon className="w-4 h-4" />
@@ -1456,14 +1387,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                     {/* Totales */}
                     <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px 24px', flexShrink: 0, background: '#fff' }}>
                       <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', marginBottom: 8 }}>
-                          <span style={{ color: '#6b7280', fontSize: 13 }}>Subtotal:</span>
-                          <span style={{ color: '#111827', fontSize: 13 }}>${Math.round(pdfSale.total / 1.19).toLocaleString()}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb', marginBottom: 8 }}>
-                          <span style={{ color: '#6b7280', fontSize: 13 }}>IVA (19%):</span>
-                          <span style={{ color: '#111827', fontSize: 13 }}>${Math.round(pdfSale.total - pdfSale.total / 1.19).toLocaleString()}</span>
-                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontWeight: 700, color: '#111827', fontSize: 15 }}>Total:</span>
                           <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString()}</span>
@@ -1481,7 +1404,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 }}>
                   <p style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
                     <Info style={{ width: 14, height: 14, flexShrink: 0 }} />
-                    JRepuestos Medellín · NIT: 900.123.456-7
+                    JRepuestos Medellín · NIT: 43180602
                   </p>
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     <Button variant="outline" onClick={() => setShowPDFModal(false)} style={{ height: 36, padding: '0 16px' }}>
@@ -1501,41 +1424,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           </DialogContent>
         </Dialog>
 
-        {/* ── MODAL ANULACIÓN ───────────────────────────────────────────── */}
-        <AlertDialog open={showCancelDialog} onOpenChange={(open: boolean) => {
-          setShowCancelDialog(open);
-          if (!open) setSaleToCancel(null);
-        }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
-                <AlertTriangleIcon className="w-5 h-5" />
-                {saleToCancel?.type === 'Pedido' ? 'Anular Pedido' : 'Anular Venta'}
-              </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-3">
-                  <p>¿Estás seguro de que deseas anular {saleToCancel?.type === 'Pedido' ? 'este pedido' : 'esta venta'}?</p>
-                  {saleToCancel && (
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1 text-sm">
-                      <p><span className="text-gray-500">{saleToCancel.type === 'Pedido' ? 'Pedido' : 'Venta'} #: </span>{saleToCancel.id}</p>
-                      <p><span className="text-gray-500">Cliente: </span>{saleToCancel.clientName}</p>
-                      <p><span className="text-gray-500">Total: </span>${saleToCancel.total.toLocaleString()}</p>
-                    </div>
-                  )}
-                  <p className="text-sm text-blue-600">
-                    El registro cambiará su estado a "Anulada" y no se eliminará del sistema.
-                  </p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Volver</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmCancel} className="bg-blue-600 hover:bg-blue-700">
-                Confirmar Anulación
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
       </div>
     </TooltipProvider>
