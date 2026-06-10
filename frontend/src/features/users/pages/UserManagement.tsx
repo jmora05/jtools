@@ -952,7 +952,7 @@ export function UserManagement() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-blue-900 hover:bg-blue-900 border-blue 900 text-black ">
+              <AlertDialogAction onClick={confirmDelete} className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900">
                 Eliminar Usuario
               </AlertDialogAction>
             </AlertDialogFooter>

@@ -22,9 +22,10 @@ import {
   TooltipProvider, TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
 import { toast } from 'sonner';
+import { Permiso } from '../../permisos/services/permisosService';
 import {
   Plus, Edit, Trash2, Shield, Eye, AlertTriangle,
-  Search, RefreshCw, Lock, ChevronLeft, ChevronRight, X,
+  Search, Lock, ChevronLeft, ChevronRight, X,
   CheckCircle2, XCircle, Hash, FileText, User,
 } from 'lucide-react';
 
@@ -139,7 +140,6 @@ export function RoleManagement() {
   const [loadingData,  setLoadingData]  = useState(true);
   const [loadingPerms, setLoadingPerms] = useState(false);
   const [togglingIds,  setTogglingIds]  = useState<Set<number>>(new Set());
-  const [syncing,      setSyncing]      = useState(false);
 
   // ── Estado de modales ────────────────────────────────────────────────────────
   const [showModal,        setShowModal]        = useState(false);
@@ -151,7 +151,8 @@ export function RoleManagement() {
   const [roleToDelete, setRoleToDelete] = useState<RoleRow | null>(null);
 
   // ── Búsqueda y paginación ────────────────────────────────────────────────────
-  const [searchTerm,  setSearchTerm]  = useState('');
+  const [searchTerm,       setSearchTerm]       = useState('');
+  const [moduleSearchTerm, setModuleSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
@@ -202,23 +203,13 @@ export function RoleManagement() {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
-  // ── Sincronizar módulos del sistema ──────────────────────────────────────────
-  const handleSync = useCallback(() => {
-    setSyncing(true);
+  // ── Sincronizar módulos automáticamente al montar ────────────────────────────
+  useEffect(() => {
     permisosService.syncSystemModules()
-      .then((resp) => {
-        toast.success(
-          resp.created.length > 0
-            ? `Sincronizado: ${resp.created.length} nuevo(s) permiso(s) creado(s)`
-            : 'Todos los módulos ya están sincronizados'
-        );
-        loadData();
-      })
-      .catch((err: unknown) =>
-        toast.error(err instanceof Error ? err.message : 'Error al sincronizar')
-      )
-      .finally(() => setSyncing(false));
-  }, [loadData]);
+      .then((resp) => { if (resp.created.length > 0) loadData(); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Helpers del formulario ───────────────────────────────────────────────────
   const resetForm = useCallback(() => {
@@ -426,6 +417,9 @@ export function RoleManagement() {
   const filteredRoles = roles.filter((r) =>
     r.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const filteredPermisos = permisos.filter((p) =>
+    p.name.toLowerCase().includes(moduleSearchTerm.toLowerCase())
+  );
   const totalPages   = Math.ceil(filteredRoles.length / itemsPerPage);
   const currentRoles = filteredRoles.slice(
     (currentPage - 1) * itemsPerPage,
@@ -452,7 +446,7 @@ export function RoleManagement() {
         <Tabs defaultValue="roles">
           <TabsList>
             <TabsTrigger value="roles">Roles</TabsTrigger>
-            <TabsTrigger value="permisos">Módulos del sistema</TabsTrigger>
+            <TabsTrigger value="permisos">Permisos</TabsTrigger>
           </TabsList>
 
           {/* ── TAB ROLES ── */}
@@ -667,16 +661,21 @@ export function RoleManagement() {
           {/* ── TAB MÓDULOS DEL SISTEMA ── */}
           <TabsContent value="permisos" className="space-y-4">
             <Card>
-              <CardContent className="p-4 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Estos son los permisos del sistema. Cada uno corresponde a un módulo de la aplicación
-                  y se asigna a los roles al crearlos o editarlos.
-                </p>
-                <Button variant="outline" onClick={handleSync} disabled={syncing}
-                  className="border-blue-900 text-blue-900 hover:bg-blue-900 ml-4 shrink-0">
-                  <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                  Sincronizar módulos
-                </Button>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                  <div className="relative w-full sm:flex-[3]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <Input
+                      placeholder="Buscar módulos del sistema..."
+                      value={moduleSearchTerm}
+                      onChange={(e) => setModuleSearchTerm(e.target.value)}
+                      className="pl-10 w-full"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-500 whitespace-nowrap self-center">
+                    {filteredPermisos.length} permisos(s)
+                  </span>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -685,20 +684,20 @@ export function RoleManagement() {
                   <table className="w-full">
                     <thead className="bg-blue-900">
                       <tr>
-                        <th className="text-left py-4 px-6 text-black font-semibold">Módulo</th>
+                        <th className="text-left py-4 px-6 text-black font-semibold">Permisos</th>
                         <th className="text-left py-4 px-6 text-black font-semibold">Descripción</th>
                         <th className="text-left py-4 px-6 text-white font-semibold">Tipo</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {permisos.length === 0 ? (
+                      {filteredPermisos.length === 0 ? (
                         <tr>
                           <td colSpan={3} className="text-center py-12 text-gray-500">
-                            No hay módulos sincronizados. Usa el botón "Sincronizar módulos".
+                            {moduleSearchTerm ? 'No se encontraron módulos' : 'No hay módulos disponibles'}
                           </td>
                         </tr>
                       ) : (
-                        permisos.map((p) => (
+                        filteredPermisos.map((p) => (
                           <tr key={p.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                             <td className="py-4 px-6">
                               <div className="flex items-center gap-2">
@@ -1008,13 +1007,12 @@ export function RoleManagement() {
               <AlertDialogCancel onClick={() => { setShowDeleteDialog(false); setRoleToDelete(null); }}>
                 Cancelar
               </AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              <AlertDialogAction onClick={confirmDelete} className="bg-white hover:bg-red-50 text-blue-900 border border-blue-900">
                 Eliminar Rol
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
       </div>
     </TooltipProvider>
   );
