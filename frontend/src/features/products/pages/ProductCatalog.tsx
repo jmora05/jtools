@@ -175,12 +175,14 @@ function ClientCatalogView() {
         }
     };
 
-    const filtered = products.filter(p => {
-        const matchSearch = p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchCat    = catFilter === 'all' || p.categoriaProductoId.toString() === catFilter;
-        return matchSearch && matchCat;
-    });
+    const filtered = products
+        .filter(p => {
+            const matchSearch = p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchCat    = catFilter === 'all' || p.categoriaProductoId.toString() === catFilter;
+            return matchSearch && matchCat;
+        })
+        .sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0));
 
     const totalPages      = Math.ceil(filtered.length / itemsPerPage);
     const currentProducts = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -510,16 +512,18 @@ function AdminCatalogView() {
     const handleBlockedClick = (productId: number) =>
         setBlockedAlertId(prev => prev === productId ? null : productId);
 
-    const filteredProducts = products.filter(p => {
-        const matchesSearch =
-            p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus =
-            statusFilter === 'all' ||
-            (statusFilter === 'active'   && p.estado === 'activo') ||
-            (statusFilter === 'inactive' && p.estado === 'inactivo');
-        return matchesSearch && matchesStatus;
-    });
+    const filteredProducts = products
+        .filter(p => {
+            const matchesSearch =
+                p.nombreProducto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.referencia.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus =
+                statusFilter === 'all' ||
+                (statusFilter === 'active'   && p.estado === 'activo') ||
+                (statusFilter === 'inactive' && p.estado === 'inactivo');
+            return matchesSearch && matchesStatus;
+        })
+        .sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0));
 
     const totalPages      = Math.ceil(filteredProducts.length / itemsPerPage);
     const currentProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
