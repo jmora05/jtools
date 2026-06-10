@@ -48,17 +48,14 @@ function Pagination({ currentPage, totalPages, totalItems, itemsPerPage, onPageC
     const from = (currentPage - 1) * itemsPerPage + 1;
     const to   = Math.min(currentPage * itemsPerPage, totalItems);
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 flex-wrap gap-2">
-            <span className="text-xs text-gray-400 select-none">
-                Mostrando {from}–{to} de {totalItems}
-            </span>
+        <div className="flex flex-col items-center gap-2 px-4 py-3 border-t border-gray-100">
             <div className="flex items-center gap-1">
                 <button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="h-8 px-2.5 flex items-center gap-1 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                    <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+                    <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
 
                 {getPageNumbers(currentPage, totalPages).map((page, idx) =>
@@ -80,11 +77,12 @@ function Pagination({ currentPage, totalPages, totalItems, itemsPerPage, onPageC
                 <button
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="h-8 px-2.5 flex items-center gap-1 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                    Siguiente <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                 </button>
             </div>
+            <span className="text-xs text-gray-400">Mostrando {from}–{to} de {totalItems}</span>
         </div>
     );
 }
