@@ -52,14 +52,6 @@ const InstagramIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const CATEGORY_COLORS = [
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-600',  icon: 'text-white', count: 'text-gray-400' },
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-slate-700', icon: 'text-white', count: 'text-gray-400' },
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-800',  icon: 'text-white', count: 'text-gray-400' },
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-slate-600', icon: 'text-white', count: 'text-gray-400' },
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-700',  icon: 'text-white', count: 'text-gray-400' },
-  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-gray-700',  icon: 'text-white', count: 'text-gray-400' },
-];
 
 interface Producto {
   id: number;
@@ -451,32 +443,28 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                 No hay categorías disponibles en este momento.
               </div>
             ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {categories.map((cat, idx) => {
-                  const colors = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {categories.map((cat) => {
                   const count = products.filter(p => p.categoria?.nombreCategoria === cat.nombreCategoria).length;
                   return (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.nombreCategoria)}
-                      className={`group text-left ${colors.bg} border-2 ${colors.border} rounded-2xl p-8 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}
+                      className="group text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200"
                     >
-                      <div className="space-y-4">
-                        <div className={`w-14 h-14 ${colors.iconBg} rounded-xl flex items-center justify-center`}>
-                          <TagIcon className={`w-7 h-7 ${colors.icon}`} />
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-blue-700 transition-colors">
+                          <TagIcon className="w-5 h-5 text-white" />
                         </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors leading-tight truncate text-sm">
                             {cat.nombreCategoria}
                           </h3>
-                          <p className={`text-sm mt-1 ${colors.count}`}>
-                            {count} producto{count !== 1 ? 's' : ''} disponible{count !== 1 ? 's' : ''}
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {count} {count === 1 ? 'producto' : 'productos'}
                           </p>
                         </div>
-                        <div className="flex items-center text-sm font-medium text-blue-600">
-                          Ver productos
-                          <ArrowRightIcon className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                        </div>
+                        <ArrowRightIcon className="w-4 h-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                       </div>
                     </button>
                   );
