@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import {
-    X, Package, CheckCircleIcon, XCircleIcon, AlertTriangle,
-    Tag, Hash, Boxes, Loader2, ImageOff, ShoppingCart,
+    X, Package, XCircleIcon, AlertTriangle,
+    Tag, Boxes, Loader2, ShoppingCart,
 } from 'lucide-react';
 
 export interface Producto {
@@ -28,54 +28,33 @@ interface ProductoDetailModalProps {
     isInCart?: (id: number) => boolean;
 }
 
-function ProductImage({ src, alt }: { src?: string | null; alt: string }) {
+function ImagePanel({ src, alt, id }: { src?: string | null; alt: string; id: number }) {
     const [error, setError] = useState(false);
-    if (!src || error) {
-        return (
-            <div style={{
-                width: '100%', aspectRatio: '1 / 1',
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                justifyContent: 'center', background: '#fff', borderRadius: 12,
-                border: '1px dashed #e2e8f0', gap: 8,
-            }}>
-                <ImageOff style={{ width: 32, height: 32, color: '#cbd5e1' }} />
-                <span style={{ fontSize: 11, color: '#cbd5e1' }}>Sin imagen</span>
-            </div>
-        );
-    }
+    const showFallback = !src || error;
     return (
-        <img
-            src={src} alt={alt} onError={() => setError(true)}
-            style={{
-                width: '100%', aspectRatio: '1 / 1',
-                objectFit: 'cover', borderRadius: 12,
-                border: '1px solid #e2e8f0', display: 'block',
-            }}
-        />
-    );
-}
-
-function MetaRow({ icon, label, value, mono = false, highlight = false }: {
-    icon: ReactNode; label: string; value: string;
-    mono?: boolean; highlight?: boolean;
-}) {
-    return (
-        <div style={{
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', padding: '9px 0',
-            borderBottom: '1px solid #f1f5f9',
-        }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13 }}>
-                {icon}
-                <span>{label}</span>
+        <div className="relative h-full min-h-[460px] overflow-hidden rounded-l-[20px]">
+            {showFallback ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-100 to-slate-200">
+                    <div className="w-24 h-24 rounded-3xl bg-white/60 backdrop-blur-sm flex items-center justify-center shadow-inner">
+                        <Package className="w-10 h-10 text-slate-400" />
+                    </div>
+                    <span className="text-sm text-slate-400 font-medium">Sin imagen</span>
+                </div>
+            ) : (
+                <img
+                    src={src!}
+                    alt={alt}
+                    onError={() => setError(true)}
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
+            )}
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />
+            {/* ID badge */}
+            <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/40 backdrop-blur-md text-white/90 text-xs font-mono rounded-full px-3 py-1.5 border border-white/10">
+                <Package className="w-3 h-3" />
+                #{id}
             </div>
-            <span style={{
-                fontSize: 13, fontWeight: 700,
-                color: highlight ? '#dc2626' : '#0f172a',
-                fontFamily: mono ? 'monospace' : undefined,
-            }}>
-                {value}
-            </span>
         </div>
     );
 }
@@ -89,214 +68,138 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent
                 hideCloseButton
-                className="p-0 overflow-hidden flex flex-col"
+                className="p-0 overflow-hidden"
                 style={{
-                    maxWidth: 780, width: '95vw',
+                    maxWidth: 880,
+                    width: '94vw',
                     maxHeight: '90vh',
-                    borderRadius: 18,
-                    boxShadow: '0 32px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)',
+                    borderRadius: 20,
+                    display: 'grid',
+                    gridTemplateColumns: '360px 1fr',
+                    boxShadow: '0 30px 70px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.06)',
                 }}
             >
-                {/* Botón cerrar — flotante */}
-                <button
-                    onClick={onClose}
-                    style={{
-                        position: 'absolute', top: 14, right: 14, zIndex: 20,
-                        background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.08)',
-                        borderRadius: 8, padding: '5px 6px', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', color: '#475569',
-                        lineHeight: 1,
-                    }}
-                >
-                    <X className="w-4 h-4" />
-                </button>
-
-                {/* ── Spinner ── */}
+                {/* ── Spinner (full grid) ── */}
                 {loadingDetail && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 420 }}>
-                        <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#2563eb' }} />
+                    <div className="col-span-2 flex items-center justify-center" style={{ height: 460 }}>
+                        <Loader2 className="w-9 h-9 animate-spin text-slate-400" />
                     </div>
                 )}
 
-                {/* ── Contenido principal ── */}
                 {!loadingDetail && producto && (
                     <>
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: '260px 1fr',
-                            flex: 1,
-                            overflow: 'hidden',
-                            minHeight: 0,
-                        }}>
-                            {/* ──────── COLUMNA IZQUIERDA: Imagen ──────── */}
-                            <div style={{
-                                background: '#f8fafc',
-                                borderRight: '1px solid #e2e8f0',
-                                padding: '28px 20px 24px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: 16,
-                                overflow: 'hidden',
-                            }}>
-                                <ProductImage src={producto.imagenUrl} alt={producto.nombreProducto} />
+                        {/* ── LEFT: imagen a sangre ── */}
+                        <ImagePanel
+                            key={producto.id}
+                            src={producto.imagenUrl}
+                            alt={producto.nombreProducto}
+                            id={producto.id}
+                        />
 
-                                {/* Pill de ID */}
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                    background: '#fff', border: '1px solid #e2e8f0',
-                                    borderRadius: 999, padding: '4px 12px',
-                                    fontSize: 11, color: '#94a3b8', fontFamily: 'monospace',
-                                }}>
-                                    <Package style={{ width: 12, height: 12 }} />
-                                    ID #{producto.id}
+                        {/* ── RIGHT: info ── */}
+                        <div className="flex flex-col bg-white rounded-r-[20px] overflow-hidden" style={{ maxHeight: '90vh' }}>
+
+                            {/* Header row: badges + close */}
+                            <div className="flex items-center justify-between px-8 pt-7 pb-0 flex-shrink-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ring-1 ${
+                                        isActivo
+                                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                            : 'bg-slate-100 text-slate-500 ring-slate-200'
+                                    }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActivo ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                        {isActivo ? 'Activo' : 'Inactivo'}
+                                    </span>
+                                    {sinStock && (
+                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600 ring-1 ring-red-200">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            Sin stock
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={onClose}
+                                    className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Body scrollable */}
+                            <div className="flex-1 overflow-y-auto px-8 pt-5 pb-6">
+
+                                {/* Nombre */}
+                                <h2 className="text-[1.55rem] font-black text-slate-900 leading-snug mb-1" style={{ letterSpacing: '-0.03em' }}>
+                                    {producto.nombreProducto}
+                                </h2>
+                                <p className="text-xs text-slate-400 font-mono tracking-wide mb-7">
+                                    REF: {producto.referencia}
+                                </p>
+
+                                {/* Precio */}
+                                <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1.5">
+                                    Precio unitario
+                                </p>
+                                <div className="flex items-baseline gap-2 mb-7">
+                                    <span
+                                        className="text-[2.6rem] font-black text-slate-900 leading-none"
+                                        style={{ letterSpacing: '-0.045em' }}
+                                    >
+                                        ${Number(producto.precio).toLocaleString('es-CO')}
+                                    </span>
+                                    <span className="text-sm font-semibold text-slate-400">COP</span>
                                 </div>
 
-                                {/* Badge estado inactivo (solo visible aquí si inactivo) */}
+                                {/* Divider */}
+                                <div className="border-t border-slate-100 mb-5" />
+
+                                {/* Chips: stock + categoría */}
+                                <div className="flex flex-wrap gap-2 mb-6">
+                                    <span className={`inline-flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl ${
+                                        sinStock
+                                            ? 'bg-red-50 text-red-600'
+                                            : 'bg-blue-50 text-blue-700'
+                                    }`}>
+                                        <Boxes className="w-4 h-4" />
+                                        {sinStock ? 'Sin stock' : `${Number(producto.stock).toLocaleString()} en stock`}
+                                    </span>
+                                    {producto.categoria && (
+                                        <span className="inline-flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600">
+                                            <Tag className="w-4 h-4" />
+                                            {producto.categoria.nombreCategoria}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Descripción */}
+                                {producto.descripcion && (
+                                    <div>
+                                        <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">
+                                            Descripción
+                                        </p>
+                                        <p className="text-sm text-slate-600 leading-[1.8] whitespace-pre-line">
+                                            {producto.descripcion}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Aviso inactivo */}
                                 {!isActivo && (
-                                    <div style={{
-                                        background: '#f1f5f9', border: '1px solid #e2e8f0',
-                                        borderRadius: 8, padding: '8px 12px',
-                                        fontSize: 12, color: '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: 6,
-                                        textAlign: 'center', lineHeight: 1.4,
-                                    }}>
-                                        <XCircleIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
-                                        No visible en el catálogo de clientes
+                                    <div className="mt-5 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+                                        <XCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                        <span>Este producto no es visible en el catálogo de clientes.</span>
                                     </div>
                                 )}
                             </div>
 
-                            {/* ──────── COLUMNA DERECHA: Info ──────── */}
-                            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ padding: '28px 28px 20px', flex: 1 }}>
-
-                                    {/* Estado badge */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                                        <span style={{
-                                            display: 'inline-flex', alignItems: 'center', gap: 6,
-                                            fontSize: 11, fontWeight: 700, padding: '3px 10px',
-                                            borderRadius: 999,
-                                            background: isActivo ? '#f0fdf4' : '#f1f5f9',
-                                            color: isActivo ? '#16a34a' : '#64748b',
-                                            border: `1px solid ${isActivo ? '#bbf7d0' : '#e2e8f0'}`,
-                                        }}>
-                                            <span style={{
-                                                width: 6, height: 6, borderRadius: '50%',
-                                                background: isActivo ? '#22c55e' : '#94a3b8',
-                                                flexShrink: 0,
-                                            }} />
-                                            {isActivo ? 'Activo' : 'Inactivo'}
-                                        </span>
-
-                                        {sinStock && isActivo && (
-                                            <span style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                                fontSize: 11, fontWeight: 600, padding: '3px 10px',
-                                                borderRadius: 999, background: '#fef2f2',
-                                                color: '#dc2626', border: '1px solid #fecaca',
-                                            }}>
-                                                <AlertTriangle style={{ width: 11, height: 11 }} />
-                                                Sin stock
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Nombre del producto */}
-                                    <h2 style={{
-                                        fontSize: 22, fontWeight: 900, color: '#0f172a',
-                                        lineHeight: 1.2, margin: '0 0 6px', letterSpacing: '-0.025em',
-                                    }}>
-                                        {producto.nombreProducto}
-                                    </h2>
-
-                                    {/* Referencia secundaria */}
-                                    <div style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'monospace', marginBottom: 22 }}>
-                                        REF: {producto.referencia}
-                                    </div>
-
-                                    {/* ── Precio (protagonista) ── */}
-                                    <div style={{
-                                        background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)',
-                                        border: '1px solid #dbeafe',
-                                        borderRadius: 12, padding: '14px 18px', marginBottom: 20,
-                                    }}>
-                                        <div style={{
-                                            fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                                            letterSpacing: '0.07em', color: '#93c5fd', marginBottom: 4,
-                                        }}>
-                                            Precio unitario
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                                            <span style={{
-                                                fontSize: 36, fontWeight: 900, color: '#1e40af',
-                                                letterSpacing: '-0.04em', lineHeight: 1,
-                                            }}>
-                                                ${Number(producto.precio).toLocaleString('es-CO')}
-                                            </span>
-                                            <span style={{ fontSize: 13, fontWeight: 500, color: '#93c5fd' }}>COP</span>
-                                        </div>
-                                    </div>
-
-                                    {/* ── Filas de metadatos ── */}
-                                    <div>
-                                        <MetaRow
-                                            icon={<Boxes style={{ width: 15, height: 15 }} />}
-                                            label="Stock disponible"
-                                            value={sinStock ? 'Sin stock' : `${Number(producto.stock).toLocaleString()} unidades`}
-                                            highlight={sinStock}
-                                        />
-                                        {producto.categoria && (
-                                            <MetaRow
-                                                icon={<Tag style={{ width: 15, height: 15 }} />}
-                                                label="Categoría"
-                                                value={producto.categoria.nombreCategoria}
-                                            />
-                                        )}
-                                        <MetaRow
-                                            icon={<Hash style={{ width: 15, height: 15 }} />}
-                                            label="Referencia"
-                                            value={producto.referencia}
-                                            mono
-                                        />
-                                    </div>
-
-                                    {/* ── Descripción ── */}
-                                    {producto.descripcion && (
-                                        <div style={{ marginTop: 20 }}>
-                                            <div style={{
-                                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                                letterSpacing: '0.07em', color: '#94a3b8', marginBottom: 8,
-                                            }}>
-                                                Descripción
-                                            </div>
-                                            <p style={{
-                                                fontSize: 13, color: '#475569', lineHeight: 1.75,
-                                                margin: 0, whiteSpace: 'pre-line',
-                                            }}>
-                                                {producto.descripcion}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Footer ── */}
-                        <div style={{
-                            padding: '12px 20px',
-                            borderTop: '1px solid #f1f5f9',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            background: '#fff', flexShrink: 0,
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-                                {isActivo
-                                    ? <><CheckCircleIcon style={{ width: 13, height: 13, color: '#22c55e' }} /> Visible en catálogo</>
-                                    : <><XCircleIcon style={{ width: 13, height: 13 }} /> Oculto del catálogo</>
-                                }
-                            </div>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <Button variant="outline" size="sm" onClick={onClose}>
+                            {/* Acciones */}
+                            <div className="px-8 pb-7 pt-4 flex gap-3 flex-shrink-0 border-t border-slate-100">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={onClose}
+                                    className="flex-1 h-10 text-sm font-semibold"
+                                >
                                     Cerrar
                                 </Button>
                                 {onAddToCart && (
@@ -304,15 +207,16 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                                         size="sm"
                                         disabled={sinStock}
                                         onClick={() => { onAddToCart(producto); if (!sinStock) onClose(); }}
+                                        className="flex-1 h-10 text-sm font-semibold"
                                         style={{
-                                            background: sinStock ? '#f1f5f9' : enCarrito ? '#1e3a8a' : '#2563eb',
+                                            background: sinStock ? '#f1f5f9' : '#0f172a',
                                             color: sinStock ? '#94a3b8' : '#fff',
                                             border: 'none',
                                             cursor: sinStock ? 'not-allowed' : 'pointer',
                                         }}
                                     >
-                                        <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
-                                        {sinStock ? 'Sin stock' : enCarrito ? 'Agregar otra unidad' : 'Agregar al carrito'}
+                                        <ShoppingCart className="w-4 h-4 mr-2" />
+                                        {sinStock ? 'Sin stock' : enCarrito ? 'Añadir otra' : 'Agregar al carrito'}
                                     </Button>
                                 )}
                             </div>
