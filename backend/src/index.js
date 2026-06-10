@@ -116,6 +116,24 @@ testConnection()
         `ALTER TABLE proveedores ALTER COLUMN "nombreEmpresa" TYPE VARCHAR(30) USING SUBSTRING("nombreEmpresa", 1, 30)`,
         `ALTER TABLE proveedores ALTER COLUMN "personaContacto" TYPE VARCHAR(30) USING SUBSTRING("personaContacto", 1, 30)`,
         `ALTER TABLE "categoriaProductos" ALTER COLUMN "nombreCategoria" TYPE VARCHAR(30) USING SUBSTRING("nombreCategoria", 1, 30)`,
+        // ── Índices de rendimiento ──────────────────────────────────────────────
+        `CREATE INDEX IF NOT EXISTS idx_ventas_fecha        ON ventas (fecha)`,
+        `CREATE INDEX IF NOT EXISTS idx_ventas_cliente      ON ventas ("clientesId")`,
+        `CREATE INDEX IF NOT EXISTS idx_ventas_estado       ON ventas (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_dv_venta            ON "detalleVentas" ("ventasId")`,
+        `CREATE INDEX IF NOT EXISTS idx_dv_producto         ON "detalleVentas" ("productosId")`,
+        `CREATE INDEX IF NOT EXISTS idx_productos_estado    ON productos (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_productos_stock     ON productos (stock)`,
+        `CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos ("categoriaProductoId")`,
+        `CREATE INDEX IF NOT EXISTS idx_clientes_estado     ON clientes (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_clientes_email      ON clientes (email)`,
+        `CREATE INDEX IF NOT EXISTS idx_empleados_estado    ON empleados (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_compras_fecha       ON compras (fecha)`,
+        `CREATE INDEX IF NOT EXISTS idx_compras_estado      ON compras (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_ordenes_estado      ON "ordenesProduccion" (estado)`,
+        `CREATE INDEX IF NOT EXISTS idx_ordenes_created     ON "ordenesProduccion" ("createdAt")`,
+        `CREATE INDEX IF NOT EXISTS idx_nomina_empleado     ON nomina (empleado_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_nomina_fecha        ON nomina (fecha_pago)`,
     ];
     for (const sql of migraciones) {
         try {

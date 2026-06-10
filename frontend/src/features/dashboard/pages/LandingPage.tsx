@@ -53,12 +53,12 @@ const InstagramIcon = ({ className }: { className?: string }) => (
 );
 
 const CATEGORY_COLORS = [
-  { bg: 'bg-blue-50',   border: 'border-blue-200',   iconBg: 'bg-blue-100',   icon: 'text-blue-600',   count: 'text-blue-500'   },
-  { bg: 'bg-orange-50', border: 'border-orange-200', iconBg: 'bg-orange-100', icon: 'text-orange-600', count: 'text-orange-500' },
-  { bg: 'bg-green-50',  border: 'border-green-200',  iconBg: 'bg-green-100',  icon: 'text-green-600',  count: 'text-green-500'  },
-  { bg: 'bg-purple-50', border: 'border-purple-200', iconBg: 'bg-purple-100', icon: 'text-purple-600', count: 'text-purple-500' },
-  { bg: 'bg-red-50',    border: 'border-red-200',    iconBg: 'bg-red-100',    icon: 'text-red-600',    count: 'text-red-500'    },
-  { bg: 'bg-teal-50',   border: 'border-teal-200',   iconBg: 'bg-teal-100',   icon: 'text-teal-600',   count: 'text-teal-500'   },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-600',  icon: 'text-white', count: 'text-gray-400' },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-slate-700', icon: 'text-white', count: 'text-gray-400' },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-800',  icon: 'text-white', count: 'text-gray-400' },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-slate-600', icon: 'text-white', count: 'text-gray-400' },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-blue-700',  icon: 'text-white', count: 'text-gray-400' },
+  { bg: 'bg-white', border: 'border-gray-200', iconBg: 'bg-gray-700',  icon: 'text-white', count: 'text-gray-400' },
 ];
 
 interface Producto {

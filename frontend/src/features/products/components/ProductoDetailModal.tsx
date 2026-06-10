@@ -98,7 +98,7 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent hideCloseButton className="p-0 max-w-lg overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
+            <DialogContent hideCloseButton className="p-0 max-w-3xl overflow-hidden max-h-[90vh] flex flex-col" style={{ borderRadius: 16 }}>
 
                 {/* Header */}
                 <div style={{ background: cfg.headerBg, color: cfg.headerText, padding: '24px 28px 20px', position: 'relative', flexShrink: 0 }}>
@@ -136,87 +136,88 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                         </div>
                     ) : producto ? (
                         <>
-                            {producto.estado === 'inactivo' && (
-                                <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
-                                    <XCircleIcon className="w-4 h-4 shrink-0" />
-                                    Producto inactivo. No aparece en el catálogo de clientes.
-                                </div>
-                            )}
-                            {sinStock && producto.estado === 'activo' && (
-                                <div style={{ margin: '16px 24px 0', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#991b1b' }}>
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    Sin stock disponible. No se puede agregar al carrito.
-                                </div>
-                            )}
-
-                            {/* Imagen */}
-                            <div style={{ padding: '16px 24px 0' }}>
-                                <ProductImage src={producto.imagenUrl} alt={producto.nombreProducto} />
-                            </div>
-
-                            {/* Info */}
-                            <div style={{ padding: '12px 24px 0' }}>
-                                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
-                                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                                        {producto.categoria && (
-                                            <InfoItem icon={<Tag className="w-4 h-4" />} label="Categoría" value={producto.categoria.nombreCategoria} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
-                                        )}
-                                        <InfoItem icon={<Hash className="w-4 h-4" />} label="Referencia" value={producto.referencia} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Precio */}
-                            <div style={{ padding: '12px 24px 0' }}>
-                                <div style={{ background: cfg.headerBg, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: 8, display: 'flex' }}>
-                                            <DollarSign className="w-4 h-4" style={{ color: '#fff' }} />
-                                        </div>
-                                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            Precio unitario
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span style={{ fontSize: 24, fontWeight: 800, color: '#fff' }}>
-                                            ${Number(producto.precio).toLocaleString('es-CO')}
-                                        </span>
-                                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginLeft: 4 }}>COP</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Stock */}
-                            <div style={{ padding: '12px 24px 0' }}>
-                                <div style={{ background: sinStock ? '#fef2f2' : '#fff', borderRadius: 12, border: `1px solid ${sinStock ? '#fecaca' : '#e2e8f0'}`, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div style={{ background: sinStock ? '#fee2e2' : cfg.iconBg, borderRadius: 8, padding: 8, display: 'flex' }}>
-                                        <Boxes className="w-4 h-4" style={{ color: sinStock ? '#dc2626' : cfg.iconColor }} />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stock disponible</div>
-                                        <div style={{ fontSize: 18, fontWeight: 800, color: sinStock ? '#dc2626' : '#0f172a' }}>
-                                            {sinStock ? 'Sin stock' : `${Number(producto.stock).toLocaleString()} unidades`}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Descripción */}
-                            {producto.descripcion && (
+                            {/* Alertas de estado */}
+                            {(producto.estado === 'inactivo' || (sinStock && producto.estado === 'activo')) && (
                                 <div style={{ padding: '12px 24px 0' }}>
-                                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
-                                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <FileText className="w-3 h-3" />Descripción
+                                    {producto.estado === 'inactivo' && (
+                                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
+                                            <XCircleIcon className="w-4 h-4 shrink-0" />
+                                            Producto inactivo. No aparece en el catálogo de clientes.
                                         </div>
-                                        <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-line' }}>{producto.descripcion}</p>
-                                    </div>
+                                    )}
+                                    {sinStock && producto.estado === 'activo' && (
+                                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#991b1b' }}>
+                                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                                            Sin stock disponible. No se puede agregar al carrito.
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
-                            <div style={{ padding: '12px 24px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
-                                <span style={{ fontSize: 11, color: '#cbd5e1' }}>Producto ID #{producto.id}</span>
+                            {/* Layout de 2 columnas */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, padding: '16px 24px', alignItems: 'start' }}>
+                                {/* Columna izquierda: Imagen */}
+                                <div style={{ paddingRight: 16 }}>
+                                    <ProductImage src={producto.imagenUrl} alt={producto.nombreProducto} />
+                                    {producto.descripcion && (
+                                        <div style={{ marginTop: 12, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 14 }}>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <FileText className="w-3 h-3" />Descripción
+                                            </div>
+                                            <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-line' }}>{producto.descripcion}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Columna derecha: Info, Precio, Stock */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {/* Categoría y Referencia */}
+                                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: 14 }}>
+                                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Información</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                            {producto.categoria && (
+                                                <InfoItem icon={<Tag className="w-4 h-4" />} label="Categoría" value={producto.categoria.nombreCategoria} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                            )}
+                                            <InfoItem icon={<Hash className="w-4 h-4" />} label="Referencia" value={producto.referencia} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
+                                        </div>
+                                    </div>
+
+                                    {/* Precio */}
+                                    <div style={{ background: cfg.headerBg, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: 7, display: 'flex' }}>
+                                                <DollarSign className="w-4 h-4" style={{ color: '#fff' }} />
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Precio
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>
+                                                ${Number(producto.precio).toLocaleString('es-CO')}
+                                            </span>
+                                            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginLeft: 4 }}>COP</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Stock */}
+                                    <div style={{ background: sinStock ? '#fef2f2' : '#fff', borderRadius: 12, border: `1px solid ${sinStock ? '#fecaca' : '#e2e8f0'}`, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ background: sinStock ? '#fee2e2' : cfg.iconBg, borderRadius: 8, padding: 8, display: 'flex' }}>
+                                            <Boxes className="w-4 h-4" style={{ color: sinStock ? '#dc2626' : cfg.iconColor }} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stock disponible</div>
+                                            <div style={{ fontSize: 17, fontWeight: 800, color: sinStock ? '#dc2626' : '#0f172a' }}>
+                                                {sinStock ? 'Sin stock' : `${Number(producto.stock).toLocaleString()} unidades`}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                        <Hash className="w-3 h-3" style={{ color: '#cbd5e1' }} />
+                                        <span style={{ fontSize: 11, color: '#cbd5e1' }}>Producto ID #{producto.id}</span>
+                                    </div>
+                                </div>
                             </div>
                         </>
                     ) : null}

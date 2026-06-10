@@ -1,13 +1,6 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/jtools_db');
-const {
-    Productos,
-    Ventas,
-    DetalleVentas,
-    Clientes,
-    Compras,
-    OrdenesProduccion,
-} = require('../models/index.js');
+const { Productos, OrdenesProduccion } = require('../models/index.js');
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MESES_LARGO = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -46,23 +39,21 @@ const getDashboardStats = async (_req, res) => {
 
         const totalProducts = await Productos.count({ where: { estado: 'activo' } }).catch(() => 0);
 
-        const ventasHoy = await Ventas.findAll({
-            where: { fecha: { [Op.between]: [inicioDia, finDia] } },
-            attributes: ['total'],
-        }).catch(() => []);
-        const dailySalesAmount = ventasHoy.reduce((s, v) => s + Number(v.total || 0), 0);
-        const dailyOrders = ventasHoy.length;
-
         const calcTotal = async (desde, hasta) => {
-            const rows = await Ventas.findAll({
-                where: { fecha: { [Op.between]: [desde, hasta] } },
-                attributes: ['total'],
-            }).catch(() => []);
-            return rows.reduce((s, v) => s + Number(v.total || 0), 0);
+            const [r] = await sequelize.query(
+                `SELECT COALESCE(SUM(total::numeric), 0) AS suma FROM ventas WHERE fecha BETWEEN :desde AND :hasta`,
+                { replacements: { desde, hasta }, type: sequelize.QueryTypes.SELECT }
+            ).catch(() => [{ suma: 0 }]);
+            return Number(r?.suma || 0);
         };
 
-        const [ventasMesActual, ventasMesAnterior, ventasSeisMeses, ventasSeisMesesAnt, ventasAnio, ventasAnioAnt] =
+        const [dailySalesAmount, dailyOrders, ventasMesActual, ventasMesAnterior, ventasSeisMeses, ventasSeisMesesAnt, ventasAnio, ventasAnioAnt] =
             await Promise.all([
+                calcTotal(inicioDia, finDia),
+                sequelize.query(
+                    `SELECT COUNT(*) AS cnt FROM ventas WHERE fecha BETWEEN :desde AND :hasta`,
+                    { replacements: { desde: inicioDia, hasta: finDia }, type: sequelize.QueryTypes.SELECT }
+                ).then(([r]) => Number(r?.cnt || 0)).catch(() => 0),
                 calcTotal(inicioMes, hoy),
                 calcTotal(inicioMesAnterior, finMesAnterior),
                 calcTotal(inicioSeisMeses, hoy),
@@ -79,28 +70,29 @@ const getDashboardStats = async (_req, res) => {
 
         let topClients = [];
         try {
-            const ventasMes = await Ventas.findAll({
-                where: { fecha: { [Op.between]: [inicioMes, hoy] } },
-                include: [{ model: Clientes, as: 'cliente', attributes: ['id', 'nombres', 'apellidos', 'razon_social'] }],
-                attributes: ['clientesId', 'total'],
-            });
-            const clientMap = {};
-            for (const v of ventasMes) {
-                const cid = v.clientesId;
-                if (!cid) continue;
-                if (!clientMap[cid]) {
-                    const c = v.cliente;
-                    const name = c
-                        ? (c.nombres && c.nombres !== 'N/A'
-                            ? `${c.nombres} ${c.apellidos || ''}`.trim()
-                            : c.razon_social || `Cliente ${cid}`)
-                        : `Cliente ${cid}`;
-                    clientMap[cid] = { id: cid, name, purchases: 0, amount: 0 };
-                }
-                clientMap[cid].purchases += 1;
-                clientMap[cid].amount    += Number(v.total || 0);
-            }
-            topClients = Object.values(clientMap).sort((a, b) => b.amount - a.amount).slice(0, 5);
+            const rows = await sequelize.query(
+                `SELECT v."clientesId",
+                        COALESCE(
+                            NULLIF(TRIM(COALESCE(c.nombres,'') || ' ' || COALESCE(c.apellidos,'')), ''),
+                            c.razon_social,
+                            'Cliente ' || v."clientesId"::text
+                        ) AS name,
+                        COUNT(*)::int AS purchases,
+                        SUM(v.total::numeric) AS amount
+                 FROM ventas v
+                 LEFT JOIN clientes c ON c.id = v."clientesId"
+                 WHERE v.fecha >= :desde AND v."clientesId" IS NOT NULL
+                 GROUP BY v."clientesId", c.nombres, c.apellidos, c.razon_social
+                 ORDER BY amount DESC
+                 LIMIT 5`,
+                { replacements: { desde: inicioMes }, type: sequelize.QueryTypes.SELECT }
+            ).catch(() => []);
+            topClients = rows.map(r => ({
+                id: r.clientesId,
+                name: r.name,
+                purchases: Number(r.purchases),
+                amount: Number(r.amount),
+            }));
         } catch (_) {}
 
         let lowStockProducts = [];
@@ -130,19 +122,19 @@ const getVentasMensuales = async (req, res) => {
         const hoy   = new Date();
         const desde = new Date(hoy.getFullYear(), hoy.getMonth() - meses + 1, 1);
 
-        const ventas = await Ventas.findAll({
-            where: { fecha: { [Op.gte]: desde } },
-            attributes: ['fecha', 'total'],
-            raw: true,
-        }).catch(() => []);
+        const rows = await sequelize.query(
+            `SELECT DATE_TRUNC('month', fecha) AS mes, COALESCE(SUM(total::numeric), 0) AS total
+             FROM ventas WHERE fecha >= :desde
+             GROUP BY DATE_TRUNC('month', fecha) ORDER BY mes ASC`,
+            { replacements: { desde }, type: sequelize.QueryTypes.SELECT }
+        ).catch(() => []);
 
         const rango = buildMonthRange(meses);
         const labels = rango.map(({ month }) => MESES[month]);
-        const data   = rango.map(({ year, month }) =>
-            ventas
-                .filter(v => { const d = new Date(v.fecha); return d.getFullYear() === year && d.getMonth() === month; })
-                .reduce((s, v) => s + Number(v.total || 0), 0)
-        );
+        const data   = rango.map(({ year, month }) => {
+            const r = rows.find(row => { const d = new Date(row.mes); return d.getFullYear() === year && d.getMonth() === month; });
+            return r ? Number(r.total) : 0;
+        });
 
         const total   = data.reduce((s, v) => s + v, 0);
         const promedio = data.length ? Math.round(total / data.length) : 0;
@@ -222,11 +214,12 @@ const getVentasPeriodoGrafica = async (req, res) => {
             hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59);
         }
 
-        const ventas = await Ventas.findAll({
-            where: { fecha: { [Op.between]: [desde, hasta] } },
-            attributes: ['fecha', 'total'],
-            raw: true,
-        }).catch(() => []);
+        const rows = await sequelize.query(
+            `SELECT DATE_TRUNC('month', fecha) AS mes, COALESCE(SUM(total::numeric), 0) AS total
+             FROM ventas WHERE fecha BETWEEN :desde AND :hasta
+             GROUP BY DATE_TRUNC('month', fecha) ORDER BY mes ASC`,
+            { replacements: { desde, hasta }, type: sequelize.QueryTypes.SELECT }
+        ).catch(() => []);
 
         const months = [];
         let cur = new Date(desde.getFullYear(), desde.getMonth(), 1);
@@ -236,11 +229,10 @@ const getVentasPeriodoGrafica = async (req, res) => {
         }
 
         const labels = months.map(({ month }) => MESES_LARGO[month]);
-        const data   = months.map(({ year, month }) =>
-            ventas
-                .filter(v => { const d = new Date(v.fecha); return d.getFullYear() === year && d.getMonth() === month; })
-                .reduce((s, v) => s + Number(v.total || 0), 0)
-        );
+        const data   = months.map(({ year, month }) => {
+            const r = rows.find(row => { const d = new Date(row.mes); return d.getFullYear() === year && d.getMonth() === month; });
+            return r ? Number(r.total) : 0;
+        });
         const variaciones = data.map((val, i) =>
             i === 0 ? 0 : data[i - 1] === 0 ? 0 : pct(val, data[i - 1])
         );
