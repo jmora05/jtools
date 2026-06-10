@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
@@ -471,26 +472,6 @@ export function PayrollModule() {
   const totalPages    = Math.ceil(payrollRecords.length / itemsPerPage);
   const startIndex    = (currentPage - 1) * itemsPerPage;
   const currentRecords = payrollRecords.slice(startIndex, startIndex + itemsPerPage);
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
-  };
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 3) {
-        pages.push(1, 2, 3, '...', totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
-      } else {
-        pages.push(1, '...', currentPage, '...', totalPages);
-      }
-    }
-    return pages;
-  };
 
   const activeEmployees = employees.filter((e) => e.estado === 'activo');
 
@@ -1102,47 +1083,13 @@ export function PayrollModule() {
             </div>
 
             {/* Paginación */}
-            {payrollRecords.length > 0 && (
-              <div className="border-t border-gray-200 px-6 py-4 mt-4">
-                <div className="flex items-center justify-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeftIcon className="w-4 h-4" />
-                  </Button>
-
-                  <div className="flex items-center space-x-1">
-                    {getPageNumbers().map((page, index) =>
-                      page === '...' ? (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-500">•</span>
-                      ) : (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => handlePageChange(page as number)}
-                          className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 min-w-[32px]' : 'min-w-[32px]'}
-                        >
-                          {currentPage === page ? page : '•'}
-                        </Button>
-                      )
-                    )}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRightIcon className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <SmartPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={payrollRecords.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
 

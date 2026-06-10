@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Badge } from '@/shared/components/ui/badge';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -949,22 +950,13 @@ function ProductionOrdersSubmodule() {
         </CardContent>
       </Card>
 
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
-            <ChevronLeftIcon className="w-4 h-4" />
-          </Button>
-          {[...Array(totalPages)].map((_, i) => {
-            const n = i + 1;
-            return n === currentPage
-              ? <Button key={n} variant="outline" size="sm" className="bg-blue-600 text-white hover:bg-blue-700 min-w-[40px]">{n}</Button>
-              : <Button key={n} variant="ghost" size="sm" className="w-8" onClick={() => setCurrentPage(n)}>•</Button>;
-          })}
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
-            <ChevronRightIcon className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
+      <SmartPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Modal Ver Detalle */}
       <OrdenDetailModal

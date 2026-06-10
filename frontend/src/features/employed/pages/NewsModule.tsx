@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -1125,24 +1126,14 @@ export function NewsModule() {
             </table>
           </div>
 
-          {!loading && filtered.length > ITEMS_PER_PAGE && (
-            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}
-                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <Button key={page} variant={currentPage === page ? 'default' : 'ghost'} size="sm"
-                  onClick={() => setCurrentPage(page)}
-                  className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]' : 'min-w-[32px]'}>
-                  {currentPage === page ? page : '•'}
-                </Button>
-              ))}
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}
-                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronRightIcon className="w-4 h-4" />
-              </Button>
-            </div>
+          {!loading && (
+            <SmartPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
           )}
         </div>
 

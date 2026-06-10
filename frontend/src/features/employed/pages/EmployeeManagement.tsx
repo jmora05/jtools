@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Input } from '@/shared/components/ui/input';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
@@ -881,26 +882,13 @@ export function EmployeeManagement() {
                         </div>
 
                         {/* Paginación */}
-                        {totalPages > 1 && (
-                            <div className="border-t px-6 py-4 flex justify-center items-center gap-2">
-                                <Button variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}>
-                                    <ChevronLeft className="w-4 h-4" />
-                                </Button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                    <Button key={page} size="sm" onClick={() => setCurrentPage(page)}
-                                        className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}>
-                                        {page}
-                                    </Button>
-                                ))}
-                                <Button variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}>
-                                    <ChevronRight className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        )}
+                        <SmartPagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={filtered.length}
+                            itemsPerPage={itemsPerPage}
+                            onPageChange={setCurrentPage}
+                        />
                     </CardContent>
                 </Card>
             )}

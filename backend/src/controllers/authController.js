@@ -174,7 +174,8 @@ const forgotPassword = async (req, res) => {
             if (emailErr?.response) {
                 console.error('[OTP] Email provider response:', JSON.stringify(emailErr.response));
             }
-            return res.status(200).json({ message: 'Código enviado. Revisa tu bandeja de entrada.', devCode: otp });
+            const extra = process.env.NODE_ENV !== 'production' ? { devCode: otp } : {};
+            return res.status(200).json({ message: 'Código enviado. Revisa tu bandeja de entrada.', ...extra });
         }
 
         return res.status(200).json({ message: 'Código enviado. Revisa tu bandeja de entrada.' });
@@ -278,7 +279,8 @@ const resendCode = async (req, res) => {
             console.log(`[OTP] Email reenviado a ${email}`);
         } catch (emailErr) {
             console.error('[OTP] Error al reenviar email:', emailErr?.message || emailErr);
-            return res.status(200).json({ message: 'Nuevo código enviado. Revisa tu bandeja de entrada.', devCode: otp });
+            const extra = process.env.NODE_ENV !== 'production' ? { devCode: otp } : {};
+            return res.status(200).json({ message: 'Nuevo código enviado. Revisa tu bandeja de entrada.', ...extra });
         }
 
         return res.status(200).json({ message: 'Nuevo código enviado. Revisa tu bandeja de entrada.' });

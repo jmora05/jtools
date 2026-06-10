@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import {
@@ -417,22 +418,6 @@ export function UserManagement() {
     currentPage * itemsPerPage
   );
 
-  const handlePageChange = (p: number) => {
-    if (p >= 1 && p <= totalPages) setCurrentPage(p);
-  };
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 3)               pages.push(1, 2, 3, '...', totalPages);
-      else if (currentPage >= totalPages - 2) pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
-      else                                pages.push(1, '...', currentPage, '...', totalPages);
-    }
-    return pages;
-  };
-
   const isUserInactive = (user: TableUser) => user.estado === 'inactivo';
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -792,45 +777,13 @@ export function UserManagement() {
           </div>
 
           {/* Paginación */}
-          {filteredUsers.length > 0 && (
-            <div className="border-t px-6 py-4">
-              <div className="flex items-center justify-center space-x-2">
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeftIcon className="w-4 h-4" />
-                </Button>
-                {getPageNumbers().map((page, i) =>
-                  page === '...' ? (
-                    <span key={`e-${i}`} className="px-2 text-gray-500">•</span>
-                  ) : (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => handlePageChange(Number(page))}
-                      className={
-                        currentPage === page
-                          ? 'bg-blue-600 hover:bg-blue-700 min-w-[32px]'
-                          : 'min-w-[32px]'
-                      }
-                    >
-                      {currentPage === page ? page : '•'}
-                    </Button>
-                  )
-                )}
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRightIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <SmartPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredUsers.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+          />
         </div>
 
         {/* ── Modal detalle ── */}

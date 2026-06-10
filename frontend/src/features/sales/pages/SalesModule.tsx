@@ -6,6 +6,7 @@ import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
+import { SmartPagination } from '@/shared/components/SmartPagination';
 import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
@@ -562,15 +563,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const totalPages    = Math.max(1, Math.ceil(filteredSales.length / itemsPerPage));
   const currentSales  = filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 5) { for (let i = 1; i <= totalPages; i++) pages.push(i); }
-    else if (currentPage <= 3)              pages.push(1, 2, 3, '...', totalPages);
-    else if (currentPage >= totalPages - 2) pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
-    else                                    pages.push(1, '...', currentPage, '...', totalPages);
-    return pages;
-  };
 
   const subtotal    = calculateSubtotal();
   const descuento   = parseDescuento();
@@ -1193,32 +1185,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           </div>
 
           {/* Paginación */}
-          {filteredSales.length > itemsPerPage && (
-            <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-center space-x-2">
-              <Button variant="outline" size="sm"
-                onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}
-                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronLeftIcon className="w-4 h-4" />
-              </Button>
-              {getPageNumbers().map((page, i) =>
-                page === '...'
-                  ? <span key={`e-${i}`} className="px-2 text-gray-500">•</span>
-                  : (
-                    <Button key={page} size="sm"
-                      variant={currentPage === page ? 'default' : 'ghost'}
-                      onClick={() => setCurrentPage(page as number)}
-                      className={currentPage === page ? 'bg-blue-600 hover:bg-blue-700 text-white min-w-[32px]' : 'min-w-[32px]'}>
-                      {currentPage === page ? page : '•'}
-                    </Button>
-                  )
-              )}
-              <Button variant="outline" size="sm"
-                onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}
-                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500">
-                <ChevronRightIcon className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
+          <SmartPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredSales.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+          />
         </div>
 
         {/* ── MODAL DETALLE ─────────────────────────────────────────────── */}
