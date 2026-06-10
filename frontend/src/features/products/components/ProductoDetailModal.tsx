@@ -28,31 +28,52 @@ interface ProductoDetailModalProps {
     isInCart?: (id: number) => boolean;
 }
 
+const H = 540; // altura fija del modal en px
+
 function ImagePanel({ src, alt, id }: { src?: string | null; alt: string; id: number }) {
-    const [error, setError] = useState(false);
-    const showFallback = !src || error;
+    const [err, setErr] = useState(false);
     return (
-        <div className="relative h-full min-h-[460px] overflow-hidden rounded-l-[20px]">
-            {showFallback ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-100 to-slate-200">
-                    <div className="w-24 h-24 rounded-3xl bg-white/60 backdrop-blur-sm flex items-center justify-center shadow-inner">
-                        <Package className="w-10 h-10 text-slate-400" />
+        <div style={{ position: 'relative', height: H, overflow: 'hidden', borderRadius: '18px 0 0 18px', background: '#e2e8f0' }}>
+            {!src || err ? (
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    background: 'linear-gradient(140deg, #f1f5f9, #e2e8f0)',
+                    gap: 12,
+                }}>
+                    <div style={{
+                        width: 72, height: 72, borderRadius: 20,
+                        background: 'rgba(255,255,255,0.65)', backdropFilter: 'blur(6px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Package style={{ width: 32, height: 32, color: '#94a3b8' }} />
                     </div>
-                    <span className="text-sm text-slate-400 font-medium">Sin imagen</span>
+                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Sin imagen</span>
                 </div>
             ) : (
                 <img
-                    src={src!}
+                    key={src}
+                    src={src}
                     alt={alt}
-                    onError={() => setError(true)}
-                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={() => setErr(true)}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                 />
             )}
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />
-            {/* ID badge */}
-            <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/40 backdrop-blur-md text-white/90 text-xs font-mono rounded-full px-3 py-1.5 border border-white/10">
-                <Package className="w-3 h-3" />
+            {/* gradient overlay */}
+            <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 45%, rgba(0,0,0,0.08) 100%)',
+            }} />
+            {/* ID pill */}
+            <div style={{
+                position: 'absolute', bottom: 14, left: 14,
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)',
+                color: 'rgba(255,255,255,0.88)', fontSize: 11, fontFamily: 'monospace',
+                borderRadius: 999, padding: '5px 11px',
+                border: '1px solid rgba(255,255,255,0.12)',
+            }}>
+                <Package style={{ width: 11, height: 11 }} />
                 #{id}
             </div>
         </div>
@@ -70,135 +91,150 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                 hideCloseButton
                 className="p-0 overflow-hidden"
                 style={{
-                    maxWidth: 880,
+                    maxWidth: 860,
                     width: '94vw',
-                    maxHeight: '90vh',
-                    borderRadius: 20,
-                    display: 'grid',
-                    gridTemplateColumns: '360px 1fr',
-                    boxShadow: '0 30px 70px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.06)',
+                    borderRadius: 18,
+                    padding: 0,
+                    boxShadow: '0 28px 64px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)',
                 }}
             >
-                {/* ── Spinner (full grid) ── */}
+                {/* ── Spinner ── */}
                 {loadingDetail && (
-                    <div className="col-span-2 flex items-center justify-center" style={{ height: 460 }}>
-                        <Loader2 className="w-9 h-9 animate-spin text-slate-400" />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: H }}>
+                        <Loader2 style={{ width: 36, height: 36, color: '#94a3b8' }} className="animate-spin" />
                     </div>
                 )}
 
+                {/* ── Grid (inner div — no en DialogContent) ── */}
                 {!loadingDetail && producto && (
-                    <>
-                        {/* ── LEFT: imagen a sangre ── */}
-                        <ImagePanel
-                            key={producto.id}
-                            src={producto.imagenUrl}
-                            alt={producto.nombreProducto}
-                            id={producto.id}
-                        />
+                    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', height: H, overflow: 'hidden' }}>
 
-                        {/* ── RIGHT: info ── */}
-                        <div className="flex flex-col bg-white rounded-r-[20px] overflow-hidden" style={{ maxHeight: '90vh' }}>
+                        {/* columna izquierda: imagen */}
+                        <ImagePanel key={producto.id} src={producto.imagenUrl} alt={producto.nombreProducto} id={producto.id} />
 
-                            {/* Header row: badges + close */}
-                            <div className="flex items-center justify-between px-8 pt-7 pb-0 flex-shrink-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ring-1 ${
-                                        isActivo
-                                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                                            : 'bg-slate-100 text-slate-500 ring-slate-200'
-                                    }`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActivo ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        {/* columna derecha: info */}
+                        <div style={{ display: 'flex', flexDirection: 'column', background: '#fff', height: H, borderRadius: '0 18px 18px 0', overflow: 'hidden' }}>
+
+                            {/* header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px 0', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+                                        background: isActivo ? '#f0fdf4' : '#f1f5f9',
+                                        color: isActivo ? '#15803d' : '#64748b',
+                                        outline: `1.5px solid ${isActivo ? '#bbf7d0' : '#e2e8f0'}`,
+                                    }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: isActivo ? '#22c55e' : '#94a3b8', flexShrink: 0 }} />
                                         {isActivo ? 'Activo' : 'Inactivo'}
                                     </span>
                                     {sinStock && (
-                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600 ring-1 ring-red-200">
-                                            <AlertTriangle className="w-3 h-3" />
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+                                            background: '#fef2f2', color: '#dc2626',
+                                            outline: '1.5px solid #fecaca',
+                                        }}>
+                                            <AlertTriangle style={{ width: 11, height: 11 }} />
                                             Sin stock
                                         </span>
                                     )}
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+                                    style={{
+                                        width: 30, height: 30, borderRadius: 8, border: 'none',
+                                        cursor: 'pointer', background: '#f1f5f9',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#64748b', flexShrink: 0,
+                                    }}
                                 >
-                                    <X className="w-4 h-4" />
+                                    <X style={{ width: 15, height: 15 }} />
                                 </button>
                             </div>
 
-                            {/* Body scrollable */}
-                            <div className="flex-1 overflow-y-auto px-8 pt-5 pb-6">
-
-                                {/* Nombre */}
-                                <h2 className="text-[1.55rem] font-black text-slate-900 leading-snug mb-1" style={{ letterSpacing: '-0.03em' }}>
+                            {/* body */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '18px 26px 16px' }}>
+                                <h2 style={{
+                                    fontSize: 21, fontWeight: 900, color: '#0f172a',
+                                    letterSpacing: '-0.03em', lineHeight: 1.2, margin: '0 0 3px',
+                                }}>
                                     {producto.nombreProducto}
                                 </h2>
-                                <p className="text-xs text-slate-400 font-mono tracking-wide mb-7">
+                                <p style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace', letterSpacing: '0.05em', margin: '0 0 20px' }}>
                                     REF: {producto.referencia}
                                 </p>
 
-                                {/* Precio */}
-                                <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-1.5">
+                                {/* precio */}
+                                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', margin: '0 0 5px' }}>
                                     Precio unitario
                                 </p>
-                                <div className="flex items-baseline gap-2 mb-7">
-                                    <span
-                                        className="text-[2.6rem] font-black text-slate-900 leading-none"
-                                        style={{ letterSpacing: '-0.045em' }}
-                                    >
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 22 }}>
+                                    <span style={{ fontSize: 38, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.05em', lineHeight: 1 }}>
                                         ${Number(producto.precio).toLocaleString('es-CO')}
                                     </span>
-                                    <span className="text-sm font-semibold text-slate-400">COP</span>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>COP</span>
                                 </div>
 
-                                {/* Divider */}
-                                <div className="border-t border-slate-100 mb-5" />
+                                {/* divisor */}
+                                <div style={{ height: 1, background: '#f1f5f9', marginBottom: 18 }} />
 
-                                {/* Chips: stock + categoría */}
-                                <div className="flex flex-wrap gap-2 mb-6">
-                                    <span className={`inline-flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl ${
-                                        sinStock
-                                            ? 'bg-red-50 text-red-600'
-                                            : 'bg-blue-50 text-blue-700'
-                                    }`}>
-                                        <Boxes className="w-4 h-4" />
+                                {/* chips */}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                        fontSize: 13, fontWeight: 600, padding: '6px 13px', borderRadius: 10,
+                                        background: sinStock ? '#fef2f2' : '#eff6ff',
+                                        color: sinStock ? '#dc2626' : '#1d4ed8',
+                                    }}>
+                                        <Boxes style={{ width: 14, height: 14 }} />
                                         {sinStock ? 'Sin stock' : `${Number(producto.stock).toLocaleString()} en stock`}
                                     </span>
                                     {producto.categoria && (
-                                        <span className="inline-flex items-center gap-2 text-sm font-semibold px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600">
-                                            <Tag className="w-4 h-4" />
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                            fontSize: 13, fontWeight: 600, padding: '6px 13px', borderRadius: 10,
+                                            background: '#f8fafc', color: '#475569',
+                                        }}>
+                                            <Tag style={{ width: 14, height: 14 }} />
                                             {producto.categoria.nombreCategoria}
                                         </span>
                                     )}
                                 </div>
 
-                                {/* Descripción */}
+                                {/* descripción */}
                                 {producto.descripcion && (
-                                    <div>
-                                        <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-2">
+                                    <>
+                                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8', margin: '0 0 7px' }}>
                                             Descripción
                                         </p>
-                                        <p className="text-sm text-slate-600 leading-[1.8] whitespace-pre-line">
+                                        <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>
                                             {producto.descripcion}
                                         </p>
-                                    </div>
+                                    </>
                                 )}
 
-                                {/* Aviso inactivo */}
+                                {/* aviso inactivo */}
                                 {!isActivo && (
-                                    <div className="mt-5 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
-                                        <XCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                        <span>Este producto no es visible en el catálogo de clientes.</span>
+                                    <div style={{
+                                        marginTop: 14, display: 'flex', alignItems: 'flex-start', gap: 9,
+                                        background: '#fffbeb', border: '1px solid #fde68a',
+                                        borderRadius: 10, padding: '9px 13px',
+                                        fontSize: 12, color: '#92400e',
+                                    }}>
+                                        <XCircleIcon style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />
+                                        Este producto no es visible en el catálogo de clientes.
                                     </div>
                                 )}
                             </div>
 
-                            {/* Acciones */}
-                            <div className="px-8 pb-7 pt-4 flex gap-3 flex-shrink-0 border-t border-slate-100">
+                            {/* acciones */}
+                            <div style={{ padding: '12px 26px 20px', borderTop: '1px solid #f8fafc', display: 'flex', gap: 10, flexShrink: 0 }}>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={onClose}
-                                    className="flex-1 h-10 text-sm font-semibold"
+                                    style={{ flex: 1, height: 40, fontSize: 14, fontWeight: 600 }}
                                 >
                                     Cerrar
                                 </Button>
@@ -207,21 +243,21 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                                         size="sm"
                                         disabled={sinStock}
                                         onClick={() => { onAddToCart(producto); if (!sinStock) onClose(); }}
-                                        className="flex-1 h-10 text-sm font-semibold"
                                         style={{
+                                            flex: 1, height: 40, fontSize: 14, fontWeight: 600,
                                             background: sinStock ? '#f1f5f9' : '#0f172a',
                                             color: sinStock ? '#94a3b8' : '#fff',
                                             border: 'none',
                                             cursor: sinStock ? 'not-allowed' : 'pointer',
                                         }}
                                     >
-                                        <ShoppingCart className="w-4 h-4 mr-2" />
+                                        <ShoppingCart style={{ width: 15, height: 15, marginRight: 6 }} />
                                         {sinStock ? 'Sin stock' : enCarrito ? 'Añadir otra' : 'Agregar al carrito'}
                                     </Button>
                                 )}
                             </div>
                         </div>
-                    </>
+                    </div>
                 )}
             </DialogContent>
         </Dialog>
