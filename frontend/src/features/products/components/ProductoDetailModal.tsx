@@ -3,7 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Dialog, DialogContent } from '@/shared/components/ui/dialog';
 import {
     X, Package, CheckCircleIcon, XCircleIcon, AlertTriangle,
-    Tag, Boxes, Loader2, ShoppingCart, Hash,
+    Tag, Boxes, Loader2, ShoppingCart, Hash, Clock,
 } from 'lucide-react';
 
 export interface Producto {
@@ -25,6 +25,7 @@ interface ProductoDetailModalProps {
     producto: Producto | null;
     loadingDetail?: boolean;
     onAddToCart?: (producto: Producto) => void;
+    onPedir?: (producto: Producto) => void;
     isInCart?: (id: number) => boolean;
 }
 
@@ -109,7 +110,7 @@ function ImagePanel({ src, alt, id }: { src?: string | null; alt: string; id: nu
 }
 
 // ─── Modal principal ──────────────────────────────────────────────────────────
-export function ProductoDetailModal({ open, onClose, producto, loadingDetail, onAddToCart, isInCart }: ProductoDetailModalProps) {
+export function ProductoDetailModal({ open, onClose, producto, loadingDetail, onAddToCart, onPedir, isInCart }: ProductoDetailModalProps) {
     const sinStock  = (producto?.stock ?? 0) === 0;
     const isActivo  = (producto?.estado ?? 'activo') === 'activo';
     const enCarrito = producto && isInCart ? isInCart(producto.id) : false;
@@ -252,7 +253,16 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                                 <Button variant="outline" size="sm" onClick={onClose} style={{ fontSize: 13 }}>
                                     Cerrar
                                 </Button>
-                                {onAddToCart && (
+                                {sinStock && onPedir ? (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => { onPedir(producto); onClose(); }}
+                                        style={{ background: '#d97706', color: '#fff', border: 'none', fontSize: 13, cursor: 'pointer' }}
+                                    >
+                                        <Clock style={{ width: 14, height: 14, marginRight: 6 }} />
+                                        Pedir
+                                    </Button>
+                                ) : onAddToCart && (
                                     <Button
                                         size="sm"
                                         disabled={sinStock}

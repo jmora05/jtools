@@ -478,7 +478,7 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {products.filter(p => p.categoria?.nombreCategoria === selectedCategory).map((product) => (
+                {products.filter(p => p.categoria?.nombreCategoria === selectedCategory).sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0)).map((product) => (
                   <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 shadow-md">
                     <div className="relative overflow-hidden rounded-t-lg">
                       <ImageWithFallback

@@ -4,7 +4,7 @@ import {
     Search, Plus, Edit, Eye, Package, FileText,
     ChevronLeft, ChevronRight, Loader2, CheckCircle2,
     Trash2, Lock, X, ImageOff, AlertTriangle, Tag, Boxes,
-    ShoppingCart, MessageCircle,
+    ShoppingCart, MessageCircle, Clock,
 } from 'lucide-react';
 import { Switch } from '@/shared/components/ui/switch';
 import { Badge } from '@/shared/components/ui/badge';
@@ -129,6 +129,20 @@ function ClientCatalogView() {
 
     const { addItem, items: cartItems, totalItems, openCart } = useCart();
 
+    // ── Agregar como pedido (sin stock) ───────────────────────────────────────
+    const handlePedir = (product: Producto) => {
+        addItem({
+            id:             product.id,
+            nombreProducto: product.nombreProducto,
+            referencia:     product.referencia,
+            precio:         Number(product.precio),
+            imagenUrl:      product.imagenUrl,
+            stock:          0,
+            esPedido:       true,
+        });
+        toast.success(`"${product.nombreProducto}" agregado como pedido`);
+    };
+
     useEffect(() => {
         (async () => {
             try {
@@ -250,8 +264,9 @@ function ClientCatalogView() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {currentProducts.map(product => {
-                        const inCart     = isInCart(product.id);
-                        const outOfStock = product.stock === 0;
+                        const outOfStock   = product.stock === 0;
+                        const inCart       = cartItems.some(i => i.id === product.id && !i.esPedido);
+                        const isPedidoCart = cartItems.some(i => i.id === product.id && i.esPedido);
 
                         return (
                             <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow border border-gray-200">
@@ -263,13 +278,19 @@ function ClientCatalogView() {
                                         className="w-full h-44 object-cover"
                                     />
                                     {/* Badge "En carrito" */}
-                                    {inCart && !outOfStock && (
+                                    {inCart && (
                                         <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
                                             En carrito
                                         </div>
                                     )}
-                                    {/* Badge "Agotado" */}
-                                    {outOfStock && (
+                                    {/* Badge "En pedido" — agotado ya en el carrito como pedido */}
+                                    {isPedidoCart && (
+                                        <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                            <Clock className="w-3 h-3" /> En pedido
+                                        </div>
+                                    )}
+                                    {/* Badge "Agotado" — sólo si no está en el carrito ya */}
+                                    {outOfStock && !isPedidoCart && (
                                         <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                                             <AlertTriangle className="w-3 h-3" /> Agotado
                                         </div>
@@ -321,22 +342,35 @@ function ClientCatalogView() {
                                             <Eye className="w-3 h-3 mr-1" /> Ver
                                         </Button>
 
-                                        {/* Botón carrito — deshabilitado cuando stock = 0 */}
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleAddToCart(product)}
-                                            disabled={outOfStock}
-                                            className={`flex-1 text-xs ${
-                                                outOfStock
-                                                    ? 'bg-gray-100 text-gray-400 border border-gray-300 cursor-not-allowed'
-                                                    : inCart
+                                        {outOfStock ? (
+                                            /* Botón "Pedir" para productos sin stock */
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handlePedir(product)}
+                                                className={`flex-1 text-xs ${
+                                                    isPedidoCart
+                                                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                }`}
+                                            >
+                                                <Clock className="w-3 h-3 mr-1" />
+                                                {isPedidoCart ? '+ Pedir' : 'Pedir'}
+                                            </Button>
+                                        ) : (
+                                            /* Botón carrito normal */
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleAddToCart(product)}
+                                                className={`flex-1 text-xs ${
+                                                    inCart
                                                         ? 'bg-blue-900 hover:bg-blue-800 text-white'
                                                         : 'bg-blue-600 hover:bg-blue-700 text-white'
-                                            }`}
-                                        >
-                                            <ShoppingCart className="w-3 h-3 mr-1" />
-                                            {outOfStock ? 'Agotado' : inCart ? '+ Agregar' : 'Agregar'}
-                                        </Button>
+                                                }`}
+                                            >
+                                                <ShoppingCart className="w-3 h-3 mr-1" />
+                                                {inCart ? '+ Agregar' : 'Agregar'}
+                                            </Button>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -361,6 +395,7 @@ function ClientCatalogView() {
                 producto={viewingProduct}
                 loadingDetail={loadingDetail}
                 onAddToCart={handleAddToCart}
+                onPedir={handlePedir}
                 isInCart={isInCart}
             />
         </div>
@@ -393,6 +428,7 @@ function AdminCatalogView() {
 
     const [searchTerm, setSearchTerm]     = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sortOrder, setSortOrder]       = useState('stock-desc');
     const [currentPage, setCurrentPage]   = useState(1);
     const itemsPerPage = 5;
 
@@ -523,7 +559,17 @@ function AdminCatalogView() {
                 (statusFilter === 'inactive' && p.estado === 'inactivo');
             return matchesSearch && matchesStatus;
         })
-        .sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0));
+        .sort((a, b) => {
+            switch (sortOrder) {
+                case 'stock-desc':  return (b.stock ?? 0) - (a.stock ?? 0);
+                case 'stock-asc':   return (a.stock ?? 0) - (b.stock ?? 0);
+                case 'name-asc':    return a.nombreProducto.localeCompare(b.nombreProducto);
+                case 'name-desc':   return b.nombreProducto.localeCompare(a.nombreProducto);
+                case 'price-desc':  return Number(b.precio) - Number(a.precio);
+                case 'price-asc':   return Number(a.precio) - Number(b.precio);
+                default:            return (b.stock ?? 0) - (a.stock ?? 0);
+            }
+        });
 
     const totalPages      = Math.ceil(filteredProducts.length / itemsPerPage);
     const currentProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -565,12 +611,23 @@ function AdminCatalogView() {
                                 className="pl-10 w-full"
                             />
                         </div>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }}>
                             <SelectTrigger className="w-40 shrink-0"><SelectValue placeholder="Estado" /></SelectTrigger>
                             <SelectContent position="popper" className="z-[9999]">
                                 <SelectItem value="all">Todos</SelectItem>
                                 <SelectItem value="active">Activos</SelectItem>
                                 <SelectItem value="inactive">Inactivos</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={sortOrder} onValueChange={v => { setSortOrder(v); setCurrentPage(1); }}>
+                            <SelectTrigger className="w-48 shrink-0"><SelectValue placeholder="Ordenar por" /></SelectTrigger>
+                            <SelectContent position="popper" className="z-[9999]">
+                                <SelectItem value="stock-desc">Mayor stock primero</SelectItem>
+                                <SelectItem value="stock-asc">Menor stock primero</SelectItem>
+                                <SelectItem value="name-asc">Nombre A → Z</SelectItem>
+                                <SelectItem value="name-desc">Nombre Z → A</SelectItem>
+                                <SelectItem value="price-desc">Mayor precio</SelectItem>
+                                <SelectItem value="price-asc">Menor precio</SelectItem>
                             </SelectContent>
                         </Select>
                         <div className="flex items-center space-x-2 shrink-0">

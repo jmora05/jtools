@@ -10,6 +10,7 @@ export interface CartItem {
     imagenUrl?:     string | null;
     cantidad:       number;
     stock:          number;   // ← unidades disponibles en inventario
+    esPedido?:      boolean;  // ← producto sin stock pedido bajo demanda
 }
 
 interface CartState {
@@ -43,17 +44,15 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     switch (action.type) {
 
         case 'ADD_ITEM': {
-            // ── Línea de defensa: bloquear si no hay stock ─────────────────
-            // El UI ya deshabilita el botón, esto es la segunda capa.
-            if (action.payload.stock <= 0) return state;
+            // Bloquear si no hay stock — los items bajo pedido (esPedido) están exentos
+            if (!action.payload.esPedido && action.payload.stock <= 0) return state;
 
             const exists = state.items.find(i => i.id === action.payload.id);
 
             if (exists) {
                 const nextCantidad = exists.cantidad + 1;
-                // No superar el stock disponible
-                if (nextCantidad > action.payload.stock) {
-                    // Solo abre el drawer, no incrementa
+                // Para pedidos sin stock, no hay tope; para items normales, no superar stock
+                if (!exists.esPedido && nextCantidad > action.payload.stock) {
                     return { ...state, isOpen: true };
                 }
                 return {
@@ -93,8 +92,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
                 ...state,
                 items: state.items.map(i => {
                     if (i.id !== action.payload.id) return i;
-                    // Nunca superar el stock disponible almacenado en el item
-                    const cantidad = Math.min(action.payload.cantidad, i.stock);
+                    // Pedidos bajo demanda no tienen tope de stock
+                    const cantidad = i.esPedido
+                        ? Math.max(1, action.payload.cantidad)
+                        : Math.min(action.payload.cantidad, i.stock);
                     return { ...i, cantidad };
                 }),
             };

@@ -180,7 +180,7 @@ function ProductionOrdersSubmodule() {
   useEffect(() => {
     loadOrders();
     getProductos()
-      .then((d: any) => setProductos((d || []).filter((p: any) => p.estado === 'activo')))
+      .then((d: any) => setProductos((d || []).filter((p: any) => p.estado === 'activo').sort((a: any, b: any) => (b.stock ?? 0) - (a.stock ?? 0))))
       .catch(() => {});
     getEmpleados()
       .then((d: any) => setEmpleados((d || []).filter((e: any) => e.estado === 'activo')))

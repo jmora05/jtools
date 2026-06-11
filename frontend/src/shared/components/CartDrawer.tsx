@@ -1,6 +1,6 @@
 // src/shared/components/CartDrawer.tsx
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingCart, MessageCircle, Package, AlertTriangle } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingCart, MessageCircle, Package, AlertTriangle, Clock } from 'lucide-react';
 import { useCart } from '@/shared/hooks/useCart';
 import { openWhatsApp } from '@/shared/utils/openWhatsApp';
 
@@ -34,15 +34,16 @@ const ItemImage = ({ src, alt }: { src?: string | null; alt: string }) => {
 
 // ─── Control de cantidad con límite de stock ──────────────────────────────────
 const QtyControl = ({
-    id, cantidad, stock, onUpdate,
+    id, cantidad, stock, isPedido = false, onUpdate,
 }: {
-    id:       number;
-    cantidad: number;
-    stock:    number;
-    onUpdate: (id: number, qty: number) => void;
+    id:        number;
+    cantidad:  number;
+    stock:     number;
+    isPedido?: boolean;
+    onUpdate:  (id: number, qty: number) => void;
 }) => {
     const [inputVal, setInputVal] = useState(cantidad.toString());
-    const atMax = cantidad >= stock;
+    const atMax = !isPedido && cantidad >= stock;
     const atMin = cantidad <= 1;
 
     React.useEffect(() => { setInputVal(cantidad.toString()); }, [cantidad]);
@@ -50,7 +51,7 @@ const QtyControl = ({
     const commit = (raw: string) => {
         const n = parseInt(raw, 10);
         if (!isNaN(n) && n >= 1) {
-            const capped = Math.min(n, stock);  // nunca superar stock
+            const capped = isPedido ? n : Math.min(n, stock);
             onUpdate(id, capped);
             setInputVal(capped.toString());
         } else {
@@ -132,8 +133,8 @@ export function CartDrawer() {
     const { items, isOpen, closeCart, removeItem, updateQty, clearCart, totalItems, totalPrice } = useCart();
     const [sending, setSending] = useState(false);
 
-    // Detectar si algún item tiene problemas de stock
-    const hasStockIssues = items.some(i => i.stock === 0 || i.cantidad > i.stock);
+    // Solo items normales (no pedido) con stock agotado o excedido
+    const hasStockIssues = items.some(i => !i.esPedido && (i.stock === 0 || i.cantidad > i.stock));
 
     const handleWhatsApp = () => {
         setSending(true);
@@ -243,17 +244,21 @@ export function CartDrawer() {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {items.map(item => {
-                                const outOfStock   = item.stock === 0;
-                                const exceedsStock = !outOfStock && item.cantidad > item.stock;
+                                const esPedido     = !!item.esPedido;
+                                const outOfStock   = !esPedido && item.stock === 0;
+                                const exceedsStock = !esPedido && !outOfStock && item.cantidad > item.stock;
+
+                                const cardBg     = outOfStock ? '#fef2f2' : esPedido ? '#fffbeb' : '#fff';
+                                const cardBorder = outOfStock ? '#fecaca' : esPedido ? '#fde68a' : exceedsStock ? '#fde68a' : '#e0e7ff';
+                                const priceColor = outOfStock ? '#ef4444' : esPedido ? '#d97706' : '#1d4ed8';
 
                                 return (
                                     <div key={item.id} style={{
-                                        background: outOfStock ? '#fef2f2' : '#fff',
-                                        border: `1.5px solid ${outOfStock ? '#fecaca' : exceedsStock ? '#fde68a' : '#e0e7ff'}`,
+                                        background: cardBg,
+                                        border: `1.5px solid ${cardBorder}`,
                                         borderRadius: 12, padding: '12px 14px',
                                         display: 'flex', gap: 12,
                                         boxShadow: '0 1px 4px rgba(30,58,138,0.06)',
-                                        opacity: outOfStock ? 0.85 : 1,
                                     }}>
                                         <ItemImage src={item.imagenUrl} alt={item.nombreProducto} />
 
@@ -274,7 +279,18 @@ export function CartDrawer() {
                                                 Ref: {item.referencia}
                                             </p>
 
-                                            {/* Aviso agotado */}
+                                            {/* Aviso bajo pedido */}
+                                            {esPedido && (
+                                                <p style={{
+                                                    fontSize: 11, color: '#b45309', fontWeight: 600,
+                                                    margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 3,
+                                                }}>
+                                                    <Clock style={{ width: 11, height: 11 }} />
+                                                    Bajo pedido — sujeto a disponibilidad
+                                                </p>
+                                            )}
+
+                                            {/* Aviso agotado (sin pedido) */}
                                             {outOfStock && (
                                                 <p style={{
                                                     fontSize: 11, color: '#ef4444', fontWeight: 600,
@@ -307,6 +323,7 @@ export function CartDrawer() {
                                                         id={item.id}
                                                         cantidad={item.cantidad}
                                                         stock={item.stock}
+                                                        isPedido={esPedido}
                                                         onUpdate={updateQty}
                                                     />
                                                 )}
@@ -314,7 +331,7 @@ export function CartDrawer() {
                                                     <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
                                                         c/u ${Number(item.precio).toLocaleString('es-CO')}
                                                     </p>
-                                                    <p style={{ fontSize: 15, fontWeight: 800, color: outOfStock ? '#ef4444' : '#1d4ed8', margin: 0 }}>
+                                                    <p style={{ fontSize: 15, fontWeight: 800, color: priceColor, margin: 0 }}>
                                                         ${Number(item.precio * item.cantidad).toLocaleString('es-CO')}
                                                     </p>
                                                 </div>

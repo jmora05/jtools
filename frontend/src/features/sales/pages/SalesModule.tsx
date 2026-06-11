@@ -540,10 +540,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   // ─── Filtros ──────────────────────────────────────────────────────────────
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.code.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredProducts = products
+    .filter(p =>
+      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      p.code.toLowerCase().includes(productSearch.toLowerCase())
+    )
+    .sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0));
 
   const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||

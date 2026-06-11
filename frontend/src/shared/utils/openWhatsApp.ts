@@ -19,13 +19,15 @@ export function openWhatsApp(
 
     // ── Construir líneas de productos ─────────────────────────────────────────
     const lineas = items.map(item => {
-        const subtotal = item.precio * item.cantidad;
+        const subtotal    = item.precio * item.cantidad;
+        const pedidoNota  = item.esPedido ? '\n  ⏳ _Bajo pedido (sin stock actual)_' : '';
         return (
             `• *${item.nombreProducto}*\n` +
             `  Ref: ${item.referencia}\n` +
             `  Cantidad: ${item.cantidad}\n` +
             `  Precio unit.: $${Number(item.precio).toLocaleString('es-CO')} COP\n` +
-            `  Subtotal: $${Number(subtotal).toLocaleString('es-CO')} COP`
+            `  Subtotal: $${Number(subtotal).toLocaleString('es-CO')} COP` +
+            pedidoNota
         );
     });
 
