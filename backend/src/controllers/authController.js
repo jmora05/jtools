@@ -65,7 +65,7 @@ const login = async (req, res) => {
         const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 
         const token = jwt.sign(
-            { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType },
+            { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType, rolName },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );

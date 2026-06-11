@@ -1,5 +1,6 @@
 const { Roles, Usuarios } = require('../models/index.js');
 const { validateCreateRol, validateUpdateRol, validateSetPermisos } = require('../validators/rolesValidator');
+const { registrar } = require('../services/auditoriaService');
 
 // ── Helper: rechaza cualquier operación sobre un rol del sistema ──────────────
 function guardaIsSystem(role, res) {
@@ -50,6 +51,15 @@ const createRoles = async (req, res) => {
         const created = await Roles.findByPk(role.id, {
             include: [{ association: 'permisos', attributes: ['id', 'name'] }]
         });
+
+        setImmediate(() => registrar({
+            usuarioId: req.usuario?.id,
+            accion:    'CREAR_ROL',
+            entidad:   'Rol',
+            entidadId: created.id,
+            detalle:   { name: created.name, permisosIds },
+            ip:        req.ip,
+        }));
 
         res.status(201).json({ message: 'Rol creado correctamente', role: created });
     } catch (error) {
@@ -155,6 +165,15 @@ const setRolPermisos = async (req, res) => {
             include: [{ association: 'permisos' }]
         });
 
+        setImmediate(() => registrar({
+            usuarioId: req.usuario?.id,
+            accion:    'MODIFICAR_PERMISOS',
+            entidad:   'Rol',
+            entidadId: Number(id),
+            detalle:   { rolName: role.name, permisosIds: req.body.permisosIds },
+            ip:        req.ip,
+        }));
+
         return res.status(200).json({ message: 'Permisos actualizados correctamente', role: updated });
     } catch (error) {
         return res.status(500).json({ message: 'Error al actualizar permisos del rol', error: error.message });
@@ -181,9 +200,20 @@ const toggleRolActivo = async (req, res) => {
             }
         }
 
+        const estadoAnterior = role.isActive;
         await role.update({ isActive: !role.isActive });
+
+        setImmediate(() => registrar({
+            usuarioId: req.usuario?.id,
+            accion:    'TOGGLE_ROL',
+            entidad:   'Rol',
+            entidadId: Number(id),
+            detalle:   { rolName: role.name, de: estadoAnterior, a: !estadoAnterior },
+            ip:        req.ip,
+        }));
+
         return res.status(200).json({
-            message: `Rol ${role.isActive ? 'desactivado' : 'activado'} correctamente`,
+            message: `Rol ${estadoAnterior ? 'desactivado' : 'activado'} correctamente`,
             role,
         });
     } catch (error) {

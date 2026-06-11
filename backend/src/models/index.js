@@ -1,5 +1,6 @@
 const { sequelize } = require('../config/jtools_db');
 
+const Auditoria             = require('./auditoria');
 const CategoriaProductos    = require('./categoriaProductos');
 const Clientes              = require('./clientes');
 const Compras               = require('./compras');
@@ -130,6 +131,10 @@ DetalleVentas.belongsTo(Productos, { foreignKey: 'productosId', as: 'producto' }
 PasswordResetOtp.belongsTo(Usuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 Usuarios.hasMany(PasswordResetOtp,   { foreignKey: 'usuarioId', as: 'otps' });
 
+// Auditoria → Usuarios
+Auditoria.belongsTo(Usuarios, { foreignKey: 'usuarioId', as: 'usuario', constraints: false });
+Usuarios.hasMany(Auditoria,   { foreignKey: 'usuarioId', as: 'auditorias', constraints: false });
+
 //nomina
 Nomina.belongsTo(Empleados, { foreignKey: 'empleado_id', as: 'empleado' });
 Empleados.hasMany(Nomina, { foreignKey: 'empleado_id', as: 'nominas' });
@@ -140,6 +145,7 @@ Novedades.hasMany(Nomina, { foreignKey: 'novedades_id', as: 'nominas' });
 // ================= EXPORTACIÓN =================
 
 module.exports = {
+    Auditoria,
     CategoriaProductos,
     Clientes,
     Compras,

@@ -39,7 +39,8 @@ const dashboardRoutes              = require('./routes/dashboardRoutes.js');
 const fichaTecnicaRoutes           = require('./routes/fichaTecnicaRoutes.js');
 const horasExtraRoutes             = require('./routes/horasExtraRoutes.js');
 const nominaRoutes                 = require('./routes/nominaRoutes.js');
-const { verifyToken, requireAdmin } = require('./middleware/authMiddleware.js');
+const auditoriaRoutes              = require('./routes/auditoriaRoutes.js');
+const { verifyToken, requireAdmin, requirePermiso } = require('./middleware/authMiddleware.js');
 
 // ================= REGISTRO DE RUTAS =================
 // ── Rutas PÚBLICAS ──
@@ -62,24 +63,26 @@ app.use('/api/roles/:id/permisos', verifyToken, (req, res, next) => {
     const rolesController = require('./controllers/rolesController.js');
     return rolesController.getRolPermisos(req, res);
 });
-// ── Rutas SOLO ADMIN (bloquean el perfil 'client') ──
-app.use('/api/usuarios',                verifyToken, requireAdmin, usuariosRoutes);
-app.use('/api/roles',                   verifyToken, requireAdmin, rolesRoutes);
-app.use('/api/permisos',                verifyToken, requireAdmin, permisosRoutes);
-app.use('/api/clientes',                verifyToken, requireAdmin, clientesRoutes);
-app.use('/api/proveedores',             verifyToken, requireAdmin, proveedoresRoutes);
-app.use('/api/insumos',                 verifyToken, requireAdmin, insumosRoutes);
-app.use('/api/compras',                 verifyToken, requireAdmin, comprasRoutes);
-app.use('/api/empleados',               verifyToken, requireAdmin, empleadosRoutes);
-app.use('/api/ordenes-produccion',      verifyToken, requireAdmin, ordenesProduccionRoutes);
-app.use('/api/fichas-tecnicas',         verifyToken, requireAdmin, fichaTecnicaRoutes);
-app.use('/api/novedades',               verifyToken, novedadesRoutes);
-app.use('/api/insumo-producto',         verifyToken, requireAdmin, insumoProductoRoutes);
+// ── Rutas SOLO ADMIN con control de permisos por módulo ──
+app.use('/api/usuarios',                verifyToken, requireAdmin, requirePermiso('users'),                       usuariosRoutes);
+app.use('/api/roles',                   verifyToken, requireAdmin, requirePermiso('roles'),                       rolesRoutes);
+app.use('/api/permisos',                verifyToken, requireAdmin, requirePermiso('roles'),                       permisosRoutes);
+app.use('/api/clientes',                verifyToken, requireAdmin, requirePermiso('clients'),                     clientesRoutes);
+app.use('/api/proveedores',             verifyToken, requireAdmin, requirePermiso('suppliers'),                   proveedoresRoutes);
+app.use('/api/insumos',                 verifyToken, requireAdmin, requirePermiso('supplies'),                    insumosRoutes);
+app.use('/api/compras',                 verifyToken, requireAdmin, requirePermiso('purchases'),                   comprasRoutes);
+app.use('/api/empleados',               verifyToken, requireAdmin, requirePermiso('production-employees'),        empleadosRoutes);
+app.use('/api/ordenes-produccion',      verifyToken, requireAdmin, requirePermiso('production-orders-sub'),       ordenesProduccionRoutes);
+app.use('/api/fichas-tecnicas',         verifyToken, requireAdmin, requirePermiso('production-technical-sheets'), fichaTecnicaRoutes);
+app.use('/api/novedades',               verifyToken, requireAdmin, requirePermiso('news'),                        novedadesRoutes);
+app.use('/api/insumo-producto',         verifyToken, requireAdmin, requirePermiso('supplies'),                    insumoProductoRoutes);
 app.use('/api/detalle-ventas',          verifyToken, detalleVentasRoutes);
-app.use('/api/detalle-orden',           verifyToken, requireAdmin, detalleOrdenRoutes);
-app.use('/api/detalle-compra-insumo',   verifyToken, requireAdmin, detalleCompraInsumoRoutes);
-app.use('/api/horas-extra',             verifyToken, requireAdmin, horasExtraRoutes);
-app.use('/api/nomina',                  verifyToken, requireAdmin, nominaRoutes);
+app.use('/api/detalle-orden',           verifyToken, requireAdmin, requirePermiso('production-orders-sub'),       detalleOrdenRoutes);
+app.use('/api/detalle-compra-insumo',   verifyToken, requireAdmin, requirePermiso('purchases'),                   detalleCompraInsumoRoutes);
+app.use('/api/horas-extra',             verifyToken, requireAdmin, requirePermiso('production-employees'),        horasExtraRoutes);
+app.use('/api/nomina',                  verifyToken, requireAdmin, requirePermiso('payroll'),                     nominaRoutes);
+// Auditoría — solo admins con permiso de roles pueden consultar
+app.use('/api/auditoria',               verifyToken, requireAdmin, requirePermiso('roles'),                       auditoriaRoutes);
 
 // ================= CONEXIÓN + SINCRONIZACIÓN =================
 testConnection()

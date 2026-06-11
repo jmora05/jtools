@@ -23,7 +23,9 @@ import { CartButton }   from '@/shared/components/CartButton';
 import { ProductionModule } from '@/features/production/pages/ProductionModule';
 import { NewsModule } from '@/features/employed/pages/NewsModule';
 import { PayrollModule } from '@/features/nomina/pages/nomina';
-import { getModulesByRole, MODULE_KEY_MAP } from '@/shared/services/modulesService';
+import { MODULE_KEY_MAP } from '@/shared/services/modulesService';
+import { usePermissions } from '@/context/PermissionContext';
+import { AccessDenied } from '@/shared/components/AccessDenied';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,29 +72,20 @@ export default function App() {
   const [productionExpanded, setProductionExpanded] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesClientFilter, setSalesClientFilter] = useState<any>(null);
-  const [allowedModuleKeys, setAllowedModuleKeys] = useState<string[]>([]);
-  const [modulesLoaded, setModulesLoaded] = useState(false);
-  const [modulesApiError, setModulesApiError] = useState(false);
+  const {
+    allowedModuleKeys,
+    isLoaded:    modulesLoaded,
+    hasApiError: modulesApiError,
+    loadPermissions,
+    clearPermissions,
+  } = usePermissions();
 
   // Cargar módulos permitidos cuando el usuario cambia
   useEffect(() => {
     if (user && user.rolesId) {
-      loadUserModules(user.rolesId);
+      loadPermissions(user.rolesId);
     }
   }, [user?.rolesId]);
-
-  const loadUserModules = async (rolesId: number) => {
-    const modules = await getModulesByRole(rolesId);
-    if (modules === null) {
-      // Error de red o 500: activar modo degradado — mostrar módulos por defecto según rol
-      setModulesApiError(true);
-      setModulesLoaded(true);
-      return;
-    }
-    const moduleKeys = modules.map(m => m.moduleKey || m.name.toLowerCase()).filter(Boolean);
-    setAllowedModuleKeys(moduleKeys);
-    setModulesLoaded(true);
-  };
 
   const handleLogin = (userData: AppUser) => {
     setUser(userData);
@@ -131,9 +124,7 @@ export default function App() {
     setIsClientPreview(false);
     setSalesClientFilter(null);
     setShowLandingFirst(true);
-    setAllowedModuleKeys([]);
-    setModulesLoaded(false);
-    setModulesApiError(false);
+    clearPermissions();
     localStorage.removeItem('jrepuestos_user');
     localStorage.removeItem('jrepuestos_token');
   };
@@ -256,7 +247,23 @@ export default function App() {
     return clientModules;
   };
 
+  // Módulos siempre accesibles sin importar los permisos del rol
+  const ALWAYS_ACCESSIBLE = new Set(['settings', 'dashboard', 'catalog', 'my-info', 'client-purchases', 'my-purchases', 'my-profile']);
+
   const renderModule = () => {
+    // Guard: admins no-Administrador con permisos ya cargados y sin errores de API
+    if (
+      u.userType === 'admin' &&
+      !isClientPreview &&
+      modulesLoaded &&
+      !modulesApiError &&
+      allowedModuleKeys.length > 0 &&
+      !ALWAYS_ACCESSIBLE.has(currentModule) &&
+      !isModuleAllowed(currentModule)
+    ) {
+      return <AccessDenied onGoBack={() => setCurrentModule('dashboard')} />;
+    }
+
     const D = () => <Dashboard {...({} as any)} userType={isClient ? 'client' : 'admin'} />;
 
     switch (currentModule) {
