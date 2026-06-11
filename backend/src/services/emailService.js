@@ -1,7 +1,8 @@
-const brevo = require('@getbrevo/brevo');
+const https = require('https');
 
 /**
- * Envía el OTP de recuperación de contraseña al email del usuario usando Brevo.
+ * Envía el OTP de recuperación de contraseña usando la REST API de Brevo directamente.
+ * No depende del SDK @getbrevo/brevo — evita problemas de versión.
  * @param {{ to: string, otp: string, userName: string }} params
  */
 async function sendOtpEmail({ to, otp, userName }) {
@@ -16,14 +17,11 @@ async function sendOtpEmail({ to, otp, userName }) {
         throw new Error('BREVO_SENDER_EMAIL no está configurada');
     }
 
-    const apiInstance = new brevo.TransactionalEmailsApi();
-    apiInstance.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
-
-    const sendSmtpEmail = new brevo.SendSmtpEmail();
-    sendSmtpEmail.sender  = { name: senderName, email: senderEmail };
-    sendSmtpEmail.to      = [{ email: to }];
-    sendSmtpEmail.subject = 'Código de recuperación de contraseña — Jrepuestos';
-    sendSmtpEmail.htmlContent = `
+    const payload = JSON.stringify({
+        sender:  { name: senderName, email: senderEmail },
+        to:      [{ email: to }],
+        subject: 'Código de recuperación de contraseña — Jrepuestos',
+        htmlContent: `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -70,17 +68,46 @@ async function sendOtpEmail({ to, otp, userName }) {
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`,
+    });
 
-    try {
-        const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
-        console.log(`[Brevo] Email enviado a ${to} — messageId: ${result?.body?.messageId || result?.messageId || 'OK'}`);
-        return result;
-    } catch (err) {
-        const details = err?.response?.body || err?.response?.text || err?.message || err;
-        console.error('[Brevo] Error al enviar email:', JSON.stringify(details));
-        throw err;
-    }
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'api.brevo.com',
+            port:     443,
+            path:     '/v3/smtp/email',
+            method:   'POST',
+            headers:  {
+                'Content-Type':   'application/json',
+                'api-key':        process.env.BREVO_API_KEY,
+                'Content-Length': Buffer.byteLength(payload),
+            },
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        const body = JSON.parse(data);
+                        console.log(`[Brevo] Email enviado a ${to} — messageId: ${body.messageId || 'OK'}`);
+                        resolve(body);
+                    } catch {
+                        resolve({ messageId: 'OK' });
+                    }
+                } else {
+                    const err = new Error(`Brevo API error ${res.statusCode}: ${data}`);
+                    err.response = { statusCode: res.statusCode, body: data };
+                    reject(err);
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.write(payload);
+        req.end();
+    });
 }
 
 module.exports = { sendOtpEmail };
