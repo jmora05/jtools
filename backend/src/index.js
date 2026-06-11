@@ -137,6 +137,11 @@ testConnection()
         `CREATE INDEX IF NOT EXISTS idx_ordenes_created     ON "ordenesProduccion" ("createdAt")`,
         `CREATE INDEX IF NOT EXISTS idx_nomina_empleado     ON nomina (empleado_id)`,
         `CREATE INDEX IF NOT EXISTS idx_nomina_fecha        ON nomina (fecha_pago)`,
+        // Órdenes de producción vinculadas a ventas
+        `ALTER TABLE "ordenes_produccion" ADD COLUMN IF NOT EXISTS "ventaId" INTEGER REFERENCES ventas(id) ON DELETE SET NULL`,
+        `ALTER TABLE "ordenes_produccion" ALTER COLUMN "responsableId" DROP NOT NULL`,
+        `ALTER TABLE "ordenes_produccion" ALTER COLUMN "fechaEntrega"   DROP NOT NULL`,
+        `CREATE INDEX IF NOT EXISTS idx_ordenes_venta ON "ordenes_produccion" ("ventaId")`,
     ];
     for (const sql of migraciones) {
         try {

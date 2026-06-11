@@ -94,7 +94,11 @@ Novedades.belongsTo(Empleados, { foreignKey: 'empleado_afectado', as: 'empleadoA
 
 // OrdenesProduccion
 OrdenesProduccion.belongsTo(Productos, { foreignKey: 'productoId',    as: 'producto' });
-OrdenesProduccion.belongsTo(Empleados, { foreignKey: 'responsableId', as: 'responsable' });
+OrdenesProduccion.belongsTo(Empleados, { foreignKey: 'responsableId', as: 'responsable', constraints: false });
+
+// Ventas ↔ OrdenesProduccion
+Ventas.hasMany(OrdenesProduccion,     { foreignKey: 'ventaId', as: 'ordenesProduccion' });
+OrdenesProduccion.belongsTo(Ventas,   { foreignKey: 'ventaId', as: 'venta' });
 
 
 

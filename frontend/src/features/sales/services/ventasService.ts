@@ -14,7 +14,7 @@ export interface VentaBackend {
   metodoPago: 'efectivo' | 'transferencia';
   tipoVenta: 'directa' | 'pedido';
   total: string | number;
-  estado: 'activa' | 'anulada';
+  estado: 'activa' | 'pendiente' | 'anulada';
   cliente?: {
     id: number;
     nombres: string;
@@ -32,6 +32,12 @@ export interface VentaBackend {
       referencia: string;
       precio: number;
     };
+  }[];
+  ordenesProduccion?: {
+    id: number;
+    codigoOrden: string;
+    estado: string;
+    cantidad: number;
   }[];
 }
 
@@ -79,7 +85,7 @@ export const mapVentaToSale = (v: VentaBackend) => ({
   total: Number(v.total),
   paymentMethod:
     v.metodoPago === 'efectivo' ? 'Efectivo' : 'Transferencia',
-  status: v.estado === 'anulada' ? 'Anulada' : 'Completada',
+  status: v.estado === 'anulada' ? 'Anulada' : v.estado === 'pendiente' ? 'Pendiente' : 'Completada',
   type: v.tipoVenta === 'directa' ? 'Directa' : 'Pedido',
   items: (v.detalles ?? []).map((d) => ({
     id: String(d.producto?.id ?? d.id),
@@ -88,6 +94,7 @@ export const mapVentaToSale = (v: VentaBackend) => ({
     quantity: d.cantidad,
     price: d.precioUnitario ?? d.producto?.precio ?? 0,
   })),
+  ordenesProduccion: v.ordenesProduccion ?? [],
 });
 
 // ─── Llamadas a la API ────────────────────────────────────────────────────────

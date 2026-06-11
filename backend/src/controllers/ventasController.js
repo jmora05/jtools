@@ -1,4 +1,4 @@
-const { Ventas, Clientes, DetalleVentas, Productos } = require('../models/index.js');
+const { Ventas, Clientes, DetalleVentas, Productos, OrdenesProduccion } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db.js');
 
 // Resuelve el registro Clientes del usuario autenticado; null si no existe
@@ -24,8 +24,10 @@ const getVentas = async (req, res) => {
                 {
                     model: DetalleVentas, as: 'detalles',
                     include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombreProducto', 'referencia', 'precio'] }]
-                }
-            ]
+                },
+                { model: OrdenesProduccion, as: 'ordenesProduccion', attributes: ['id', 'codigoOrden', 'estado', 'cantidad'] }
+            ],
+            order: [['id', 'DESC']],
         });
         res.status(200).json(ventas);
     } catch (error) {
@@ -66,29 +68,24 @@ const getVentaById = async (req, res) => {
 
 // POST - crear venta
 const createVenta = async (req, res) => {
-    if (req.usuario?.userType === 'client') {
-        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
-    }
     try {
-        const { clientesId, fecha, metodoPago, tipoVenta, total } = req.body;
+        let { clientesId, fecha, metodoPago, tipoVenta, total } = req.body;
 
-        // verificar que el cliente existe
-        const cliente = await Clientes.findByPk(clientesId);
-        if (!cliente) {
-            return res.status(404).json({ message: 'El cliente especificado no existe' });
+        if (req.usuario?.userType === 'client') {
+            // Auto-resolver el clientesId del usuario autenticado
+            const cliente = await _resolveCliente(req);
+            if (!cliente) return res.status(404).json({ message: 'Perfil de cliente no encontrado' });
+            if (cliente.estado === 'inactivo') return res.status(400).json({ message: 'El cliente está inactivo' });
+            clientesId = cliente.id;
+            // Las compras de clientes siempre son de tipo pedido
+            tipoVenta = 'pedido';
+        } else {
+            const cliente = await Clientes.findByPk(clientesId);
+            if (!cliente) return res.status(404).json({ message: 'El cliente especificado no existe' });
+            if (cliente.estado === 'inactivo') return res.status(400).json({ message: 'El cliente está inactivo' });
         }
-        if (cliente.estado === 'inactivo') {
-            return res.status(400).json({ message: 'El cliente está inactivo' });
-        }
 
-        const venta = await Ventas.create({
-            clientesId,
-            fecha,
-            metodoPago,
-            tipoVenta,
-            total
-        });
-
+        const venta = await Ventas.create({ clientesId, fecha, metodoPago, tipoVenta, total });
         res.status(201).json({ message: 'Venta creada correctamente', venta });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -167,10 +164,13 @@ const anularVenta = async (req, res) => {
         const { id } = req.params;
 
         const venta = await Ventas.findByPk(id, {
-            include: [{
-                model: DetalleVentas, as: 'detalles',
-                include: [{ model: Productos, as: 'producto' }]
-            }],
+            include: [
+                {
+                    model: DetalleVentas, as: 'detalles',
+                    include: [{ model: Productos, as: 'producto' }]
+                },
+                { model: OrdenesProduccion, as: 'ordenesProduccion' }
+            ],
             transaction: t
         });
 
@@ -189,6 +189,16 @@ const anularVenta = async (req, res) => {
             if (detalle.producto) {
                 await detalle.producto.update(
                     { stock: detalle.producto.stock + detalle.cantidad },
+                    { transaction: t }
+                );
+            }
+        }
+
+        // Anular órdenes de producción vinculadas (si las hay)
+        for (const orden of venta.ordenesProduccion ?? []) {
+            if (orden.estado !== 'Anulada') {
+                await orden.update(
+                    { estado: 'Anulada', motivoAnulacion: `Venta #${id} anulada` },
                     { transaction: t }
                 );
             }

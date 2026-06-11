@@ -1,4 +1,5 @@
-const { DetalleVentas, Ventas, Productos, Clientes } = require('../models/index.js');
+const { Op } = require('sequelize');
+const { DetalleVentas, Ventas, Productos, Clientes, OrdenesProduccion } = require('../models/index.js');
 
 // Resuelve el clientesId del usuario autenticado; null si no es cliente o no existe registro
 const _resolveClienteId = async (req) => {
@@ -67,52 +68,79 @@ const getDetalleVentaById = async (req, res) => {
 
 // POST - agregar detalle a una venta
 const createDetalleVenta = async (req, res) => {
-    if (req.usuario?.userType === 'client') {
-        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
-    }
     try {
         const { ventasId, productosId, cantidad, precioUnitario } = req.body;
 
-        // verificar que la venta existe
         const venta = await Ventas.findByPk(ventasId);
-        if (!venta) {
-            return res.status(404).json({ message: 'La venta especificada no existe' });
+        if (!venta) return res.status(404).json({ message: 'La venta especificada no existe' });
+
+        // Clientes solo pueden agregar detalles a sus propias ventas
+        if (req.usuario?.userType === 'client') {
+            const clienteId = await _resolveClienteId(req);
+            if (clienteId === undefined || venta.clientesId !== clienteId) {
+                return res.status(403).json({ message: 'Acceso denegado' });
+            }
         }
 
-        // verificar que el producto existe y está activo
         const producto = await Productos.findByPk(productosId);
-        if (!producto) {
-            return res.status(404).json({ message: 'El producto especificado no existe' });
-        }
-        if (producto.estado === 'inactivo') {
-            return res.status(400).json({ message: 'El producto está inactivo' });
-        }
+        if (!producto) return res.status(404).json({ message: 'El producto especificado no existe' });
+        if (producto.estado === 'inactivo') return res.status(400).json({ message: 'El producto está inactivo' });
 
-        // verificar que hay stock suficiente
-        if (producto.stock < cantidad) {
+        // En flujo de pedido o compra de cliente: stock insuficiente genera orden de producción
+        const isPedidoFlow = venta.tipoVenta === 'pedido' || req.usuario?.userType === 'client';
+        const stockInsuficiente = producto.stock < cantidad;
+
+        if (stockInsuficiente && !isPedidoFlow) {
             return res.status(400).json({ message: `Stock insuficiente. Stock disponible: ${producto.stock}` });
         }
 
-        // calcular total del detalle automáticamente
         const total = cantidad * precioUnitario;
+        const detalle = await DetalleVentas.create({ ventasId, productosId, cantidad, precioUnitario, total });
 
-        const detalle = await DetalleVentas.create({
-            ventasId,
-            productosId,
-            cantidad,
-            precioUnitario,
-            total
-        });
+        let ordenProduccion = null;
 
-        // descontar stock del producto
-        await producto.update({ stock: producto.stock - cantidad });
+        if (stockInsuficiente && isPedidoFlow) {
+            const cantidadFaltante = cantidad - producto.stock;
+            // Descontar todo el stock disponible
+            await producto.update({ stock: 0 });
+            // Marcar la venta como pendiente
+            await venta.update({ estado: 'pendiente' });
+            // Generar código y crear orden de producción automática
+            const year = new Date().getFullYear();
+            const lastOrden = await OrdenesProduccion.findOne({
+                where: { codigoOrden: { [Op.like]: `OP-${year}-%` } },
+                order: [['id', 'DESC']],
+            });
+            let nextNum = 1;
+            if (lastOrden) {
+                const parts = lastOrden.codigoOrden.split('-');
+                nextNum = parseInt(parts[2], 10) + 1;
+            }
+            const codigoOrden = `OP-${year}-${String(nextNum).padStart(3, '0')}`;
+            ordenProduccion = await OrdenesProduccion.create({
+                codigoOrden,
+                productoId: productosId,
+                cantidad:   cantidadFaltante,
+                tipoOrden:  'Pedido',
+                nota:       `Orden automática — venta #${ventasId}`,
+                ventaId:    ventasId,
+            });
+        } else {
+            await producto.update({ stock: producto.stock - cantidad });
+        }
 
-        // actualizar total de la venta
+        // Actualizar total de la venta
         const todosLosDetalles = await DetalleVentas.findAll({ where: { ventasId } });
         const nuevoTotal = todosLosDetalles.reduce((sum, d) => sum + parseFloat(d.total), 0);
         await venta.update({ total: nuevoTotal });
 
-        res.status(201).json({ message: 'Detalle de venta agregado correctamente', detalle });
+        res.status(201).json({
+            message: ordenProduccion
+                ? `Detalle agregado. Stock insuficiente: se generó orden de producción ${ordenProduccion.codigoOrden} por ${ordenProduccion.cantidad} unidades.`
+                : 'Detalle de venta agregado correctamente',
+            detalle,
+            ordenProduccion,
+        });
     } catch (error) {
         if (error.name === 'SequelizeValidationError') {
             const mensajes = error.errors.map(e => e.message);

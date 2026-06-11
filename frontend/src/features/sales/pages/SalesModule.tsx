@@ -74,6 +74,7 @@ interface Sale {
   status: string;
   type: string;
   items: SaleItem[];
+  ordenesProduccion?: { id: number; codigoOrden: string; estado: string; cantidad: number }[];
 }
 
 interface SalesModuleProps {
@@ -105,6 +106,30 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const [sales, setSales]     = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [myClientInfo, setMyClientInfo] = useState<{ id: string; name: string; document: string } | null>(null);
+
+  useEffect(() => {
+    if (!clientMode) return;
+    const fetchMyProfile = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/cliente/me`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('jrepuestos_token') ?? ''}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const info = {
+            id:       String(data.id),
+            name:     `${data.nombres} ${data.apellidos}`.trim(),
+            document: data.numero_documento ?? '',
+          };
+          setMyClientInfo(info);
+          setSaleForm(prev => ({ ...prev, clientId: info.id, clientName: info.name, clientDocument: info.document }));
+        }
+      } catch {}
+    };
+    fetchMyProfile();
+  }, [clientMode]);
 
   const [clients, setClients] = useState<any[]>([]);
   useEffect(() => {
@@ -383,7 +408,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const handleAddProduct = (product: any) => {
     const existing = saleForm.items.find(i => i.id === product.id);
     const newQty = existing ? existing.quantity + 1 : 1;
-    if (newQty > product.stock) {
+    const isPedido = clientMode || activeView === 'pedidos';
+    if (!isPedido && newQty > product.stock) {
       toast.error(`Stock insuficiente para "${product.name}". Disponible: ${product.stock}`);
       return;
     }
@@ -402,7 +428,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const handleUpdateQuantity = (productId: string, newQty: number) => {
     if (newQty < 1) { handleRemoveProduct(productId); return; }
     const product = products.find(p => p.id === productId);
-    if (product && newQty > product.stock) {
+    const isPedido = clientMode || activeView === 'pedidos';
+    if (!isPedido && product && newQty > product.stock) {
       toast.error(`Stock máximo disponible: ${product.stock}`);
       return;
     }
@@ -431,12 +458,15 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     if (saleForm.descuento !== '' && descuentoVal < 0) { toast.error('El descuento no puede ser negativo'); return; }
     if (descuentoVal > calculateSubtotal()) { toast.error('El descuento no puede ser mayor al subtotal'); return; }
 
-    // Pre-validar stock de todos los items antes de enviar
-    for (const item of saleForm.items) {
-      const product = products.find(p => p.id === item.id);
-      if (!product || product.stock < item.quantity) {
-        toast.error(`Stock insuficiente para "${item.name}". Disponible: ${product?.stock ?? 0}`);
-        return;
+    // Pre-validar stock solo para ventas directas de administrador
+    const isPedido = clientMode || activeView === 'pedidos';
+    if (!isPedido) {
+      for (const item of saleForm.items) {
+        const product = products.find(p => p.id === item.id);
+        if (!product || product.stock < item.quantity) {
+          toast.error(`Stock insuficiente para "${item.name}". Disponible: ${product?.stock ?? 0}`);
+          return;
+        }
       }
     }
 
@@ -446,25 +476,27 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         clientesId: Number(saleForm.clientId),
         fecha:      new Date().toISOString().split('T')[0],
         metodoPago: toMetodoPago(saleForm.paymentMethod),
-        tipoVenta:  toTipoVenta(activeView === 'pedidos' ? 'Pedido' : 'Directa'),
+        tipoVenta:  toTipoVenta(isPedido ? 'Pedido' : 'Directa'),
         total:      calculateTotal(),
       };
       const { venta } = await createVenta(dto);
 
-      // Crear detalles de venta — esto descuenta el stock en el backend
+      // Crear detalles de venta — descuenta stock y puede generar órdenes de producción
       const createdDetalleIds: number[] = [];
+      let hasPendiente = false;
       try {
         for (const item of saleForm.items) {
-          const { detalle } = await createDetalleVenta({
+          const result = await createDetalleVenta({
             ventasId:       venta.id,
             productosId:    Number(item.id),
             cantidad:       item.quantity,
             precioUnitario: item.price,
           });
-          createdDetalleIds.push(detalle.id);
+          createdDetalleIds.push(result.detalle.id);
+          if (result.ordenProduccion) hasPendiente = true;
         }
       } catch (detalleError: any) {
-        // Rollback: eliminar detalles creados (restaura stock) y la cabecera
+        // Rollback: eliminar detalles creados y la cabecera
         for (const id of createdDetalleIds) {
           try { await deleteDetalleVenta(id); } catch (_) {}
         }
@@ -472,12 +504,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         throw detalleError;
       }
 
-      // Actualizar stock local para reflejar el descuento sin recargar
+      // Actualizar stock local
       setProducts(prev => prev.map(p => {
         const item = saleForm.items.find(i => i.id === p.id);
-        return item ? { ...p, stock: p.stock - item.quantity } : p;
+        return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
 
+      const newSaleStatus = hasPendiente || activeView === 'pedidos' ? 'Pendiente' : 'Completada';
       const newSale: Sale = {
         id:             venta.id,
         clientName:     saleForm.clientName,
@@ -486,15 +519,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         date:           venta.fecha.slice(0, 10),
         total:          Number(venta.total),
         paymentMethod:  saleForm.paymentMethod,
-        status:         activeView === 'pedidos' ? 'Pendiente' : 'Completada',
-        type:           activeView === 'pedidos' ? 'Pedido' : 'Directa',
+        status:         newSaleStatus,
+        type:           isPedido ? 'Pedido' : 'Directa',
         items:          saleForm.items,
+        ordenesProduccion: [],
       };
       setSales([newSale, ...sales]);
       resetSaleForm();
       setShowNewSaleModal(false);
       if (onClearClientFilter) onClearClientFilter();
-      toast.success(clientMode ? 'Compra registrada exitosamente' : 'Venta registrada exitosamente');
+      if (hasPendiente) {
+        toast.success('Compra registrada. Se generó una orden de producción por stock insuficiente.');
+      } else {
+        toast.success(clientMode ? 'Compra registrada exitosamente' : 'Venta registrada exitosamente');
+      }
     } catch (error: any) {
       toast.error(error.message || 'Error al registrar la venta');
     } finally {
@@ -503,10 +541,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
   const resetSaleForm = () => {
+    const ci = clientMode
+      ? (myClientInfo ?? (clientFilter ? { id: String(clientFilter.id), name: clientFilter.name, document: clientFilter.document || clientFilter.documentNumber || '' } : null))
+      : null;
     setSaleForm({
-      clientId:       clientMode && clientFilter ? String(clientFilter.id) : '',
-      clientName:     clientMode && clientFilter ? clientFilter.name : '',
-      clientDocument: clientMode && clientFilter ? (clientFilter.document || clientFilter.documentNumber || '') : '',
+      clientId:       ci?.id       ?? '',
+      clientName:     ci?.name     ?? '',
+      clientDocument: ci?.document ?? '',
       paymentMethod: 'Efectivo',
       descuento: '',
       items: [],
@@ -519,10 +560,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      'Completada': 'bg-amber-50 text-amber-800 border-amber-300',
+      'Completada': 'bg-green-50 text-green-800 border-green-300',
       'Pendiente':  'bg-amber-50 text-amber-800 border-amber-300',
-      'Anulada':    'bg-amber-50 text-amber-800 border-amber-300',
-      
+      'Anulada':    'bg-red-50 text-red-700 border-red-300',
     };
     return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
   };
@@ -559,9 +599,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       s.id.toString().includes(searchTerm) ||
       (s.clientDocument && s.clientDocument.includes(searchTerm))
     );
-  const filteredSales = allFilteredSales.filter(s =>
-    activeView === 'ventas' ? s.type === 'Directa' : s.type === 'Pedido'
-  );
+  const filteredSales = clientMode
+    ? allFilteredSales
+    : allFilteredSales.filter(s => activeView === 'ventas' ? s.type === 'Directa' : s.type === 'Pedido');
 
   const totalPages    = Math.max(1, Math.ceil(filteredSales.length / itemsPerPage));
   const currentSales  = filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -592,13 +632,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
             setShowNewSaleModal(open);
             if (!open) { resetSaleForm(); if (onClearClientFilter) onClearClientFilter(); }
           }}>
-            {!clientMode && (
-              <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
-                  <PlusIcon className="w-4 h-4 mr-2" />{activeView === 'pedidos' ? 'Nuevo Pedido' : clientMode ? 'Nueva Compra' : 'Nueva Venta'}
-                </Button>
-              </DialogTrigger>
-            )}
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700" size="lg">
+                <PlusIcon className="w-4 h-4 mr-2" />{clientMode ? 'Nueva Compra' : activeView === 'pedidos' ? 'Nuevo Pedido' : 'Nueva Venta'}
+              </Button>
+            </DialogTrigger>
 
             <DialogContent
               className="p-0 gap-0 overflow-hidden"
@@ -862,11 +900,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               </div>
                               <Button type="button" size="sm"
                                 onClick={() => handleAddProduct(product)}
-                                disabled={product.stock === 0}
-                                style={{ marginLeft: 12, flexShrink: 0, height: 28, fontSize: 11, padding: '0 10px', background: product.stock === 0 ? '#e5e7eb' : '#2563eb', color: product.stock === 0 ? '#9ca3af' : '#fff', cursor: product.stock === 0 ? 'not-allowed' : 'pointer' }}
+                                disabled={!clientMode && activeView !== 'pedidos' && product.stock === 0}
+                                style={{
+                                  marginLeft: 12, flexShrink: 0, height: 28, fontSize: 11, padding: '0 10px',
+                                  background: product.stock === 0
+                                    ? (clientMode || activeView === 'pedidos' ? '#f59e0b' : '#e5e7eb')
+                                    : '#2563eb',
+                                  color: product.stock === 0
+                                    ? (clientMode || activeView === 'pedidos' ? '#fff' : '#9ca3af')
+                                    : '#fff',
+                                  cursor: (!clientMode && activeView !== 'pedidos' && product.stock === 0) ? 'not-allowed' : 'pointer',
+                                }}
                               >
                                 <PlusIcon style={{ width: 12, height: 12, marginRight: 4 }} />
-                                {product.stock === 0 ? 'Sin stock' : 'Agregar'}
+                                {product.stock === 0 ? (clientMode || activeView === 'pedidos' ? 'Pedir' : 'Sin stock') : 'Agregar'}
                               </Button>
                             </div>
                           ))}
@@ -900,15 +947,22 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           <tbody>
                             {saleForm.items.map(item => {
                               const stockDisponible = products.find(p => p.id === item.id)?.stock ?? 0;
-                              const enLimite = item.quantity >= stockDisponible;
+                              const isPedidoForm = clientMode || activeView === 'pedidos';
+                              const enLimite = !isPedidoForm && item.quantity >= stockDisponible;
+                              const sobrepasaStock = isPedidoForm && item.quantity > stockDisponible;
                               return (
                               <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                 <td style={{ padding: '12px 24px' }}>
                                   <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
                                   <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString()} c/u</p>
-                                  {enLimite && (
+                                  {!isPedidoForm && enLimite && (
                                     <p style={{ fontSize: 10, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
                                       Stock máximo alcanzado ({stockDisponible})
+                                    </p>
+                                  )}
+                                  {sobrepasaStock && (
+                                    <p style={{ fontSize: 10, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
+                                      {stockDisponible > 0 ? `${stockDisponible} en stock · ${item.quantity - stockDisponible} por producir` : 'Sin stock — se generará orden de producción'}
                                     </p>
                                   )}
                                 </td>
@@ -922,7 +976,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                     <input
                                       type="number"
                                       min={1}
-                                      max={stockDisponible}
+                                      max={isPedidoForm ? undefined : stockDisponible}
                                       value={item.quantity}
                                       onChange={(e) => {
                                         const v = parseInt(e.target.value, 10);
@@ -1070,7 +1124,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Cliente</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
                   <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">{activeView === 'pedidos' ? 'Estado' : 'Método de Pago'}</th>
+                  <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">{activeView === 'pedidos' || clientMode ? 'Estado' : 'Método de Pago'}</th>
                   <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
@@ -1109,9 +1163,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <div className="text-sm text-gray-500">{sale.items.length} producto(s)</div>
                       </td>
                       <td className="px-6 py-4">
-                        {activeView === 'ventas' ? (
+                        {clientMode ? (
+                          getStatusBadge(sale.status)
+                        ) : activeView === 'ventas' ? (
                           <span className="text-sm text-gray-700">{sale.paymentMethod}</span>
-                        ) : sale.status === 'Cancelado' || sale.status === 'Completado' ? (
+                        ) : sale.status === 'Cancelado' || sale.status === 'Completado' || sale.status === 'Anulada' ? (
                           getStatusBadge(sale.status)
                         ) : (
                           <select
@@ -1123,9 +1179,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               fontSize: 12,
                               fontWeight: 600,
                               border: '1px solid',
-                              borderColor: sale.status === 'Pendiente' ? '#f7f4ec' : '#bfdbfe',
-                              background: sale.status === 'Pendiente' ? '#f0ecec' : '#eff6ff',
-                              color: sale.status === 'Pendiente' ? '#1e40af' : '#1e40af',
+                              borderColor: sale.status === 'Pendiente' ? '#fde68a' : '#bfdbfe',
+                              background: sale.status === 'Pendiente' ? '#fffbeb' : '#eff6ff',
+                              color: '#92400e',
                               cursor: 'pointer',
                               outline: 'none',
                               appearance: 'auto',
@@ -1175,6 +1231,24 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             <button onClick={() => setPdfBannerId(null)} className="text-gray-400 hover:text-gray-600 ml-4">
                               <XCircleIcon className="w-4 h-4" />
                             </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {(activeView === 'pedidos' || clientMode) && (sale.ordenesProduccion ?? []).length > 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 pb-2">
+                          <div className="flex flex-wrap gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+                            {(sale.ordenesProduccion ?? []).map(op => (
+                              <div key={op.id} className="flex items-center gap-2 text-xs text-amber-800">
+                                <TruckIcon className="w-3 h-3 shrink-0" />
+                                <span className="font-semibold">{op.codigoOrden}</span>
+                                <span>·</span>
+                                <span>{op.cantidad} uds.</span>
+                                <span>·</span>
+                                <span className="font-medium">{op.estado}</span>
+                              </div>
+                            ))}
                           </div>
                         </td>
                       </tr>
