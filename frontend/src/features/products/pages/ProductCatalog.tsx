@@ -333,43 +333,40 @@ function ClientCatalogView() {
 
                                     {/* Botones */}
                                     <div className="flex gap-2 pt-1">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
+                                        <button
+                                            type="button"
                                             onClick={() => viewDetails(product)}
-                                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50 text-xs"
+                                            className="flex-1 h-8 rounded-md border border-blue-900 text-blue-900 hover:bg-blue-50 text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
                                         >
-                                            <Eye className="w-3 h-3 mr-1" /> Ver
-                                        </Button>
+                                            <Eye className="w-3 h-3 shrink-0" /> Ver
+                                        </button>
 
                                         {outOfStock ? (
-                                            /* Botón "Pedir" para productos sin stock */
-                                            <Button
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 onClick={() => handlePedir(product)}
-                                                className={`flex-1 text-xs ${
+                                                className={`flex-1 h-8 rounded-md text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors text-white ${
                                                     isPedidoCart
-                                                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                        ? 'bg-amber-600 hover:bg-amber-700'
+                                                        : 'bg-amber-500 hover:bg-amber-600'
                                                 }`}
                                             >
-                                                <Clock className="w-3 h-3 mr-1" />
+                                                <Clock className="w-3 h-3 shrink-0" />
                                                 {isPedidoCart ? '+ Pedir' : 'Pedir'}
-                                            </Button>
+                                            </button>
                                         ) : (
-                                            /* Botón carrito normal */
-                                            <Button
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 onClick={() => handleAddToCart(product)}
-                                                className={`flex-1 text-xs ${
+                                                className={`flex-1 h-8 rounded-md text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors text-white ${
                                                     inCart
-                                                        ? 'bg-blue-900 hover:bg-blue-800 text-white'
-                                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                        ? 'bg-blue-900 hover:bg-blue-800'
+                                                        : 'bg-blue-600 hover:bg-blue-700'
                                                 }`}
                                             >
-                                                <ShoppingCart className="w-3 h-3 mr-1" />
+                                                <ShoppingCart className="w-3 h-3 shrink-0" />
                                                 {inCart ? '+ Agregar' : 'Agregar'}
-                                            </Button>
+                                            </button>
                                         )}
                                     </div>
                                 </CardContent>
