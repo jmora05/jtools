@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from '@/shared/components/ui/avatar';
 import { toast } from 'sonner';
 import {
     Mail, ShieldCheck, KeyRound, Eye, EyeOff,
-    CheckIcon, XIcon, Lock,
+    CheckIcon, XIcon, Lock, Phone, MapPin, Building2,
 } from 'lucide-react';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -23,7 +23,6 @@ const PASSWORD_RULES = [
     { key: 'special',   label: '1 carácter especial',   test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
 ];
 
-// ── Auxiliares ────────────────────────────────────────────────────────────────
 function RuleItem({ ok, label }: { ok: boolean; label: string }) {
     return (
         <div className="flex items-center gap-2 text-xs">
@@ -49,11 +48,19 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
     );
 }
 
+interface UserData {
+    email: string;
+    role: string;
+    userType: string;
+    name: string;
+    phone?: string;
+    city?: string;
+    address?: string;
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export function AdminProfile() {
-    const [userData, setUserData] = useState<{
-        email: string; role: string; userType: string; name: string;
-    } | null>(null);
+    const [userData, setUserData] = useState<UserData | null>(null);
 
     const [showModal, setShowModal]     = useState(false);
     const [form, setForm]               = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -78,7 +85,17 @@ export function AdminProfile() {
         } catch { /* ignore */ }
     }, []);
 
-    const initials = userData?.email?.slice(0, 2).toUpperCase() ?? 'U';
+    const getInitials = (name: string) => {
+        const parts = name.trim().split(/\s+/);
+        return parts.length >= 2
+            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+            : name.substring(0, 2).toUpperCase();
+    };
+
+    const displayName = userData?.name || userData?.email || '—';
+    const initials = userData?.name
+        ? getInitials(userData.name)
+        : (userData?.email?.slice(0, 2).toUpperCase() ?? 'U');
 
     const openModal = () => {
         setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -112,8 +129,8 @@ export function AdminProfile() {
 
             {/* Header */}
             <div>
-                <h1 className="text-2xl text-blue-900 font-bold mb-1">Ajustes de cuenta</h1>
-                <p className="text-blue-800">Gestiona tu información personal y seguridad</p>
+                <h1 className="text-2xl text-blue-900 font-bold mb-1">Mi Información</h1>
+                <p className="text-blue-800">Consulta tus datos personales y seguridad</p>
             </div>
 
             {/* Tarjeta perfil */}
@@ -121,14 +138,12 @@ export function AdminProfile() {
                 <CardContent className="p-0">
                     <div className="flex items-center gap-5 p-6 border-b border-gray-100">
                         <Avatar className="w-20 h-20 shrink-0">
-                            <AvatarFallback className="bg-blue-600 text-white text-2xl font-bold">
+                            <AvatarFallback className="bg-blue-100 text-blue-600 text-2xl font-bold">
                                 {initials}
                             </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xl font-bold text-gray-900 truncate">
-                                {userData?.name || userData?.email || '—'}
-                            </p>
+                            <p className="text-xl font-bold text-gray-900 truncate">{displayName}</p>
                             <p className="text-sm text-gray-500 mt-0.5">{userData?.email || '—'}</p>
                             <div className="flex items-center gap-2 mt-2">
                                 <Badge className="bg-blue-100 text-blue-700 text-xs">
@@ -138,7 +153,7 @@ export function AdminProfile() {
                         </div>
                     </div>
 
-                    <div className="px-6 py-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 px-6 py-2">
                         <InfoRow
                             icon={<Mail className="w-4 h-4 text-blue-600" />}
                             label="Correo electrónico"
@@ -149,6 +164,27 @@ export function AdminProfile() {
                             label="Rol"
                             value={userData?.role || 'Administrador'}
                         />
+                        {userData?.phone && (
+                            <InfoRow
+                                icon={<Phone className="w-4 h-4 text-blue-600" />}
+                                label="Teléfono"
+                                value={userData.phone}
+                            />
+                        )}
+                        {userData?.city && (
+                            <InfoRow
+                                icon={<MapPin className="w-4 h-4 text-blue-600" />}
+                                label="Ciudad"
+                                value={userData.city}
+                            />
+                        )}
+                        {userData?.address && (
+                            <InfoRow
+                                icon={<Building2 className="w-4 h-4 text-blue-600" />}
+                                label="Dirección"
+                                value={userData.address}
+                            />
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -175,7 +211,7 @@ export function AdminProfile() {
 
             {/* Modal Cambiar Contraseña */}
             <Dialog open={showModal} onOpenChange={(open) => { if (!open) setShowModal(false); }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md p-4">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <KeyRound className="w-5 h-5 text-blue-600" />Cambiar Contraseña

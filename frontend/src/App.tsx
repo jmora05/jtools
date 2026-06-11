@@ -184,19 +184,19 @@ export default function App() {
       // Mientras la API carga: mostrar conjunto mínimo para no bloquear la UI
       if (!modulesLoaded) {
         return u.userType === 'client'
-          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          ? ['catalog', 'client-purchases'].includes(moduleId)
           : ['dashboard', 'catalog'].includes(moduleId);
       }
       // Si el API falló (500 / red): degradación graceful — mostrar módulos por defecto
       if (modulesApiError) {
         return u.userType === 'client'
-          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          ? ['catalog', 'client-purchases'].includes(moduleId)
           : true; // admin ve todo si no se pudo obtener sus permisos
       }
       // Sin permisos configurados: admin ve todo (graceful), cliente solo sus módulos base
       if (allowedModuleKeys.length === 0) {
         return u.userType === 'client'
-          ? ['catalog', 'client-purchases', 'my-info'].includes(moduleId)
+          ? ['catalog', 'client-purchases'].includes(moduleId)
           : true;
       }
       return allowedModuleKeys.some(key =>
@@ -239,16 +239,15 @@ export default function App() {
 
     // Cliente registrado: solo los módulos que le fueron asignados
     const clientModules: ModuleItem[] = [
-      { id: 'catalog',          label: 'Productos',         icon: <Package size={18} /> },
-      { id: 'client-purchases', label: 'Mis Compras',       icon: <ShoppingCart size={18} /> },
-      { id: 'my-info',          label: 'Mi Información',    icon: <UserIcon size={18} /> },
+      { id: 'catalog',          label: 'Productos',   icon: <Package size={18} /> },
+      { id: 'client-purchases', label: 'Mis Compras', icon: <ShoppingCart size={18} /> },
     ].filter(module => isModuleAllowed(module.id));
 
     return clientModules;
   };
 
   // Módulos siempre accesibles sin importar los permisos del rol
-  const ALWAYS_ACCESSIBLE = new Set(['settings', 'dashboard', 'catalog', 'my-info', 'client-purchases', 'my-purchases', 'my-profile']);
+  const ALWAYS_ACCESSIBLE = new Set(['settings', 'dashboard', 'catalog', 'client-purchases', 'my-purchases', 'my-profile']);
 
   const renderModule = () => {
     // Guard: admins no-Administrador con permisos ya cargados y sin errores de API
@@ -274,7 +273,6 @@ export default function App() {
       case 'my-purchases':        return <SalesModule {...({} as any)} clientMode clientFilter={{ id: u.id, name: u.name, email: u.email }} onClearClientFilter={() => {}} />;
       case 'settings':            return isClient ? <ClientProfile /> : <AdminProfile />;
       case 'my-profile':          return D();
-      case 'my-info':             return <ClientProfile />;
       case 'configuration':       return !isClient ? <ConfigurationModule /> : D();
       case 'users':               return !isClient ? <UserManagement /> : D();
       case 'roles':               return !isClient ? <RoleManagement /> : D();
@@ -315,7 +313,6 @@ export default function App() {
       nomina:                         'Control de Pagos',
       'my-purchases':                 'Mis Compras',
       'my-profile':                   'Mi Perfil',
-      'my-info':                      'Mi Información',
       'client-purchases':             'Mis Compras',
       settings:                       'Ajustes de cuenta',
     };
