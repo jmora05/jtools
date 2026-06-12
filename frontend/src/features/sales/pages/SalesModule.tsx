@@ -519,13 +519,26 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       }
     }
 
+    // Para clientes: directa si hay stock suficiente, pedido si se necesita producción.
+    // Para admin: depende del tab activo.
+    let resolvedTipoVenta: 'Pedido' | 'Directa';
+    if (clientMode) {
+      const needsProduction = bypassStockCheck || saleForm.items.some(item => {
+        const product = products.find(p => p.id === item.id);
+        return (product?.stock ?? 0) < item.quantity;
+      });
+      resolvedTipoVenta = needsProduction ? 'Pedido' : 'Directa';
+    } else {
+      resolvedTipoVenta = activeView === 'pedidos' ? 'Pedido' : 'Directa';
+    }
+
     setSubmitting(true);
     try {
       const dto = {
         clientesId: Number(saleForm.clientId),
         fecha:      new Date().toISOString().split('T')[0],
         metodoPago: toMetodoPago(saleForm.paymentMethod),
-        tipoVenta:  toTipoVenta(isPedido ? 'Pedido' : 'Directa'),
+        tipoVenta:  toTipoVenta(resolvedTipoVenta),
         total:      calculateTotal(),
       };
       const { venta } = await createVenta(dto);
@@ -559,7 +572,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
 
-      const newSaleStatus = hasPendiente || activeView === 'pedidos' ? 'Pendiente' : 'Completada';
+      const newSaleStatus = hasPendiente || resolvedTipoVenta === 'Pedido' ? 'Pendiente' : 'Completada';
       const newSale: Sale = {
         id:             venta.id,
         clientName:     saleForm.clientName,
@@ -569,7 +582,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         total:          Number(venta.total),
         paymentMethod:  saleForm.paymentMethod,
         status:         newSaleStatus,
-        type:           isPedido ? 'Pedido' : 'Directa',
+        type:           resolvedTipoVenta,
         items:          saleForm.items,
         ordenesProduccion: [],
       };
@@ -642,8 +655,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     c.document.includes(clientSearch)
   );
 
+  // El backend ya filtra por clientesId para usuarios tipo cliente; no aplicar filtro
+  // extra por clientFilter.id porque ese es el ID de usuarios, no de clientes.
   const allFilteredSales = sales
-    .filter(s => !clientMode || !clientFilter || String(s.clientId) === String(clientFilter.id))
     .filter(s =>
       s.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.id.toString().includes(searchTerm) ||
@@ -1265,26 +1279,35 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             <TooltipContent><p>{isCancelled ? (isAnulada ? (clientMode ? 'Compra anulada' : 'Venta anulada') : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
 
-                          {!clientMode && activeView === 'pedidos' && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => !isAnulada && handleAnularVenta(sale)}
-                                  disabled={isAnulada}
-                                  className={isAnulada
-                                    ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
-                                    : "text-blue-900 border-blue-900 hover:bg-blue-50"}
-                                >
-                                  <BanIcon className="w-4 h-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{isAnulada ? 'Pedido ya anulado' : 'Anular pedido'}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+                          {!clientMode && activeView === 'pedidos' && (() => {
+                            const isCompletada = sale.status === 'Completada';
+                            const anularDisabled = isAnulada || isCompletada;
+                            const anularTooltip = isAnulada
+                              ? 'Pedido ya anulado'
+                              : isCompletada
+                              ? 'Los pedidos completados no se pueden anular'
+                              : 'Anular pedido';
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => !anularDisabled && handleAnularVenta(sale)}
+                                    disabled={anularDisabled}
+                                    className={anularDisabled
+                                      ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
+                                      : "text-blue-900 border-blue-900 hover:bg-blue-50"}
+                                  >
+                                    <BanIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{anularTooltip}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
 
                         </div>
                       </td>

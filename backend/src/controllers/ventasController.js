@@ -77,8 +77,7 @@ const createVenta = async (req, res) => {
             if (!cliente) return res.status(404).json({ message: 'Perfil de cliente no encontrado' });
             if (cliente.estado === 'inactivo') return res.status(400).json({ message: 'El cliente está inactivo' });
             clientesId = cliente.id;
-            // Las compras de clientes siempre son de tipo pedido
-            tipoVenta = 'pedido';
+            // tipoVenta viene del frontend según disponibilidad de stock
         } else {
             const cliente = await Clientes.findByPk(clientesId);
             if (!cliente) return res.status(404).json({ message: 'El cliente especificado no existe' });
@@ -182,6 +181,11 @@ const anularVenta = async (req, res) => {
         if (venta.estado === 'anulada') {
             await t.rollback();
             return res.status(400).json({ message: 'Esta venta ya está anulada' });
+        }
+
+        if (venta.tipoVenta === 'pedido' && venta.estado === 'activa') {
+            await t.rollback();
+            return res.status(400).json({ message: 'No se puede anular un pedido completado.' });
         }
 
         // Restaurar stock de cada producto en los detalles
