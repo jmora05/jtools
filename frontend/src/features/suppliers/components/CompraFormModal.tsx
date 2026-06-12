@@ -56,6 +56,10 @@ function validateCarritoItem(item: ItemCarrito): CarritoItemError {
     return err;
 }
 
+const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/\d/.test(e.key)) e.preventDefault();
+};
 const blockNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/[\d.]/.test(e.key)) e.preventDefault();
@@ -261,7 +265,7 @@ export function CompraFormModal({
         : undefined;
 
     return (
-        <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <Dialog open={open} onOpenChange={(o: boolean) => { if (!o) onClose(); }}>
             <DialogContent
                 className="p-0 gap-0 overflow-hidden"
                 style={{
