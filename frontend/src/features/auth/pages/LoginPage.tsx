@@ -131,6 +131,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [accountDisabled, setAccountDisabled] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -227,6 +228,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       toast.error('Todos los campos son obligatorios');
       return;
     }
+    setAccountDisabled(false);
     setLoading(true);
     try {
       const resp = await authService.login(loginForm.email, loginForm.password);
@@ -243,7 +245,12 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
       });
       toast.success(resp.message || 'Inicio de sesión exitoso');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al iniciar sesión');
+      const msg = err instanceof Error ? err.message : 'Error al iniciar sesión';
+      if (msg.includes('desactivada')) {
+        setAccountDisabled(true);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -489,7 +496,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                         id="login-email"
                         type="email"
                         value={loginForm.email}
-                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                        onChange={(e) => { setLoginForm({ ...loginForm, email: e.target.value }); setAccountDisabled(false); }}
                         placeholder="tu@correo.com"
                         className="pl-10 h-9"
                       />
@@ -518,6 +525,15 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                       </button>
                     </div>
                   </div>
+                  {accountDisabled && (
+                    <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+                      <AlertCircleIcon className="mt-0.5 w-4 h-4 shrink-0 text-red-600" />
+                      <div>
+                        <p className="font-semibold text-red-800">Cuenta desactivada</p>
+                        <p className="mt-0.5 text-red-700">Tu cuenta ha sido desactivada. Comunícate con el administrador del sistema para reactivarla.</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="text-right">
                     <button
                       type="button"
@@ -527,7 +543,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                       ¿Olvidaste tu contraseña?
                     </button>
                   </div>
-                  <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 h-9">
+                  <Button type="submit" disabled={loading || accountDisabled} className="w-full bg-blue-600 hover:bg-blue-700 h-9">
                     {loading
                       ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Iniciando sesión...</>
                       : 'Iniciar Sesión'}

@@ -654,15 +654,15 @@ function AdminCatalogView() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-blue-900">
+                                <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Imagen</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Categoría</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Precio / Stock</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">ID</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Imagen</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Producto</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Categoría</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Precio / Stock</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>

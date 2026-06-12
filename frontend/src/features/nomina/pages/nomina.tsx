@@ -963,16 +963,16 @@ export function PayrollModule() {
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-blue-900">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-white font-semibold">Empleado</th>
-                    <th className="px-6 py-4 text-left text-white font-semibold">Cargo</th>
-                    <th className="px-6 py-4 text-left text-white font-semibold">Período</th>
-                    <th className="px-6 py-4 text-right text-white font-semibold">Salario base</th>
-                    <th className="px-6 py-4 text-center text-white font-semibold">Días de trabajo</th>
-                    <th className="px-6 py-4 text-right text-white font-semibold">Neto a pagar</th>
-                    <th className="px-6 py-4 text-center text-white font-semibold">Estado</th>
-                    <th className="px-6 py-4 text-center text-white font-semibold">Acciones</th>
+                    <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Empleado</th>
+                    <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Cargo</th>
+                    <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Período</th>
+                    <th className="px-6 py-3 text-right text-xs text-gray-600 uppercase tracking-wider">Salario base</th>
+                    <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Días de trabajo</th>
+                    <th className="px-6 py-3 text-right text-xs text-gray-600 uppercase tracking-wider">Neto a pagar</th>
+                    <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                    <th className="px-6 py-3 text-center text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
