@@ -2,6 +2,10 @@ import { getClientes } from '@/features/clients/services/clientesService';
 import { getProductos } from '@/features/products/services/productosService';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -183,6 +187,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [currentPage, setCurrentPage]           = useState(1);
   const itemsPerPage = 5;
   const [activeView, setActiveView] = useState<'ventas' | 'pedidos'>('ventas');
+  const [showAnularDialog, setShowAnularDialog]     = useState(false);
+  const [salePendingAnular, setSalePendingAnular]   = useState<Sale | null>(null);
 
   const [saleForm, setSaleForm] = useState({
     clientId: '',
@@ -407,13 +413,20 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     toast.success(`Venta #${sale.id} marcada como ${newStatus}`);
   };
 
-  const handleAnularVenta = async (sale: Sale) => {
-    if (!confirm(`¿Estás seguro de que deseas anular el pedido #${sale.id}? Esta acción no se puede deshacer.`)) return;
+  const handleAnularVenta = (sale: Sale) => {
+    setSalePendingAnular(sale);
+    setShowAnularDialog(true);
+  };
+
+  const confirmAnularVenta = async () => {
+    if (!salePendingAnular) return;
     try {
-      await anularVenta(sale.id);
-      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: 'Anulada' } : s));
-      persistSaleStatus(sale.id, 'Anulada');
-      toast.success(`Pedido #${sale.id} anulado correctamente.`);
+      await anularVenta(salePendingAnular.id);
+      setSales(prev => prev.map(s => s.id === salePendingAnular.id ? { ...s, status: 'Anulada' } : s));
+      persistSaleStatus(salePendingAnular.id, 'Anulada');
+      toast.success(`Pedido #${salePendingAnular.id} anulado correctamente.`);
+      setShowAnularDialog(false);
+      setSalePendingAnular(null);
     } catch (error: any) {
       toast.error(error.message || 'Error al anular el pedido');
     }
@@ -574,11 +587,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      'Completada': 'bg-teal-50 text-teal-600 border border-teal-200',
-      'Pendiente':  'bg-yellow-50 text-yellow-600 border border-yellow-200',
-      'Anulada':    'bg-gray-100 text-gray-500 border border-gray-200',
+      'Completada': 'bg-white text-gray-700 border border-gray-300',
+      'Pendiente':  'bg-white text-gray-700 border border-gray-300',
+      'Anulada':    'bg-white text-gray-400 border border-gray-300',
     };
-    return <Badge className={colors[status] || 'bg-gray-100 text-gray-500 border border-gray-200'}>{status}</Badge>;
+    return <Badge className={colors[status] || 'bg-white text-gray-600 border border-gray-300'}>{status}</Badge>;
   };
 
   const getTypeBadge = (type: string) =>
@@ -1192,9 +1205,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               borderRadius: 6,
                               fontSize: 12,
                               fontWeight: 500,
-                              border: '1px solid #fef08a',
-                              background: '#fefce8',
-                              color: '#ca8a04',
+                              border: '1px solid #d1d5db',
+                              background: '#ffffff',
+                              color: '#374151',
                               cursor: 'pointer',
                               outline: 'none',
                               appearance: 'auto',
@@ -1507,6 +1520,35 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           </DialogContent>
         </Dialog>
 
+        {/* ── DIALOG CONFIRMAR ANULACIÓN ────────────────────────────────── */}
+        <AlertDialog open={showAnularDialog} onOpenChange={setShowAnularDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-blue-900">
+                <BanIcon className="w-5 h-5" />Anular pedido
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>¿Estás seguro de que deseas anular este pedido? Esta acción no se puede deshacer.</p>
+                {salePendingAnular && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
+                    <p className="text-sm"><span className="text-gray-500">Pedido: </span><span className="font-medium text-gray-800">#{salePendingAnular.id}</span></p>
+                    <p className="text-sm"><span className="text-gray-500">Cliente: </span><span className="text-gray-800">{salePendingAnular.clientName}</span></p>
+                    <p className="text-sm"><span className="text-gray-500">Total: </span><span className="text-gray-800">${salePendingAnular.total.toLocaleString()}</span></p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setSalePendingAnular(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmAnularVenta}
+                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900"
+              >
+                Anular pedido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </div>
     </TooltipProvider>
