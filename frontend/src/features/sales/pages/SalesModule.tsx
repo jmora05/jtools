@@ -35,11 +35,13 @@ import {
   ChevronUp,
   Lock,
   Download,
+  BanIcon,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import {
+  anularVenta,
   getVentas,
   createVenta,
   deleteVenta,
@@ -405,6 +407,18 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     toast.success(`Venta #${sale.id} marcada como ${newStatus}`);
   };
 
+  const handleAnularVenta = async (sale: Sale) => {
+    if (!confirm(`¿Estás seguro de que deseas anular el pedido #${sale.id}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await anularVenta(sale.id);
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: 'Anulada' } : s));
+      persistSaleStatus(sale.id, 'Anulada');
+      toast.success(`Pedido #${sale.id} anulado correctamente.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Error al anular el pedido');
+    }
+  };
+
   const handleAddProduct = (product: any) => {
     const existing = saleForm.items.find(i => i.id === product.id);
     const newQty = existing ? existing.quantity + 1 : 1;
@@ -560,11 +574,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      'Completada': 'bg-green-50 text-green-800 border-green-300',
-      'Pendiente':  'bg-amber-50 text-amber-800 border-amber-300',
-      'Anulada':    'bg-red-50 text-red-700 border-red-300',
+      'Completada': 'bg-teal-50 text-teal-600 border border-teal-200',
+      'Pendiente':  'bg-yellow-50 text-yellow-600 border border-yellow-200',
+      'Anulada':    'bg-gray-100 text-gray-500 border border-gray-200',
     };
-    return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
+    return <Badge className={colors[status] || 'bg-gray-100 text-gray-500 border border-gray-200'}>{status}</Badge>;
   };
 
   const getTypeBadge = (type: string) =>
@@ -1167,7 +1181,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           getStatusBadge(sale.status)
                         ) : activeView === 'ventas' ? (
                           <span className="text-sm text-gray-700">{sale.paymentMethod}</span>
-                        ) : sale.status === 'Cancelado' || sale.status === 'Completado' || sale.status === 'Anulada' ? (
+                        ) : sale.status === 'Cancelado' || sale.status === 'Completada' || sale.status === 'Anulada' ? (
                           getStatusBadge(sale.status)
                         ) : (
                           <select
@@ -1177,18 +1191,17 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               padding: '4px 28px 4px 8px',
                               borderRadius: 6,
                               fontSize: 12,
-                              fontWeight: 600,
-                              border: '1px solid',
-                              borderColor: sale.status === 'Pendiente' ? '#fde68a' : '#bfdbfe',
-                              background: sale.status === 'Pendiente' ? '#fffbeb' : '#eff6ff',
-                              color: '#92400e',
+                              fontWeight: 500,
+                              border: '1px solid #fef08a',
+                              background: '#fefce8',
+                              color: '#ca8a04',
                               cursor: 'pointer',
                               outline: 'none',
                               appearance: 'auto',
                             }}
                           >
                             <option value="Pendiente">Pendiente</option>
-                            <option value="Completado">Completado</option>
+                            <option value="Completada">Completada</option>
                           </select>
                         )}
                       </td>
@@ -1216,6 +1229,27 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             </TooltipTrigger>
                             <TooltipContent><p>{isCancelled ? (isAnulada ? (clientMode ? 'Compra anulada' : 'Venta anulada') : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
+
+                          {!clientMode && activeView === 'pedidos' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => !isAnulada && handleAnularVenta(sale)}
+                                  disabled={isAnulada}
+                                  className={isAnulada
+                                    ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
+                                    : "text-blue-900 border-blue-900 hover:bg-blue-50"}
+                                >
+                                  <BanIcon className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{isAnulada ? 'Pedido ya anulado' : 'Anular pedido'}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
 
                         </div>
                       </td>
