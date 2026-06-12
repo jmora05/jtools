@@ -49,7 +49,7 @@ const Compras = sequelize.define('Compras', {
 
     // ── 'anulada' añadido como estado terminal (soft-delete) ──────────────
     estado: {
-        type: DataTypes.ENUM('pendiente', 'en transito', 'completada', 'anulada'),
+        type: DataTypes.ENUM('pendiente', 'completada', 'anulada'),
         allowNull: false,
         defaultValue: 'pendiente',
     },

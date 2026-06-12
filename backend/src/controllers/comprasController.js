@@ -64,7 +64,7 @@ const getCompraById = async (req, res) => {
 const getComprasByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['pendiente', 'en transito', 'completada', 'anulada'];
+        const estadosValidos = ['pendiente', 'completada', 'anulada'];
 
         if (!estadosValidos.includes(estado)) {
             return res.status(400).json({
@@ -226,7 +226,7 @@ const cambiarEstadoCompra = async (req, res) => {
             return res.status(400).json({ message: 'Solo se puede cambiar el estado de compras pendientes.' });
         }
 
-        const estadosValidos = ['pendiente', 'en transito', 'completada'];
+        const estadosValidos = ['pendiente', 'completada'];
         if (!estadosValidos.includes(estado)) {
             return res.status(400).json({ message: 'Estado no válido.' });
         }
@@ -262,9 +262,6 @@ const deleteCompra = async (req, res) => {
         }
         if (compra.estado === 'anulada') {
             return res.status(400).json({ message: 'Esta compra ya fue anulada' });
-        }
-        if (compra.estado === 'en transito') {
-            return res.status(400).json({ message: 'No se puede anular una compra en tránsito' });
         }
 
         // Si estaba completada, devolver el stock
