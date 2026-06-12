@@ -80,6 +80,28 @@ export default function App() {
     clearPermissions,
   } = usePermissions();
 
+  // Restaurar sesión desde localStorage al cargar la app
+  useEffect(() => {
+    const storedToken = localStorage.getItem('jrepuestos_token');
+    const storedUser  = localStorage.getItem('jrepuestos_user');
+    if (!storedToken || !storedUser) return;
+    try {
+      const payload = JSON.parse(atob(storedToken.split('.')[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('jrepuestos_token');
+        localStorage.removeItem('jrepuestos_user');
+        return;
+      }
+      const userData: AppUser = JSON.parse(storedUser);
+      setUser(userData);
+      setIsLoggedIn(true);
+      setShowLandingFirst(false);
+    } catch {
+      localStorage.removeItem('jrepuestos_token');
+      localStorage.removeItem('jrepuestos_user');
+    }
+  }, []);
+
   // Cargar módulos permitidos cuando el usuario cambia
   useEffect(() => {
     if (user && user.rolesId) {
@@ -171,6 +193,28 @@ export default function App() {
   const u = user!;
 
 
+  // Verifica si un módulo está permitido — accesible desde getAvailableModules y renderModule
+  const isModuleAllowed = (moduleId: string): boolean => {
+    if (!modulesLoaded) {
+      return u.userType === 'client'
+        ? ['catalog', 'client-purchases'].includes(moduleId)
+        : ['dashboard', 'catalog'].includes(moduleId);
+    }
+    if (modulesApiError) {
+      return u.userType === 'client'
+        ? ['catalog', 'client-purchases'].includes(moduleId)
+        : true;
+    }
+    if (allowedModuleKeys.length === 0) {
+      return u.userType === 'client'
+        ? ['catalog', 'client-purchases'].includes(moduleId)
+        : true;
+    }
+    return allowedModuleKeys.some(key =>
+      MODULE_KEY_MAP[key] === moduleId || key === moduleId
+    );
+  };
+
   const getAvailableModules = (): ModuleItem[] => {
     const baseModules: ModuleItem[] = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
@@ -178,31 +222,6 @@ export default function App() {
     ];
 
     if (isClientPreview) return baseModules;
-
-    // Función auxiliar para verificar si un módulo está permitido
-    const isModuleAllowed = (moduleId: string): boolean => {
-      // Mientras la API carga: mostrar conjunto mínimo para no bloquear la UI
-      if (!modulesLoaded) {
-        return u.userType === 'client'
-          ? ['catalog', 'client-purchases'].includes(moduleId)
-          : ['dashboard', 'catalog'].includes(moduleId);
-      }
-      // Si el API falló (500 / red): degradación graceful — mostrar módulos por defecto
-      if (modulesApiError) {
-        return u.userType === 'client'
-          ? ['catalog', 'client-purchases'].includes(moduleId)
-          : true; // admin ve todo si no se pudo obtener sus permisos
-      }
-      // Sin permisos configurados: admin ve todo (graceful), cliente solo sus módulos base
-      if (allowedModuleKeys.length === 0) {
-        return u.userType === 'client'
-          ? ['catalog', 'client-purchases'].includes(moduleId)
-          : true;
-      }
-      return allowedModuleKeys.some(key =>
-        MODULE_KEY_MAP[key] === moduleId || key === moduleId
-      );
-    };
 
     if (u.userType === 'admin') {
       const adminModules = [
@@ -224,13 +243,9 @@ export default function App() {
         { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
         { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
         { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
-        { id: 'nomina',                       label: 'Nómina',                icon: <DollarSign size={18} /> },
+        { id: 'nomina',                       label: 'Control de Pagos',      icon: <DollarSign size={18} /> },
       ].filter((module): module is ModuleItem => {
-        // Módulos con submenu: visibles si al menos un hijo está permitido
-        // (no depende de que 'configuration' esté como clave explícita en el rol)
         if (module.hasSubmenu) return module.submenu.length > 0;
-        // Nómina siempre visible para admins (no depende de sincronización de permisos en BD)
-        if (module.id === 'nomina') return true;
         return isModuleAllowed(module.id);
       }) as ModuleItem[];
 

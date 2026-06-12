@@ -5,8 +5,12 @@ const Compras = sequelize.define('Compras', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: false,
-        comment: 'numero de factura de la compra',
+        autoIncrement: true,
+    },
+
+    numeroFactura: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
         unique: {
             name: 'unique_numero_factura',
             msg: 'Este número de factura ya existe',

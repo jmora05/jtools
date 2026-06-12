@@ -4461,3 +4461,24 @@ html {
     transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
   }
 }
+
+/* --- Clases utilitarias faltantes para botones de catalogo --- */
+@layer utilities {
+  .bg-amber-500 { background-color: #f59e0b; }
+  .bg-amber-600 { background-color: #d97706; }
+  .bg-amber-700 { background-color: #b45309; }
+  .bg-blue-50   { background-color: var(--color-blue-50); }
+  .bg-blue-700  { background-color: var(--color-blue-700); }
+  .bg-blue-800  { background-color: var(--color-blue-800); }
+  .bg-blue-900  { background-color: var(--color-blue-900); }
+  .border-blue-900 { border-color: var(--color-blue-900); }
+  .text-amber-500  { color: #f59e0b; }
+
+  @media (hover: hover) {
+    .hover\:bg-amber-600:hover { background-color: #d97706; }
+    .hover\:bg-amber-700:hover { background-color: #b45309; }
+    .hover\:bg-blue-50:hover   { background-color: var(--color-blue-50); }
+    .hover\:bg-blue-800:hover  { background-color: var(--color-blue-800); }
+    .hover\:bg-blue-900:hover  { background-color: var(--color-blue-900); }
+  }
+}

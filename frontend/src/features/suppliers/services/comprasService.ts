@@ -30,7 +30,7 @@ export const getComprasByEstado = async (estado: string) => {
 };
 
 export const createCompra = async (compraData: {
-    id?: number;
+    numeroFactura?: string;
     proveedoresId: number;
     fecha: string;
     metodoPago: 'efectivo' | 'transferencia';

@@ -61,6 +61,12 @@ const login = async (req, res) => {
         const passwordMatch = await bcrypt.compare(password, usuario.password);
         if (!passwordMatch) return res.status(401).json({ message: 'Credenciales inválidas' });
 
+        if (usuario.estado === 'inactivo') {
+            return res.status(403).json({
+                message: 'Tu cuenta está desactivada. Comunícate con el administrador del sistema para reactivarla.',
+            });
+        }
+
         const rolName  = usuario.rol?.name || '';
         const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 

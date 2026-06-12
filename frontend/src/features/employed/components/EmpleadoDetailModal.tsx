@@ -117,7 +117,7 @@ export function EmpleadoDetailModal({ open, onClose, empleado, onEdit }: Emplead
                             {empleado.estado === 'inactivo' && (
                                 <div style={{ margin: '16px 24px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#64748b' }}>
                                     <XCircleIcon className="w-4 h-4 shrink-0" />
-                                    Este empleado está inactivo. No aparece en la nómina activa.
+                                    Este empleado está inactivo. No aparece en el control de pagos activo.
                                 </div>
                             )}
 

@@ -762,15 +762,15 @@ export function EmployeeManagement() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-blue-900">
+                                <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Empleado</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Teléfono</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Correo</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Cargo / Área</th>
-                                        <th className="text-right py-4 px-6 text-black font-semibold">Salario base</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Empleado</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Teléfono</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Correo</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Cargo / Área</th>
+                                        <th className="px-6 py-3 text-right text-xs text-gray-600 uppercase tracking-wider">Salario base</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>

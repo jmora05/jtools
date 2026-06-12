@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { Clientes, Ventas, Pedidos, Usuarios, Roles } = require('../models/index.js');
+const { Clientes, Ventas, Usuarios, Roles } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
 const { validarCliente } = require('../validators/clientesValidator.js');
 
@@ -40,8 +40,7 @@ const getHistorialCliente = async (req, res) => {
         const { id } = req.params;
         const cliente = await Clientes.findByPk(id, {
             include: [
-                { model: Ventas,  as: 'ventas',  attributes: ['id', 'fecha', 'metodoPago', 'tipoVenta', 'total'] },
-                { model: Pedidos, as: 'pedidos', attributes: ['id', 'fecha_pedido', 'total', 'ciudad', 'direccion'] },
+                { model: Ventas, as: 'ventas', attributes: ['id', 'fecha', 'metodoPago', 'tipoVenta', 'total'] },
             ],
         });
         if (!cliente)
@@ -171,10 +170,9 @@ const deleteCliente = async (req, res) => {
         if (!cliente)
             return res.status(404).json({ message: 'Cliente no encontrado' });
 
-        const ventasActivas  = await Ventas.findOne({ where: { clientesId: id } });
-        const pedidosActivos = await Pedidos.findOne({ where: { clienteId: id } });
+        const ventasActivas = await Ventas.findOne({ where: { clientesId: id } });
 
-        if (ventasActivas || pedidosActivos) {
+        if (ventasActivas) {
             await cliente.update({ estado: 'inactivo' });
             return res.status(200).json({
                 message: 'Cliente desactivado correctamente (tiene historial de ventas o pedidos)',
@@ -196,10 +194,9 @@ const forceDeleteCliente = async (req, res) => {
         if (!cliente)
             return res.status(404).json({ message: 'Cliente no encontrado' });
 
-        const ventasActivas  = await Ventas.findOne({ where: { clientesId: id } });
-        const pedidosActivos = await Pedidos.findOne({ where: { clienteId: id } });
+        const ventasActivas = await Ventas.findOne({ where: { clientesId: id } });
 
-        if (ventasActivas || pedidosActivos) {
+        if (ventasActivas) {
             return res.status(400).json({
                 message: 'No se puede eliminar el cliente porque tiene historial de ventas o pedidos asociados',
             });

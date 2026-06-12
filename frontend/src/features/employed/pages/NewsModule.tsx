@@ -728,7 +728,7 @@ export function NewsModule() {
       )}
 
       {/* ── Cuerpo en dos columnas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, alignItems: 'start' }}>
 
         {/* COLUMNA IZQUIERDA — Título + Descripción */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -761,9 +761,9 @@ export function NewsModule() {
               onChange={handleChange('descripcion_detallada')}
               onBlur={handleBlur('descripcion_detallada')}
               placeholder="Describe con detalle la situación, el problema o la mejora propuesta..."
-              rows={10}
+              rows={6}
               disabled={bloqueado}
-              className={`resize-none h-full min-h-[200px] ${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+              className={`resize-none min-h-[120px] ${bloqueado ? 'bg-gray-100 opacity-70' : ''} ${touched.descripcion_detallada && errors.descripcion_detallada ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
             />
           </Field>
         </div>

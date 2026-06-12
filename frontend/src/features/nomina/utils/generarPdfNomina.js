@@ -19,7 +19,7 @@ export function generarPdfNomina(record, formatCurrency) {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Desprendible de Nómina', 14, 20);
+  doc.text('Desprendible de Control de Pagos', 14, 20);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');

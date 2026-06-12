@@ -27,16 +27,8 @@ import type {
 } from '../types/compra.types';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const EDIT_LIMIT_DAYS = 5;
 const IVA_DEFAULT     = 19;
 const IVA_STORAGE_KEY = 'jtools_iva_rate';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const isEditableByDate = (fecha: string): boolean => {
-    const purchaseDate = new Date(fecha.split('T')[0] + 'T12:00:00');
-    const diffDays = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays <= EDIT_LIMIT_DAYS;
-};
 
 // ─── Componentes UI locales ───────────────────────────────────────────────────
 const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => void }) => (
@@ -127,7 +119,8 @@ export function PurchaseModule() {
         const term = searchTerm.toLowerCase();
         return (
             (c.proveedor?.nombreEmpresa ?? '').toLowerCase().includes(term) ||
-            c.id.toString().includes(term)
+            c.id.toString().includes(term) ||
+            (c.numeroFactura ?? '').toLowerCase().includes(term)
         );
     });
 
@@ -175,7 +168,7 @@ export function PurchaseModule() {
                 toast.success('Compra actualizada exitosamente.');
             } else {
                 await createCompra({
-                    ...(formData.numeroFactura.trim() ? { id: parseInt(formData.numeroFactura) } : {}),
+                    ...(formData.numeroFactura.trim() ? { numeroFactura: formData.numeroFactura.trim() } : {}),
                     proveedoresId: parseInt(formData.proveedoresId),
                     fecha:         formData.fecha,
                     metodoPago:    formData.metodoPago as 'efectivo' | 'transferencia',
@@ -224,14 +217,6 @@ export function PurchaseModule() {
 
     // ── Abrir edición ──────────────────────────────────────────────────────
     const openEditDialog = async (compra: Compra) => {
-        if (!isEditableByDate(compra.fecha)) {
-            setBlockedAlertId(compra.id);
-            setBlockedAlertMsg(
-                `Esta compra no puede editarse: han pasado más de ${EDIT_LIMIT_DAYS} días desde su fecha de registro.`
-            );
-            return;
-        }
-
         setLoadingDetail(true);
         try {
             const detail = await getCompraById(compra.id);
@@ -293,7 +278,7 @@ export function PurchaseModule() {
         }
         try {
             await cambiarEstadoCompra(compra.id, nuevoEstado);
-            toast.success(`Compra #${compra.id} marcada como "${nuevoEstado}".`);
+            toast.success(`Compra #${compra.numeroFactura ?? compra.id} marcada como "${nuevoEstado}".`);
             await fetchData();
         } catch (error: any) {
             // Extraer mensaje correctamente sin importar la forma del error
@@ -375,17 +360,16 @@ export function PurchaseModule() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-blue-900">
+                                <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">N° Factura</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Proveedor</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Fecha</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Insumos</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">N° Factura</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Proveedor</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Fecha</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
                                             Total (c/IVA {ivaRate}%)
                                         </th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -393,7 +377,7 @@ export function PurchaseModule() {
                                         const isPending    = compra.estado === 'pendiente';
                                         const isCompletada = compra.estado === 'completada';
                                         const isAnulada    = compra.estado === 'anulada';
-                                        const canEdit      = isPending && isEditableByDate(compra.fecha);
+                                        const canEdit      = isPending;
                                         const canAnular    = isPending || isCompletada;
 
                                         const subtotal = compra.detalles?.reduce(
@@ -408,7 +392,7 @@ export function PurchaseModule() {
                                                 }`}>
                                                     <td className="py-4 px-6">
                                                         <span className={`font-mono text-sm ${isAnulada ? 'line-through text-gray-400' : 'text-gray-500'}`}>
-                                                            #{compra.id}
+                                                            #{compra.numeroFactura ?? compra.id}
                                                         </span>
                                                     </td>
                                                     <td className="py-4 px-6">
@@ -425,24 +409,6 @@ export function PurchaseModule() {
                                                         </span>
                                                     </td>
                                                     <td className="py-4 px-6">
-                                                        {(compra.detalles?.length ?? 0) > 0 ? (
-                                                            <div className="space-y-2 max-h-24 overflow-y-auto pr-1">
-                                                                {compra.detalles!.map((d, i) => (
-                                                                    <div key={i} className="flex flex-col">
-                                                                        <span className="text-xs text-gray-700 font-medium truncate max-w-[150px]" title={d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}>
-                                                                            {d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`}
-                                                                        </span>
-                                                                        <span className="text-xs text-blue-600 font-semibold">
-                                                                            ×{Math.round(d.cantidad)}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <em className="text-gray-400 text-sm">Sin detalles</em>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-4 px-6">
                                                         <span className="font-semibold text-blue-900 text-sm">
                                                             {totalConIva > 0
                                                                 ? `$${totalConIva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
@@ -451,22 +417,20 @@ export function PurchaseModule() {
                                                     </td>
                                                     {/* ── Estado con dropdown ── */}
                                                     <td className="py-4 px-6">
-                                                        {isAnulada ? (
-                                                            <EstadoBadge estado="anulada" />
-                                                        ) : (
+                                                        {isPending ? (
                                                             <select
                                                                 key={`${compra.id}-${compra.estado}`}
                                                                 value={compra.estado ?? 'pendiente'}
                                                                 onChange={(e) => handleCambiarEstado(compra, e.target.value)}
                                                                 className="text-xs border border-gray-300 rounded-md px-2 py-1.5 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
                                                             >
-                                                                {/* Solo mostrar opciones válidas según estado actual */}
-                                                                {compra.estado === 'pendiente' && (
-                                                                    <option value="pendiente">Pendiente</option>
-                                                                )}
+                                                                <option value="pendiente">Pendiente</option>
+                                                                <option value="en transito">En tránsito</option>
                                                                 <option value="completada">Completada</option>
                                                                 <option value="anulada">Anulada</option>
                                                             </select>
+                                                        ) : (
+                                                            <EstadoBadge estado={compra.estado ?? 'pendiente'} />
                                                         )}
                                                     </td>
                                                     <td className="py-4 px-6">
@@ -488,10 +452,7 @@ export function PurchaseModule() {
                                                                     if (canEdit) {
                                                                         openEditDialog(compra);
                                                                     } else {
-                                                                        const msg = !isPending
-                                                                            ? `Solo se pueden editar compras en estado "pendiente".`
-                                                                            : `Solo se pueden editar compras con menos de ${EDIT_LIMIT_DAYS} días desde su fecha.`;
-                                                                        handleBlockedClick(compra.id, msg);
+                                                                        handleBlockedClick(compra.id, `Solo se pueden editar compras en estado "pendiente".`);
                                                                     }
                                                                 }}
                                                                 className={`border ${canEdit
@@ -554,7 +515,7 @@ export function PurchaseModule() {
 
                                                 {blockedAlertId === compra.id && (
                                                     <tr>
-                                                        <td colSpan={7} className="px-6 pb-3 pt-0">
+                                                        <td colSpan={6} className="px-6 pb-3 pt-0">
                                                             <BlockedAlert
                                                                 message={blockedAlertMsg}
                                                                 onClose={() => setBlockedAlertId(null)}

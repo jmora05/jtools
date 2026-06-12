@@ -19,6 +19,13 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
         comment: 'Código único de la orden (ej: OP-2025-001)'
     },
 
+    ventaId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'ventas', key: 'id' },
+        comment: 'ID de la venta que originó esta orden (null si fue creada manualmente)'
+    },
+
     productoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -44,13 +51,12 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
 
     responsableId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: { model: 'empleados', key: 'id' },
         validate: {
-            notNull: { msg: 'El responsable es obligatorio' },
             isInt:   { msg: 'El responsableId debe ser un número entero' }
         },
-        comment: 'Identificador del empleado responsable'
+        comment: 'Identificador del empleado responsable (null en órdenes generadas automáticamente)'
     },
 
     // ⚠️ Se usa STRING en lugar de ENUM para evitar que Sequelize alter:true
@@ -78,12 +84,11 @@ const OrdenesProduccion = sequelize.define('OrdenesProduccion', {
 
     fechaEntrega: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notNull: { msg: 'La fecha de entrega es obligatoria' },
             isDate:  { msg: 'La fecha de entrega debe ser una fecha válida' }
         },
-        comment: 'Fecha límite de entrega de la orden'
+        comment: 'Fecha límite de entrega de la orden (null en órdenes generadas automáticamente)'
     },
 
     fechaInicio: {

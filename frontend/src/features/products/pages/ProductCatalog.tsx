@@ -333,43 +333,40 @@ function ClientCatalogView() {
 
                                     {/* Botones */}
                                     <div className="flex gap-2 pt-1">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
+                                        <button
+                                            type="button"
                                             onClick={() => viewDetails(product)}
-                                            className="flex-1 border-blue-900 text-blue-900 hover:bg-blue-50 text-xs"
+                                            className="flex-1 h-8 rounded-md border border-blue-900 text-blue-900 hover:bg-blue-50 text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
                                         >
-                                            <Eye className="w-3 h-3 mr-1" /> Ver
-                                        </Button>
+                                            <Eye className="w-3 h-3 shrink-0" /> Ver
+                                        </button>
 
                                         {outOfStock ? (
-                                            /* Botón "Pedir" para productos sin stock */
-                                            <Button
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 onClick={() => handlePedir(product)}
-                                                className={`flex-1 text-xs ${
+                                                className={`flex-1 h-8 rounded-md text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors text-white ${
                                                     isPedidoCart
-                                                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                                                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                        ? 'bg-amber-600 hover:bg-amber-700'
+                                                        : 'bg-amber-500 hover:bg-amber-600'
                                                 }`}
                                             >
-                                                <Clock className="w-3 h-3 mr-1" />
+                                                <Clock className="w-3 h-3 shrink-0" />
                                                 {isPedidoCart ? '+ Pedir' : 'Pedir'}
-                                            </Button>
+                                            </button>
                                         ) : (
-                                            /* Botón carrito normal */
-                                            <Button
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 onClick={() => handleAddToCart(product)}
-                                                className={`flex-1 text-xs ${
+                                                className={`flex-1 h-8 rounded-md text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors text-white ${
                                                     inCart
-                                                        ? 'bg-blue-900 hover:bg-blue-800 text-white'
-                                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                                        ? 'bg-blue-900 hover:bg-blue-800'
+                                                        : 'bg-blue-600 hover:bg-blue-700'
                                                 }`}
                                             >
-                                                <ShoppingCart className="w-3 h-3 mr-1" />
+                                                <ShoppingCart className="w-3 h-3 shrink-0" />
                                                 {inCart ? '+ Agregar' : 'Agregar'}
-                                            </Button>
+                                            </button>
                                         )}
                                     </div>
                                 </CardContent>
@@ -657,15 +654,15 @@ function AdminCatalogView() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-blue-900">
+                                <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">ID</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Imagen</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Producto</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Categoría</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Precio / Stock</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Estado</th>
-                                        <th className="text-left py-4 px-6 text-black font-semibold">Acciones</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">ID</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Imagen</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Producto</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Categoría</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Precio / Stock</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Estado</th>
+                                        <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
