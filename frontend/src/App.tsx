@@ -80,6 +80,28 @@ export default function App() {
     clearPermissions,
   } = usePermissions();
 
+  // Restaurar sesión desde localStorage al cargar la app
+  useEffect(() => {
+    const storedToken = localStorage.getItem('jrepuestos_token');
+    const storedUser  = localStorage.getItem('jrepuestos_user');
+    if (!storedToken || !storedUser) return;
+    try {
+      const payload = JSON.parse(atob(storedToken.split('.')[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem('jrepuestos_token');
+        localStorage.removeItem('jrepuestos_user');
+        return;
+      }
+      const userData: AppUser = JSON.parse(storedUser);
+      setUser(userData);
+      setIsLoggedIn(true);
+      setShowLandingFirst(false);
+    } catch {
+      localStorage.removeItem('jrepuestos_token');
+      localStorage.removeItem('jrepuestos_user');
+    }
+  }, []);
+
   // Cargar módulos permitidos cuando el usuario cambia
   useEffect(() => {
     if (user && user.rolesId) {

@@ -90,7 +90,7 @@ const getComprasByEstado = async (req, res) => {
 // POST - crear compra (solo guarda, NO toca inventario)
 const createCompra = async (req, res) => {
     try {
-        const { id, proveedoresId, fecha, metodoPago, estado } = req.body;
+        const { numeroFactura, proveedoresId, fecha, metodoPago, estado } = req.body;
 
         const proveedor = await Proveedores.findByPk(proveedoresId);
         if (!proveedor) {
@@ -100,14 +100,17 @@ const createCompra = async (req, res) => {
             return res.status(400).json({ message: 'El proveedor está inactivo' });
         }
 
-        if (id) {
-            const facturaExistente = await Compras.findByPk(id);
+        if (numeroFactura?.trim()) {
+            const facturaExistente = await Compras.findOne({ where: { numeroFactura: numeroFactura.trim() } });
             if (facturaExistente) {
                 return res.status(400).json({ message: 'Este número de factura ya existe' });
             }
         }
 
-        const compra = await Compras.create({ id, proveedoresId, fecha, metodoPago, estado: estado ?? 'pendiente' });
+        const compra = await Compras.create({
+            ...(numeroFactura?.trim() ? { numeroFactura: numeroFactura.trim() } : {}),
+            proveedoresId, fecha, metodoPago, estado: estado ?? 'pendiente',
+        });
 
         const { detalles } = req.body;
         if (detalles && Array.isArray(detalles) && detalles.length > 0) {
@@ -161,7 +164,7 @@ const updateCompra = async (req, res) => {
         if (detalles && Array.isArray(detalles) && detalles.length > 0) {
             await DetalleCompraInsumo.destroy({ where: { comprasId: id } });
             const registros = detalles.map((d) => ({
-                comprasId:      parseInt(id),
+                comprasId:      id,
                 insumosId:      d.insumosId,
                 cantidad:       d.cantidad,
                 precioUnitario: d.precioUnitario,
@@ -219,11 +222,8 @@ const cambiarEstadoCompra = async (req, res) => {
         if (!compra) {
             return res.status(404).json({ message: 'Compra no encontrada' });
         }
-        if (compra.estado === 'anulada') {
-            return res.status(400).json({ message: 'No se puede cambiar el estado de una compra anulada' });
-        }
-        if (compra.estado === 'completada') {
-            return res.status(400).json({ message: 'Esta compra ya fue completada y no puede cambiar de estado. Si hay un problema, anúlala.' });
+        if (compra.estado !== 'pendiente') {
+            return res.status(400).json({ message: 'Solo se puede cambiar el estado de compras pendientes.' });
         }
 
         const estadosValidos = ['pendiente', 'en transito', 'completada'];

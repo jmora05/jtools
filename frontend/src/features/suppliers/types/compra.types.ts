@@ -40,6 +40,7 @@ export interface MermaCompra {
 
 export interface Compra {
     id: number;
+    numeroFactura?: string;
     proveedoresId: number;
     fecha: string;
     metodoPago: string;

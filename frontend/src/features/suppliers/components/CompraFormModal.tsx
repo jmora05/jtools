@@ -16,10 +16,10 @@ import type {
     ItemCarrito, CompraFormData, CompraFormErrors, CarritoItemError,
 } from '../types/compra.types';
 
-const NOTAS_MAX    = 500;
-const PRECIO_MAX   = 999_999_999;
-const CANTIDAD_MAX = 100_000;
-const FACTURA_MAX  = 2_147_483_647;
+const NOTAS_MAX     = 500;
+const PRECIO_MAX    = 999_999_999;
+const CANTIDAD_MAX  = 100_000;
+const FACTURA_MAX   = 50;
 
 // ─── Validadores ────────────────────────────────────────────────────────
 function validateCompraForm(form: CompraFormData): CompraFormErrors {
@@ -37,9 +37,10 @@ function validateCompraForm(form: CompraFormData): CompraFormErrors {
     }
     if (!form.metodoPago || form.metodoPago.trim() === '') errors.metodoPago = 'El método de pago es obligatorio.';
     if (form.numeroFactura.trim() !== '') {
-        const n = Number(form.numeroFactura);
-        if (!Number.isInteger(n) || n <= 0) errors.numeroFactura = 'Debe ser un entero positivo.';
-        else if (n > FACTURA_MAX) errors.numeroFactura = `No puede superar ${FACTURA_MAX.toLocaleString()}.`;
+        if (!/^[A-Za-z0-9\-\/]+$/.test(form.numeroFactura.trim()))
+            errors.numeroFactura = 'Solo letras, números, guion (-) y slash (/).';
+        else if (form.numeroFactura.trim().length > FACTURA_MAX)
+            errors.numeroFactura = `Máximo ${FACTURA_MAX} caracteres.`;
     }
     if (form.notas.length > NOTAS_MAX) errors.notas = `Máximo ${NOTAS_MAX} caracteres.`;
     if (/<script|javascript:|on\w+=/i.test(form.notas)) errors.notas = 'Contenido no permitido.';
@@ -55,10 +56,6 @@ function validateCarritoItem(item: ItemCarrito): CarritoItemError {
     return err;
 }
 
-const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/\d/.test(e.key)) e.preventDefault();
-};
 const blockNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/[\d.]/.test(e.key)) e.preventDefault();
@@ -140,7 +137,7 @@ export function CompraFormModal({
                 metodoPago:    editingCompra.metodoPago ?? 'efectivo',
                 estado:        editingCompra.estado ?? 'pendiente',
                 notas:         '',
-                numeroFactura: editingCompra.id.toString(),
+                numeroFactura: editingCompra.numeroFactura ?? '',
             });
             setCarrito((editingCompra.detalles ?? []).map((d) => ({
                 insumoId: d.insumosId,
@@ -298,7 +295,7 @@ export function CompraFormModal({
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                             {editingCompra
-                                ? 'Modifica los datos. Solo compras pendientes dentro de los primeros 5 días.'
+                                ? 'Modifica los datos. Solo compras en estado pendiente pueden editarse.'
                                 : 'Detalla los productos e insumos para esta orden.'}
                         </DialogDescription>
                     </div>
@@ -467,12 +464,11 @@ export function CompraFormModal({
                                 <div>
                                     <label style={S.label}>N° Factura</label>
                                     <Input
-                                        type="number" placeholder="Ej: 1001"
+                                        type="text" placeholder="Ej: FAC001 / A-12345"
                                         value={formData.numeroFactura}
                                         onChange={(e) => handleInputChange('numeroFactura', e.target.value)}
                                         onBlur={() => handleBlur('numeroFactura')}
-                                        onKeyDown={blockNonInteger}
-                                        min="1" max={FACTURA_MAX} step="1"
+                                        maxLength={FACTURA_MAX}
                                         disabled={!!editingCompra}
                                         style={{
                                             height: 40, fontSize: 14, background: '#fff',

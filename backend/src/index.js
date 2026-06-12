@@ -142,6 +142,13 @@ testConnection()
         `ALTER TABLE "ordenes_produccion" ALTER COLUMN "responsableId" DROP NOT NULL`,
         `ALTER TABLE "ordenes_produccion" ALTER COLUMN "fechaEntrega"   DROP NOT NULL`,
         `CREATE INDEX IF NOT EXISTS idx_ordenes_venta ON "ordenes_produccion" ("ventaId")`,
+        // Número de factura alfanumérico: añadir columna separada del id (PK)
+        `CREATE SEQUENCE IF NOT EXISTS compras_id_seq`,
+        `SELECT setval('compras_id_seq', COALESCE((SELECT MAX(id) FROM compras), 0) + 1, false)`,
+        `ALTER TABLE compras ALTER COLUMN id SET DEFAULT nextval('compras_id_seq')`,
+        `ALTER TABLE compras ADD COLUMN IF NOT EXISTS "numeroFactura" VARCHAR(50) NULL`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_compras_num_factura ON compras ("numeroFactura") WHERE "numeroFactura" IS NOT NULL`,
+        `UPDATE compras SET "numeroFactura" = id::TEXT WHERE "numeroFactura" IS NULL`,
     ];
     for (const sql of migraciones) {
         try {
