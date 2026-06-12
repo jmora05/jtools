@@ -33,8 +33,6 @@ import {
   Loader2,
   Banknote,
   ArrowLeftRight,
-  CreditCard,
-  Wallet,
   ChevronDown,
   ChevronUp,
   Lock,
@@ -46,6 +44,7 @@ import autoTable from 'jspdf-autotable';
 
 import {
   anularVenta,
+  cambiarEstadoVenta,
   getVentas,
   createVenta,
   deleteVenta,
@@ -189,6 +188,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [activeView, setActiveView] = useState<'ventas' | 'pedidos'>('ventas');
   const [showAnularDialog, setShowAnularDialog]     = useState(false);
   const [salePendingAnular, setSalePendingAnular]   = useState<Sale | null>(null);
+  const [showStockWarning, setShowStockWarning]     = useState(false);
+  const [stockWarningItems, setStockWarningItems]   = useState<{ name: string; requested: number; available: number; missing: number }[]>([]);
+  const [bypassStockCheck, setBypassStockCheck]     = useState(false);
 
   const [saleForm, setSaleForm] = useState({
     clientId: '',
@@ -203,23 +205,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [clientSearch, setClientSearch]   = useState('');
   const [submitting, setSubmitting]       = useState(false);
 
-  // Cargar ventas
+  // Cargar ventas — estado siempre viene del backend
   useEffect(() => {
     const fetchVentas = async () => {
       setLoading(true);
       try {
         const data = await getVentas();
-        const statuses = getSaleStatuses();
-
-        // El estado de anulación viene del backend; solo usar localStorage para estados transitorios
-        const mapped = data.map(v => {
-          const s = mapVentaToSale(v);
-          // No sobreescribir 'Anulada' que viene del backend con localStorage
-          if (statuses[v.id] && s.status !== 'Anulada') s.status = statuses[v.id];
-          return s;
-        });
-
-        setSales(mapped);
+        setSales(data.map(v => mapVentaToSale(v)));
       } catch (error: any) {
         toast.error(error.message || 'Error al cargar las ventas');
       } finally {
@@ -407,10 +399,19 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
 
-  const handleChangeStatus = (sale: Sale, newStatus: string) => {
-    persistSaleStatus(sale.id, newStatus);
-    setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: newStatus } : s));
-    toast.success(`Venta #${sale.id} marcada como ${newStatus}`);
+  const handleChangeStatus = async (sale: Sale, newStatus: string) => {
+    if (sale.status !== 'Pendiente') {
+      toast.error('Solo se pueden modificar pedidos en estado Pendiente.');
+      return;
+    }
+    const estadoBackend = newStatus === 'Completada' ? 'activa' : 'pendiente';
+    try {
+      await cambiarEstadoVenta(sale.id, estadoBackend);
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: newStatus } : s));
+      toast.success(`Pedido #${sale.id} marcado como ${newStatus}.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Error al cambiar el estado del pedido');
+    }
   };
 
   const handleAnularVenta = (sale: Sale) => {
@@ -485,8 +486,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     if (saleForm.descuento !== '' && descuentoVal < 0) { toast.error('El descuento no puede ser negativo'); return; }
     if (descuentoVal > calculateSubtotal()) { toast.error('El descuento no puede ser mayor al subtotal'); return; }
 
-    // Pre-validar stock solo para ventas directas de administrador
     const isPedido = clientMode || activeView === 'pedidos';
+
+    // Pre-validar stock solo para ventas directas de administrador
     if (!isPedido) {
       for (const item of saleForm.items) {
         const product = products.find(p => p.id === item.id);
@@ -494,6 +496,26 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           toast.error(`Stock insuficiente para "${item.name}". Disponible: ${product?.stock ?? 0}`);
           return;
         }
+      }
+    }
+
+    // Para clientes: detectar si hay productos con stock insuficiente y pedir confirmación
+    if (clientMode && !bypassStockCheck) {
+      const itemsFaltantes = saleForm.items
+        .map(item => {
+          const product = products.find(p => p.id === item.id);
+          const available = product?.stock ?? 0;
+          if (item.quantity > available) {
+            return { name: item.name, requested: item.quantity, available, missing: item.quantity - available };
+          }
+          return null;
+        })
+        .filter((x): x is { name: string; requested: number; available: number; missing: number } => x !== null);
+
+      if (itemsFaltantes.length > 0) {
+        setStockWarningItems(itemsFaltantes);
+        setShowStockWarning(true);
+        return;
       }
     }
 
@@ -581,6 +603,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     });
     setProductSearch('');
     setClientSearch('');
+    setBypassStockCheck(false);
   };
 
   // ─── Badges ───────────────────────────────────────────────────────────────
@@ -792,8 +815,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           {[
                             { value: 'Efectivo',      label: 'Efectivo',      Icon: Banknote },
                             { value: 'Transferencia', label: 'Transferencia', Icon: ArrowLeftRight },
-                            { value: 'Tarjeta',       label: 'Tarjeta',       Icon: CreditCard },
-                            { value: 'Crédito',       label: 'Crédito',       Icon: Wallet },
                           ].map(({ value, label, Icon }) => {
                             const selected = saleForm.paymentMethod === value;
                             return (
@@ -1092,6 +1113,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       Cancelar
                     </Button>
                     <Button
+                      id="sale-form-submit"
                       type="submit"
                       disabled={!saleForm.clientId || saleForm.items.length === 0 || submitting}
                       style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
@@ -1399,8 +1421,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         }}>
                           {pdfSale.paymentMethod === 'Efectivo'      && <Banknote       style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
                           {pdfSale.paymentMethod === 'Transferencia' && <ArrowLeftRight  style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
-                          {pdfSale.paymentMethod === 'Tarjeta'       && <CreditCard      style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
-                          {pdfSale.paymentMethod === 'Crédito'       && <Wallet          style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
                           <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{pdfSale.paymentMethod}</span>
                         </div>
                       </div>
@@ -1545,6 +1565,54 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900"
               >
                 Anular pedido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ── DIALOG ADVERTENCIA STOCK (cliente) ───────────────────────── */}
+        <AlertDialog open={showStockWarning} onOpenChange={setShowStockWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-blue-900">
+                Stock insuficiente
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>Los siguientes productos no tienen stock suficiente para tu solicitud:</p>
+                <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {stockWarningItems.map((item, i) => (
+                    <div key={i} className="px-4 py-3 text-sm">
+                      <p className="font-medium text-gray-800">{item.name}</p>
+                      <p className="text-gray-500 mt-0.5">
+                        Solicitado: <span className="font-semibold text-gray-700">{item.requested}</span>
+                        {' · '}Disponible: <span className="font-semibold text-gray-700">{item.available}</span>
+                        {' · '}Faltante: <span className="font-semibold text-blue-700">{item.missing}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-600">
+                  ¿Deseas generar el pedido de todos modos? Las unidades faltantes se solicitarán mediante una orden de producción automáticamente.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setShowStockWarning(false); setStockWarningItems([]); }}>
+                No, cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setShowStockWarning(false);
+                  setStockWarningItems([]);
+                  setBypassStockCheck(true);
+                  // Re-disparar el submit después de marcar bypass
+                  setTimeout(() => {
+                    document.getElementById('sale-form-submit')?.click();
+                  }, 50);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Sí, generar pedido
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

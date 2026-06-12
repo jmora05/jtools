@@ -214,6 +214,34 @@ const anularVenta = async (req, res) => {
     }
 };
 
+// PATCH /:id/estado — Cambiar estado del pedido (solo si está pendiente)
+const cambiarEstadoVenta = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { estado } = req.body;
+
+        const venta = await Ventas.findByPk(id);
+        if (!venta) return res.status(404).json({ message: 'Venta no encontrada' });
+
+        if (venta.tipoVenta !== 'pedido') {
+            return res.status(400).json({ message: 'Solo se puede cambiar el estado de pedidos.' });
+        }
+        if (venta.estado !== 'pendiente') {
+            return res.status(400).json({ message: 'Solo se puede modificar pedidos en estado pendiente.' });
+        }
+
+        const estadosValidos = ['pendiente', 'activa'];
+        if (!estadosValidos.includes(estado)) {
+            return res.status(400).json({ message: `Estado no válido. Permitidos: ${estadosValidos.join(', ')}` });
+        }
+
+        await venta.update({ estado });
+        res.status(200).json({ message: `Pedido #${id} actualizado a "${estado}"`, venta });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al cambiar el estado del pedido', error: error.message });
+    }
+};
+
 module.exports = {
     getVentas,
     getVentaById,
@@ -221,4 +249,5 @@ module.exports = {
     updateVenta,
     deleteVenta,
     anularVenta,
+    cambiarEstadoVenta,
 };

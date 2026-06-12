@@ -7,6 +7,7 @@ const {
     updateVenta,
     deleteVenta,
     anularVenta,
+    cambiarEstadoVenta,
 } = require('../controllers/ventasController.js');
 
 router.get('/', getVentas);
@@ -14,6 +15,7 @@ router.get('/:id', getVentaById);
 router.post('/', createVenta);
 router.put('/:id', updateVenta);
 router.patch('/:id/anular', anularVenta);
+router.patch('/:id/estado', cambiarEstadoVenta);
 router.delete('/:id', deleteVenta);
 
 module.exports = router;

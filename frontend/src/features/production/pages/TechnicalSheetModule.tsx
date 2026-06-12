@@ -472,7 +472,7 @@ function TiemposBlock({ tiempos, onSet }: {
 export function TechnicalSheetModule() {
     const [fichas, setFichas]       = useState<FichaTecnica[]>([]);
     const [productos, setProductos] = useState<Producto[]>([]);
-    const [empleados, setEmpleados] = useState<any[]>([]);
+    const empleados: any[] = [];
     const [loading, setLoading]     = useState(false);
     const [saving, setSaving]       = useState(false);
 
@@ -497,10 +497,8 @@ export function TechnicalSheetModule() {
 
     // Nuevos campos
     const [cNumeroMolde, setCNumeroMolde]       = useState('');
-    const [cResponsableId, setCResponsableId]   = useState('');
     const [cMaquina, setCMaquina]               = useState<MaquinaFormState>({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
     const [eNumeroMolde, setENumeroMolde]       = useState('');
-    const [eResponsableId, setEResponsableId]   = useState('');
     const [eMaquina, setEMaquina]               = useState<MaquinaFormState>({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
 
     // Catálogo de insumos
@@ -554,16 +552,7 @@ export function TechnicalSheetModule() {
         finally { setLoadingInsumos(false); }
     }, []);
 
-    const fetchEmpleados = useCallback(async () => {
-        try {
-            const BASE = getApiBaseUrl();
-            const res = await fetch(`${BASE}/empleados`, { headers: buildAuthHeaders() });
-            const data = await handleResponse<any[]>(res);
-            setEmpleados(data.filter(e => e.estado === 'activo'));
-        } catch { /* silencioso */ }
-    }, []);
-
-    useEffect(() => { fetchFichas(); fetchProductos(); fetchEmpleados(); }, [fetchFichas, fetchProductos, fetchEmpleados]);
+    useEffect(() => { fetchFichas(); fetchProductos(); }, [fetchFichas, fetchProductos]);
 
     // ── Filtrado y paginación ───────────────────────────────────────────────
     const filtered = fichas.filter(f => {
@@ -599,7 +588,7 @@ export function TechnicalSheetModule() {
     const resetCreate = () => {
         setCreateForm(EMPTY_FORM);
         setCInsumos([]);
-        setCNumeroMolde(''); setCResponsableId('');
+        setCNumeroMolde('');
         setCMaquina({ ...EMPTY_MAQUINA, carga: { ...EMPTY_MAQUINA.carga }, botador: { ...EMPTY_MAQUINA.botador } });
         setCreateInfoErrors({});
         fetchInsumosDisponibles();
@@ -651,7 +640,6 @@ export function TechnicalSheetModule() {
                 notas:             createForm.notas || undefined,
                 numeroMolde:       cNumeroMolde ? cNumeroMolde : undefined,
                 parametrosMaquina: toMaquinaPayload(cMaquina),
-                responsableId:     cResponsableId ? parseInt(cResponsableId) : undefined,
             });
             showFeedback(`✓ Ficha ${res.ficha.codigoFicha} creada exitosamente`);
             toast.success(`Ficha ${res.ficha.codigoFicha} creada exitosamente`);
@@ -671,7 +659,6 @@ export function TechnicalSheetModule() {
         setEditForm({ productoId: String(f.productoId), notas: f.notas ?? '', estado: f.estado ?? 'Activa' });
         setEInsumos(f.insumos ?? []);
         setENumeroMolde(f.numeroMolde ?? '');
-        setEResponsableId(f.responsableId != null ? String(f.responsableId) : '');
         setEMaquina(fromMaquinaPayload(f.parametrosMaquina));
         setEditInfoErrors({});
         fetchInsumosDisponibles();
@@ -696,7 +683,6 @@ export function TechnicalSheetModule() {
                 estado:            editForm.estado,
                 numeroMolde:       eNumeroMolde ? eNumeroMolde : null,
                 parametrosMaquina: toMaquinaPayload(eMaquina),
-                responsableId:     eResponsableId ? parseInt(eResponsableId) : null,
             });
             showFeedback('✓ Ficha técnica actualizada correctamente');
             toast.success('Ficha técnica actualizada correctamente');
@@ -902,26 +888,6 @@ export function TechnicalSheetModule() {
                         <aside style={{ width: 320, flexShrink: 0, borderRight: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                             <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                                {/* Empleado responsable — primer campo */}
-                                <div>
-                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
-                                        Empleado responsable
-                                    </label>
-                                    <select
-                                        className={selectCls()}
-                                        value={cResponsableId}
-                                        onChange={e => setCResponsableId(e.target.value)}
-                                        style={{ background: '#fff' }}
-                                    >
-                                        <option value="">Seleccionar empleado</option>
-                                        {empleados.map(emp => (
-                                            <option key={emp.id} value={emp.id}>
-                                                {emp.nombres} {emp.apellidos} — {emp.cargo}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
                                 {/* Producto */}
                                 <div>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
@@ -1090,14 +1056,6 @@ export function TechnicalSheetModule() {
                                             <p className="font-semibold text-sm mt-1">{selectedFicha.numeroMolde}</p>
                                         </div>
                                     )}
-                                    {selectedFicha.responsableId != null && (
-                                        <div>
-                                            <p className="text-xs text-gray-500 uppercase">Empleado responsable</p>
-                                            <p className="font-semibold text-sm mt-1">
-                                                {(() => { const e = empleados.find(x => x.id === selectedFicha.responsableId); return e ? `${e.nombres} ${e.apellidos} — ${e.cargo}` : `ID ${selectedFicha.responsableId}`; })()}
-                                            </p>
-                                        </div>
-                                    )}
                                     <div>
                                         <p className="text-xs text-gray-500 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" />Creado</p>
                                         <p className="font-semibold text-sm mt-1">{(selectedFicha.createdAt ?? '').slice(0, 10)}</p>
@@ -1255,17 +1213,6 @@ export function TechnicalSheetModule() {
                                     <p className="text-sm font-semibold text-blue-900">Información General</p>
                                 </div>
                                 <div className="p-4 space-y-4">
-                                    {/* Empleado responsable — primer campo */}
-                                    <div>
-                                        <label className="block text-sm text-gray-700 mb-2">Empleado responsable</label>
-                                        <select className={selectCls()} value={eResponsableId}
-                                            onChange={e => setEResponsableId(e.target.value)}>
-                                            <option value="">Seleccionar empleado</option>
-                                            {empleados.map(emp => (
-                                                <option key={emp.id} value={emp.id}>{emp.nombres} {emp.apellidos} — {emp.cargo}</option>
-                                            ))}
-                                        </select>
-                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <label className="block text-sm text-gray-700 mb-2">Producto (no editable)</label>

@@ -56,8 +56,6 @@ export const toMetodoPago = (value: string): 'efectivo' | 'transferencia' => {
   const map: Record<string, 'efectivo' | 'transferencia'> = {
     Efectivo: 'efectivo',
     Transferencia: 'transferencia',
-    Tarjeta: 'transferencia',   // fallback
-    Crédito: 'transferencia',   // fallback
   };
   return map[value] ?? 'efectivo';
 };
@@ -161,6 +159,17 @@ export const anularVenta = async (id: number): Promise<{ message: string }> => {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.message ?? 'Error al anular la venta');
+  return body;
+};
+
+export const cambiarEstadoVenta = async (id: number, estado: 'pendiente' | 'activa'): Promise<{ message: string }> => {
+  const res = await fetch(`${BASE_URL}/ventas/${id}/estado`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ estado }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.message ?? 'Error al cambiar el estado del pedido');
   return body;
 };
 
