@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, Download, Plus, RefreshCw,
+  TrendingUp, TrendingDown, RefreshCw,
   ShoppingCart, Factory, DollarSign, AlertTriangle,
   Users, Package,
 } from 'lucide-react';
@@ -257,15 +257,6 @@ export function Dashboard({ userType = 'admin' }: { userType?: 'admin' | 'client
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Sincronizar</span>
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Exportar reporte</span>
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white transition-opacity hover:opacity-90"
-            style={{ background: SECONDARY }}>
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nueva Orden</span>
           </button>
         </div>
       </div>

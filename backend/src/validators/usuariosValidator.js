@@ -2,7 +2,7 @@
 const { Op }             = require('sequelize');
 const { Usuarios, Roles } = require('../models/index.js');
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
 // Mismas reglas que authValidator.js para consistencia
 const PASSWORD_RULES = [
@@ -30,11 +30,15 @@ async function validateCreateUsuario(body) {
     if (errores.length > 0) return errores;
 
     // ── 2. Email ────────────────────────────────────────────────────────
-    const mail = String(body.email).trim();
-    if (!EMAIL_REGEX.test(mail))
-        errores.push('El email no tiene un formato válido');
-    else if (mail.length > 100)
+    const mail = String(body.email).trim().toLowerCase();
+    if (mail.length > 100)
         errores.push('El email no puede superar los 100 caracteres');
+    else if (!EMAIL_REGEX.test(mail))
+        errores.push('El email no tiene un formato válido (ej: usuario@dominio.com)');
+    else if (mail.includes('..'))
+        errores.push('El email no puede contener puntos consecutivos');
+    else if (mail.split('@')[0].startsWith('.') || mail.split('@')[0].endsWith('.'))
+        errores.push('El nombre de usuario del email no puede empezar ni terminar con punto');
 
     // ── 3. Contraseña ───────────────────────────────────────────────────
     const pass = String(body.password);
@@ -87,11 +91,15 @@ async function validateUpdateUsuario(body, idExcluir = null) {
         if (!String(body.email).trim()) {
             errores.push('El email no puede estar vacío');
         } else {
-            const mail = String(body.email).trim();
-            if (!EMAIL_REGEX.test(mail))
-                errores.push('El email no tiene un formato válido');
-            else if (mail.length > 100)
+            const mail = String(body.email).trim().toLowerCase();
+            if (mail.length > 100)
                 errores.push('El email no puede superar los 100 caracteres');
+            else if (!EMAIL_REGEX.test(mail))
+                errores.push('El email no tiene un formato válido (ej: usuario@dominio.com)');
+            else if (mail.includes('..'))
+                errores.push('El email no puede contener puntos consecutivos');
+            else if (mail.split('@')[0].startsWith('.') || mail.split('@')[0].endsWith('.'))
+                errores.push('El nombre de usuario del email no puede empezar ni terminar con punto');
         }
     }
 

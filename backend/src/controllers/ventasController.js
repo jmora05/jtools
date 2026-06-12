@@ -77,14 +77,16 @@ const createVenta = async (req, res) => {
             if (!cliente) return res.status(404).json({ message: 'Perfil de cliente no encontrado' });
             if (cliente.estado === 'inactivo') return res.status(400).json({ message: 'El cliente está inactivo' });
             clientesId = cliente.id;
-            // tipoVenta viene del frontend según disponibilidad de stock
+            // Compras de cliente: siempre pedido y siempre inician en pendiente
+            tipoVenta = 'pedido';
         } else {
             const cliente = await Clientes.findByPk(clientesId);
             if (!cliente) return res.status(404).json({ message: 'El cliente especificado no existe' });
             if (cliente.estado === 'inactivo') return res.status(400).json({ message: 'El cliente está inactivo' });
         }
 
-        const venta = await Ventas.create({ clientesId, fecha, metodoPago, tipoVenta, total });
+        const estadoInicial = req.usuario?.userType === 'client' ? 'pendiente' : 'activa';
+        const venta = await Ventas.create({ clientesId, fecha, metodoPago, tipoVenta, total, estado: estadoInicial });
         res.status(201).json({ message: 'Venta creada correctamente', venta });
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {

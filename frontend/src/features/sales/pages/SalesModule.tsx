@@ -519,18 +519,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       }
     }
 
-    // Para clientes: directa si hay stock suficiente, pedido si se necesita producción.
+    // Compras de cliente: siempre Pedido (nunca Directa, nunca Completada al crear).
     // Para admin: depende del tab activo.
-    let resolvedTipoVenta: 'Pedido' | 'Directa';
-    if (clientMode) {
-      const needsProduction = bypassStockCheck || saleForm.items.some(item => {
-        const product = products.find(p => p.id === item.id);
-        return (product?.stock ?? 0) < item.quantity;
-      });
-      resolvedTipoVenta = needsProduction ? 'Pedido' : 'Directa';
-    } else {
-      resolvedTipoVenta = activeView === 'pedidos' ? 'Pedido' : 'Directa';
-    }
+    const resolvedTipoVenta: 'Pedido' | 'Directa' = clientMode
+      ? 'Pedido'
+      : activeView === 'pedidos' ? 'Pedido' : 'Directa';
 
     setSubmitting(true);
     try {

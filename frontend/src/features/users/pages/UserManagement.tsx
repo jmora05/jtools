@@ -104,12 +104,19 @@ function validarFormulario(
     errs.rolesId = 'El tipo de usuario es obligatorio';
 
   // Email
-  if (!data.email.trim())
+  const emailTrimmed = data.email.trim().toLowerCase();
+  if (!emailTrimmed)
     errs.email = 'El correo electrónico es obligatorio';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email.trim()))
-    errs.email = 'Formato de correo inválido';
-  else if (data.email.trim().length > 100)
+  else if (emailTrimmed.length > 100)
     errs.email = 'Máximo 100 caracteres';
+  else if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(emailTrimmed))
+    errs.email = 'Formato de correo inválido (ej: usuario@dominio.com)';
+  else if (emailTrimmed.includes('..'))
+    errs.email = 'El correo no puede contener puntos consecutivos';
+  else if (emailTrimmed.startsWith('.') || emailTrimmed.split('@')[0].endsWith('.'))
+    errs.email = 'El correo no puede empezar ni terminar con punto antes del @';
+  else if (emailTrimmed.split('@')[0].length === 0)
+    errs.email = 'El correo debe tener un nombre de usuario antes del @';
 
   // Contraseña
   const PASSWORD_RULES = [
