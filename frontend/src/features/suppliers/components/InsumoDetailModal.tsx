@@ -141,7 +141,7 @@ export function InsumoDetailModal({ open, onClose, insumo }: InsumoDetailModalPr
                             iconBg={iconBg} iconColor={iconColor}
                         >
                             <span style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-                                ${Number(insumo.price).toLocaleString('es-CO')}
+                                ${Number(insumo.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                             </span>
                         </InfoCard>
 
