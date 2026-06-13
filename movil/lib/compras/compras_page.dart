@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
@@ -6,6 +7,17 @@ import 'compra_provider.dart';
 import 'compra_model.dart';
 import 'compra_detalle_page.dart';
 import 'compra_form_page.dart';
+import 'compra_merma_page.dart';
+
+// Prioridad para ordenamiento en pantalla: pendiente → completada → anulada → resto
+int _prioridad(String estado) {
+  switch (estado) {
+    case 'pendiente':   return 0;
+    case 'completada':  return 1;
+    case 'anulada':     return 2;
+    default:            return 3; // en transito u otro
+  }
+}
 
 class ComprasPage extends StatefulWidget {
   const ComprasPage({super.key});
@@ -23,48 +35,82 @@ class _ComprasPageState extends State<ComprasPage> {
       context.read<CompraProvider>().cargar());
   }
 
-  Future<bool?> _confirmarAnular(BuildContext context, Compra c) {
-    return showDialog<bool>(
-      context: context,
+  Future<void> _completar(BuildContext ctx, Compra c) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Anular compra', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('¿Anular la compra #${c.id}? El stock será devuelto al inventario si estaba completada.'),
+        title: const Text('Completar compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Marcar la compra #${c.id} como completada? '
+          'El stock de insumos será actualizado.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: kError, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Anular'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool?> _confirmarCompletar(BuildContext context, Compra c) {
-    return showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Completar compra', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('¿Marcar la compra #${c.id} como completada? El stock de insumos será actualizado.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: kPrimary, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Completar'),
           ),
         ],
       ),
     );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await ctx.read<CompraProvider>().cambiarEstado(c.id, 'completada');
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('Compra #${c.id} completada. Stock actualizado.'),
+        backgroundColor: const Color(0xFF0F766E),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Future<void> _anular(BuildContext ctx, Compra c) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Anular compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Anular la compra #${c.id}? '
+          '${c.estado == 'completada' ? 'El stock será devuelto al inventario. ' : ''}'
+          'Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Anular'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await ctx.read<CompraProvider>().anular(c.id);
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('Compra #${c.id} anulada'),
+        backgroundColor: kError, behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
+    }
   }
 
   @override
@@ -77,7 +123,13 @@ class _ComprasPageState extends State<ComprasPage> {
           (c.nombreProveedor?.toLowerCase().contains(_q.toLowerCase()) ?? false);
       final matchE = _filtroEstado == 'todos' || c.estado == _filtroEstado;
       return matchQ && matchE;
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final fa = a.fecha.length >= 10 ? a.fecha.substring(0, 10) : a.fecha;
+        final fb = b.fecha.length >= 10 ? b.fecha.substring(0, 10) : b.fecha;
+        if (fa != fb) return fb.compareTo(fa); // más reciente primero
+        return _prioridad(a.estado) - _prioridad(b.estado);
+      });
 
     return Scaffold(
       backgroundColor: kBg,
@@ -87,6 +139,7 @@ class _ComprasPageState extends State<ComprasPage> {
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
+        // ── Filtros ────────────────────────────────────────────────────────────
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -103,7 +156,6 @@ class _ComprasPageState extends State<ComprasPage> {
                 for (final f in [
                   ('todos', 'Todos'),
                   ('pendiente', 'Pendiente'),
-                  ('en transito', 'En tránsito'),
                   ('completada', 'Completada'),
                   ('anulada', 'Anulada'),
                 ]) Padding(
@@ -124,7 +176,7 @@ class _ComprasPageState extends State<ComprasPage> {
           ]),
         ),
 
-        // ── Hint swipe ──────────────────────────────────────────────────────
+        // ── Hint swipe ─────────────────────────────────────────────────────────
         Container(
           color: const Color(0xFFF0F4FF),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -132,12 +184,13 @@ class _ComprasPageState extends State<ComprasPage> {
             const Icon(Icons.swipe, size: 14, color: kTextMuted),
             const SizedBox(width: 6),
             const Text(
-              'Pendiente: → completar   |   ← anular',
+              'Pendiente → Completar  ·  Completada ← Merma / Anular',
               style: TextStyle(fontSize: 11, color: kTextMuted),
             ),
           ]),
         ),
 
+        // ── Lista ──────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
@@ -152,114 +205,90 @@ class _ComprasPageState extends State<ComprasPage> {
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.shopping_cart_outlined, size: 64, color: kBorder),
                   SizedBox(height: 12),
-                  Text('No hay compras', style: TextStyle(color: kTextMuted, fontSize: 16)),
+                  Text('No hay compras',
+                    style: TextStyle(color: kTextMuted, fontSize: 16)),
                 ]))
               : RefreshIndicator(
                   color: kPrimary, onRefresh: prov.cargar,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) {
+                    itemBuilder: (ctx, i) {
                       final c = lista[i];
-                      final isPendiente = c.estado == 'pendiente';
-                      final canAnular = c.estado == 'pendiente' || c.estado == 'completada';
+                      final isPendiente  = c.estado == 'pendiente';
+                      final isCompletada = c.estado == 'completada';
+                      final canAnular    = isPendiente || isCompletada;
+
+                      // Acciones swipe derecha: Ver + Completar (si pendiente)
+                      final rightActions = <Widget>[
+                        SlidableAction(
+                          onPressed: (_) => Navigator.push(ctx,
+                            MaterialPageRoute(
+                              builder: (_) => CompraDetallePage(compraId: c.id))),
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.white,
+                          icon: Icons.info_outline,
+                          label: 'Ver detalle',
+                        ),
+                        if (isPendiente)
+                          SlidableAction(
+                            onPressed: (_) => _completar(ctx, c),
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                            icon: Icons.check_circle_outline,
+                            label: 'Completar',
+                          ),
+                      ];
+
+                      // Acciones swipe izquierda: Merma (si completada) + Anular
+                      final leftActions = <Widget>[
+                        if (isCompletada)
+                          SlidableAction(
+                            onPressed: (_) => Navigator.push(ctx,
+                              MaterialPageRoute(
+                                builder: (_) => CompraMermaPage(compraId: c.id))),
+                            backgroundColor: kWarning,
+                            foregroundColor: Colors.white,
+                            icon: Icons.warning_amber_outlined,
+                            label: 'Merma',
+                          ),
+                        if (canAnular)
+                          SlidableAction(
+                            onPressed: (_) => _anular(ctx, c),
+                            backgroundColor: kError,
+                            foregroundColor: Colors.white,
+                            icon: Icons.cancel_outlined,
+                            label: 'Anular',
+                          ),
+                      ];
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: Dismissible(
-                          key: ValueKey('compra_${c.id}'),
-                          // Solo habilitar gestos si la acción es posible
-                          direction: (isPendiente || canAnular)
-                              ? DismissDirection.horizontal
-                              : DismissDirection.none,
-                          // Fondo → (completar, solo si pendiente)
-                          background: isPendiente
-                              ? Container(
-                                  alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.only(left: 24),
-                                  decoration: BoxDecoration(
-                                    color: Colors.teal.shade600,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                                    Icon(Icons.check_circle_outline, color: Colors.white, size: 22),
-                                    SizedBox(width: 8),
-                                    Text('Completar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                                  ]),
-                                )
-                              : const SizedBox.shrink(),
-                          // Fondo ← (anular)
-                          secondaryBackground: canAnular
-                              ? Container(
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 24),
-                                  decoration: BoxDecoration(
-                                    color: kError,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                                    Text('Anular', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                                    SizedBox(width: 8),
-                                    Icon(Icons.cancel_outlined, color: Colors.white, size: 22),
-                                  ]),
-                                )
-                              : const SizedBox.shrink(),
-                          confirmDismiss: (direction) async {
-                            if (direction == DismissDirection.startToEnd) {
-                              if (!isPendiente) return false;
-                              final ok = await _confirmarCompletar(context, c);
-                              if (ok == true) {
-                                try {
-                                  await prov.cambiarEstado(c.id, 'completada');
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                      content: Text('Compra #${c.id} completada. Stock actualizado.'),
-                                      backgroundColor: Colors.teal.shade600,
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 2),
-                                    ));
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                      content: Text('Error: $e'),
-                                      backgroundColor: kError,
-                                      behavior: SnackBarBehavior.floating,
-                                    ));
-                                  }
-                                }
-                              }
-                              return false; // No remover de la lista
-                            } else {
-                              // Anular
-                              if (!canAnular) return false;
-                              return _confirmarAnular(context, c);
-                            }
-                          },
-                          onDismissed: (direction) async {
-                            if (direction == DismissDirection.endToStart) {
-                              try {
-                                await prov.anular(c.id);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text('Compra #${c.id} anulada'),
-                                    backgroundColor: kError,
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 2),
-                                  ));
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text('Error al anular: $e'),
-                                    backgroundColor: kError,
-                                    behavior: SnackBarBehavior.floating,
-                                  ));
-                                }
-                              }
-                            }
-                          },
-                          child: _CompraCard(c: c, fmt: fmt),
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                          elevation: 1,
+                          clipBehavior: Clip.hardEdge,
+                          child: Slidable(
+                            key: ValueKey('compra_${c.id}'),
+                            startActionPane: ActionPane(
+                              motion: const DrawerMotion(),
+                              extentRatio: rightActions.length * 0.25,
+                              children: rightActions,
+                            ),
+                            endActionPane: leftActions.isEmpty ? null : ActionPane(
+                              motion: const DrawerMotion(),
+                              extentRatio: leftActions.length * 0.25,
+                              children: leftActions,
+                            ),
+                            child: _CompraTile(
+                              c: c, fmt: fmt,
+                              onTap: () => Navigator.push(ctx,
+                                MaterialPageRoute(
+                                  builder: (_) => CompraDetallePage(compraId: c.id))),
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -278,71 +307,43 @@ class _ComprasPageState extends State<ComprasPage> {
   }
 }
 
-class _CompraCard extends StatelessWidget {
+// ── Tile de compra ─────────────────────────────────────────────────────────────
+class _CompraTile extends StatelessWidget {
   final Compra c;
   final NumberFormat fmt;
-  const _CompraCard({required this.c, required this.fmt});
+  final VoidCallback onTap;
+  const _CompraTile({required this.c, required this.fmt, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon) = _estadoStyle(c.estado);
     final fecha = c.fecha.length >= 10 ? c.fecha.substring(0, 10) : c.fecha;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => CompraDetallePage(compraId: c.id))),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Compra #${c.id}',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
-              _chip(Compra.estadoLabel[c.estado] ?? c.estado, color, icon),
-            ]),
-            const SizedBox(height: 6),
-            Text(c.nombreProveedor ?? 'Proveedor #${c.proveedoresId}',
-              style: const TextStyle(color: kTextMuted, fontSize: 13)),
-            const SizedBox(height: 10),
-            Row(children: [
-              _dato(Icons.calendar_today_outlined, fecha),
-              const SizedBox(width: 16),
-              _dato(Icons.payment_outlined, c.metodoPago),
-              const Spacer(),
-              const Icon(Icons.chevron_right, color: kTextMuted),
-            ]),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('Compra #${c.id}',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
+            estadoChip(c.estado),
           ]),
-        ),
+          const SizedBox(height: 6),
+          Text(c.nombreProveedor ?? 'Proveedor #${c.proveedoresId}',
+            style: const TextStyle(color: kTextMuted, fontSize: 13)),
+          const SizedBox(height: 10),
+          Row(children: [
+            _dato(Icons.calendar_today_outlined, fecha),
+            const SizedBox(width: 16),
+            _dato(Icons.payment_outlined, c.metodoPago),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: kTextMuted),
+          ]),
+        ]),
       ),
     );
   }
-
-  (Color, IconData) _estadoStyle(String estado) {
-    switch (estado) {
-      case 'completada': return (kPrimary, Icons.check_circle_outline);
-      case 'anulada': return (kError, Icons.cancel_outlined);
-      case 'en transito': return (kPrimaryLight, Icons.local_shipping_outlined);
-      default: return (kWarning, Icons.schedule_outlined);
-    }
-  }
-
-  Widget _chip(String label, Color color, IconData icon) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: color),
-      const SizedBox(width: 4),
-      Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-    ]),
-  );
 
   Widget _dato(IconData icon, String text) => Row(children: [
     Icon(icon, size: 14, color: kTextMuted),

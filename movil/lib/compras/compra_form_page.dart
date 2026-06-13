@@ -31,7 +31,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
   final List<_ItemCarrito> _carrito = [];
   String _searchInsumo = '';
 
-  final List<String> _metodos = ['efectivo', 'transferencia', 'tarjeta', 'credito'];
+  final List<String> _metodos = ['efectivo', 'transferencia'];
 
   @override
   void initState() {
@@ -53,7 +53,8 @@ class _CompraFormPageState extends State<CompraFormPage> {
     final insProv = context.watch<InsumoProvider>();
 
     final insumosFiltrados = insProv.insumos
-      .where((i) => i.nombreInsumo.toLowerCase().contains(_searchInsumo.toLowerCase()) &&
+      .where((i) => i.disponible &&
+        i.nombreInsumo.toLowerCase().contains(_searchInsumo.toLowerCase()) &&
         !_carrito.any((c) => c.insumo.id == i.id))
       .toList();
 
@@ -257,7 +258,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
       final d = await showDatePicker(
         context: context,
         initialDate: DateTime.tryParse(_fecha) ?? DateTime.now(),
-        firstDate: DateTime(2020), lastDate: DateTime.now(),
+        firstDate: DateTime(2000), lastDate: DateTime.now(),
       );
       if (d != null) setState(() => _fecha = d.toIso8601String().split('T')[0]);
     },

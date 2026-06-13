@@ -65,4 +65,15 @@ class CompraProvider extends ChangeNotifier {
     await ApiService.delete('/compras/$id');
     await cargar();
   }
+
+  Future<Map<String, dynamic>> registrarMerma(
+    int id,
+    List<Map<String, dynamic>> items, {
+    String? motivo,
+  }) async {
+    final body = <String, dynamic>{'items': items};
+    if (motivo != null && motivo.trim().isNotEmpty) body['motivo'] = motivo.trim();
+    final data = await ApiService.post('/compras/$id/merma', body);
+    return data as Map<String, dynamic>;
+  }
 }

@@ -20,7 +20,7 @@ class DetalleCompra {
   factory DetalleCompra.fromJson(Map<String, dynamic> j) => DetalleCompra(
         id: j['id'] != null ? int.tryParse(j['id'].toString()) : null,
         insumosId: int.tryParse(j['insumosId'].toString()) ?? 0,
-        cantidad: int.tryParse(j['cantidad'].toString()) ?? 0,
+        cantidad: (double.tryParse(j['cantidad']?.toString() ?? '0') ?? 0).round(),
         precioUnitario: double.tryParse(j['precioUnitario'].toString()) ?? 0,
         nombreInsumo: j['insumo']?['nombreInsumo'],
         unidadMedida: j['insumo']?['unidadMedida'],
