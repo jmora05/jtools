@@ -37,7 +37,7 @@ export function CompraMermaModal({ open, onClose, compra, onSuccess }: CompraMer
                     insumosId:          d.insumosId,
                     nombreInsumo:       d.insumo?.nombreInsumo ?? `Insumo #${d.insumosId}`,
                     unidadMedida:       d.insumo?.unidadMedida ?? '',
-                    cantidadComprada:   d.cantidad,
+                    cantidadComprada:   Math.round(Number(d.cantidad)),
                     cantidadDefectuosa: '',
                 }))
             );

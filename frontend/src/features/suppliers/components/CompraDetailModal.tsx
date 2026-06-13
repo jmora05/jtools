@@ -168,7 +168,7 @@ function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
             (i + 1).toString(),
             d.insumo?.nombreInsumo ?? `ID #${d.insumosId}`,
             d.insumo?.unidadMedida ?? '—',
-            String(d.cantidad),
+            String(Math.round(Number(d.cantidad))),
             `$${Number(d.precioUnitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
             `$${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
         ]);
@@ -414,7 +414,7 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                                 </div>
                                                 <div style={{ textAlign: 'center', minWidth: 60 }}>
                                                     <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
-                                                        ×{d.cantidad}
+                                                        ×{Math.round(Number(d.cantidad))}
                                                     </span>
                                                 </div>
                                                 <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>

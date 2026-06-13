@@ -197,7 +197,7 @@ export function CompraFormModal({
                 insumoId: insumo.id,
                 nombre: insumo.nombreInsumo,
                 unidad: insumo.unidadMedida,
-                precio: insumo.precioUnitario ?? 0,
+                precio: Number(insumo.precioUnitario ?? 0),
                 cantidad: 1,
             }];
         });
