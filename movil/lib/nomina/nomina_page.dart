@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/scaffold_key.dart';
 import 'nomina_provider.dart';
 import 'nomina_model.dart';
 import 'nomina_detalle_page.dart';
@@ -39,6 +40,10 @@ class _NominaPageState extends State<NominaPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => mainScaffoldKey.currentState?.openDrawer(),
+        ),
         title: const Text('Control de Pagos', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'core/constants.dart';
 import 'core/auth_provider.dart';
+import 'core/scaffold_key.dart';
 import 'screens/login_page.dart';
 
 import 'empleados/empleado_provider.dart';
@@ -140,6 +141,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: mainScaffoldKey,
       body: IndexedStack(index: _idx, children: _pages),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(

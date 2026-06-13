@@ -40,6 +40,30 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Register ─────────────────────────────────────────────────────────────
+  Future<void> register(Map<String, dynamic> body) async {
+    _loading = true;
+    notifyListeners();
+    try {
+      await ApiService.post('/auth/register', body);
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  // ─── Verify OTP code ──────────────────────────────────────────────────────
+  Future<void> verifyCode(String email, String code) async {
+    _loading = true;
+    notifyListeners();
+    try {
+      await ApiService.post('/auth/verify-code', {'email': email, 'code': code});
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
   // ─── Logout ───────────────────────────────────────────────────────────────
   Future<void> logout() async {
     await ApiService.clearToken();

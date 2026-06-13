@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/auth_provider.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -111,6 +112,21 @@ class _LoginPageState extends State<LoginPage> {
                     : const Text('Iniciar sesión', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
               ),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('¿No tienes cuenta? ', style: TextStyle(color: kTextMuted)),
+                TextButton(
+                  onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const RegisterPage())),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Crear cuenta',
+                    style: TextStyle(color: kPrimary, fontWeight: FontWeight.w700)),
+                ),
+              ]),
             ]),
           ),
         ),

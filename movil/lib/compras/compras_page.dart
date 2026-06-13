@@ -3,6 +3,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/scaffold_key.dart';
 import 'compra_provider.dart';
 import 'compra_model.dart';
 import 'compra_detalle_page.dart';
@@ -135,6 +136,10 @@ class _ComprasPageState extends State<ComprasPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => mainScaffoldKey.currentState?.openDrawer(),
+        ),
         title: const Text('Compras', style: TextStyle(fontWeight: FontWeight.w700)),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
