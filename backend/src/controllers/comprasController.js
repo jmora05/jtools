@@ -1,5 +1,4 @@
 const { Compras, Proveedores, DetalleCompraInsumo, Insumos } = require('../models/index.js');
-const { Sequelize } = require('sequelize');
 
 // GET - listar todas las compras
 const getCompras = async (req, res) => {
@@ -23,7 +22,6 @@ const getCompras = async (req, res) => {
             ],
             order: [
                 ['fecha', 'DESC'],
-                [Sequelize.literal("CASE WHEN estado = 'completada' THEN 0 ELSE 1 END"), 'ASC'],
                 ['id', 'DESC'],
             ],
         });
