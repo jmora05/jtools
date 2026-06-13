@@ -21,6 +21,12 @@ import 'compras/compras_page.dart';
 import 'nomina/nomina_provider.dart';
 import 'nomina/nomina_page.dart';
 
+import 'clientes/cliente_provider.dart';
+import 'clientes/clientes_page.dart';
+
+import 'ventas/venta_provider.dart';
+import 'ventas/ventas_page.dart';
+
 void main() {
   runApp(
     MultiProvider(
@@ -31,6 +37,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => InsumoProvider()),
         ChangeNotifierProvider(create: (_) => CompraProvider()),
         ChangeNotifierProvider(create: (_) => NominaProvider()),
+        ChangeNotifierProvider(create: (_) => ClienteProvider()),
+        ChangeNotifierProvider(create: (_) => VentaProvider()),
       ],
       child: const JToolsApp(),
     ),
@@ -187,6 +195,32 @@ class _MainShellState extends State<MainShell> {
             if (auth.userRole?.isNotEmpty ?? false)
               Text(auth.userRole!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           ]),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Text('MÓDULOS ADICIONALES',
+            style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700,
+              color: Colors.grey.shade500, letterSpacing: 0.8)),
+        ),
+        ListTile(
+          leading: const Icon(Icons.people_outline, color: kPrimary),
+          title: const Text('Clientes'),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const ClientesPage()));
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.receipt_outlined, color: kPrimary),
+          title: const Text('Pedidos / Ventas'),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const VentasPage()));
+          },
         ),
         const Spacer(),
         const Divider(),
