@@ -346,8 +346,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         item.code || '—',
         item.name,
         item.quantity.toString(),
-        `$${item.price.toLocaleString('es-CO')}`,
-        `$${(item.quantity * item.price).toLocaleString('es-CO')}`,
+        `$${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
+        `$${(item.quantity * item.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
       ]),
       styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [30, 30, 30] },
       headStyles: { fillColor: [17, 50, 150], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
@@ -376,7 +376,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(17, 50, 150);
     doc.text('TOTAL:', 122, finalY + 14);
-    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 14, { align: 'right' });
+    doc.text(`$${sale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 192, finalY + 14, { align: 'right' });
 
     // ── Mensaje de cortesía ───────────────────────────────────────
     const msgY = finalY + 30;
@@ -852,7 +852,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           </label>
                           {subtotal > 0 && (
                             <span style={{ fontSize: 10, color: '#9ca3af' }}>
-                              Máx. ${subtotal.toLocaleString('es-CO')}
+                              Máx. ${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                             </span>
                           )}
                         </div>
@@ -866,7 +866,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             disabled={subtotal === 0}
                             onChange={(e) => {
                               const raw = e.target.value.replace(/[^0-9]/g, '');
-                              const formatted = raw ? Number(raw).toLocaleString('es-CO') : '';
+                              const formatted = raw ? Number(raw).toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
                               setSaleForm({ ...saleForm, descuento: formatted });
                             }}
                             style={{
@@ -887,12 +887,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         </div>
                         {saleForm.descuento !== '' && parseDescuento() > subtotal && subtotal > 0 && (
                           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#f87171' }}>
-                            El descuento no puede superar el subtotal (${subtotal.toLocaleString('es-CO')})
+                            El descuento no puede superar el subtotal (${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })})
                           </p>
                         )}
                         {saleForm.descuento !== '' && parseDescuento() > 0 && parseDescuento() <= subtotal && (
                           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#16a34a' }}>
-                            Descuento aplicado: -${parseDescuento().toLocaleString('es-CO')}
+                            Descuento aplicado: -${parseDescuento().toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                           </p>
                         )}
                       </div>
@@ -950,7 +950,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                   {product.name}
                                 </p>
                                 <p style={{ fontSize: 11, margin: 0, color: product.stock === 0 ? '#f87171' : '#9ca3af' }}>
-                                  {product.code} · ${product.price.toLocaleString()} · Stock: {product.stock === 0 ? 'Sin stock' : product.stock}
+                                  {product.code} · ${product.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })} · Stock: {product.stock === 0 ? 'Sin stock' : product.stock}
                                 </p>
                               </div>
                               <Button type="button" size="sm"
@@ -1009,7 +1009,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                 <td style={{ padding: '12px 24px' }}>
                                   <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
-                                  <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString()} c/u</p>
+                                  <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })} c/u</p>
                                   {!isPedidoForm && enLimite && (
                                     <p style={{ fontSize: 10, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
                                       Stock máximo alcanzado ({stockDisponible})
@@ -1081,18 +1081,18 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                             <span style={{ fontSize: 13, color: '#6b7280' }}>Subtotal</span>
-                            <span style={{ fontSize: 14, color: '#374151' }}>${subtotal.toLocaleString('es-CO')}</span>
+                            <span style={{ fontSize: 14, color: '#374151' }}>${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                           </div>
                           {descuento > 0 && descuento <= subtotal && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                               <span style={{ fontSize: 13, color: '#16a34a' }}>Descuento</span>
-                              <span style={{ fontSize: 14, color: '#16a34a', fontWeight: 600 }}>-${descuento.toLocaleString('es-CO')}</span>
+                              <span style={{ fontSize: 14, color: '#16a34a', fontWeight: 600 }}>-${descuento.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                             </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: descuento > 0 && descuento <= subtotal ? '1px solid #e5e7eb' : 'none' }}>
                             <span style={{ fontWeight: 700, color: '#111827' }}>Total</span>
                             <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>
-                              ${totalFinal.toLocaleString('es-CO')}
+                              ${totalFinal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                             </span>
                           </div>
                         </div>
@@ -1215,7 +1215,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{sale.date}</td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">${sale.total.toLocaleString()}</div>
+                        <div className="text-sm text-gray-900">${sale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</div>
                         <div className="text-sm text-gray-500">{sale.items.length} producto(s)</div>
                       </td>
                       <td className="px-6 py-4">
@@ -1508,8 +1508,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               <td style={{ padding: '12px 24px', fontSize: 12, color: '#6b7280' }}>{item.code}</td>
                               <td style={{ padding: '12px 12px', fontWeight: 500, color: '#111827' }}>{item.name}</td>
                               <td style={{ padding: '12px', textAlign: 'center', color: '#111827' }}>{item.quantity}</td>
-                              <td style={{ padding: '12px', textAlign: 'right', color: '#111827' }}>${item.price.toLocaleString()}</td>
-                              <td style={{ padding: '12px 24px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>${(item.quantity * item.price).toLocaleString()}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', color: '#111827' }}>${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
+                              <td style={{ padding: '12px 24px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>${(item.quantity * item.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1521,7 +1521,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontWeight: 700, color: '#111827', fontSize: 15 }}>Total:</span>
-                          <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString()}</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                         </div>
                       </div>
                     </div>
@@ -1569,7 +1569,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                   <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
                     <p className="text-sm"><span className="text-gray-500">Pedido: </span><span className="font-medium text-gray-800">#{salePendingAnular.id}</span></p>
                     <p className="text-sm"><span className="text-gray-500">Cliente: </span><span className="text-gray-800">{salePendingAnular.clientName}</span></p>
-                    <p className="text-sm"><span className="text-gray-500">Total: </span><span className="text-gray-800">${salePendingAnular.total.toLocaleString()}</span></p>
+                    <p className="text-sm"><span className="text-gray-500">Total: </span><span className="text-gray-800">${salePendingAnular.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span></p>
                   </div>
                 )}
               </AlertDialogDescription>

@@ -35,7 +35,7 @@ interface ProduccionData { total: number; activas: number; finalizadas: number; 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const COP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
-const NUM = (n: number) => n.toLocaleString('es-CO');
+const NUM = (n: number) => n.toLocaleString('es-CO', { maximumFractionDigits: 0 });
 
 async function safeGet<T>(path: string): Promise<T | null> {
   try {

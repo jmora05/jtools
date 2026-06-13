@@ -25,8 +25,8 @@ export function openWhatsApp(
             `• *${item.nombreProducto}*\n` +
             `  Ref: ${item.referencia}\n` +
             `  Cantidad: ${item.cantidad}\n` +
-            `  Precio unit.: $${Number(item.precio).toLocaleString('es-CO')} COP\n` +
-            `  Subtotal: $${Number(subtotal).toLocaleString('es-CO')} COP` +
+            `  Precio unit.: $${Number(item.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })} COP\n` +
+            `  Subtotal: $${Number(subtotal).toLocaleString('es-CO', { maximumFractionDigits: 0 })} COP` +
             pedidoNota
         );
     });
@@ -37,7 +37,7 @@ export function openWhatsApp(
         lineas.join('\n\n') +
         `\n\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
-        `*TOTAL: $${Number(total).toLocaleString('es-CO')} COP*\n` +
+        `*TOTAL: $${Number(total).toLocaleString('es-CO', { maximumFractionDigits: 0 })} COP*\n` +
         `━━━━━━━━━━━━━━━━━━\n\n` +
         `Por favor, confirmen disponibilidad y proceso de pago. ¡Gracias! 🙏`;
 
