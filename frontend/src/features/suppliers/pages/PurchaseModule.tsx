@@ -100,7 +100,15 @@ export function PurchaseModule() {
             const [comprasData, proveedoresData, insumosData] = await Promise.all([
                 getCompras(), getProveedores(), getInsumos(),
             ]);
-            setCompras(comprasData);
+            // Más recientes primero; dentro de la misma fecha, Completada al tope
+            const sorted = [...comprasData].sort((a: Compra, b: Compra) => {
+                const fa = a.fecha.split('T')[0], fb = b.fecha.split('T')[0];
+                if (fa !== fb) return fb.localeCompare(fa);
+                const ea = a.estado === 'completada' ? 0 : 1;
+                const eb = b.estado === 'completada' ? 0 : 1;
+                return ea - eb;
+            });
+            setCompras(sorted);
             setProveedores(proveedoresData.filter((p: Proveedor) => p.estado !== 'inactivo'));
             setInsumos(insumosData);
         } catch (error: any) {

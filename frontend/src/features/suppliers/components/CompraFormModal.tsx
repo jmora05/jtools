@@ -615,7 +615,7 @@ export function CompraFormModal({
                                                     <p style={{ fontSize: 11, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                                                         {insumo.codigoInsumo ? `SKU: ${insumo.codigoInsumo} · ` : ''}
                                                         {insumo.unidadMedida}
-                                                        {insumo.precioUnitario ? ` · $${Number(insumo.precioUnitario).toLocaleString('es-CO')}` : ''}
+                                                        {insumo.precioUnitario ? ` · $${Number(insumo.precioUnitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : ''}
                                                         {insumo.cantidad !== undefined ? ` · Stock: ${insumo.cantidad}` : ''}
                                                     </p>
                                                 </div>
@@ -798,7 +798,7 @@ export function CompraFormModal({
                                                                 color: itemErr ? '#d1d5db' : '#111827',
                                                             }}>
                                                                 {item.precio > 0 && !itemErr
-                                                                    ? `$${(item.precio * item.cantidad).toLocaleString('es-CO')}`
+                                                                    ? `$${(item.precio * item.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
                                                                     : '—'}
                                                             </span>
                                                         </td>
@@ -835,7 +835,7 @@ export function CompraFormModal({
                                 <div style={{ marginLeft: 'auto', maxWidth: 320 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#6b7280', marginBottom: 6 }}>
                                         <span>Subtotal</span>
-                                        <span>${subtotalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</span>
+                                        <span>${subtotalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                     </div>
                                     <div style={{
                                         display: 'flex', justifyContent: 'space-between',

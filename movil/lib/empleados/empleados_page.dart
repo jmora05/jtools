@@ -23,6 +23,28 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     });
   }
 
+  Future<bool?> _confirmarEliminacion(BuildContext context, String nombre) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar empleado', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Eliminar a "$nombre"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<EmpleadoProvider>();
@@ -77,6 +99,21 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
             ),
           ]),
         ),
+
+        // ── Hint swipe ──────────────────────────────────────────────────────
+        Container(
+          color: const Color(0xFFF0F4FF),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(children: [
+            const Icon(Icons.swipe, size: 14, color: kTextMuted),
+            const SizedBox(width: 6),
+            Text(
+              'Desliza → para activar/desactivar   |   ← para eliminar',
+              style: const TextStyle(fontSize: 11, color: kTextMuted),
+            ),
+          ]),
+        ),
+
         // ── Contenido ──────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
@@ -90,7 +127,90 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _EmpleadoCard(e: lista[i]),
+                    itemBuilder: (_, i) {
+                      final e = lista[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Dismissible(
+                          key: ValueKey('emp_${e.id}'),
+                          direction: DismissDirection.horizontal,
+                          // Fondo al deslizar → (toggle activo/inactivo)
+                          background: _swipeBg(
+                            alignment: Alignment.centerLeft,
+                            color: e.activo ? Colors.orange.shade600 : Colors.green.shade600,
+                            icon: e.activo ? Icons.block : Icons.check_circle_outline,
+                            label: e.activo ? 'Desactivar' : 'Activar',
+                            padding: const EdgeInsets.only(left: 24),
+                          ),
+                          // Fondo al deslizar ← (eliminar)
+                          secondaryBackground: _swipeBg(
+                            alignment: Alignment.centerRight,
+                            color: kError,
+                            icon: Icons.delete_outline,
+                            label: 'Eliminar',
+                            padding: const EdgeInsets.only(right: 24),
+                          ),
+                          confirmDismiss: (direction) async {
+                            if (direction == DismissDirection.startToEnd) {
+                              // Toggle — no eliminar de la lista
+                              try {
+                                if (e.activo) {
+                                  await prov.desactivar(e.id);
+                                } else {
+                                  await prov.reactivar(e.id);
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(e.activo
+                                        ? '${e.nombres} desactivado'
+                                        : '${e.nombres} activado'),
+                                    backgroundColor: e.activo ? Colors.orange : Colors.green,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ));
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                    content: Text('Error al cambiar el estado'),
+                                    backgroundColor: kError,
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              }
+                              return false; // No remover de la lista
+                            } else {
+                              // Confirmar eliminación
+                              return _confirmarEliminacion(context, e.nombreCompleto);
+                            }
+                          },
+                          onDismissed: (direction) async {
+                            if (direction == DismissDirection.endToStart) {
+                              try {
+                                await prov.eliminar(e.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('${e.nombreCompleto} eliminado'),
+                                    backgroundColor: kError,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ));
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                    content: Text('Error al eliminar'),
+                                    backgroundColor: kError,
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              }
+                            }
+                          },
+                          child: _EmpleadoCard(e: e),
+                        ),
+                      );
+                    },
                   ),
                 ),
         ),
@@ -101,6 +221,37 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
         label: const Text('Nuevo', style: TextStyle(color: Colors.white)),
         onPressed: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => const EmpleadoFormPage())),
+      ),
+    );
+  }
+
+  Widget _swipeBg({
+    required Alignment alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+    required EdgeInsets padding,
+  }) {
+    return Container(
+      alignment: alignment,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: alignment == Alignment.centerLeft
+            ? [
+                Icon(icon, color: Colors.white, size: 22),
+                const SizedBox(width: 8),
+                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ]
+            : [
+                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(width: 8),
+                Icon(icon, color: Colors.white, size: 22),
+              ],
       ),
     );
   }
@@ -133,7 +284,7 @@ class _EmpleadoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 1,
       child: ListTile(

@@ -23,6 +23,50 @@ class _ComprasPageState extends State<ComprasPage> {
       context.read<CompraProvider>().cargar());
   }
 
+  Future<bool?> _confirmarAnular(BuildContext context, Compra c) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Anular compra', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Anular la compra #${c.id}? El stock será devuelto al inventario si estaba completada.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Anular'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmarCompletar(BuildContext context, Compra c) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Completar compra', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Marcar la compra #${c.id} como completada? El stock de insumos será actualizado.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: kPrimary, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Completar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<CompraProvider>();
@@ -79,6 +123,21 @@ class _ComprasPageState extends State<ComprasPage> {
             ),
           ]),
         ),
+
+        // ── Hint swipe ──────────────────────────────────────────────────────
+        Container(
+          color: const Color(0xFFF0F4FF),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(children: [
+            const Icon(Icons.swipe, size: 14, color: kTextMuted),
+            const SizedBox(width: 6),
+            const Text(
+              'Pendiente: → completar   |   ← anular',
+              style: TextStyle(fontSize: 11, color: kTextMuted),
+            ),
+          ]),
+        ),
+
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
@@ -100,7 +159,110 @@ class _ComprasPageState extends State<ComprasPage> {
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _CompraCard(c: lista[i], fmt: fmt),
+                    itemBuilder: (_, i) {
+                      final c = lista[i];
+                      final isPendiente = c.estado == 'pendiente';
+                      final canAnular = c.estado == 'pendiente' || c.estado == 'completada';
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Dismissible(
+                          key: ValueKey('compra_${c.id}'),
+                          // Solo habilitar gestos si la acción es posible
+                          direction: (isPendiente || canAnular)
+                              ? DismissDirection.horizontal
+                              : DismissDirection.none,
+                          // Fondo → (completar, solo si pendiente)
+                          background: isPendiente
+                              ? Container(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.only(left: 24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal.shade600,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Icon(Icons.check_circle_outline, color: Colors.white, size: 22),
+                                    SizedBox(width: 8),
+                                    Text('Completar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                                  ]),
+                                )
+                              : const SizedBox.shrink(),
+                          // Fondo ← (anular)
+                          secondaryBackground: canAnular
+                              ? Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 24),
+                                  decoration: BoxDecoration(
+                                    color: kError,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Text('Anular', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                                    SizedBox(width: 8),
+                                    Icon(Icons.cancel_outlined, color: Colors.white, size: 22),
+                                  ]),
+                                )
+                              : const SizedBox.shrink(),
+                          confirmDismiss: (direction) async {
+                            if (direction == DismissDirection.startToEnd) {
+                              if (!isPendiente) return false;
+                              final ok = await _confirmarCompletar(context, c);
+                              if (ok == true) {
+                                try {
+                                  await prov.cambiarEstado(c.id, 'completada');
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                      content: Text('Compra #${c.id} completada. Stock actualizado.'),
+                                      backgroundColor: Colors.teal.shade600,
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ));
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                      content: Text('Error: $e'),
+                                      backgroundColor: kError,
+                                      behavior: SnackBarBehavior.floating,
+                                    ));
+                                  }
+                                }
+                              }
+                              return false; // No remover de la lista
+                            } else {
+                              // Anular
+                              if (!canAnular) return false;
+                              return _confirmarAnular(context, c);
+                            }
+                          },
+                          onDismissed: (direction) async {
+                            if (direction == DismissDirection.endToStart) {
+                              try {
+                                await prov.anular(c.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Compra #${c.id} anulada'),
+                                    backgroundColor: kError,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ));
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Error al anular: $e'),
+                                    backgroundColor: kError,
+                                    behavior: SnackBarBehavior.floating,
+                                  ));
+                                }
+                              }
+                            }
+                          },
+                          child: _CompraCard(c: c, fmt: fmt),
+                        ),
+                      );
+                    },
                   ),
                 ),
         ),
@@ -127,7 +289,7 @@ class _CompraCard extends StatelessWidget {
     final fecha = c.fecha.length >= 10 ? c.fecha.substring(0, 10) : c.fecha;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 1,
       child: InkWell(

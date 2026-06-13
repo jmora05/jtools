@@ -22,6 +22,28 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
       context.read<ProveedorProvider>().cargar());
   }
 
+  Future<bool?> _confirmarEliminacion(BuildContext context, String nombre) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar proveedor', style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Eliminar a "$nombre"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<ProveedorProvider>();
@@ -73,6 +95,21 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
             ),
           ]),
         ),
+
+        // ── Hint swipe ──────────────────────────────────────────────────────
+        Container(
+          color: const Color(0xFFF0F4FF),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(children: [
+            const Icon(Icons.swipe_left, size: 14, color: kTextMuted),
+            const SizedBox(width: 6),
+            const Text(
+              'Desliza ← para eliminar',
+              style: TextStyle(fontSize: 11, color: kTextMuted),
+            ),
+          ]),
+        ),
+
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
@@ -95,7 +132,52 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _ProveedorCard(p: lista[i]),
+                    itemBuilder: (_, i) {
+                      final p = lista[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Dismissible(
+                          key: ValueKey('prov_${p.id}'),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 24),
+                            decoration: BoxDecoration(
+                              color: kError,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                              Text('Eliminar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                              SizedBox(width: 8),
+                              Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                            ]),
+                          ),
+                          confirmDismiss: (_) => _confirmarEliminacion(context, p.nombreEmpresa),
+                          onDismissed: (_) async {
+                            try {
+                              await prov.eliminar(p.id);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text('${p.nombreEmpresa} eliminado'),
+                                  backgroundColor: kError,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                ));
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                  content: Text('Error al eliminar'),
+                                  backgroundColor: kError,
+                                  behavior: SnackBarBehavior.floating,
+                                ));
+                              }
+                            }
+                          },
+                          child: _ProveedorCard(p: p),
+                        ),
+                      );
+                    },
                   ),
                 ),
         ),
@@ -117,7 +199,7 @@ class _ProveedorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 10),
+    margin: EdgeInsets.zero,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     elevation: 1,
     child: ListTile(

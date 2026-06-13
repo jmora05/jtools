@@ -57,8 +57,7 @@ const getProductosStockBajo = async (req, res) => {
 };
 
 // ─── POST - crear producto ────────────────────────────────────────────────────
-// El frontend siempre envía estado='activo' al crear. El stock inicial también
-// se envía con un valor fijo desde el formulario.
+// El frontend siempre envía estado='activo' y stock=0 al crear.
 const createProducto = async (req, res) => {
     try {
         const {

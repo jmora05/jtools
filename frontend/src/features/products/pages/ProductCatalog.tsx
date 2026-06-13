@@ -471,7 +471,7 @@ function AdminCatalogView() {
                     categoriaProductoId: parseInt(form.categoriaProductoId),
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
-                    stock:               1,
+                    stock:               0,
                     estado:              'activo',
                     imagenUrl:           form.imagenUrl.trim() || undefined,
                 });
