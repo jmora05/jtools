@@ -223,16 +223,51 @@ class _MainShellState extends State<MainShell> {
           },
         ),
         const Spacer(),
-        const Divider(),
+        const Divider(height: 1),
         ListTile(
-          leading: const Icon(Icons.logout, color: kError),
-          title: const Text('Cerrar sesión', style: TextStyle(color: kError)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          leading: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFF64748B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.logout, color: Color(0xFF64748B), size: 20),
+          ),
+          title: const Text('Cerrar sesión',
+            style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 15)),
           onTap: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Text('Cerrar sesión',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+                content: const Text('¿Seguro que deseas cerrar tu sesión?',
+                  style: TextStyle(fontSize: 14)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar',
+                      style: TextStyle(color: Color(0xFF64748B))),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary, foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Cerrar sesión'),
+                  ),
+                ],
+              ),
+            );
+            if (ok != true || !context.mounted) return;
             Navigator.pop(context);
             await context.read<AuthProvider>().logout();
           },
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
       ]),
     );
   }
