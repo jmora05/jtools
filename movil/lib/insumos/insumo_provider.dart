@@ -57,8 +57,9 @@ class InsumoProvider extends ChangeNotifier {
         codigoInsumo:   old.codigoInsumo,
         unidadMedida:   old.unidadMedida,
         precioUnitario: old.precioUnitario,
-        cantidad:       0,
+        cantidad:       old.cantidad,
         estado:         'agotado',
+        proveedoresId:  old.proveedoresId,
       );
       notifyListeners();
     }

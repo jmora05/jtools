@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../proveedores/proveedor_model.dart';
 import '../proveedores/proveedor_provider.dart';
 import 'insumo_model.dart';
 import 'insumo_provider.dart';
 
 const _kUnidades = [
-  'Unidades', 'Kilogramos', 'Gramos', 'Metros', 'Par', 'Rollo', 'Galón', 'Juegos',
+  'Unidades', 'Kilogramos', 'Gramos', 'Metros', 'Par', 'Rollo',
 ];
 
 class InsumoFormPage extends StatefulWidget {
@@ -20,10 +20,12 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
   final _key = GlobalKey<FormState>();
   bool _saving = false;
 
-  late final TextEditingController _nombre, _descripcion, _codigo, _precio, _cantidad;
-  String _unidad = 'Unidades';
-  String _estado = 'disponible';
-  int? _proveedorId; // null = sin proveedor
+  late final TextEditingController _nombre;
+  late final TextEditingController _descripcion;
+  late final TextEditingController _busquedaProveedor;
+  String _unidad  = 'Unidades';
+  String _estado  = 'disponible';
+  List<int> _selectedProveedoresIds = [];
 
   bool get _isEdit => widget.insumo != null;
 
@@ -33,15 +35,13 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
     final i = widget.insumo;
     _nombre     = TextEditingController(text: i?.nombreInsumo ?? '');
     _descripcion = TextEditingController(text: i?.descripcion ?? '');
-    _codigo     = TextEditingController(text: i?.codigoInsumo ?? '');
-    _precio     = TextEditingController(
-      text: i != null ? i.precioUnitario.toStringAsFixed(0) : '');
-    _cantidad   = TextEditingController(
-      text: i != null ? i.cantidad.toString() : '0');
-    _unidad      = i?.unidadMedida ?? 'Unidades';
+    _busquedaProveedor = TextEditingController();
+    _unidad     = i?.unidadMedida ?? 'Unidades';
     if (!_kUnidades.contains(_unidad)) _unidad = 'Unidades';
-    _estado      = i?.estado ?? 'disponible';
-    _proveedorId = i?.proveedoresId;
+    _estado     = i?.estado ?? 'disponible';
+    // Cargar la selección previa del proveedor
+    if (i?.proveedoresId != null) _selectedProveedoresIds = [i!.proveedoresId!];
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<ProveedorProvider>().cargar();
     });
@@ -49,7 +49,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
 
   @override
   void dispose() {
-    for (final c in [_nombre, _descripcion, _codigo, _precio, _cantidad]) c.dispose();
+    _nombre.dispose(); _descripcion.dispose(); _busquedaProveedor.dispose();
     super.dispose();
   }
 
@@ -67,97 +67,133 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
         padding: const EdgeInsets.all(16),
         child: Column(children: [
 
-          // ── Información principal ────────────────────────────────────────────
+          // ── Información principal ──────────────────────────────────────────────
           _seccion('Información principal', [
-            _txt(_nombre, 'Nombre del insumo',
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'El nombre es requerido';
-                if (v.trim().length < 2) return 'Mínimo 2 caracteres';
-                if (v.trim().length > 30) return 'Máximo 30 caracteres';
-                return null;
-              }),
-            _txt(_descripcion, 'Descripción (opcional)',
-              maxLines: 3, maxLength: 255),
-            _txt(_codigo, 'Código interno (opcional)'),
+            _buildNombre(),
+            _buildDescripcion(),
           ]),
 
-          // ── Precio y unidad ─────────────────────────────────────────────────
-          _seccion('Precio y unidad de medida', [
-            _txt(_precio, 'Precio unitario',
-              keyboard: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-              prefix: const Text('\$  ', style: TextStyle(color: kTextMuted)),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'El precio es requerido';
-                final n = double.tryParse(v.trim());
-                if (n == null) return 'Ingresa un número válido';
-                if (n < 0) return 'El precio no puede ser negativo';
-                if (n > 99999999.99) return 'El precio no puede superar \$99.999.999';
-                return null;
-              }),
+          // ── Unidad de medida ───────────────────────────────────────────────────
+          _seccion('Unidad de medida', [
             Padding(padding: const EdgeInsets.only(bottom: 12),
               child: DropdownButtonFormField<String>(
                 value: _unidad,
                 decoration: kInputDeco('Unidad de medida'),
                 items: _kUnidades.map((u) =>
                   DropdownMenuItem(value: u, child: Text(u))).toList(),
+                validator: (v) => (v?.isEmpty ?? true) ? 'Selecciona una unidad' : null,
                 onChanged: (v) => setState(() => _unidad = v!),
               )),
           ]),
 
-          // ── Cantidad ─────────────────────────────────────────────────────────
-          _seccion('Inventario', [
-            _txt(_cantidad, 'Cantidad en inventario',
-              keyboard: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (v) {
-                final n = int.tryParse(v?.trim() ?? '');
-                if (n == null) return 'Ingresa un número entero';
-                if (n < 0) return 'La cantidad no puede ser negativa';
-                return null;
-              }),
-          ]),
-
-          // ── Proveedor (opcional) ────────────────────────────────────────────
-          Consumer<ProveedorProvider>(
-            builder: (_, provProv, __) {
-              final activos = provProv.proveedores.where((p) => p.activo).toList();
-              // If selected id no longer in list, reset
-              if (_proveedorId != null && !activos.any((p) => p.id == _proveedorId)) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) setState(() => _proveedorId = null);
-                });
-              }
-              return _seccion('Proveedor (opcional)', [
-                Padding(padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('Proveedor principal de este insumo.',
-                    style: const TextStyle(color: kTextMuted, fontSize: 13))),
-                if (provProv.loading)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Center(child: SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))))
-                else
-                  Padding(padding: const EdgeInsets.only(bottom: 12),
-                    child: DropdownButtonFormField<int?>(
-                      value: _proveedorId,
-                      decoration: kInputDeco('Proveedor',
-                        prefix: const Icon(Icons.business_outlined, color: kTextMuted)),
-                      items: [
-                        const DropdownMenuItem<int?>(
-                          value: null, child: Text('Sin proveedor')),
-                        ...activos.map((p) => DropdownMenuItem<int?>(
-                          value: p.id,
-                          child: Text(p.nombreEmpresa, overflow: TextOverflow.ellipsis))),
-                      ],
-                      onChanged: (v) => setState(() => _proveedorId = v),
-                    )),
-              ]);
-            },
+          // ── Precio (informativo, no editable) ─────────────────────────────────
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: kChipBg,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline, size: 18, color: kPrimaryDark),
+                const SizedBox(width: 10),
+                const Expanded(child: Text(
+                  'El precio se actualiza automáticamente al registrar una compra '
+                  '(siempre se conserva el mayor).',
+                  style: TextStyle(fontSize: 13, color: kPrimaryDark, height: 1.4),
+                )),
+              ]),
+            ),
           ),
 
-          // ── Estado (solo en edición) ─────────────────────────────────────────
+          // ── Proveedores (multi-selección con búsqueda) ─────────────────────────
+          Consumer<ProveedorProvider>(builder: (_, provProv, __) {
+            final activos = provProv.proveedores.where((p) => p.activo).toList();
+            final query = _busquedaProveedor.text.toLowerCase();
+            final filtrados = query.isEmpty
+              ? activos
+              : activos.where((p) =>
+                  p.nombreEmpresa.toLowerCase().contains(query) ||
+                  p.numeroDocumento.toLowerCase().contains(query)).toList();
+
+            final seleccionados = activos
+              .where((p) => _selectedProveedoresIds.contains(p.id)).toList();
+
+            return _seccion('Proveedores (opcional)', [
+              Padding(padding: const EdgeInsets.only(bottom: 10),
+                child: Text('Puedes asociar uno o varios proveedores.',
+                  style: const TextStyle(color: kTextMuted, fontSize: 13))),
+
+              // Chips de seleccionados
+              if (seleccionados.isNotEmpty) ...[
+                Wrap(spacing: 8, runSpacing: 4,
+                  children: seleccionados.map((p) => Chip(
+                    label: Text(p.nombreEmpresa,
+                      style: const TextStyle(fontSize: 12, color: kPrimaryDark)),
+                    backgroundColor: kChipBg,
+                    deleteIconColor: kPrimaryDark,
+                    onDeleted: () => setState(
+                      () => _selectedProveedoresIds.remove(p.id)),
+                  )).toList(),
+                ),
+                const SizedBox(height: 8),
+              ],
+
+              // Buscador
+              TextField(
+                controller: _busquedaProveedor,
+                onChanged: (_) => setState(() {}),
+                decoration: kInputDeco('Buscar proveedor...',
+                  prefix: const Icon(Icons.search, color: kTextMuted)),
+              ),
+              const SizedBox(height: 8),
+
+              if (provProv.loading)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))))
+              else if (filtrados.isEmpty)
+                const Padding(padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Sin proveedores activos.',
+                    style: TextStyle(color: kTextMuted, fontSize: 13)))
+              else
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: kBorder),
+                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.white),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtrados.length,
+                    itemBuilder: (_, i) {
+                      final p = filtrados[i];
+                      final sel = _selectedProveedoresIds.contains(p.id);
+                      return CheckboxListTile(
+                        dense: true,
+                        title: Text(p.nombreEmpresa,
+                          style: const TextStyle(fontSize: 13)),
+                        subtitle: Text(p.numeroDocumento,
+                          style: const TextStyle(fontSize: 11, color: kTextMuted)),
+                        value: sel,
+                        activeColor: kPrimary,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (v) => setState(() {
+                          if (v == true) {
+                            _selectedProveedoresIds.add(p.id);
+                          } else {
+                            _selectedProveedoresIds.remove(p.id);
+                          }
+                        }),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 4),
+            ]);
+          }),
+
+          // ── Estado (solo en edición) ───────────────────────────────────────────
           if (_isEdit) _seccion('Estado', [
             Padding(padding: const EdgeInsets.only(bottom: 12),
               child: DropdownButtonFormField<String>(
@@ -193,6 +229,31 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
     ),
   );
 
+  Widget _buildNombre() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: _nombre,
+      maxLength: 30,
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) return 'El nombre es requerido';
+        if (v.trim().length < 2) return 'Mínimo 2 caracteres';
+        if (v.trim().length > 30) return 'Máximo 30 caracteres';
+        return null;
+      },
+      decoration: kInputDeco('Nombre del insumo'),
+    ),
+  );
+
+  Widget _buildDescripcion() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: _descripcion,
+      maxLines: 3,
+      maxLength: 255,
+      decoration: kInputDeco('Descripción (opcional)'),
+    ),
+  );
+
   Widget _seccion(String titulo, List<Widget> children) => Card(
     margin: const EdgeInsets.only(bottom: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -206,45 +267,17 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
     ),
   );
 
-  Widget _txt(
-    TextEditingController c,
-    String label, {
-    TextInputType? keyboard,
-    List<TextInputFormatter>? inputFormatters,
-    Widget? prefix,
-    int maxLines = 1,
-    int? maxLength,
-    String? Function(String?)? validator,
-  }) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: TextFormField(
-      controller: c,
-      keyboardType: keyboard,
-      inputFormatters: inputFormatters,
-      maxLines: maxLines,
-      maxLength: maxLength,
-      validator: validator,
-      decoration: kInputDeco(label, prefix: prefix != null ? Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: prefix,
-      ) : null),
-    ),
-  );
-
   Future<void> _guardar() async {
     if (!_key.currentState!.validate()) return;
     setState(() => _saving = true);
     final prov = context.read<InsumoProvider>();
     try {
       final body = <String, dynamic>{
-        'nombreInsumo':   _nombre.text.trim(),
-        'precioUnitario': double.parse(_precio.text.trim()),
-        'unidadMedida':   _unidad,
-        'cantidad':       int.parse(_cantidad.text.trim()),
+        'nombreInsumo': _nombre.text.trim(),
+        'unidadMedida': _unidad,
         if (_descripcion.text.trim().isNotEmpty) 'descripcion': _descripcion.text.trim(),
-        if (_codigo.text.trim().isNotEmpty) 'codigoInsumo': _codigo.text.trim(),
         if (_isEdit) 'estado': _estado,
-        if (_proveedorId != null) 'proveedoresIds': [_proveedorId],
+        if (_selectedProveedoresIds.isNotEmpty) 'proveedoresIds': _selectedProveedoresIds,
       };
       if (_isEdit) {
         await prov.actualizar(widget.insumo!.id, body);
@@ -254,8 +287,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isEdit ? 'Insumo actualizado' : 'Insumo registrado'),
-          backgroundColor: kPrimary,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: kPrimary, behavior: SnackBarBehavior.floating,
         ));
         Navigator.pop(context);
       }
@@ -263,8 +295,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString()),
-          backgroundColor: kError,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: kError, behavior: SnackBarBehavior.floating,
         ));
       }
     } finally {

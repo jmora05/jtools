@@ -3,6 +3,7 @@ class DetalleCompra {
   final int insumosId;
   final int cantidad;
   final double precioUnitario;
+  final double cantidadMerma;
   final String? nombreInsumo;
   final String? unidadMedida;
 
@@ -11,6 +12,7 @@ class DetalleCompra {
     required this.insumosId,
     required this.cantidad,
     required this.precioUnitario,
+    this.cantidadMerma = 0,
     this.nombreInsumo,
     this.unidadMedida,
   });
@@ -22,6 +24,7 @@ class DetalleCompra {
         insumosId: int.tryParse(j['insumosId'].toString()) ?? 0,
         cantidad: (double.tryParse(j['cantidad']?.toString() ?? '0') ?? 0).round(),
         precioUnitario: double.tryParse(j['precioUnitario'].toString()) ?? 0,
+        cantidadMerma: double.tryParse(j['cantidadMerma']?.toString() ?? '0') ?? 0,
         nombreInsumo: j['insumo']?['nombreInsumo'],
         unidadMedida: j['insumo']?['unidadMedida'],
       );

@@ -21,8 +21,10 @@ class Insumo {
     this.proveedoresId,
   });
 
-  bool get disponible => estado == 'disponible' && cantidad > 0;
-  bool get agotado    => estado == 'agotado' || cantidad == 0;
+  // Estado basado en el campo `estado` del backend (no en la cantidad)
+  bool get disponible => estado == 'disponible';
+  bool get agotado    => estado == 'agotado';
+  // Stock bajo: disponible pero con pocas unidades (solo informativo)
   bool get stockBajo  => estado == 'disponible' && cantidad > 0 && cantidad < 5;
 
   factory Insumo.fromJson(Map<String, dynamic> j) {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
-import '../core/scaffold_key.dart';
+import '../core/logout_button.dart';
 import 'proveedor_provider.dart';
 import 'proveedor_model.dart';
 import 'proveedor_detalle_page.dart';
@@ -137,12 +137,8 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
       appBar: AppBar(
         backgroundColor: kPrimaryDark,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () => mainScaffoldKey.currentState?.openDrawer(),
-        ),
         title: const Text('Proveedores', style: TextStyle(fontWeight: FontWeight.w700)),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
+        actions: [const LogoutButton(), IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
         // ── Filtros ────────────────────────────────────────────────────────────

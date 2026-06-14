@@ -61,6 +61,8 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
                   const SizedBox(height: 12),
                   _detallesCard(fmt),
                   const SizedBox(height: 12),
+                  _descontadosCard(),
+                  const SizedBox(height: 12),
                   _totalesCard(fmt),
                   if (_tieneAcciones()) ...[
                     const SizedBox(height: 12),
@@ -198,6 +200,55 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       ]),
     ),
   );
+
+  Widget _descontadosCard() {
+    final conDescuento = _compra!.detalles
+        .where((d) => d.cantidadMerma > 0)
+        .toList();
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text('INSUMOS DESCONTADOS', style: kLabel),
+            const Spacer(),
+            if (conDescuento.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kError.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20)),
+                child: Text('${conDescuento.length}',
+                  style: const TextStyle(
+                    color: kError, fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          if (conDescuento.isEmpty)
+            const Text('No se han descontado insumos en esta compra.',
+              style: TextStyle(color: kTextMuted, fontSize: 13, fontStyle: FontStyle.italic))
+          else ...[
+            const Divider(),
+            ...conDescuento.map((d) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(children: [
+                const Icon(Icons.remove_circle_outline, size: 16, color: kError),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  d.nombreInsumo ?? 'ID #${d.insumosId}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kText))),
+                Text(
+                  '${d.cantidadMerma % 1 == 0 ? d.cantidadMerma.toInt() : d.cantidadMerma} descontados',
+                  style: const TextStyle(fontSize: 13, color: kError, fontWeight: FontWeight.w600)),
+              ]),
+            )),
+          ],
+        ]),
+      ),
+    );
+  }
 
   Widget _totalesCard(NumberFormat fmt) => Container(
     padding: const EdgeInsets.all(16),
