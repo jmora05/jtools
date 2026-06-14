@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
-const String kBaseUrl = 'http://localhost:5000/api';
+const String kBaseUrl = 'https://jtools-backend.onrender.com/api';
 
 // ─── Colores ─────────────────────────────────────────────────────────────────
 const Color kPrimary      = Color(0xFF1D4ED8); // blue-700

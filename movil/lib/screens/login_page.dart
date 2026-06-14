@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
@@ -16,9 +18,12 @@ class _LoginPageState extends State<LoginPage> {
   final _pass  = TextEditingController();
   bool _obscure = true;
   String? _error;
+  bool _showConnecting = false;
+  Timer? _connectingTimer;
 
   @override
   void dispose() {
+    _connectingTimer?.cancel();
     _email.dispose(); _pass.dispose();
     super.dispose();
   }
@@ -48,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [BoxShadow(
-                      color: kPrimary.withOpacity(0.35),
+                      color: kPrimary.withValues(alpha: 0.35),
                       blurRadius: 18, offset: const Offset(0, 6),
                     )],
                   ),
@@ -79,8 +84,8 @@ class _LoginPageState extends State<LoginPage> {
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: kError.withOpacity(0.08),
-                    border: Border.all(color: kError.withOpacity(0.3)),
+                    color: kError.withValues(alpha: 0.08),
+                    border: Border.all(color: kError.withValues(alpha: 0.3)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -161,6 +166,17 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
+              // ── Mensaje de servidor lento ──────────────────────────────────
+              if (_showConnecting && auth.loading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Text(
+                    'Conectando con el servidor...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: kTextMuted, fontSize: 12),
+                  ),
+                ),
+
               const SizedBox(height: 24),
 
               // ── Crear cuenta ───────────────────────────────────────────────
@@ -188,11 +204,18 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _iniciarSesion() async {
     if (!_key.currentState!.validate()) return;
-    setState(() => _error = null);
+    setState(() { _error = null; _showConnecting = false; });
+    _connectingTimer?.cancel();
+    _connectingTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _showConnecting = true);
+    });
     try {
       await context.read<AuthProvider>().login(_email.text.trim(), _pass.text);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
+    } finally {
+      _connectingTimer?.cancel();
+      if (mounted) setState(() => _showConnecting = false);
     }
   }
 }

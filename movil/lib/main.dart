@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import 'core/constants.dart';
 import 'core/auth_provider.dart';
-import 'core/logout_button.dart';
 import 'screens/login_page.dart';
 
 import 'empleados/empleado_provider.dart';
@@ -115,7 +114,64 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    if (auth.initializing) return const _AppLoadingScreen();
     return auth.isLoggedIn ? const MainShell() : const LoginPage();
+  }
+}
+
+// ─── Pantalla de carga inicial ────────────────────────────────────────────────
+class _AppLoadingScreen extends StatefulWidget {
+  const _AppLoadingScreen();
+  @override State<_AppLoadingScreen> createState() => _AppLoadingScreenState();
+}
+
+class _AppLoadingScreenState extends State<_AppLoadingScreen> {
+  bool _showSlowMessage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _showSlowMessage = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F2347),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 96, height: 96,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.build_circle_outlined,
+                color: Colors.white, size: 52),
+            ),
+            const SizedBox(height: 24),
+            const Text('JTools',
+              style: TextStyle(
+                fontSize: 32, fontWeight: FontWeight.w800,
+                color: Colors.white, letterSpacing: 0.5)),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+            const SizedBox(height: 20),
+            AnimatedOpacity(
+              opacity: _showSlowMessage ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              child: const Text(
+                'Conectando con el servidor...',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -6,16 +6,21 @@ class AuthProvider extends ChangeNotifier {
   String? _userName;
   String? _userRole;
   bool _loading = false;
+  bool _initializing = true;
 
   bool get isLoggedIn => _isLoggedIn;
   String? get userName => _userName;
   String? get userRole => _userRole;
   bool get loading => _loading;
+  bool get initializing => _initializing;
 
   // ─── Verificar token al iniciar ───────────────────────────────────────────
   Future<void> checkAuth() async {
+    _initializing = true;
+    notifyListeners();
     final token = await ApiService.getToken();
     _isLoggedIn = token != null && token.isNotEmpty;
+    _initializing = false;
     notifyListeners();
   }
 
