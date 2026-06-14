@@ -44,7 +44,7 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: p.activo ? kWarning : const Color(0xFF16A34A),
+              backgroundColor: p.activo ? kTextMuted : kPrimary,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
@@ -60,7 +60,7 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
           content: Text(
             '${p.nombreEmpresa} ${nuevoEstado == 'activo' ? 'activado' : 'desactivado'}'),
-          backgroundColor: nuevoEstado == 'activo' ? const Color(0xFF16A34A) : kWarning,
+          backgroundColor: nuevoEstado == 'activo' ? kPrimary : kTextMuted,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -217,7 +217,9 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
                     itemCount: lista.length,
                     itemBuilder: (ctx, i) {
                       final p = lista[i];
-                      return Padding(
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Card(
                           margin: EdgeInsets.zero,
@@ -259,9 +261,7 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
                               children: [
                                 SlidableAction(
                                   onPressed: (_) => _toggleEstado(ctx, p),
-                                  backgroundColor: p.activo
-                                    ? kWarning
-                                    : const Color(0xFF16A34A),
+                                  backgroundColor: p.activo ? kTextMuted : kPrimary,
                                   foregroundColor: Colors.white,
                                   icon: p.activo
                                     ? Icons.block_outlined
@@ -285,7 +285,8 @@ class _ProveedoresPageState extends State<ProveedoresPage> {
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                   ),
                 ),

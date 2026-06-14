@@ -373,23 +373,23 @@ class _CompraMermaPageState extends State<CompraMermaPage> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFDCFCE7),
+            color: kChipBg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF16A34A).withOpacity(0.4)),
+            border: Border.all(color: kPrimary.withOpacity(0.4)),
           ),
           child: Row(children: [
             const Icon(Icons.check_circle_outline,
-              color: Color(0xFF16A34A), size: 28),
+              color: kPrimary, size: 28),
             const SizedBox(width: 12),
             const Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Insumos descontados',
                   style: TextStyle(fontWeight: FontWeight.w700,
-                    color: Color(0xFF166534), fontSize: 15)),
+                    color: kPrimaryDark, fontSize: 15)),
                 SizedBox(height: 2),
                 Text('Los insumos defectuosos fueron descontados del inventario.',
-                  style: TextStyle(color: Color(0xFF166534), fontSize: 12)),
+                  style: TextStyle(color: kPrimaryDark, fontSize: 12)),
               ],
             )),
           ]),

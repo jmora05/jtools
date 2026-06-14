@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/scaffold_key.dart';
@@ -19,31 +20,99 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EmpleadoProvider>().cargar();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) =>
+      context.read<EmpleadoProvider>().cargar());
   }
 
-  Future<bool?> _confirmarEliminacion(BuildContext context, String nombre) {
-    return showDialog<bool>(
-      context: context,
+  Future<void> _toggleEstado(BuildContext ctx, Empleado e) async {
+    final desactivar = e.activo;
+    final ok = await showDialog<bool>(
+      context: ctx,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Eliminar empleado', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('¿Eliminar a "$nombre"? Esta acción no se puede deshacer.'),
+        title: Text(
+          desactivar ? 'Desactivar empleado' : 'Activar empleado',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Text(desactivar
+          ? '¿Desactivar a "${e.nombreCompleto}"? No podrá aparecer en nóminas nuevas.'
+          : '¿Activar a "${e.nombreCompleto}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: kError, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: desactivar ? kTextMuted : kPrimary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(desactivar ? 'Desactivar' : 'Activar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      if (desactivar) {
+        await ctx.read<EmpleadoProvider>().desactivar(e.id);
+      } else {
+        await ctx.read<EmpleadoProvider>().reactivar(e.id);
+      }
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${e.nombres} ${desactivar ? 'desactivado' : 'activado'}'),
+        backgroundColor: desactivar ? kTextMuted : kPrimary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (_) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Error al cambiar el estado'),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Future<void> _eliminar(BuildContext ctx, Empleado e) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar empleado',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Eliminar a "${e.nombreCompleto}"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
         ],
       ),
     );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await ctx.read<EmpleadoProvider>().eliminar(e.id);
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${e.nombreCompleto} eliminado'),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (_) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Error al eliminar'),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
@@ -62,26 +131,24 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
-        backgroundColor: kPrimaryDark,
-        foregroundColor: Colors.white,
+        backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => mainScaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text('Empleados', style: TextStyle(fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
-        // ── Buscador + filtro ──────────────────────────────────────────────
+        // ── Filtros ──────────────────────────────────────────────────────────
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(children: [
             TextField(
               onChanged: (v) => setState(() => _q = v),
-              decoration: kInputDeco('Buscar empleado...', prefix: const Icon(Icons.search, color: kTextMuted)),
+              decoration: kInputDeco('Buscar empleado...',
+                prefix: const Icon(Icons.search, color: kTextMuted)),
             ),
             const SizedBox(height: 8),
             SingleChildScrollView(
@@ -105,114 +172,112 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
           ]),
         ),
 
-        // ── Hint swipe ──────────────────────────────────────────────────────
+        // ── Hint swipe ────────────────────────────────────────────────────────
         Container(
           color: const Color(0xFFF0F4FF),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Row(children: [
-            const Icon(Icons.swipe, size: 14, color: kTextMuted),
-            const SizedBox(width: 6),
-            Text(
-              'Desliza → para activar/desactivar   |   ← para eliminar',
-              style: const TextStyle(fontSize: 11, color: kTextMuted),
-            ),
+          child: const Row(children: [
+            Icon(Icons.swipe, size: 14, color: kTextMuted),
+            SizedBox(width: 6),
+            Text('→ Ver / Editar  ·  ← Activar / Eliminar',
+              style: TextStyle(fontSize: 11, color: kTextMuted)),
           ]),
         ),
 
-        // ── Contenido ──────────────────────────────────────────────────────
+        // ── Lista ─────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
-            ? _errorView(prov)
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.error_outline, color: kError, size: 48),
+                const SizedBox(height: 12),
+                Text(prov.error!, textAlign: TextAlign.center,
+                  style: const TextStyle(color: kError)),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: prov.cargar, child: const Text('Reintentar')),
+              ]))
             : lista.isEmpty
-              ? _emptyView()
+              ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.people_outline, size: 64, color: kBorder),
+                  SizedBox(height: 12),
+                  Text('No hay empleados',
+                    style: TextStyle(color: kTextMuted, fontSize: 16)),
+                ]))
               : RefreshIndicator(
-                  color: kPrimary,
-                  onRefresh: prov.cargar,
+                  color: kPrimary, onRefresh: prov.cargar,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) {
+                    itemBuilder: (ctx, i) {
                       final e = lista[i];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Dismissible(
-                          key: ValueKey('emp_${e.id}'),
-                          direction: DismissDirection.horizontal,
-                          // Fondo al deslizar → (toggle activo/inactivo)
-                          background: _swipeBg(
-                            alignment: Alignment.centerLeft,
-                            color: e.activo ? Colors.orange.shade600 : Colors.green.shade600,
-                            icon: e.activo ? Icons.block : Icons.check_circle_outline,
-                            label: e.activo ? 'Desactivar' : 'Activar',
-                            padding: const EdgeInsets.only(left: 24),
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                            elevation: 1,
+                            clipBehavior: Clip.hardEdge,
+                            child: Slidable(
+                              key: ValueKey('emp_${e.id}'),
+                              // ── Swipe derecha: Ver + Editar ──────────────
+                              startActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => EmpleadoDetallePage(empleado: e))),
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.info_outline,
+                                    label: 'Ver detalle',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => EmpleadoFormPage(empleado: e))),
+                                    backgroundColor: kPrimaryLight,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.edit_outlined,
+                                    label: 'Editar',
+                                  ),
+                                ],
+                              ),
+                              // ── Swipe izquierda: Activar/Desactivar + Eliminar
+                              endActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => _toggleEstado(ctx, e),
+                                    backgroundColor: e.activo ? kTextMuted : kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: e.activo
+                                      ? Icons.block_outlined
+                                      : Icons.check_circle_outline,
+                                    label: e.activo ? 'Desactivar' : 'Activar',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => _eliminar(ctx, e),
+                                    backgroundColor: kError,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.delete_outline,
+                                    label: 'Eliminar',
+                                  ),
+                                ],
+                              ),
+                              child: _EmpleadoTile(
+                                e: e,
+                                onTap: () => Navigator.push(ctx,
+                                  MaterialPageRoute(
+                                    builder: (_) => EmpleadoDetallePage(empleado: e))),
+                              ),
+                            ),
                           ),
-                          // Fondo al deslizar ← (eliminar)
-                          secondaryBackground: _swipeBg(
-                            alignment: Alignment.centerRight,
-                            color: kError,
-                            icon: Icons.delete_outline,
-                            label: 'Eliminar',
-                            padding: const EdgeInsets.only(right: 24),
-                          ),
-                          confirmDismiss: (direction) async {
-                            if (direction == DismissDirection.startToEnd) {
-                              // Toggle — no eliminar de la lista
-                              try {
-                                if (e.activo) {
-                                  await prov.desactivar(e.id);
-                                } else {
-                                  await prov.reactivar(e.id);
-                                }
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(e.activo
-                                        ? '${e.nombres} desactivado'
-                                        : '${e.nombres} activado'),
-                                    backgroundColor: e.activo ? Colors.orange : Colors.green,
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 2),
-                                  ));
-                                }
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                    content: Text('Error al cambiar el estado'),
-                                    backgroundColor: kError,
-                                    behavior: SnackBarBehavior.floating,
-                                  ));
-                                }
-                              }
-                              return false; // No remover de la lista
-                            } else {
-                              // Confirmar eliminación
-                              return _confirmarEliminacion(context, e.nombreCompleto);
-                            }
-                          },
-                          onDismissed: (direction) async {
-                            if (direction == DismissDirection.endToStart) {
-                              try {
-                                await prov.eliminar(e.id);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text('${e.nombreCompleto} eliminado'),
-                                    backgroundColor: kError,
-                                    behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 2),
-                                  ));
-                                }
-                              } catch (_) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                    content: Text('Error al eliminar'),
-                                    backgroundColor: kError,
-                                    behavior: SnackBarBehavior.floating,
-                                  ));
-                                }
-                              }
-                            }
-                          },
-                          child: _EmpleadoCard(e: e),
                         ),
                       );
                     },
@@ -229,103 +294,53 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
       ),
     );
   }
-
-  Widget _swipeBg({
-    required Alignment alignment,
-    required Color color,
-    required IconData icon,
-    required String label,
-    required EdgeInsets padding,
-  }) {
-    return Container(
-      alignment: alignment,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: alignment == Alignment.centerLeft
-            ? [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-              ]
-            : [
-                Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(width: 8),
-                Icon(icon, color: Colors.white, size: 22),
-              ],
-      ),
-    );
-  }
-
-  Widget _errorView(EmpleadoProvider p) => Center(child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Icon(Icons.error_outline, color: kError, size: 48),
-      const SizedBox(height: 12),
-      Text(p.error!, textAlign: TextAlign.center, style: const TextStyle(color: kError)),
-      const SizedBox(height: 16),
-      ElevatedButton(onPressed: p.cargar, child: const Text('Reintentar')),
-    ],
-  ));
-
-  Widget _emptyView() => const Center(child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(Icons.people_outline, size: 64, color: kBorder),
-      SizedBox(height: 12),
-      Text('No hay empleados', style: TextStyle(color: kTextMuted, fontSize: 16)),
-    ],
-  ));
 }
 
-class _EmpleadoCard extends StatelessWidget {
+// ── Tile (sin Card propio; el Card envuelve el Slidable) ──────────────────────
+class _EmpleadoTile extends StatelessWidget {
   final Empleado e;
-  const _EmpleadoCard({required this.e});
+  final VoidCallback onTap;
+  const _EmpleadoTile({required this.e, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: e.activo ? kChipBg : Colors.grey.shade200,
-          child: Text(
-            e.nombres.isNotEmpty ? e.nombres[0].toUpperCase() : '?',
-            style: TextStyle(color: e.activo ? kPrimaryDark : Colors.grey, fontWeight: FontWeight.w700),
-          ),
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    tileColor: Colors.white,
+    leading: CircleAvatar(
+      backgroundColor: e.activo ? kChipBg : Colors.grey.shade200,
+      child: Text(
+        e.nombres.isNotEmpty ? e.nombres[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: e.activo ? kPrimaryDark : Colors.grey,
+          fontWeight: FontWeight.w700,
         ),
-        title: Text(e.nombreCompleto, style: const TextStyle(fontWeight: FontWeight.w600, color: kText)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const SizedBox(height: 2),
-          Text(e.cargo, style: const TextStyle(color: kTextMuted, fontSize: 13)),
-          const SizedBox(height: 4),
-          Row(children: [
-            _chip(e.activo ? 'Activo' : 'Inactivo', e.activo ? kPrimary : Colors.grey),
-            const SizedBox(width: 6),
-            _chip(e.area, kPrimaryLight),
-          ]),
-        ]),
-        trailing: const Icon(Icons.chevron_right, color: kTextMuted),
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => EmpleadoDetallePage(empleado: e))),
       ),
-    );
-  }
+    ),
+    title: Text(e.nombreCompleto,
+      style: const TextStyle(fontWeight: FontWeight.w600, color: kText)),
+    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 2),
+      Text(e.cargo, style: const TextStyle(color: kTextMuted, fontSize: 13)),
+      const SizedBox(height: 4),
+      Row(children: [
+        estadoChip(e.activo ? 'activo' : 'inactivo'),
+        const SizedBox(width: 6),
+        _areaChip(e.area),
+      ]),
+    ]),
+    trailing: const Icon(Icons.chevron_right, color: kTextMuted),
+    onTap: onTap,
+  );
 
-  Widget _chip(String label, Color color) => Container(
+  Widget _areaChip(String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: kPrimaryLight.withOpacity(0.1),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
+      border: Border.all(color: kPrimaryLight.withOpacity(0.4)),
     ),
-    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    child: Text(label,
+      style: const TextStyle(
+        color: kPrimaryLight, fontSize: 11, fontWeight: FontWeight.w600)),
   );
 }

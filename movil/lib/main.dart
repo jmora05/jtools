@@ -12,20 +12,13 @@ import 'empleados/empleados_page.dart';
 import 'proveedores/proveedor_provider.dart';
 import 'proveedores/proveedores_page.dart';
 
-import 'insumos/insumo_provider.dart';
-import 'insumos/insumos_page.dart';
+import 'insumos/insumo_provider.dart'; // Requerido por ComprasPage
 
 import 'compras/compra_provider.dart';
 import 'compras/compras_page.dart';
 
 import 'nomina/nomina_provider.dart';
 import 'nomina/nomina_page.dart';
-
-import 'clientes/cliente_provider.dart';
-import 'clientes/clientes_page.dart';
-
-import 'ventas/venta_provider.dart';
-import 'ventas/ventas_page.dart';
 
 void main() {
   runApp(
@@ -37,8 +30,6 @@ void main() {
         ChangeNotifierProvider(create: (_) => InsumoProvider()),
         ChangeNotifierProvider(create: (_) => CompraProvider()),
         ChangeNotifierProvider(create: (_) => NominaProvider()),
-        ChangeNotifierProvider(create: (_) => ClienteProvider()),
-        ChangeNotifierProvider(create: (_) => VentaProvider()),
       ],
       child: const JToolsApp(),
     ),
@@ -58,6 +49,12 @@ class JToolsApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
         scaffoldBackgroundColor: kBg,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS:     CupertinoPageTransitionsBuilder(),
+          },
+        ),
         appBarTheme: const AppBarTheme(
           backgroundColor: kPrimaryDark,
           foregroundColor: Colors.white,
@@ -100,7 +97,7 @@ class JToolsApp extends StatelessWidget {
   }
 }
 
-// ─── Auth gate: muestra login o app según token ───────────────────────────────
+// ─── Auth gate ────────────────────────────────────────────────────────────────
 class _AuthGate extends StatefulWidget {
   const _AuthGate();
   @override State<_AuthGate> createState() => _AuthGateState();
@@ -121,7 +118,7 @@ class _AuthGateState extends State<_AuthGate> {
   }
 }
 
-// ─── Shell principal con bottom nav ──────────────────────────────────────────
+// ─── Shell principal ──────────────────────────────────────────────────────────
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
   @override State<MainShell> createState() => _MainShellState();
@@ -133,24 +130,38 @@ class _MainShellState extends State<MainShell> {
   static const _pages = [
     EmpleadosPage(),
     ProveedoresPage(),
-    InsumosPage(),
     ComprasPage(),
     NominaPage(),
   ];
 
   static const _items = [
-    BottomNavigationBarItem(icon: Icon(Icons.people_outlined), activeIcon: Icon(Icons.people), label: 'Empleados'),
-    BottomNavigationBarItem(icon: Icon(Icons.business_outlined), activeIcon: Icon(Icons.business), label: 'Proveedores'),
-    BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2), label: 'Insumos'),
-    BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart), label: 'Compras'),
-    BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'Control de Pagos'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.people_outlined), activeIcon: Icon(Icons.people),
+      label: 'Empleados'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.business_outlined), activeIcon: Icon(Icons.business),
+      label: 'Proveedores'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart),
+      label: 'Compras'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long),
+      label: 'Control de Pagos'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: mainScaffoldKey,
-      body: IndexedStack(index: _idx, children: _pages),
+      // ── Fade entre pestañas ────────────────────────────────────────────────
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
+        ),
+        child: KeyedSubtree(key: ValueKey(_idx), child: _pages[_idx]),
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: kBorder, width: 1)),
@@ -168,7 +179,6 @@ class _MainShellState extends State<MainShell> {
           items: _items,
         ),
       ),
-      // Botón de cerrar sesión en drawer
       drawer: _drawer(context),
     );
   }
@@ -176,99 +186,85 @@ class _MainShellState extends State<MainShell> {
   Widget _drawer(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     return Drawer(
-      child: Column(children: [
-        DrawerHeader(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const CircleAvatar(
-              radius: 28, backgroundColor: Colors.white24,
-              child: Icon(Icons.person, color: Colors.white, size: 32),
-            ),
-            const SizedBox(height: 12),
-            Text(auth.userName ?? 'Usuario',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
-            if (auth.userRole?.isNotEmpty ?? false)
-              Text(auth.userRole!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          ]),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Text('MÓDULOS ADICIONALES',
-            style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700,
-              color: Colors.grey.shade500, letterSpacing: 0.8)),
-        ),
-        ListTile(
-          leading: const Icon(Icons.people_outline, color: kPrimary),
-          title: const Text('Clientes'),
-          onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const ClientesPage()));
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.receipt_outlined, color: kPrimary),
-          title: const Text('Pedidos / Ventas'),
-          onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const VentasPage()));
-          },
-        ),
-        const Spacer(),
-        const Divider(height: 1),
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          leading: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFF64748B).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.logout, color: Color(0xFF64748B), size: 20),
-          ),
-          title: const Text('Cerrar sesión',
-            style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 15)),
-          onTap: () async {
-            final ok = await showDialog<bool>(
-              context: context,
-              builder: (_) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text('Cerrar sesión',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-                content: const Text('¿Seguro que deseas cerrar tu sesión?',
-                  style: TextStyle(fontSize: 14)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancelar',
-                      style: TextStyle(color: Color(0xFF64748B))),
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimary, foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Cerrar sesión'),
-                  ),
-                ],
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: Column(children: [
+          // ── Header minimalista ─────────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+            color: kPrimaryDark,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_outline, color: Colors.white, size: 28),
               ),
-            );
-            if (ok != true || !context.mounted) return;
-            Navigator.pop(context);
-            await context.read<AuthProvider>().logout();
-          },
-        ),
-        const SizedBox(height: 12),
-      ]),
+              const SizedBox(height: 16),
+              Text(
+                auth.userName ?? 'Usuario',
+                style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+              ),
+              if (auth.userRole?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 3),
+                Text(auth.userRole!,
+                  style: const TextStyle(color: Colors.white60, fontSize: 13)),
+              ],
+            ]),
+          ),
+          const Spacer(),
+          const Divider(height: 1),
+          // ── Cerrar sesión ──────────────────────────────────────────────────
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            leading: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: kTextMuted.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.logout, color: kTextMuted, size: 20),
+            ),
+            title: const Text('Cerrar sesión',
+              style: TextStyle(color: kTextMuted, fontWeight: FontWeight.w600, fontSize: 15)),
+            onTap: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Text('Cerrar sesión',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+                  content: const Text('¿Seguro que deseas cerrar tu sesión?',
+                    style: TextStyle(fontSize: 14)),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancelar',
+                        style: TextStyle(color: kTextMuted)),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimary, foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Cerrar sesión'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true || !context.mounted) return;
+              Navigator.pop(context);
+              await context.read<AuthProvider>().logout();
+            },
+          ),
+          const SizedBox(height: 12),
+        ]),
+      ),
     );
   }
 }

@@ -52,7 +52,7 @@ class _ComprasPageState extends State<ComprasPage> {
             child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+              backgroundColor: kPrimary, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Completar'),
           ),
@@ -64,7 +64,7 @@ class _ComprasPageState extends State<ComprasPage> {
       await ctx.read<CompraProvider>().cambiarEstado(c.id, 'completada');
       if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('Compra #${c.id} completada. Stock actualizado.'),
-        backgroundColor: const Color(0xFF0F766E),
+        backgroundColor: kPrimary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
@@ -92,7 +92,7 @@ class _ComprasPageState extends State<ComprasPage> {
             child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kError, foregroundColor: Colors.white),
+              backgroundColor: kTextMuted, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Anular'),
           ),
@@ -104,7 +104,7 @@ class _ComprasPageState extends State<ComprasPage> {
       await ctx.read<CompraProvider>().anular(c.id);
       if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('Compra #${c.id} anulada'),
-        backgroundColor: kError, behavior: SnackBarBehavior.floating,
+        backgroundColor: kTextMuted, behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
     } catch (e) {
@@ -226,6 +226,7 @@ class _ComprasPageState extends State<ComprasPage> {
 
                       // Acciones swipe derecha: Ver + Completar (si pendiente)
                       final rightActions = <Widget>[
+
                         SlidableAction(
                           onPressed: (_) => Navigator.push(ctx,
                             MaterialPageRoute(
@@ -238,7 +239,7 @@ class _ComprasPageState extends State<ComprasPage> {
                         if (isPendiente)
                           SlidableAction(
                             onPressed: (_) => _completar(ctx, c),
-                            backgroundColor: const Color(0xFF0F766E),
+                            backgroundColor: kPrimary,
                             foregroundColor: Colors.white,
                             icon: Icons.check_circle_outline,
                             label: 'Completar',
@@ -260,14 +261,16 @@ class _ComprasPageState extends State<ComprasPage> {
                         if (canAnular)
                           SlidableAction(
                             onPressed: (_) => _anular(ctx, c),
-                            backgroundColor: kError,
+                            backgroundColor: kTextMuted,
                             foregroundColor: Colors.white,
                             icon: Icons.cancel_outlined,
                             label: 'Anular',
                           ),
                       ];
 
-                      return Padding(
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Card(
                           margin: EdgeInsets.zero,
@@ -295,7 +298,8 @@ class _ComprasPageState extends State<ComprasPage> {
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                   ),
                 ),

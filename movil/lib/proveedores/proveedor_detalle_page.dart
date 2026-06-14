@@ -72,7 +72,7 @@ class ProveedorDetallePage extends StatelessWidget {
                   child: Text(
                     proveedor.activo ? 'Desactivar' : 'Activar',
                     style: TextStyle(
-                      color: proveedor.activo ? kWarning : const Color(0xFF16A34A)),
+                      color: proveedor.activo ? kTextMuted : kPrimary),
                   ),
                 ),
                 const PopupMenuItem(
@@ -125,7 +125,7 @@ class ProveedorDetallePage extends StatelessWidget {
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: proveedor.activo ? kWarning : const Color(0xFF16A34A),
+                backgroundColor: proveedor.activo ? kTextMuted : kPrimary,
                 foregroundColor: Colors.white,
               ),
               onPressed: () => Navigator.pop(ctx, true),
@@ -141,8 +141,7 @@ class ProveedorDetallePage extends StatelessWidget {
           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
             content: Text('${proveedor.nombreEmpresa} '
               '${nuevoEstado == 'activo' ? 'activado' : 'desactivado'}'),
-            backgroundColor: nuevoEstado == 'activo'
-              ? const Color(0xFF16A34A) : kWarning,
+            backgroundColor: nuevoEstado == 'activo' ? kPrimary : kTextMuted,
             behavior: SnackBarBehavior.floating,
           ));
           Navigator.pop(ctx);
