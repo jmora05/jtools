@@ -6,6 +6,7 @@ const {
   validarActualizarOrden,
   validarAnularOrden,
 } = require('../validators/ordenesProduccionValidator');
+const { checkPedidoCompletion } = require('../services/pedidoCompletionService');
 
 // ── Generador de código único tipo OP-2025-001 ───────────────────────────────
 const generarCodigoOrden = async () => {
@@ -321,6 +322,15 @@ const updateOrdenProduccion = async (req, res) => {
     await orden.update(updates, { transaction });
 
     await transaction.commit();
+
+    // Si la orden pasó a Finalizada y está vinculada a un pedido,
+    // verificar si todos los productos del pedido ya tienen órdenes finalizadas.
+    // Se ejecuta de forma asíncrona para no bloquear la respuesta.
+    if (updates.estado === 'Finalizada' && orden.ventaId) {
+      checkPedidoCompletion(orden.ventaId, req.usuario?.id).catch(err => {
+        console.error('[PedidoCompletion] Error en verificación automática:', err.message);
+      });
+    }
 
     const ordenActualizada = await OrdenesProduccion.findByPk(id, { include: includeRelaciones });
     res.status(200).json({ message: 'Orden de producción actualizada correctamente', orden: ordenActualizada });

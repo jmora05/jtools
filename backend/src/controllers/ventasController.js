@@ -1,5 +1,6 @@
 const { Ventas, Clientes, DetalleVentas, Productos, OrdenesProduccion } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db.js');
+const { checkPedidoCompletion } = require('../services/pedidoCompletionService');
 
 // Resuelve el registro Clientes del usuario autenticado; null si no existe
 const _resolveCliente = async (req) => {
@@ -248,6 +249,55 @@ const cambiarEstadoVenta = async (req, res) => {
     }
 };
 
+// PATCH /:id/completar — Forzar revisión manual de completitud (solo admin)
+const completarPedido = async (req, res) => {
+    if (req.usuario?.userType === 'client') {
+        return res.status(403).json({ message: 'Acceso denegado: se requiere perfil administrador' });
+    }
+    try {
+        const { id } = req.params;
+        const venta = await Ventas.findByPk(id);
+        if (!venta) return res.status(404).json({ message: 'Venta no encontrada' });
+        if (venta.tipoVenta !== 'pedido') {
+            return res.status(400).json({ message: 'Solo se puede completar un pedido (tipoVenta = pedido)' });
+        }
+        if (venta.estado === 'completada') {
+            return res.status(400).json({ message: 'Este pedido ya está completado' });
+        }
+        if (venta.estado === 'anulada') {
+            return res.status(400).json({ message: 'No se puede completar un pedido anulado' });
+        }
+
+        // Verificar que todas las órdenes estén finalizadas
+        const ordenes = await OrdenesProduccion.findAll({ where: { ventaId: id } });
+        if (ordenes.length === 0) {
+            return res.status(400).json({ message: 'Este pedido no tiene órdenes de producción asociadas' });
+        }
+        const hayPendientes = ordenes.some(o => o.estado !== 'Finalizada' && o.estado !== 'Anulada');
+        if (hayPendientes) {
+            return res.status(400).json({
+                message: 'No se puede completar: hay órdenes de producción aún pendientes o en proceso',
+            });
+        }
+        const hayAnuladas = ordenes.some(o => o.estado === 'Anulada');
+        if (hayAnuladas && ordenes.every(o => o.estado === 'Anulada')) {
+            return res.status(400).json({ message: 'Todas las órdenes de producción están anuladas' });
+        }
+
+        // Delegar a checkPedidoCompletion para garantizar lógica centralizada
+        await checkPedidoCompletion(Number(id), req.usuario?.id);
+
+        const ventaActualizada = await Ventas.findByPk(id);
+        if (ventaActualizada.estado !== 'completada') {
+            return res.status(400).json({ message: 'No se pudo completar el pedido: verifica que todas las órdenes estén finalizadas' });
+        }
+
+        res.status(200).json({ message: `Pedido #${id} marcado como completado`, venta: ventaActualizada });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al completar el pedido', error: error.message });
+    }
+};
+
 module.exports = {
     getVentas,
     getVentaById,
@@ -256,4 +306,5 @@ module.exports = {
     deleteVenta,
     anularVenta,
     cambiarEstadoVenta,
+    completarPedido,
 };
