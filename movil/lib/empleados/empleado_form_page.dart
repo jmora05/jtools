@@ -18,44 +18,67 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
   late final TextEditingController _nombres, _apellidos, _tipoDoc,
       _numDoc, _telefono, _email, _cargo, _area,
       _direccion, _ciudad, _fechaIngreso, _salario;
+
+  // Contraseña (opcional)
+  late final TextEditingController _password, _confirmPassword;
+  bool _obscurePass = true;
+  bool _obscureConf = true;
+  bool _pwLen = false, _pwUpper = false, _pwNum = false, _pwSpecial = false;
+
   String _tipoDocValue = 'CC';
-  String _areaValue = 'Administración';
-  String _estadoValue = 'activo';
+  String _areaValue    = 'Administración';
+  String _estadoValue  = 'activo';
 
   final List<String> _tiposDocs = ['CC', 'CE', 'PPT'];
-  final List<String> _areas = ['Producción', 'Administración'];
+  final List<String> _areas     = ['Producción', 'Administración'];
 
   bool get _isEdit => widget.empleado != null;
+
+  static final _pwRegex = RegExp(r'[!@#\$%\^&\*\(\),\.\?":{}|<>]');
 
   @override
   void initState() {
     super.initState();
     final e = widget.empleado;
-    _nombres = TextEditingController(text: e?.nombres ?? '');
-    _apellidos = TextEditingController(text: e?.apellidos ?? '');
-    _tipoDoc = TextEditingController(text: e?.tipoDocumento ?? 'CC');
-    _numDoc = TextEditingController(text: e?.numeroDocumento ?? '');
-    _telefono = TextEditingController(text: e?.telefono ?? '');
-    _email = TextEditingController(text: e?.email ?? '');
-    _cargo = TextEditingController(text: e?.cargo ?? '');
-    _area = TextEditingController(text: e?.area ?? '');
-    _direccion = TextEditingController(text: e?.direccion ?? '');
-    _ciudad = TextEditingController(text: e?.ciudad ?? '');
+    _nombres      = TextEditingController(text: e?.nombres ?? '');
+    _apellidos    = TextEditingController(text: e?.apellidos ?? '');
+    _tipoDoc      = TextEditingController(text: e?.tipoDocumento ?? 'CC');
+    _numDoc       = TextEditingController(text: e?.numeroDocumento ?? '');
+    _telefono     = TextEditingController(text: e?.telefono ?? '');
+    _email        = TextEditingController(text: e?.email ?? '');
+    _cargo        = TextEditingController(text: e?.cargo ?? '');
+    _area         = TextEditingController(text: e?.area ?? '');
+    _direccion    = TextEditingController(text: e?.direccion ?? '');
+    _ciudad       = TextEditingController(text: e?.ciudad ?? '');
     _fechaIngreso = TextEditingController(
         text: e?.fechaIngreso ?? DateTime.now().toIso8601String().split('T')[0]);
-    _salario = TextEditingController(text: e?.salario.toStringAsFixed(0) ?? '');
+    _salario      = TextEditingController(text: e?.salario.toStringAsFixed(0) ?? '');
+    _password     = TextEditingController();
+    _confirmPassword = TextEditingController();
     _tipoDocValue = e?.tipoDocumento ?? 'CC';
-    _areaValue = e?.area ?? 'Administración';
-    _estadoValue = e?.estado ?? 'activo';
+    _areaValue    = e?.area ?? 'Administración';
+    _estadoValue  = e?.estado ?? 'activo';
+    _password.addListener(_checkPassword);
   }
 
   @override
   void dispose() {
     for (final c in [_nombres, _apellidos, _tipoDoc, _numDoc, _telefono,
-        _email, _cargo, _area, _direccion, _ciudad, _fechaIngreso, _salario]) {
+        _email, _cargo, _area, _direccion, _ciudad, _fechaIngreso, _salario,
+        _password, _confirmPassword]) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  void _checkPassword() {
+    final p = _password.text;
+    setState(() {
+      _pwLen     = p.length >= 8;
+      _pwUpper   = RegExp(r'[A-Z]').hasMatch(p);
+      _pwNum     = RegExp(r'\d').hasMatch(p);
+      _pwSpecial = _pwRegex.hasMatch(p);
+    });
   }
 
   @override
@@ -94,7 +117,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                 keyboard: TextInputType.emailAddress,
                 validator: (v) {
                   if (v?.isEmpty ?? true) return 'Requerido';
-                  if (!v!.contains('@')) return 'Email inválido';
+                  if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v!)) return 'Email inválido';
                   return null;
                 }),
               _textField(_telefono, 'Teléfono',
@@ -116,19 +139,62 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (v) {
                   if (v?.isEmpty ?? true) return 'Requerido';
-                  if (double.tryParse(v!) == null) return 'Número inválido';
+                  final n = double.tryParse(v!);
+                  if (n == null || n <= 0) return 'Debe ser mayor a 0';
                   return null;
                 }),
               if (_isEdit) _estadoField(),
             ]),
+            _seccion('Cuenta de acceso (opcional)', [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _isEdit
+                    ? 'Ingresa una nueva contraseña para actualizar el acceso al sistema de este empleado.'
+                    : 'Si deseas que este empleado pueda iniciar sesión, asígnale una contraseña.',
+                  style: const TextStyle(color: kTextMuted, fontSize: 13, height: 1.4)),
+              ),
+              _passwordField(_password, 'Contraseña', _obscurePass,
+                () => setState(() => _obscurePass = !_obscurePass),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return null; // opcional
+                  if (!_pwLen)     return 'Mínimo 8 caracteres';
+                  if (!_pwUpper)   return 'Al menos 1 mayúscula';
+                  if (!_pwNum)     return 'Al menos 1 número';
+                  if (!_pwSpecial) return 'Al menos 1 carácter especial';
+                  return null;
+                }),
+              if (_password.text.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: kChipBg, borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kBorder)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    _reqRow(_pwLen,     'Mínimo 8 caracteres'),
+                    _reqRow(_pwUpper,   'Al menos 1 mayúscula'),
+                    _reqRow(_pwNum,     'Al menos 1 número'),
+                    _reqRow(_pwSpecial, 'Al menos 1 carácter especial'),
+                  ]),
+                ),
+              ],
+              _passwordField(_confirmPassword, 'Confirmar contraseña', _obscureConf,
+                () => setState(() => _obscureConf = !_obscureConf),
+                validator: (v) {
+                  if (_password.text.isEmpty) return null;
+                  if (v == null || v.isEmpty) return 'Confirma la contraseña';
+                  if (v != _password.text) return 'Las contraseñas no coinciden';
+                  return null;
+                }),
+            ]),
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity,
-              height: 50,
+              width: double.infinity, height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kPrimary,
-                  foregroundColor: Colors.white,
+                  backgroundColor: kPrimary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: _saving ? null : _guardar,
@@ -146,6 +212,16 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     );
   }
 
+  Widget _reqRow(bool ok, String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 3),
+    child: Row(children: [
+      Icon(ok ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+        size: 15, color: ok ? kPrimary : kTextMuted),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 12, color: ok ? kPrimaryDark : kTextMuted)),
+    ]),
+  );
+
   Widget _seccion(String titulo, List<Widget> children) => Card(
     margin: const EdgeInsets.only(bottom: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -161,8 +237,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
 
   Widget _row(List<Widget> children) => Row(
     children: children.map((c) => Expanded(child: Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: c,
+      padding: const EdgeInsets.only(right: 8), child: c,
     ))).toList()
       ..last = Expanded(child: children.last),
   );
@@ -182,6 +257,30 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     ),
   );
 
+  Widget _passwordField(
+    TextEditingController c,
+    String label,
+    bool obscure,
+    VoidCallback toggleObscure, {
+    String? Function(String?)? validator,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: c,
+      obscureText: obscure,
+      validator: validator,
+      decoration: kInputDeco(label,
+        prefix: const Icon(Icons.lock_outline, color: kTextMuted))
+        .copyWith(
+        suffixIcon: IconButton(
+          icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: kTextMuted),
+          onPressed: toggleObscure,
+        ),
+      ),
+    ),
+  );
+
   Widget _dropField(String label, String value, List<String> items, void Function(String?) onChanged) =>
     Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -198,7 +297,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     child: TextFormField(
       controller: _fechaIngreso,
       readOnly: true,
-      decoration: kInputDeco('Fecha de ingreso', prefix: const Icon(Icons.calendar_today, color: kTextMuted)),
+      decoration: kInputDeco('Fecha de ingreso',
+        prefix: const Icon(Icons.calendar_today, color: kTextMuted)),
       validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null,
       onTap: () async {
         final fecha = await showDatePicker(
@@ -231,20 +331,24 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     setState(() => _saving = true);
     final prov = context.read<EmpleadoProvider>();
     try {
-      final body = {
-        'nombres': _nombres.text.trim(),
-        'apellidos': _apellidos.text.trim(),
-        'tipoDocumento': _tipoDocValue,
-        'numeroDocumento': _numDoc.text.trim(),
-        'telefono': _telefono.text.trim(),
-        'email': _email.text.trim(),
-        'cargo': _cargo.text.trim(),
-        'area': _areaValue,
-        'direccion': _direccion.text.trim(),
-        'ciudad': _ciudad.text.trim(),
-        'fechaIngreso': _fechaIngreso.text,
-        'salario': double.parse(_salario.text),
-        'estado': _estadoValue,
+      final body = <String, dynamic>{
+        'nombres':          _nombres.text.trim(),
+        'apellidos':        _apellidos.text.trim(),
+        'tipoDocumento':    _tipoDocValue,
+        'numeroDocumento':  _numDoc.text.trim(),
+        'telefono':         _telefono.text.trim(),
+        'email':            _email.text.trim(),
+        'cargo':            _cargo.text.trim(),
+        'area':             _areaValue,
+        'direccion':        _direccion.text.trim(),
+        'ciudad':           _ciudad.text.trim(),
+        'fechaIngreso':     _fechaIngreso.text,
+        'salario':          double.parse(_salario.text),
+        'estado':           _estadoValue,
+        if (_password.text.isNotEmpty) ...{
+          'password':        _password.text,
+          'confirmPassword': _confirmPassword.text,
+        },
       };
       if (_isEdit) {
         await prov.actualizar(widget.empleado!.id, body);
@@ -254,14 +358,15 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isEdit ? 'Empleado actualizado' : 'Empleado registrado'),
-          backgroundColor: kPrimary,
+          backgroundColor: kPrimary, behavior: SnackBarBehavior.floating,
         ));
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: kError));
+          SnackBar(content: Text(e.toString()), backgroundColor: kError,
+            behavior: SnackBarBehavior.floating));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

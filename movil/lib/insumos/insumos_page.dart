@@ -45,8 +45,7 @@ class _InsumosPageState extends State<InsumosPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: nuevoEstado == 'disponible'
-                ? const Color(0xFF16A34A) : kWarning,
+              backgroundColor: nuevoEstado == 'disponible' ? kPrimary : kTextMuted,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
@@ -61,8 +60,7 @@ class _InsumosPageState extends State<InsumosPage> {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
           content: Text('"${insumo.nombreInsumo}" marcado como $nuevoEstado'),
-          backgroundColor: nuevoEstado == 'disponible'
-            ? const Color(0xFF16A34A) : kWarning,
+          backgroundColor: nuevoEstado == 'disponible' ? kPrimary : kTextMuted,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -90,13 +88,13 @@ class _InsumosPageState extends State<InsumosPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF9C3),
+              color: kChipBg,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFF59E0B)),
+              border: Border.all(color: kBorder),
             ),
             child: const Text(
               'El insumo quedará marcado como "Agotado" y no podrá usarse en nuevas compras.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+              style: TextStyle(fontSize: 12, color: kTextMuted),
             ),
           ),
         ]),
@@ -120,7 +118,7 @@ class _InsumosPageState extends State<InsumosPage> {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
           content: Text('"${insumo.nombreInsumo}" desactivado'),
-          backgroundColor: kWarning,
+          backgroundColor: kTextMuted,
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -203,13 +201,11 @@ class _InsumosPageState extends State<InsumosPage> {
         Container(
           color: const Color(0xFFF0F4FF),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Row(children: [
-            const Icon(Icons.swipe, size: 14, color: kTextMuted),
-            const SizedBox(width: 6),
-            const Text(
-              '→ Ver / Editar  ·  ← Cambiar estado / Desactivar',
-              style: TextStyle(fontSize: 11, color: kTextMuted),
-            ),
+          child: const Row(children: [
+            Icon(Icons.swipe, size: 14, color: kTextMuted),
+            SizedBox(width: 6),
+            Text('→ Ver / Editar  ·  ← Cambiar estado / Desactivar',
+              style: TextStyle(fontSize: 11, color: kTextMuted)),
           ]),
         ),
 
@@ -238,71 +234,73 @@ class _InsumosPageState extends State<InsumosPage> {
                     itemCount: lista.length,
                     itemBuilder: (ctx, i) {
                       final ins = lista[i];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Card(
-                          margin: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                          elevation: 1,
-                          clipBehavior: Clip.hardEdge,
-                          child: Slidable(
-                            key: ValueKey('ins_${ins.id}'),
-                            // ── Swipe derecha: Ver + Editar ─────────────────
-                            startActionPane: ActionPane(
-                              motion: const DrawerMotion(),
-                              extentRatio: 0.5,
-                              children: [
-                                SlidableAction(
-                                  onPressed: (_) => Navigator.push(ctx,
-                                    MaterialPageRoute(
-                                      builder: (_) => InsumoDetallePage(insumo: ins))),
-                                  backgroundColor: kPrimary,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.info_outline,
-                                  label: 'Ver detalle',
-                                ),
-                                SlidableAction(
-                                  onPressed: (_) => Navigator.push(ctx,
-                                    MaterialPageRoute(
-                                      builder: (_) => InsumoFormPage(insumo: ins))),
-                                  backgroundColor: kPrimaryLight,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.edit_outlined,
-                                  label: 'Editar',
-                                ),
-                              ],
-                            ),
-                            // ── Swipe izquierda: Cambiar estado + Desactivar ─
-                            endActionPane: ActionPane(
-                              motion: const DrawerMotion(),
-                              extentRatio: 0.5,
-                              children: [
-                                SlidableAction(
-                                  onPressed: (_) => _toggleEstado(ctx, ins),
-                                  backgroundColor: ins.disponible
-                                    ? kWarning : const Color(0xFF16A34A),
-                                  foregroundColor: Colors.white,
-                                  icon: ins.disponible
-                                    ? Icons.inventory_2_outlined
-                                    : Icons.check_circle_outline,
-                                  label: ins.disponible ? 'Agotar' : 'Disponible',
-                                ),
-                                SlidableAction(
-                                  onPressed: (_) => _eliminar(ctx, ins),
-                                  backgroundColor: kError,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.delete_outline,
-                                  label: 'Desactivar',
-                                ),
-                              ],
-                            ),
-                            child: _InsumoTile(
-                              insumo: ins,
-                              fmt: fmt,
-                              onTap: () => Navigator.push(ctx,
-                                MaterialPageRoute(
-                                  builder: (_) => InsumoDetallePage(insumo: ins))),
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                            elevation: 1,
+                            clipBehavior: Clip.hardEdge,
+                            child: Slidable(
+                              key: ValueKey('ins_${ins.id}'),
+                              // ── Swipe derecha: Ver + Editar ─────────────────
+                              startActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => InsumoDetallePage(insumo: ins))),
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.info_outline,
+                                    label: 'Ver detalle',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => InsumoFormPage(insumo: ins))),
+                                    backgroundColor: kPrimaryLight,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.edit_outlined,
+                                    label: 'Editar',
+                                  ),
+                                ],
+                              ),
+                              // ── Swipe izquierda: Cambiar estado + Desactivar
+                              endActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => _toggleEstado(ctx, ins),
+                                    backgroundColor: ins.disponible ? kTextMuted : kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: ins.disponible
+                                      ? Icons.inventory_2_outlined
+                                      : Icons.check_circle_outline,
+                                    label: ins.disponible ? 'Agotar' : 'Disponible',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => _eliminar(ctx, ins),
+                                    backgroundColor: kError,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.delete_outline,
+                                    label: 'Desactivar',
+                                  ),
+                                ],
+                              ),
+                              child: _InsumoTile(
+                                insumo: ins,
+                                fmt: fmt,
+                                onTap: () => Navigator.push(ctx,
+                                  MaterialPageRoute(
+                                    builder: (_) => InsumoDetallePage(insumo: ins))),
+                              ),
                             ),
                           ),
                         ),
@@ -338,10 +336,10 @@ class _InsumoTile extends StatelessWidget {
       stockColor = kError;
       stockLabel = 'Agotado';
     } else if (insumo.stockBajo) {
-      stockColor = kWarning;
+      stockColor = kTextMuted;
       stockLabel = 'Stock bajo';
     } else {
-      stockColor = const Color(0xFF16A34A);
+      stockColor = kPrimary;
       stockLabel = 'Disponible';
     }
 

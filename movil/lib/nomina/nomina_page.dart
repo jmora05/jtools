@@ -7,7 +7,6 @@ import '../core/scaffold_key.dart';
 import 'nomina_provider.dart';
 import 'nomina_model.dart';
 import 'nomina_detalle_page.dart';
-import 'nomina_form_page.dart';
 
 class NominaPage extends StatefulWidget {
   const NominaPage({super.key});
@@ -23,81 +22,6 @@ class _NominaPageState extends State<NominaPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) =>
       context.read<NominaProvider>().cargar());
-  }
-
-  Future<void> _marcarPagado(BuildContext ctx, Nomina n) async {
-    final ok = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Marcar como pagado',
-          style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text(
-          '¿Confirmar el pago de ${n.nombreEmpleado ?? 'empleado #${n.empleadoId}'}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimary, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !ctx.mounted) return;
-    try {
-      await ctx.read<NominaProvider>().marcarPagada(n.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text('Pago #${n.id} marcado como pagado'),
-        backgroundColor: kPrimary, behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ));
-    } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text(e.toString()), backgroundColor: kError,
-        behavior: SnackBarBehavior.floating));
-    }
-  }
-
-  Future<void> _eliminar(BuildContext ctx, Nomina n) async {
-    final ok = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Eliminar registro',
-          style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text(
-          '¿Eliminar el registro #${n.id} de ${n.nombreEmpleado ?? 'empleado #${n.empleadoId}'}? '
-          'Esta acción no se puede deshacer.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kError, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !ctx.mounted) return;
-    try {
-      await ctx.read<NominaProvider>().eliminar(n.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text('Registro #${n.id} eliminado'),
-        backgroundColor: kError, behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ));
-    } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text(e.toString()), backgroundColor: kError,
-        behavior: SnackBarBehavior.floating));
-    }
   }
 
   @override
@@ -163,7 +87,7 @@ class _NominaPageState extends State<NominaPage> {
           child: const Row(children: [
             Icon(Icons.swipe, size: 14, color: kTextMuted),
             SizedBox(width: 6),
-            Text('→ Ver detalle  ·  Pendiente ← Marcar pagado / Eliminar',
+            Text('→ Desliza para ver detalle',
               style: TextStyle(fontSize: 11, color: kTextMuted)),
           ]),
         ),
@@ -193,7 +117,6 @@ class _NominaPageState extends State<NominaPage> {
                     itemCount: lista.length,
                     itemBuilder: (ctx, i) {
                       final n = lista[i];
-                      final isPendiente = !n.pagado;
                       return AnimatedListItem(
                         index: i,
                         child: Padding(
@@ -206,7 +129,6 @@ class _NominaPageState extends State<NominaPage> {
                             clipBehavior: Clip.hardEdge,
                             child: Slidable(
                               key: ValueKey('nomina_${n.id}'),
-                              // ── Swipe derecha: Ver detalle ───────────────
                               startActionPane: ActionPane(
                                 motion: const DrawerMotion(),
                                 extentRatio: 0.25,
@@ -219,28 +141,6 @@ class _NominaPageState extends State<NominaPage> {
                                     foregroundColor: Colors.white,
                                     icon: Icons.info_outline,
                                     label: 'Ver detalle',
-                                  ),
-                                ],
-                              ),
-                              // ── Swipe izquierda: Marcar pagado + Eliminar
-                              endActionPane: ActionPane(
-                                motion: const DrawerMotion(),
-                                extentRatio: isPendiente ? 0.5 : 0.25,
-                                children: [
-                                  if (isPendiente)
-                                    SlidableAction(
-                                      onPressed: (_) => _marcarPagado(ctx, n),
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      icon: Icons.check_circle_outline,
-                                      label: 'Marcar pagado',
-                                    ),
-                                  SlidableAction(
-                                    onPressed: (_) => _eliminar(ctx, n),
-                                    backgroundColor: kError,
-                                    foregroundColor: Colors.white,
-                                    icon: Icons.delete_outline,
-                                    label: 'Eliminar',
                                   ),
                                 ],
                               ),
@@ -259,18 +159,11 @@ class _NominaPageState extends State<NominaPage> {
                 ),
         ),
       ]),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kPrimary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nuevo pago', style: TextStyle(color: Colors.white)),
-        onPressed: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const NominaFormPage())),
-      ),
     );
   }
 }
 
-// ── Tile de nómina (sin Card propio; el Card envuelve el Slidable) ────────────
+// ── Tile de nómina ─────────────────────────────────────────────────────────────
 class _NominaTile extends StatelessWidget {
   final Nomina n;
   final NumberFormat fmt;

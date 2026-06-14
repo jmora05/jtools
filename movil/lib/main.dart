@@ -12,7 +12,8 @@ import 'empleados/empleados_page.dart';
 import 'proveedores/proveedor_provider.dart';
 import 'proveedores/proveedores_page.dart';
 
-import 'insumos/insumo_provider.dart'; // Requerido por ComprasPage
+import 'insumos/insumo_provider.dart';
+import 'insumos/insumos_page.dart';
 
 import 'compras/compra_provider.dart';
 import 'compras/compras_page.dart';
@@ -131,6 +132,7 @@ class _MainShellState extends State<MainShell> {
     EmpleadosPage(),
     ProveedoresPage(),
     ComprasPage(),
+    InsumosPage(),
     NominaPage(),
   ];
 
@@ -144,6 +146,9 @@ class _MainShellState extends State<MainShell> {
     BottomNavigationBarItem(
       icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart),
       label: 'Compras'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2),
+      label: 'Insumos'),
     BottomNavigationBarItem(
       icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long),
       label: 'Control de Pagos'),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/constants.dart';
@@ -11,23 +12,95 @@ class RecuperarPage extends StatefulWidget {
 class _RecuperarPageState extends State<RecuperarPage> {
   int _step = 0; // 0=email, 1=código, 2=nueva contraseña
 
-  final _emailCtrl    = TextEditingController();
-  final _codeCtrl     = TextEditingController();
-  final _passCtrl     = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
+  final _emailCtrl   = TextEditingController();
+  final _codeCtrl    = TextEditingController();
+  final _passCtrl    = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
-  bool _loading       = false;
-  bool _obscurePass   = true;
-  bool _obscureConf   = true;
+  bool _loading      = false;
+  bool _obscurePass  = true;
+  bool _obscureConf  = true;
   String? _error;
   String? _resetToken;
+
+  // Countdown para expiración de OTP (10 min)
+  Timer? _countdownTimer;
+  int _secondsLeft = 0;
+
+  // Cooldown para reenviar código (60 s)
+  int _resendCooldown = 0;
+  Timer? _resendTimer;
+
+  // Intentos restantes del servidor
+  int _remainingAttempts = 5;
+
+  // Validación de fortaleza de contraseña (tiempo real)
+  bool _pwLen      = false;
+  bool _pwUpper    = false;
+  bool _pwNumber   = false;
+  bool _pwSpecial  = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passCtrl.addListener(_checkPassword);
+  }
 
   @override
   void dispose() {
     _emailCtrl.dispose(); _codeCtrl.dispose();
     _passCtrl.dispose(); _confirmCtrl.dispose();
+    _countdownTimer?.cancel();
+    _resendTimer?.cancel();
     super.dispose();
   }
+
+  void _checkPassword() {
+    final p = _passCtrl.text;
+    setState(() {
+      _pwLen     = p.length >= 8;
+      _pwUpper   = RegExp(r'[A-Z]').hasMatch(p);
+      _pwNumber  = RegExp(r'\d').hasMatch(p);
+      _pwSpecial = RegExp(r'[!@#\$%\^&\*\(\),\.\?":{}|<>]').hasMatch(p);
+    });
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    setState(() => _secondsLeft = 10 * 60); // 10 minutos
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_secondsLeft <= 0) {
+        t.cancel();
+        if (mounted) {
+          setState(() => _error = 'El código ha expirado. Solicita uno nuevo.');
+          _step = 0;
+        }
+      } else {
+        if (mounted) setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendCooldown = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_resendCooldown <= 0) {
+        t.cancel();
+        if (mounted) setState(() => _resendCooldown = 0);
+      } else {
+        if (mounted) setState(() => _resendCooldown--);
+      }
+    });
+  }
+
+  String get _countdownStr {
+    final mm = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final ss = (_secondsLeft % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+
+  static final _emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +122,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
     );
   }
 
-  // ── Paso 1: email ─────────────────────────────────────────────────────────────
+  // ── Paso 1: email ──────────────────────────────────────────────────────────────
   Widget _buildEmail() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     const SizedBox(height: 16),
     const Icon(Icons.lock_reset_outlined, size: 48, color: kPrimary),
@@ -86,7 +159,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
     ),
   ]);
 
-  // ── Paso 2: código OTP ────────────────────────────────────────────────────────
+  // ── Paso 2: código OTP ─────────────────────────────────────────────────────────
   Widget _buildCode() => Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
     const SizedBox(height: 24),
     Container(
@@ -101,12 +174,62 @@ class _RecuperarPageState extends State<RecuperarPage> {
     Text('Enviamos un código de 6 dígitos a\n${_emailCtrl.text}',
       textAlign: TextAlign.center,
       style: const TextStyle(color: kTextMuted, fontSize: 14, height: 1.5)),
-    const SizedBox(height: 28),
+
+    // ── Countdown ──────────────────────────────────────────────────────────────
+    const SizedBox(height: 12),
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _secondsLeft < 60 ? kError.withOpacity(0.08) : kChipBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.timer_outlined,
+          size: 16, color: _secondsLeft < 60 ? kError : kPrimaryDark),
+        const SizedBox(width: 6),
+        Text('Expira en $_countdownStr',
+          style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w600,
+            color: _secondsLeft < 60 ? kError : kPrimaryDark)),
+      ]),
+    ),
+
+    const SizedBox(height: 20),
     if (_error != null) ...[_errorBanner(_error!), const SizedBox(height: 16)],
+
+    // Intentos restantes
+    if (_remainingAttempts < 5) ...[
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: _remainingAttempts <= 1 ? kError.withOpacity(0.08) : kWarning.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _remainingAttempts <= 1 ? kError.withOpacity(0.3) : kWarning.withOpacity(0.3)),
+        ),
+        child: Row(children: [
+          Icon(Icons.warning_amber_outlined,
+            size: 16,
+            color: _remainingAttempts <= 1 ? kError : kWarning),
+          const SizedBox(width: 6),
+          Text(
+            _remainingAttempts == 0
+              ? 'Sin intentos restantes. Solicita un nuevo código.'
+              : 'Te quedan $_remainingAttempts intento(s) restante(s)',
+            style: TextStyle(
+              fontSize: 13,
+              color: _remainingAttempts <= 1 ? kError : kTextMuted)),
+        ]),
+      ),
+    ],
+
     TextFormField(
       controller: _codeCtrl,
       keyboardType: TextInputType.number,
       textAlign: TextAlign.center,
+      enabled: _remainingAttempts > 0,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
       style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 12),
       decoration: kInputDeco(''),
@@ -120,7 +243,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 2,
         ),
-        onPressed: _loading ? null : _verificarCodigo,
+        onPressed: (_loading || _remainingAttempts == 0) ? null : _verificarCodigo,
         child: _loading
           ? const SizedBox(width: 22, height: 22,
               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -128,17 +251,28 @@ class _RecuperarPageState extends State<RecuperarPage> {
       ),
     ),
     const SizedBox(height: 16),
+
+    // Reenviar con cooldown
+    if (_resendCooldown > 0)
+      Text('Reenviar código en ${_resendCooldown}s',
+        style: const TextStyle(color: kTextMuted, fontSize: 13))
+    else
+      TextButton(
+        onPressed: _loading ? null : _enviarCodigo,
+        child: const Text('Reenviar código', style: TextStyle(color: kPrimary)),
+      ),
+
     TextButton(
-      onPressed: _loading ? null : _enviarCodigo,
-      child: const Text('Reenviar código', style: TextStyle(color: kPrimary)),
-    ),
-    TextButton(
-      onPressed: () => setState(() { _step = 0; _error = null; _codeCtrl.clear(); }),
+      onPressed: () => setState(() {
+        _step = 0; _error = null; _codeCtrl.clear();
+        _countdownTimer?.cancel(); _resendTimer?.cancel();
+        _remainingAttempts = 5;
+      }),
       child: const Text('Cambiar correo', style: TextStyle(color: kTextMuted)),
     ),
   ]);
 
-  // ── Paso 3: nueva contraseña ──────────────────────────────────────────────────
+  // ── Paso 3: nueva contraseña ───────────────────────────────────────────────────
   Widget _buildNewPassword() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     const SizedBox(height: 16),
     const Icon(Icons.lock_outline, size: 48, color: kPrimary),
@@ -146,9 +280,9 @@ class _RecuperarPageState extends State<RecuperarPage> {
     const Text('Nueva contraseña',
       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: kText)),
     const SizedBox(height: 8),
-    const Text('Elige una contraseña segura (mín. 8 caracteres, 1 mayúscula, 1 número, 1 símbolo).',
+    const Text('Elige una contraseña segura.',
       style: TextStyle(color: kTextMuted, fontSize: 14, height: 1.5)),
-    const SizedBox(height: 28),
+    const SizedBox(height: 24),
     if (_error != null) ...[_errorBanner(_error!), const SizedBox(height: 16)],
     TextFormField(
       controller: _passCtrl,
@@ -163,6 +297,30 @@ class _RecuperarPageState extends State<RecuperarPage> {
         ),
       ),
     ),
+
+    // Checklist de fortaleza
+    if (_passCtrl.text.isNotEmpty) ...[
+      const SizedBox(height: 12),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: kChipBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kBorder),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Requisitos:',
+            style: TextStyle(fontSize: 12, color: kTextMuted, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          _reqRow(_pwLen,    'Mínimo 8 caracteres'),
+          _reqRow(_pwUpper,  'Al menos 1 mayúscula'),
+          _reqRow(_pwNumber, 'Al menos 1 número'),
+          _reqRow(_pwSpecial,'Al menos 1 carácter especial (!@#\$...)'),
+        ]),
+      ),
+    ],
+
     const SizedBox(height: 12),
     TextFormField(
       controller: _confirmCtrl,
@@ -195,6 +353,16 @@ class _RecuperarPageState extends State<RecuperarPage> {
     ),
   ]);
 
+  Widget _reqRow(bool ok, String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(children: [
+      Icon(ok ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+        size: 16, color: ok ? kPrimary : kTextMuted),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 12, color: ok ? kPrimaryDark : kTextMuted)),
+    ]),
+  );
+
   Widget _errorBanner(String msg) => Container(
     width: double.infinity, padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
@@ -211,14 +379,26 @@ class _RecuperarPageState extends State<RecuperarPage> {
 
   Future<void> _enviarCodigo() async {
     final email = _emailCtrl.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
+    if (email.isEmpty) {
+      setState(() => _error = 'Ingresa tu correo electrónico');
+      return;
+    }
+    if (!_emailRegex.hasMatch(email)) {
       setState(() => _error = 'Ingresa un correo electrónico válido');
       return;
     }
     setState(() { _loading = true; _error = null; });
     try {
       await ApiService.post('/auth/forgot-password', {'email': email});
-      if (mounted) setState(() { _step = 1; _codeCtrl.clear(); });
+      if (mounted) {
+        setState(() {
+          _step = 1;
+          _codeCtrl.clear();
+          _remainingAttempts = 5;
+        });
+        _startCountdown();
+        _startResendCooldown();
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -236,11 +416,23 @@ class _RecuperarPageState extends State<RecuperarPage> {
     try {
       final data = await ApiService.post('/auth/verify-reset-code',
         {'email': _emailCtrl.text.trim(), 'code': code});
-      final token = (data as Map<String, dynamic>)['resetToken'] as String?;
+      final map = data as Map<String, dynamic>;
+      final token = map['resetToken'] as String?;
       if (token == null) throw Exception('No se recibió el token de restablecimiento');
+      _countdownTimer?.cancel();
       if (mounted) setState(() { _resetToken = token; _step = 2; });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        final msg = e.toString();
+        // Extraer intentos restantes del mensaje del backend
+        final match = RegExp(r'(\d+) intento').firstMatch(msg);
+        if (match != null) {
+          setState(() => _remainingAttempts = int.parse(match.group(1)!));
+        } else {
+          setState(() => _remainingAttempts = (_remainingAttempts - 1).clamp(0, 5));
+        }
+        setState(() => _error = msg);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -249,20 +441,8 @@ class _RecuperarPageState extends State<RecuperarPage> {
   Future<void> _cambiarPassword() async {
     final pass    = _passCtrl.text;
     final confirm = _confirmCtrl.text;
-    if (pass.length < 8) {
-      setState(() => _error = 'La contraseña debe tener al menos 8 caracteres');
-      return;
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(pass)) {
-      setState(() => _error = 'Debe tener al menos una letra mayúscula');
-      return;
-    }
-    if (!RegExp(r'\d').hasMatch(pass)) {
-      setState(() => _error = 'Debe tener al menos un número');
-      return;
-    }
-    if (!RegExp(r'[!@#\$%\^&\*\(\),\.\?":{}|<>]').hasMatch(pass)) {
-      setState(() => _error = 'Debe tener al menos un carácter especial');
+    if (!_pwLen || !_pwUpper || !_pwNumber || !_pwSpecial) {
+      setState(() => _error = 'La contraseña no cumple los requisitos de seguridad');
       return;
     }
     if (pass != confirm) {
@@ -279,7 +459,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Contraseña restablecida. Ya puedes iniciar sesión.'),
-          backgroundColor: Color(0xFF0F766E), behavior: SnackBarBehavior.floating,
+          backgroundColor: kPrimary, behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 3),
         ));
         Navigator.pop(context);

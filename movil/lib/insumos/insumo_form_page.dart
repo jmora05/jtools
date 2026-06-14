@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../proveedores/proveedor_provider.dart';
 import 'insumo_model.dart';
 import 'insumo_provider.dart';
 
@@ -22,6 +23,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
   late final TextEditingController _nombre, _descripcion, _codigo, _precio, _cantidad;
   String _unidad = 'Unidades';
   String _estado = 'disponible';
+  int? _proveedorId; // null = sin proveedor
 
   bool get _isEdit => widget.insumo != null;
 
@@ -36,9 +38,13 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
       text: i != null ? i.precioUnitario.toStringAsFixed(0) : '');
     _cantidad   = TextEditingController(
       text: i != null ? i.cantidad.toString() : '0');
-    _unidad     = i?.unidadMedida ?? 'Unidades';
+    _unidad      = i?.unidadMedida ?? 'Unidades';
     if (!_kUnidades.contains(_unidad)) _unidad = 'Unidades';
-    _estado     = i?.estado ?? 'disponible';
+    _estado      = i?.estado ?? 'disponible';
+    _proveedorId = i?.proveedoresId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProveedorProvider>().cargar();
+    });
   }
 
   @override
@@ -111,6 +117,45 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
                 return null;
               }),
           ]),
+
+          // ── Proveedor (opcional) ────────────────────────────────────────────
+          Consumer<ProveedorProvider>(
+            builder: (_, provProv, __) {
+              final activos = provProv.proveedores.where((p) => p.activo).toList();
+              // If selected id no longer in list, reset
+              if (_proveedorId != null && !activos.any((p) => p.id == _proveedorId)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _proveedorId = null);
+                });
+              }
+              return _seccion('Proveedor (opcional)', [
+                Padding(padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('Proveedor principal de este insumo.',
+                    style: const TextStyle(color: kTextMuted, fontSize: 13))),
+                if (provProv.loading)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Center(child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))))
+                else
+                  Padding(padding: const EdgeInsets.only(bottom: 12),
+                    child: DropdownButtonFormField<int?>(
+                      value: _proveedorId,
+                      decoration: kInputDeco('Proveedor',
+                        prefix: const Icon(Icons.business_outlined, color: kTextMuted)),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null, child: Text('Sin proveedor')),
+                        ...activos.map((p) => DropdownMenuItem<int?>(
+                          value: p.id,
+                          child: Text(p.nombreEmpresa, overflow: TextOverflow.ellipsis))),
+                      ],
+                      onChanged: (v) => setState(() => _proveedorId = v),
+                    )),
+              ]);
+            },
+          ),
 
           // ── Estado (solo en edición) ─────────────────────────────────────────
           if (_isEdit) _seccion('Estado', [
@@ -199,6 +244,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
         if (_descripcion.text.trim().isNotEmpty) 'descripcion': _descripcion.text.trim(),
         if (_codigo.text.trim().isNotEmpty) 'codigoInsumo': _codigo.text.trim(),
         if (_isEdit) 'estado': _estado,
+        if (_proveedorId != null) 'proveedoresIds': [_proveedorId],
       };
       if (_isEdit) {
         await prov.actualizar(widget.insumo!.id, body);
