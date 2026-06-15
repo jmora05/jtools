@@ -74,6 +74,13 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     );
   }
 
+  // Título visible al usuario: usa el N° de factura, nunca la PK interna.
+  String _tituloCompra(Compra c) {
+    final nf = c.numeroFactura;
+    if (nf != null && nf.trim().isNotEmpty) return 'Factura $nf';
+    return 'Compra';
+  }
+
   // Hay acciones disponibles para pendiente o completada
   bool _tieneAcciones() {
     final e = _compra?.estado ?? '';
@@ -97,7 +104,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
           padding: const EdgeInsets.fromLTRB(20, 36, 20, 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Compra #${_compra!.id}',
+              Text(_tituloCompra(_compra!),
                 style: const TextStyle(
                   fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
               _estadoBadge(_compra!.estado),
@@ -119,8 +126,6 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('INFORMACIÓN GENERAL', style: kLabel),
         const SizedBox(height: 12),
-        if ((_compra!.numeroCompra ?? '').trim().isNotEmpty)
-          _fila(Icons.tag_outlined, 'N° de compra', _compra!.numeroCompra!.trim()),
         if ((_compra!.numeroFactura ?? '').trim().isNotEmpty)
           _fila(Icons.receipt_long_outlined, 'N° de factura', _compra!.numeroFactura!.trim()),
         _fila(Icons.calendar_today_outlined, 'Fecha',
@@ -332,7 +337,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
         title: const Text('Completar compra',
           style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text(
-          '¿Marcar la compra #${_compra!.id} como completada? '
+          '¿Marcar la compra "${_tituloCompra(_compra!)}" como completada? '
           'El stock de insumos será actualizado.'),
         actions: [
           TextButton(
@@ -371,7 +376,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
         title: const Text('Anular compra',
           style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text(
-          '¿Anular la compra #${_compra!.id}? '
+          '¿Anular la compra "${_tituloCompra(_compra!)}"? '
           '${_compra!.estado == 'completada' ? 'El stock será devuelto al inventario. ' : ''}'
           'Esta acción no se puede deshacer.'),
         actions: [
@@ -392,7 +397,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       await context.read<CompraProvider>().anular(_compra!.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Compra #${_compra!.id} anulada'),
+          content: Text('Compra "${_tituloCompra(_compra!)}" anulada'),
           backgroundColor: kError, behavior: SnackBarBehavior.floating));
         Navigator.pop(context);
       }

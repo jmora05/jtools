@@ -94,6 +94,39 @@ async function getDependenciasDeInsumo(id, nombreInsumo) {
     };
 }
 
+// Lista blanca de campos permitidos para verificación de unicidad
+const CAMPOS_VERIFICAR_INSUMO = ['nombreInsumo'];
+
+// GET - verificar unicidad de un campo (case-insensitive, trim)
+const verificarCampo = async (req, res) => {
+    try {
+        const { campo, valor, excluirId } = req.query;
+
+        if (!CAMPOS_VERIFICAR_INSUMO.includes(campo)) {
+            return res.status(400).json({ existe: false, mensaje: 'Campo no válido' });
+        }
+        if (!valor || valor.trim() === '') {
+            return res.json({ existe: false });
+        }
+
+        const existe = campo === 'nombreInsumo'
+            ? await nombreInsumoDuplicado(valor, excluirId ? parseInt(excluirId) : null)
+            : false;
+
+        const mensajes = {
+            nombreInsumo: 'Ya existe un insumo con ese nombre',
+        };
+
+        res.json({
+            existe,
+            mensaje: existe ? mensajes[campo] : null,
+        });
+    } catch (error) {
+        console.error('verificarCampo insumos:', error);
+        res.json({ existe: false }); // degrada en silencio
+    }
+};
+
 // GET - listar todos los insumos
 const getInsumos = async (req, res) => {
     try {
@@ -338,6 +371,7 @@ const forceDeleteInsumo = async (req, res) => {
 };
 
 module.exports = {
+    verificarCampo,
     getInsumos,
     getInsumoById,
     getInsumosDisponibles,

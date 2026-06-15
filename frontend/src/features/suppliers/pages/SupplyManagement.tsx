@@ -31,6 +31,7 @@ import {
 } from '../services/insumosService';
 import { getProveedores } from '../services/proveedoresService';
 import { InsumoDetailModal } from '../components/InsumoDetailModal';
+import { useUniquenessCheck } from '@/hooks/useUniquenessCheck';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supply {
@@ -170,6 +171,9 @@ export function SupplyManagement() {
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
+    // Verificación de unicidad del nombre en tiempo real contra /insumos/verificar
+    const nombreCheck = useUniquenessCheck('insumos', 'nombreInsumo', editingSupply?.id, 2);
+
     // Revalidar en tiempo real
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
@@ -210,6 +214,7 @@ export function SupplyManagement() {
         setProveedorQuery('');
         setProveedorOpen(false);
         setShowModal(false);
+        nombreCheck.reset();
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
@@ -221,6 +226,10 @@ export function SupplyManagement() {
         setFormErrors(errs);
         if (Object.keys(errs).length > 0) {
             showBanner('Corrige los errores del formulario antes de continuar', 'warning');
+            return;
+        }
+        if (nombreCheck.error) {
+            showBanner('Ya existe un insumo con ese nombre', 'warning');
             return;
         }
 
@@ -643,17 +652,21 @@ export function SupplyManagement() {
                                 </label>
                                 <Input
                                     value={formData.name}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                    onChange={(e) => {
+                                        setFormData(prev => ({ ...prev, name: e.target.value }));
+                                        nombreCheck.check(e.target.value);
+                                    }}
                                     maxLength={30} placeholder="Ej: Aceite Motor 5W-30"
-                                    className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    className={(formErrors.name || nombreCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                     style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
-                                {!formErrors.name && (
+                                {!formErrors.name && !nombreCheck.error && (
                                     <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
                                         {formData.name.length}/30 caracteres
                                     </p>
                                 )}
                                 <FieldError msg={formErrors.name} />
+                                {nombreCheck.error && <FieldError msg={nombreCheck.error} />
                             </div>
 
                             {/* Descripción */}
@@ -819,7 +832,7 @@ export function SupplyManagement() {
                             Cancelar
                         </Button>
                         <Button
-                            form="supply-form" type="submit" disabled={saving}
+                            form="supply-form" type="submit" disabled={saving || !!nombreCheck.error}
                             style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
                         >
                             {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}

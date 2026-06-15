@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../core/api_service.dart';
 import '../core/constants.dart';
+import '../core/debouncer.dart';
 import '../proveedores/proveedor_model.dart';
 import '../proveedores/proveedor_provider.dart';
 import 'insumo_model.dart';
@@ -27,6 +29,10 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
   String _estado  = 'disponible';
   List<int> _selectedProveedoresIds = [];
 
+  // Verificación de unicidad del nombre en tiempo real (igual que la web).
+  String? _errorNombreInsumo;
+  final _debouncer = Debouncer();
+
   bool get _isEdit => widget.insumo != null;
 
   @override
@@ -50,6 +56,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
   @override
   void dispose() {
     _nombre.dispose(); _descripcion.dispose(); _busquedaProveedor.dispose();
+    _debouncer.dispose();
     super.dispose();
   }
 
@@ -222,7 +229,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
                 backgroundColor: kPrimary, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: _saving ? null : _guardar,
+              onPressed: (_saving || _errorNombreInsumo != null) ? null : _guardar,
               child: _saving
                 ? const SizedBox(width: 20, height: 20,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -238,17 +245,39 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
 
   Widget _buildNombre() => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: TextFormField(
-      controller: _nombre,
-      maxLength: 30,
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return 'El nombre es requerido';
-        if (v.trim().length < 2) return 'Mínimo 2 caracteres';
-        if (v.trim().length > 30) return 'Máximo 30 caracteres';
-        return null;
-      },
-      decoration: kInputDeco('Nombre del insumo'),
-    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      TextFormField(
+        controller: _nombre,
+        maxLength: 30,
+        validator: (v) {
+          if (v == null || v.trim().isEmpty) return 'El nombre es requerido';
+          if (v.trim().length < 2) return 'Mínimo 2 caracteres';
+          if (v.trim().length > 30) return 'Máximo 30 caracteres';
+          return null;
+        },
+        decoration: kInputDeco('Nombre del insumo'),
+        onChanged: (v) {
+          if (_errorNombreInsumo != null) {
+            setState(() => _errorNombreInsumo = null);
+          }
+          if (v.trim().length >= 2) {
+            _debouncer.run(() async {
+              final res = await ApiService.verificarUnicidad(
+                modulo: 'insumos',
+                campo: 'nombreInsumo',
+                valor: v.trim(),
+                excluirId: widget.insumo?.id,
+              );
+              if (mounted && res['existe'] == true) {
+                setState(() => _errorNombreInsumo =
+                    res['mensaje'] ?? 'Ya existe un insumo con ese nombre');
+              }
+            });
+          }
+        },
+      ),
+      fieldError(_errorNombreInsumo),
+    ]),
   );
 
   Widget _buildDescripcion() => Padding(
