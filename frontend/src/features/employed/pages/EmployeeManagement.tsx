@@ -29,7 +29,6 @@ import {
     type FormErrors,
 } from '../utils/empleadosValidations';
 import { EmpleadoDetailModal } from '../components/EmpleadoDetailModal';
-import { useUniquenessCheck } from '@/hooks/useUniquenessCheck';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const AREAS:  Empleado['area'][]  = ['Producción', 'Administración'];
@@ -109,8 +108,6 @@ const selectCls = (hasError?: boolean) =>
     }`;
 
 // ─── Formulario de empleado ───────────────────────────────────────────────────
-type UniqueCheck = { error: string | null; check: (v: string) => void };
-
 function FormFields({
     form,
     setForm,
@@ -118,9 +115,6 @@ function FormFields({
     setErrores,
     roles = [],
     isEditing = false,
-    docCheck,
-    emailCheck,
-    phoneCheck,
 }: {
     form: FormState;
     setForm: (f: FormState) => void;
@@ -128,9 +122,6 @@ function FormFields({
     setErrores: (e: FormErrors) => void;
     roles?: Rol[];
     isEditing?: boolean;
-    docCheck: UniqueCheck;
-    emailCheck: UniqueCheck;
-    phoneCheck: UniqueCheck;
 }) {
     const [showPwd, setShowPwd]     = React.useState(false);
     const [showConfirm, setShowConfirm] = React.useState(false);
@@ -181,12 +172,12 @@ function FormFields({
                             <Input
                                 placeholder="Solo dígitos"
                                 value={form.numeroDocumento}
-                                onChange={e => { const v = sanitizarDocumento(e.target.value, form.tipoDocumento); update('numeroDocumento', e.target.value, v); docCheck.check(v); }}
+                                onChange={e => update('numeroDocumento', e.target.value, sanitizarDocumento(e.target.value, form.tipoDocumento))}
                                 onBlur={() => blur('numeroDocumento')}
-                                className={(errores.numeroDocumento || docCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={11}
+                                className={errores.numeroDocumento ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={10}
                             />
-                            <FieldError mensaje={errores.numeroDocumento || docCheck.error || undefined} />
+                            <FieldError mensaje={errores.numeroDocumento} />
                         </div>
                         <div>
                             <label className="block text-sm text-gray-700 mb-2">Nombres <span className="text-red-500">*</span></label>
@@ -229,24 +220,24 @@ function FormFields({
                                 type="email"
                                 placeholder="correo@ejemplo.com"
                                 value={form.email}
-                                onChange={e => { update('email', e.target.value); emailCheck.check(e.target.value); }}
+                                onChange={e => update('email', e.target.value)}
                                 onBlur={() => blur('email')}
-                                className={(errores.email || emailCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                className={errores.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                 maxLength={50}
                             />
-                            <FieldError mensaje={errores.email || emailCheck.error || undefined} />
+                            <FieldError mensaje={errores.email} />
                         </div>
                         <div>
                             <label className="block text-sm text-gray-700 mb-2">Teléfono <span className="text-red-500">*</span></label>
                             <Input
-                                placeholder="3001234567"
+                                placeholder="+57 300 123 4567"
                                 value={form.telefono}
-                                onChange={e => { const v = sanitizarTelefono(e.target.value); update('telefono', e.target.value, v); phoneCheck.check(v); }}
+                                onChange={e => update('telefono', e.target.value, sanitizarTelefono(e.target.value))}
                                 onBlur={() => blur('telefono')}
-                                className={(errores.telefono || phoneCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={11}
+                                className={errores.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                maxLength={17}
                             />
-                            <FieldError mensaje={errores.telefono || phoneCheck.error || undefined} />
+                            <FieldError mensaje={errores.telefono} />
                         </div>
                         <div>
                             <label className="block text-sm text-gray-700 mb-2">Ciudad</label>
@@ -458,13 +449,6 @@ export function EmployeeManagement() {
     const [form, setForm]             = useState<FormState>(EMPTY_FORM);
     const [formErrors, setFormErrors] = useState<FormErrors>({});
 
-    // ── Verificación de unicidad en tiempo real ─────────────────────────────────
-    const excluirId = editingEmployee?.id;
-    const docCheck   = useUniquenessCheck('empleados', 'numeroDocumento', excluirId);
-    const emailCheck = useUniquenessCheck('empleados', 'email', excluirId);
-    const phoneCheck = useUniquenessCheck('empleados', 'telefono', excluirId);
-    const hayErroresUnicidad = !!docCheck.error || !!emailCheck.error || !!phoneCheck.error;
-
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
     const showFeedback = (msg: string) => {
         setFeedbackMsg(msg);
@@ -517,9 +501,6 @@ export function EmployeeManagement() {
         setFormErrors({});
         setEditingEmployee(null);
         setShowModal(false);
-        docCheck.reset();
-        emailCheck.reset();
-        phoneCheck.reset();
     };
 
     // ── Crear ─────────────────────────────────────────────────────────────────
@@ -643,9 +624,6 @@ export function EmployeeManagement() {
     const openEdit = (emp: Empleado) => {
         setEditingEmployee(emp);
         setFormErrors({});
-        docCheck.reset();
-        emailCheck.reset();
-        phoneCheck.reset();
         setForm({
             tipoDocumento:   emp.tipoDocumento,
             numeroDocumento: emp.numeroDocumento,
@@ -731,7 +709,7 @@ export function EmployeeManagement() {
                     <p className="text-blue-800">Administra el personal de la empresa</p>
                 </div>
                 <Button
-                    onClick={() => { setEditingEmployee(null); setForm(EMPTY_FORM); setFormErrors({}); docCheck.reset(); emailCheck.reset(); phoneCheck.reset(); setShowModal(true); }}
+                    onClick={() => { setEditingEmployee(null); setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true); }}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                     <Plus className="w-4 h-4 mr-2" />Registrar Empleado
@@ -957,13 +935,10 @@ export function EmployeeManagement() {
                             setErrores={setFormErrors}
                             roles={roles}
                             isEditing={!!editingEmployee}
-                            docCheck={docCheck}
-                            emailCheck={emailCheck}
-                            phoneCheck={phoneCheck}
                         />
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>Cancelar</Button>
-                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || hayErroresUnicidad}>
+                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 {editingEmployee ? 'Guardar Cambios' : 'Registrar Empleado'}
                             </Button>

@@ -25,7 +25,6 @@ import {
     getClientes, createCliente, updateCliente,
     deleteCliente, forceDeleteCliente,
 } from '../services/clientesService';
-import { useUniquenessCheck } from '@/hooks/useUniquenessCheck';
 
 // ── Tipos de documento ────────────────────────────────────────────────────────
 const DOCS_PERSONA_NATURAL = [
@@ -265,13 +264,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
-    // ── Verificación de unicidad en tiempo real ─────────────────────────────────
-    const excluirId = editingClient?.id;
-    const docCheck   = useUniquenessCheck('clientes', 'numero_documento', excluirId);
-    const emailCheck = useUniquenessCheck('clientes', 'email', excluirId);
-    const phoneCheck = useUniquenessCheck('clientes', 'telefono', excluirId);
-    const hayErroresUnicidad = !!docCheck.error || !!emailCheck.error || !!phoneCheck.error;
-
     // Revalidar en tiempo real cuando el usuario ya intentó enviar
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
@@ -317,9 +309,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setSubmitAttempted(false);
         setEditingClient(null);
         setShowModal(false);
-        docCheck.reset();
-        emailCheck.reset();
-        phoneCheck.reset();
     };
 
     const handleClientTypeChange = (value: 'Persona natural' | 'Empresa') => {
@@ -439,9 +428,6 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setSubmitAttempted(false);
         setEditingClient(client);
         setShowModal(true);
-        docCheck.reset();
-        emailCheck.reset();
-        phoneCheck.reset();
     };
 
     // ── Toggle estado ─────────────────────────────────────────────────────────
@@ -821,16 +807,17 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 </label>
                                 <Input
                                     value={formData.numero_documento}
-                                    onChange={(e) => {
-                                        const val = onlyDoc(e.target.value, formData.tipo_documento);
-                                        setFormData(prev => ({ ...prev, numero_documento: val }));
-                                        docCheck.check(val);
-                                    }}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            numero_documento: onlyDoc(e.target.value, prev.tipo_documento),
+                                        }))
+                                    }
                                     maxLength={20}
                                     placeholder={formData.tipo_documento === 'nit' ? '900123456-7' : '123456789'}
-                                    className={(formErrors.numero_documento || docCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    className={formErrors.numero_documento ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                 />
-                                <FieldError msg={formErrors.numero_documento || docCheck.error || undefined} />
+                                <FieldError msg={formErrors.numero_documento} />
                             </div>
 
                             {/* Nombre / Razón social + Contacto */}
@@ -910,16 +897,14 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <Input
                                     type="email"
                                     value={formData.email}
-                                    onChange={(e) => {
-                                        const val = noSpaces(e.target.value);
-                                        setFormData(prev => ({ ...prev, email: val }));
-                                        emailCheck.check(val);
-                                    }}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, email: noSpaces(e.target.value) }))
+                                    }
                                     maxLength={100}
                                     placeholder="cliente@email.com"
-                                    className={(formErrors.email || emailCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    className={formErrors.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                 />
-                                <FieldError msg={formErrors.email || emailCheck.error || undefined} />
+                                <FieldError msg={formErrors.email} />
                             </div>
 
                             {/* Teléfono + Ciudad */}
@@ -931,16 +916,14 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                     <Input
                                         type="tel"
                                         value={formData.telefono}
-                                        onChange={(e) => {
-                                            const val = onlyPhone(e.target.value);
-                                            setFormData(prev => ({ ...prev, telefono: val }));
-                                            phoneCheck.check(val);
-                                        }}
+                                        onChange={(e) =>
+                                            setFormData(prev => ({ ...prev, telefono: onlyPhone(e.target.value) }))
+                                        }
                                         maxLength={20}
                                         placeholder="3001234567"
-                                        className={(formErrors.telefono || phoneCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        className={formErrors.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                     />
-                                    <FieldError msg={formErrors.telefono || phoneCheck.error || undefined} />
+                                    <FieldError msg={formErrors.telefono} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -1054,7 +1037,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving || hayErroresUnicidad}>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={saving}>
                                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                     {editingClient ? 'Actualizar Cliente' : 'Crear Cliente'}
                                 </Button>
