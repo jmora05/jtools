@@ -5,10 +5,12 @@ const {
     getProveedorById,
     createProveedor,
     updateProveedor,
-    deleteProveedor
+    deleteProveedor,
+    verificarCampo
 } = require('../controllers/proveedoresController.js');
 
 router.get('/', getProveedores);
+router.get('/verificar', verificarCampo);
 router.get('/:id', getProveedorById);
 router.post('/', createProveedor);
 router.put('/:id', updateProveedor);

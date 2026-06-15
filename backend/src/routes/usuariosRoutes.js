@@ -6,10 +6,12 @@ const {
     createUsuarios,
     updateUsuarios,
     toggleUsuarioEstado,
-    deleteUsuarios
+    deleteUsuarios,
+    verificarCampo
 } = require('../controllers/usuariosController.js');
 
 router.get('/', getUsuarios);
+router.get('/verificar', verificarCampo);
 router.get('/:id', getUsuariosById);
 router.post('/', createUsuarios);
 router.put('/:id', updateUsuarios);

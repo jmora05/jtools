@@ -250,11 +250,52 @@ const toggleUsuarioEstado = async (req, res) => {
     }
 };
 
+// GET - verificar unicidad de un campo (validación en tiempo real)
+const verificarCampo = async (req, res) => {
+    try {
+        const { Op } = require('sequelize');
+        const { campo, valor, excluirId } = req.query;
+
+        const camposPermitidos = ['email'];
+        if (!camposPermitidos.includes(campo)) {
+            return res.status(400).json({ existe: false, mensaje: 'Campo no válido' });
+        }
+        if (!valor || valor.trim() === '') {
+            return res.json({ existe: false });
+        }
+
+        const where = sequelize.where(
+            sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(campo))),
+            valor.trim().toLowerCase(),
+        );
+
+        const condiciones = { where };
+        if (excluirId) {
+            condiciones.where = { [Op.and]: [where, { id: { [Op.ne]: parseInt(excluirId) } }] };
+        }
+
+        const existe = await Usuarios.findOne(condiciones);
+
+        const mensajes = {
+            email: 'Este correo ya está registrado en el sistema',
+        };
+
+        res.json({
+            existe: !!existe,
+            mensaje: existe ? (mensajes[campo] || 'Este valor ya está registrado') : null,
+        });
+    } catch (error) {
+        console.error('Error en verificarCampo (usuarios):', error);
+        res.json({ existe: false });
+    }
+};
+
 module.exports = {
     getUsuarios,
     getUsuariosById,
     createUsuarios,
     updateUsuarios,
     toggleUsuarioEstado,
-    deleteUsuarios
+    deleteUsuarios,
+    verificarCampo,
 };

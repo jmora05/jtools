@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/debouncer.dart';
+import '../core/api_service.dart';
 import 'cliente_model.dart';
 import 'cliente_provider.dart';
 
@@ -30,6 +32,28 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
   bool get _esEdicion => widget.cliente != null;
   bool get _requiereRazonSocial => _tipoDoc == 'nit' || _tipoDoc == 'rut';
 
+  // Validación de unicidad en tiempo real
+  final _debouncer = Debouncer();
+  String? _errorNumDoc, _errorEmail, _errorTelefono;
+  bool get _hayErroresUnicidad =>
+      _errorNumDoc != null || _errorEmail != null || _errorTelefono != null;
+
+  void _verificar(String campo, String valor, void Function(String?) asignar) {
+    setState(() => asignar(null));
+    if (valor.trim().isEmpty) return;
+    _debouncer.run(() async {
+      final res = await ApiService.verificarUnicidad(
+        modulo: 'clientes',
+        campo: campo,
+        valor: valor.trim(),
+        excluirId: widget.cliente?.id,
+      );
+      if (mounted && res['existe'] == true) {
+        setState(() => asignar(res['mensaje']?.toString() ?? 'Ya está registrado'));
+      }
+    });
+  }
+
   static const _tiposDoc = ['cedula', 'nit', 'cedula de extranjeria', 'pasaporte', 'rut'];
 
   @override
@@ -51,6 +75,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
 
   @override
   void dispose() {
+    _debouncer.dispose();
     _nombres.dispose(); _apellidos.dispose(); _email.dispose();
     _telefono.dispose(); _ciudad.dispose(); _direccion.dispose();
     _numDoc.dispose(); _razonSocial.dispose(); _contacto.dispose();
@@ -119,6 +144,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                 controller: _numDoc,
                 inputFormatters: [LengthLimitingTextInputFormatter(20)],
                 decoration: kInputDeco('Número de documento *'),
+                onChanged: (v) => _verificar('numero_documento', v, (e) => _errorNumDoc = e),
                 validator: (v) {
                   final s = v?.trim() ?? '';
                   if (s.isEmpty) return 'Requerido';
@@ -126,6 +152,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                   return null;
                 },
               ),
+              fieldError(_errorNumDoc),
               if (_requiereRazonSocial) ...[
                 const SizedBox(height: 12),
                 TextFormField(
@@ -154,12 +181,14 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: kInputDeco('Correo electrónico *',
                   prefix: const Icon(Icons.email_outlined, color: kTextMuted)),
+                onChanged: (v) => _verificar('email', v, (e) => _errorEmail = e),
                 validator: (v) {
                   if (v?.isEmpty ?? true) return 'Requerido';
                   if (!v!.contains('@') || !v.contains('.')) return 'Email inválido';
                   return null;
                 },
               ),
+              fieldError(_errorEmail),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _telefono,
@@ -170,6 +199,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                 ],
                 decoration: kInputDeco('Teléfono *',
                   prefix: const Icon(Icons.phone_outlined, color: kTextMuted)),
+                onChanged: (v) => _verificar('telefono', v, (e) => _errorTelefono = e),
                 validator: (v) {
                   final s = v?.trim() ?? '';
                   if (s.isEmpty) return 'Requerido';
@@ -177,6 +207,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                   return null;
                 },
               ),
+              fieldError(_errorTelefono),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _ciudad,
@@ -224,7 +255,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
                   backgroundColor: kPrimary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _saving ? null : _guardar,
+                onPressed: (_saving || _hayErroresUnicidad) ? null : _guardar,
                 child: _saving
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))

@@ -105,6 +105,24 @@ class ApiService {
     );
     return _parse(res);
   }
+
+  // ─── Verificación de unicidad en tiempo real ──────────────────────────────
+  static Future<Map<String, dynamic>> verificarUnicidad({
+    required String modulo, // 'proveedores', 'empleados', 'clientes', 'usuarios'
+    required String campo,
+    required String valor,
+    int? excluirId,
+  }) async {
+    final params = StringBuffer(
+        'campo=${Uri.encodeComponent(campo)}&valor=${Uri.encodeComponent(valor)}');
+    if (excluirId != null) params.write('&excluirId=$excluirId');
+    try {
+      final data = await get('/$modulo/verificar?$params');
+      return data as Map<String, dynamic>;
+    } catch (_) {
+      return {'existe': false}; // degrada en silencio
+    }
+  }
 }
 
 class ApiException implements Exception {

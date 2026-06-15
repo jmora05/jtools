@@ -8,10 +8,12 @@ const {
     createCliente,
     updateCliente,
     deleteCliente,
-    forceDeleteCliente
+    forceDeleteCliente,
+    verificarCampo
 } = require('../controllers/clientesController.js');
 
 router.get('/', getClientes);
+router.get('/verificar', verificarCampo);
 router.get('/activos', getClientesActivos);
 router.get('/:id/historial', getHistorialCliente);
 router.get('/:id', getClienteById);

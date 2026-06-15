@@ -209,6 +209,49 @@ const forceDeleteCliente = async (req, res) => {
     }
 };
 
+// GET - verificar unicidad de un campo (validación en tiempo real)
+const verificarCampo = async (req, res) => {
+    try {
+        const { Op } = require('sequelize');
+        const { campo, valor, excluirId } = req.query;
+
+        // Columnas reales del modelo Clientes (snake_case)
+        const camposPermitidos = ['telefono', 'email', 'numero_documento'];
+        if (!camposPermitidos.includes(campo)) {
+            return res.status(400).json({ existe: false, mensaje: 'Campo no válido' });
+        }
+        if (!valor || valor.trim() === '') {
+            return res.json({ existe: false });
+        }
+
+        const where = sequelize.where(
+            sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(campo))),
+            valor.trim().toLowerCase(),
+        );
+
+        const condiciones = { where };
+        if (excluirId) {
+            condiciones.where = { [Op.and]: [where, { id: { [Op.ne]: parseInt(excluirId) } }] };
+        }
+
+        const existe = await Clientes.findOne(condiciones);
+
+        const mensajes = {
+            telefono: 'Este teléfono ya está registrado en el sistema',
+            email: 'Este correo ya está registrado en el sistema',
+            numero_documento: 'Este número de documento ya está registrado',
+        };
+
+        res.json({
+            existe: !!existe,
+            mensaje: existe ? (mensajes[campo] || 'Este valor ya está registrado') : null,
+        });
+    } catch (error) {
+        console.error('Error en verificarCampo (clientes):', error);
+        res.json({ existe: false });
+    }
+};
+
 module.exports = {
     getClientes,
     getClienteById,
@@ -218,4 +261,5 @@ module.exports = {
     updateCliente,
     deleteCliente,
     forceDeleteCliente,
+    verificarCampo,
 };

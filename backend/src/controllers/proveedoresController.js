@@ -246,6 +246,48 @@ const forceDeleteProveedor = async (req, res) => {
     }
 };
 
+// GET - verificar unicidad de un campo (validación en tiempo real)
+const verificarCampo = async (req, res) => {
+    try {
+        const { campo, valor, excluirId } = req.query;
+
+        const camposPermitidos = ['telefono', 'email', 'numeroDocumento', 'nombreEmpresa'];
+        if (!camposPermitidos.includes(campo)) {
+            return res.status(400).json({ existe: false, mensaje: 'Campo no válido' });
+        }
+        if (!valor || valor.trim() === '') {
+            return res.json({ existe: false });
+        }
+
+        const where = sequelize.where(
+            sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(campo))),
+            valor.trim().toLowerCase(),
+        );
+
+        const condiciones = { where };
+        if (excluirId) {
+            condiciones.where = { [Op.and]: [where, { id: { [Op.ne]: parseInt(excluirId) } }] };
+        }
+
+        const existe = await Proveedores.findOne(condiciones);
+
+        const mensajes = {
+            telefono: 'Este teléfono ya está registrado en el sistema',
+            email: 'Este correo ya está registrado en el sistema',
+            numeroDocumento: 'Este número de documento ya está registrado',
+            nombreEmpresa: 'Ya existe un proveedor con ese nombre',
+        };
+
+        res.json({
+            existe: !!existe,
+            mensaje: existe ? (mensajes[campo] || 'Este valor ya está registrado') : null,
+        });
+    } catch (error) {
+        console.error('Error en verificarCampo (proveedores):', error);
+        res.json({ existe: false });
+    }
+};
+
 module.exports = {
     getProveedores,
     getProveedorById,
@@ -255,4 +297,5 @@ module.exports = {
     updateProveedor,
     deleteProveedor,
     forceDeleteProveedor,
+    verificarCampo,
 };

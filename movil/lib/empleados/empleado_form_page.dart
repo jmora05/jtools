@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/debouncer.dart';
+import '../core/api_service.dart';
 import 'empleado_model.dart';
 import 'empleado_provider.dart';
 
@@ -34,6 +36,28 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
 
   bool get _isEdit => widget.empleado != null;
 
+  // Validación de unicidad en tiempo real
+  final _debouncer = Debouncer();
+  String? _errorNumDoc, _errorEmail, _errorTelefono;
+  bool get _hayErroresUnicidad =>
+      _errorNumDoc != null || _errorEmail != null || _errorTelefono != null;
+
+  void _verificar(String campo, String valor, void Function(String?) asignar) {
+    setState(() => asignar(null));
+    if (valor.trim().isEmpty) return;
+    _debouncer.run(() async {
+      final res = await ApiService.verificarUnicidad(
+        modulo: 'empleados',
+        campo: campo,
+        valor: valor.trim(),
+        excluirId: widget.empleado?.id,
+      );
+      if (mounted && res['existe'] == true) {
+        setState(() => asignar(res['mensaje']?.toString() ?? 'Ya está registrado'));
+      }
+    });
+  }
+
   static final _pwRegex = RegExp(r'[!@#\$%\^&\*\(\),\.\?":{}|<>]');
 
   @override
@@ -63,6 +87,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
 
   @override
   void dispose() {
+    _debouncer.dispose();
     for (final c in [_nombres, _apellidos, _tipoDoc, _numDoc, _telefono,
         _email, _cargo, _area, _direccion, _ciudad, _fechaIngreso, _salario,
         _password, _confirmPassword]) {
@@ -105,6 +130,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                   keyboard: TextInputType.number,
                   maxLength: 11,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (v) => _verificar('numeroDocumento', v, (e) => _errorNumDoc = e),
+                  errorUnicidad: _errorNumDoc,
                   validator: (v) {
                     final s = (v ?? '').trim();
                     if (s.isEmpty) return 'Requerido';
@@ -127,6 +154,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
               _textField(_email, 'Correo electrónico',
                 keyboard: TextInputType.emailAddress,
                 maxLength: 50,
+                onChanged: (v) => _verificar('email', v, (e) => _errorEmail = e),
+                errorUnicidad: _errorEmail,
                 validator: (v) {
                   final s = (v ?? '').trim();
                   if (s.isEmpty) return 'Requerido';
@@ -138,6 +167,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                 keyboard: TextInputType.phone,
                 maxLength: 11,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (v) => _verificar('telefono', v, (e) => _errorTelefono = e),
+                errorUnicidad: _errorTelefono,
                 validator: (v) {
                   final s = (v ?? '').trim();
                   if (s.isEmpty) return 'Requerido';
@@ -229,7 +260,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                   backgroundColor: kPrimary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _saving ? null : _guardar,
+                onPressed: (_saving || _hayErroresUnicidad) ? null : _guardar,
                 child: _saving
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -288,15 +319,24 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     int? maxLength,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    void Function(String)? onChanged,
+    String? errorUnicidad,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: TextFormField(
-      controller: c,
-      keyboardType: keyboard,
-      maxLength: maxLength,
-      inputFormatters: inputFormatters,
-      validator: validator,
-      decoration: kInputDeco(label).copyWith(counterText: ''),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: c,
+          keyboardType: keyboard,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
+          validator: validator,
+          onChanged: onChanged,
+          decoration: kInputDeco(label).copyWith(counterText: ''),
+        ),
+        fieldError(errorUnicidad),
+      ],
     ),
   );
 

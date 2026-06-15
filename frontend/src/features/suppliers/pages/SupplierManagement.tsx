@@ -27,6 +27,7 @@ import {
     mapSupplierToDTO,
 } from '../services/proveedoresService';
 import { ProveedorDetailModal } from '../components/ProveedorDetailModal';
+import { useUniquenessCheck } from '@/hooks/useUniquenessCheck';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supplier {
@@ -219,6 +220,15 @@ export function SupplierManagement() {
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
+    // ── Verificación de unicidad en tiempo real ─────────────────────────────────
+    const excluirId = editingSupplier?.id;
+    const nombreCheck = useUniquenessCheck('proveedores', 'nombreEmpresa', excluirId);
+    const docCheck    = useUniquenessCheck('proveedores', 'numeroDocumento', excluirId);
+    const emailCheck  = useUniquenessCheck('proveedores', 'email', excluirId);
+    const phoneCheck  = useUniquenessCheck('proveedores', 'telefono', excluirId);
+    const hayErroresUnicidad =
+        !!nombreCheck.error || !!docCheck.error || !!emailCheck.error || !!phoneCheck.error;
+
     // Revalidar en tiempo real
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
@@ -246,6 +256,10 @@ export function SupplierManagement() {
         setSubmitAttempted(false);
         setEditingSupplier(null);
         setShowModal(false);
+        nombreCheck.reset();
+        docCheck.reset();
+        emailCheck.reset();
+        phoneCheck.reset();
     };
 
     const handleTypeChange = (value: string) => {
@@ -351,6 +365,10 @@ export function SupplierManagement() {
         setSubmitAttempted(false);
         setEditingSupplier(supplier);
         setShowModal(true);
+        nombreCheck.reset();
+        docCheck.reset();
+        emailCheck.reset();
+        phoneCheck.reset();
     };
 
     // ── Toggle estado ─────────────────────────────────────────────────────────
@@ -743,18 +761,17 @@ export function SupplierManagement() {
                                     <label style={Sf.label}>Número de documento <span style={{ color: '#f87171' }}>*</span></label>
                                     <Input
                                         value={formData.documentNumber}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                documentNumber: onlyDoc(e.target.value, prev.documentType),
-                                            }))
-                                        }
+                                        onChange={(e) => {
+                                            const val = onlyDoc(e.target.value, formData.documentType);
+                                            setFormData(prev => ({ ...prev, documentNumber: val }));
+                                            docCheck.check(val);
+                                        }}
                                         maxLength={20}
                                         placeholder={formData.documentType === 'NIT' ? '900123456-7' : '123456789'}
-                                        className={formErrors.documentNumber ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        className={(formErrors.documentNumber || docCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
-                                    <FieldError msg={formErrors.documentNumber} />
+                                    <FieldError msg={formErrors.documentNumber || docCheck.error || undefined} />
                                 </div>
                             </div>
 
@@ -793,12 +810,12 @@ export function SupplierManagement() {
                                         </label>
                                         <Input
                                             value={formData.name}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            onChange={(e) => { setFormData(prev => ({ ...prev, name: e.target.value })); nombreCheck.check(e.target.value); }}
                                             maxLength={30} placeholder="AutoPartes Central S.A.S."
-                                            className={formErrors.name ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                            className={(formErrors.name || nombreCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                             style={{ height: 40, background: '#fff', fontSize: 14 }}
                                         />
-                                        <FieldError msg={formErrors.name} />
+                                        <FieldError msg={formErrors.name || nombreCheck.error || undefined} />
                                     </div>
                                     <div style={{ marginBottom: 18 }}>
                                         <label style={Sf.label}>Representante Legal <span style={{ color: '#f87171' }}>*</span></label>
@@ -822,12 +839,12 @@ export function SupplierManagement() {
                                 </label>
                                 <Input
                                     type="email" value={formData.email}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value.replace(/\s/g, '') }))}
+                                    onChange={(e) => { const val = e.target.value.replace(/\s/g, ''); setFormData(prev => ({ ...prev, email: val })); emailCheck.check(val); }}
                                     maxLength={50} placeholder="ventas@proveedor.com"
-                                    className={formErrors.email ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    className={(formErrors.email || emailCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                     style={{ height: 40, background: '#fff', fontSize: 14 }}
                                 />
-                                <FieldError msg={formErrors.email} />
+                                <FieldError msg={formErrors.email || emailCheck.error || undefined} />
                             </div>
 
                             {/* Teléfono + Ciudad */}
@@ -839,12 +856,12 @@ export function SupplierManagement() {
                                     </label>
                                     <Input
                                         type="tel" value={formData.phone}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))}
+                                        onChange={(e) => { const val = onlyPhone(e.target.value); setFormData(prev => ({ ...prev, phone: val })); phoneCheck.check(val); }}
                                         maxLength={15} placeholder="3001234567"
-                                        className={formErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                        className={(formErrors.phone || phoneCheck.error) ? 'border-red-400 focus-visible:ring-red-300' : ''}
                                         style={{ height: 40, background: '#fff', fontSize: 14 }}
                                     />
-                                    <FieldError msg={formErrors.phone} />
+                                    <FieldError msg={formErrors.phone || phoneCheck.error || undefined} />
                                 </div>
                                 <div>
                                     <label style={Sf.label}>
@@ -905,7 +922,7 @@ export function SupplierManagement() {
                             Cancelar
                         </Button>
                         <Button
-                            form="supplier-form" type="submit" disabled={saving}
+                            form="supplier-form" type="submit" disabled={saving || hayErroresUnicidad}
                             style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
                         >
                             {saving && <Loader2 style={{ width: 16, height: 16, marginRight: 8 }} className="animate-spin" />}
