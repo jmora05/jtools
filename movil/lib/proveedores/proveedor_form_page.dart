@@ -77,7 +77,12 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
               ],
-              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.isEmpty) return 'Requerido';
+                if (!RegExp(r'^[0-9\-]+$').hasMatch(s)) return 'Solo se permiten números';
+                return null;
+              }),
             _txt(_nombre, _tipoProveedor == 'empresa' ? 'Nombre de la empresa (razón social)' : 'Nombre completo',
               validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
             if (_tipoProveedor == 'empresa')
@@ -95,7 +100,12 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[\d\+\s\-]')),
               ],
-              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.isEmpty) return 'Requerido';
+                if (!RegExp(r'^[\d\+\s\-]+$').hasMatch(s)) return 'Solo se permiten números';
+                return null;
+              }),
             _txt(_ciudad, 'Ciudad'),
             _txt(_direccion, 'Dirección'),
           ]),

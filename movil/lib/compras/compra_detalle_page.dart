@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import 'compra_model.dart';
 import 'compra_provider.dart';
-import 'compra_merma_page.dart';
 
 class CompraDetallePage extends StatefulWidget {
   final int compraId;
@@ -120,6 +119,10 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('INFORMACIÓN GENERAL', style: kLabel),
         const SizedBox(height: 12),
+        if ((_compra!.numeroCompra ?? '').trim().isNotEmpty)
+          _fila(Icons.tag_outlined, 'N° de compra', _compra!.numeroCompra!.trim()),
+        if ((_compra!.numeroFactura ?? '').trim().isNotEmpty)
+          _fila(Icons.receipt_long_outlined, 'N° de factura', _compra!.numeroFactura!.trim()),
         _fila(Icons.calendar_today_outlined, 'Fecha',
           _compra!.fecha.length >= 10 ? _compra!.fecha.substring(0, 10) : _compra!.fecha),
         _fila(Icons.payment_outlined, 'Método de pago', _compra!.metodoPago),
@@ -260,7 +263,9 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     ),
     child: Column(children: [
       _totalFila('Subtotal', fmt.format(_compra!.subtotal)),
-      _totalFila('IVA (19%)', fmt.format(_compra!.iva)),
+      _totalFila(
+        'IVA (${_compra!.ivaPorcentaje.toStringAsFixed(_compra!.ivaPorcentaje == _compra!.ivaPorcentaje.roundToDouble() ? 0 : 1)}%)',
+        fmt.format(_compra!.iva)),
       const Divider(color: Colors.white24, height: 20),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         const Text('Total con IVA',
@@ -293,11 +298,6 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
         if (_compra!.estado == 'pendiente')
           _botonAccion('Completar compra', Icons.check_circle_outline,
             const Color(0xFF0F766E), _confirmarCompletar),
-
-        // Merma solo en completada
-        if (_compra!.estado == 'completada')
-          _botonAccion('Registrar merma', Icons.warning_amber_outlined,
-            kWarning, _irAMerma),
 
         // Anular desde pendiente o completada
         _botonAccion('Anular compra', Icons.cancel_outlined, kError, _confirmarAnular),
@@ -362,9 +362,6 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
         behavior: SnackBarBehavior.floating));
     }
   }
-
-  void _irAMerma() => Navigator.push(context,
-    MaterialPageRoute(builder: (_) => CompraMermaPage(compraId: _compra!.id)));
 
   Future<void> _confirmarAnular() async {
     final ok = await showDialog<bool>(

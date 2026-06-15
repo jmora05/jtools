@@ -151,6 +151,10 @@ testConnection()
         `UPDATE compras SET "numeroFactura" = id::TEXT WHERE "numeroFactura" IS NULL`,
         // Eliminar estado 'en transito': convertir registros existentes a 'pendiente'
         `UPDATE compras SET estado = 'pendiente' WHERE estado = 'en transito'`,
+        // IVA por compra (porcentaje). Default 19%.
+        `ALTER TABLE compras ADD COLUMN IF NOT EXISTS "iva" NUMERIC(5,2) NOT NULL DEFAULT 19.00`,
+        // Número de compra alfanumérico, separado de la PK. Opcional.
+        `ALTER TABLE compras ADD COLUMN IF NOT EXISTS "numeroCompra" VARCHAR(50) NULL`,
     ];
     for (const sql of migraciones) {
         try {

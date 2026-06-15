@@ -43,6 +43,7 @@ class Compra {
   final String metodoPago;
   final String estado;
   final String? numeroFactura;
+  final String? numeroCompra;
   final String? nombreProveedor;
   final List<DetalleCompra> detalles;
   // IVA en porcentaje (ej. 19 = 19%). Editable por compra, igual que la web.
@@ -55,6 +56,7 @@ class Compra {
     required this.metodoPago,
     required this.estado,
     this.numeroFactura,
+    this.numeroCompra,
     this.nombreProveedor,
     this.detalles = const [],
     this.ivaPorcentaje = 19,
@@ -78,8 +80,21 @@ class Compra {
         metodoPago: j['metodoPago']?.toString() ?? '',
         estado: j['estado']?.toString() ?? 'pendiente',
         numeroFactura: j['numeroFactura']?.toString(),
+        numeroCompra: j['numeroCompra']?.toString(),
+        ivaPorcentaje: double.tryParse(j['iva']?.toString() ?? '') ?? 19,
         nombreProveedor: j['proveedor']?['nombreEmpresa']?.toString(),
         detalles: (j['detalles'] as List? ?? [])
             .map((d) => DetalleCompra.fromJson(d as Map<String, dynamic>)).toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'proveedoresId': proveedoresId,
+        'fecha': fecha,
+        'metodoPago': metodoPago,
+        'estado': estado,
+        'iva': ivaPorcentaje,
+        if (numeroFactura != null) 'numeroFactura': numeroFactura,
+        if (numeroCompra != null) 'numeroCompra': numeroCompra,
+        'detalles': detalles.map((d) => d.toJson()).toList(),
+      };
 }

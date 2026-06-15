@@ -35,6 +35,8 @@ class _CompraFormPageState extends State<CompraFormPage> {
   final _ivaCtrl = TextEditingController(text: '19');
   // N° de factura (opcional, mismas reglas que la web).
   final _facturaCtrl = TextEditingController();
+  // N° de compra (opcional, alfanumérico, separado de la PK).
+  final _numeroCompraCtrl = TextEditingController();
   // Notas (opcional, máx 500).
   final _notasCtrl = TextEditingController();
   String? _fechaError;
@@ -59,6 +61,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
   void dispose() {
     _ivaCtrl.dispose();
     _facturaCtrl.dispose();
+    _numeroCompraCtrl.dispose();
     _notasCtrl.dispose();
     super.dispose();
   }
@@ -133,6 +136,25 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   child: Text(m[0].toUpperCase() + m.substring(1)),
                 )).toList(),
                 onChanged: (v) => setState(() => _metodoPago = v!),
+              ),
+              const SizedBox(height: 12),
+              // N° de compra (opcional, alfanumérico, separado del ID interno).
+              TextFormField(
+                controller: _numeroCompraCtrl,
+                maxLength: _facturaMax,
+                decoration: kInputDeco('N° de compra (opcional)',
+                    hint: 'Ej: COMP-001'),
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+                    const SizedBox.shrink(),
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return null; // opcional
+                  if (!_facturaRegex.hasMatch(s)) {
+                    return 'Solo letras, números, guion (-) y slash (/).';
+                  }
+                  if (s.length > _facturaMax) return 'Máximo $_facturaMax caracteres.';
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               // N° Factura + IVA (%) en una fila, igual que la web.
@@ -413,7 +435,9 @@ class _CompraFormPageState extends State<CompraFormPage> {
         proveedoresId: _proveedor!.id,
         fecha: _fecha,
         metodoPago: _metodoPago,
+        iva: _ivaPorcentaje,
         numeroFactura: _facturaCtrl.text,
+        numeroCompra: _numeroCompraCtrl.text,
         notas: _notasCtrl.text,
         detalles: _carrito.map((i) => {
           'insumosId': i.insumo.id,

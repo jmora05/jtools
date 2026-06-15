@@ -1,6 +1,11 @@
 // Validaciones de negocio — Módulo Usuarios
-const { Op }             = require('sequelize');
+const { Op, fn, col, where: seqWhere } = require('sequelize');
 const { Usuarios, Roles } = require('../models/index.js');
+
+// Coincidencia de email case-insensitive (trim + lower a nivel de columna).
+function emailMatchCI(mail) {
+    return seqWhere(fn('LOWER', fn('TRIM', col('email'))), mail.trim().toLowerCase());
+}
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
@@ -68,7 +73,7 @@ async function validateCreateUsuario(body) {
     // ── 6. Duplicado email — solo si no hay errores previos ─────────────
     if (errores.length === 0) {
         const emailExiste = await Usuarios.findOne({
-            where: { email: mail.toLowerCase() },
+            where: emailMatchCI(mail),
         });
         if (emailExiste)
             errores.push('Ya existe un usuario registrado con ese correo electrónico');
@@ -136,9 +141,10 @@ async function validateUpdateUsuario(body, idExcluir = null) {
     if (errores.length === 0 && body?.email !== undefined && body?.email !== null) {
         const mail = String(body.email).trim();
         if (mail) {
-            const whereExcluir = idExcluir ? { id: { [Op.ne]: idExcluir } } : {};
+            const condiciones = [emailMatchCI(mail)];
+            if (idExcluir) condiciones.push({ id: { [Op.ne]: idExcluir } });
             const emailExiste = await Usuarios.findOne({
-                where: { ...whereExcluir, email: mail.toLowerCase() },
+                where: { [Op.and]: condiciones },
             });
             if (emailExiste)
                 errores.push('Ya existe un usuario registrado con ese correo electrónico');

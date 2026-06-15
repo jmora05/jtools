@@ -165,17 +165,6 @@ class _VentasPageState extends State<VentasPage> {
           ]),
         ),
 
-        Container(
-          color: const Color(0xFFF0F4FF),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: const Row(children: [
-            Icon(Icons.swipe, size: 14, color: kTextMuted),
-            SizedBox(width: 6),
-            Text('Pendiente → Activar  ·  ← Anular',
-              style: TextStyle(fontSize: 11, color: kTextMuted)),
-          ]),
-        ),
-
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null

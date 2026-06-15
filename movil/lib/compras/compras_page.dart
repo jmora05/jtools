@@ -8,7 +8,6 @@ import 'compra_provider.dart';
 import 'compra_model.dart';
 import 'compra_detalle_page.dart';
 import 'compra_form_page.dart';
-import 'compra_merma_page.dart';
 
 // Prioridad para ordenamiento en pantalla: pendiente → completada → anulada → resto
 int _prioridad(String estado) {
@@ -177,20 +176,6 @@ class _ComprasPageState extends State<ComprasPage> {
           ]),
         ),
 
-        // ── Hint swipe ─────────────────────────────────────────────────────────
-        Container(
-          color: const Color(0xFFF0F4FF),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Row(children: [
-            const Icon(Icons.swipe, size: 14, color: kTextMuted),
-            const SizedBox(width: 6),
-            const Text(
-              'Pendiente → Completar  ·  Completada ← Merma / Anular',
-              style: TextStyle(fontSize: 11, color: kTextMuted),
-            ),
-          ]),
-        ),
-
         // ── Lista ──────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
@@ -242,18 +227,8 @@ class _ComprasPageState extends State<ComprasPage> {
                           ),
                       ];
 
-                      // Acciones swipe izquierda: Merma (si completada) + Anular
+                      // Acciones swipe izquierda: Anular
                       final leftActions = <Widget>[
-                        if (isCompletada)
-                          SlidableAction(
-                            onPressed: (_) => Navigator.push(ctx,
-                              MaterialPageRoute(
-                                builder: (_) => CompraMermaPage(compraId: c.id))),
-                            backgroundColor: kWarning,
-                            foregroundColor: Colors.white,
-                            icon: Icons.warning_amber_outlined,
-                            label: 'Merma',
-                          ),
                         if (canAnular)
                           SlidableAction(
                             onPressed: (_) => _anular(ctx, c),

@@ -168,18 +168,6 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
           ]),
         ),
 
-        // ── Hint swipe ────────────────────────────────────────────────────────
-        Container(
-          color: const Color(0xFFF0F4FF),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: const Row(children: [
-            Icon(Icons.swipe, size: 14, color: kTextMuted),
-            SizedBox(width: 6),
-            Text('→ Ver / Editar  ·  ← Activar / Eliminar',
-              style: TextStyle(fontSize: 11, color: kTextMuted)),
-          ]),
-        ),
-
         // ── Lista ─────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))

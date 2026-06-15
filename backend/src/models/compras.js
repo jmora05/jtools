@@ -17,6 +17,22 @@ const Compras = sequelize.define('Compras', {
         },
     },
 
+    // Número de compra alfanumérico, separado de la PK (id). Lo escribe el
+    // usuario; la unicidad se valida a mano (case-insensitive) en el controlador.
+    numeroCompra: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        unique: false,
+    },
+
+    // IVA aplicado a la compra, en porcentaje (ej. 19.00 = 19%). Editable por compra.
+    iva: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 19.00,
+        validate: { min: 0, max: 100 },
+    },
+
     proveedoresId: {
         type: DataTypes.INTEGER,
         allowNull: false,

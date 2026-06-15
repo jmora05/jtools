@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/auth_provider.dart';
-import 'register_page.dart';
 import 'recuperar.dart';
 
 class LoginPage extends StatefulWidget {
@@ -179,23 +178,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
               const SizedBox(height: 24),
-
-              // ── Crear cuenta ───────────────────────────────────────────────
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text('¿No tienes cuenta? ',
-                  style: TextStyle(color: kTextMuted, fontSize: 14)),
-                TextButton(
-                  onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const RegisterPage())),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Crear cuenta',
-                    style: TextStyle(color: kPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
-                ),
-              ]),
             ]),
           ),
         ),

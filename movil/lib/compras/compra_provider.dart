@@ -33,7 +33,9 @@ class CompraProvider extends ChangeNotifier {
     required String fecha,
     required String metodoPago,
     required List<Map<String, dynamic>> detalles,
+    double iva = 19,
     String? numeroFactura,
+    String? numeroCompra,
     String? notas,
   }) async {
     final body = <String, dynamic>{
@@ -41,9 +43,12 @@ class CompraProvider extends ChangeNotifier {
       'fecha': fecha,
       'metodoPago': metodoPago,
       'estado': 'pendiente',
+      'iva': iva,
       'detalles': detalles,
       if (numeroFactura != null && numeroFactura.trim().isNotEmpty)
         'numeroFactura': numeroFactura.trim(),
+      if (numeroCompra != null && numeroCompra.trim().isNotEmpty)
+        'numeroCompra': numeroCompra.trim(),
       if (notas != null && notas.trim().isNotEmpty) 'notas': notas.trim(),
     };
     final data = await ApiService.post('/compras', body);
@@ -60,6 +65,8 @@ class CompraProvider extends ChangeNotifier {
       _compras[i] = Compra(
         id: c.id, proveedoresId: c.proveedoresId, fecha: c.fecha,
         metodoPago: c.metodoPago, estado: nuevoEstado,
+        numeroFactura: c.numeroFactura, numeroCompra: c.numeroCompra,
+        ivaPorcentaje: c.ivaPorcentaje,
         nombreProveedor: c.nombreProveedor, detalles: c.detalles,
       );
       notifyListeners();
@@ -69,16 +76,5 @@ class CompraProvider extends ChangeNotifier {
   Future<void> anular(int id) async {
     await ApiService.delete('/compras/$id');
     await cargar();
-  }
-
-  Future<Map<String, dynamic>> registrarMerma(
-    int id,
-    List<Map<String, dynamic>> items, {
-    String? motivo,
-  }) async {
-    final body = <String, dynamic>{'items': items};
-    if (motivo != null && motivo.trim().isNotEmpty) body['motivo'] = motivo.trim();
-    final data = await ApiService.post('/compras/$id/merma', body);
-    return data as Map<String, dynamic>;
   }
 }

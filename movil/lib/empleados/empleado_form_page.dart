@@ -123,7 +123,13 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                 }),
               _textField(_telefono, 'Teléfono',
                 keyboard: TextInputType.phone,
-                validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Requerido';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números';
+                  return null;
+                }),
               _row([
                 _textField(_ciudad, 'Ciudad'),
                 _textField(_direccion, 'Dirección'),

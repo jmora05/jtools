@@ -1,6 +1,22 @@
 const { Op }               = require('sequelize');
 const { Proveedores, Insumos } = require('../models/index.js');
+const { sequelize }        = require('../config/jtools_db');
 const { validarProveedor } = require('../validators/proveedor.validator.js');
+
+// Verifica duplicado case-insensitive (trim) de un campo de Proveedores.
+async function proveedorCampoDuplicado(campo, valor, excluirId = null) {
+    if (valor === undefined || valor === null || `${valor}`.trim() === '') return false;
+    const where = {
+        [Op.and]: [
+            sequelize.where(
+                sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(campo))),
+                valor.toString().trim().toLowerCase(),
+            ),
+            ...(excluirId != null ? [{ id: { [Op.ne]: excluirId } }] : []),
+        ],
+    };
+    return (await Proveedores.findOne({ where })) != null;
+}
 
 // GET - listar todos los proveedores
 const getProveedores = async (req, res) => {
@@ -81,17 +97,19 @@ const createProveedor = async (req, res) => {
             estado,
         } = req.body;
 
-        // ── Validación de unicidad ────────────────────────────────────────────
-        const [emailExiste, docExiste] = await Promise.all([
-            Proveedores.findOne({ where: { email } }),
-            Proveedores.findOne({ where: { numeroDocumento } }),
+        // ── Validación de unicidad (case-insensitive) ────────────────────────
+        const [nombreExiste, emailExiste, docExiste] = await Promise.all([
+            proveedorCampoDuplicado('nombreEmpresa', nombreEmpresa),
+            proveedorCampoDuplicado('email', email),
+            proveedorCampoDuplicado('numeroDocumento', numeroDocumento),
         ]);
 
         const erroresUnicos = [];
+        if (nombreExiste) erroresUnicos.push('Ya existe un proveedor con ese nombre');
         if (emailExiste)  erroresUnicos.push('El correo electrónico ya está registrado');
         if (docExiste)    erroresUnicos.push('El número de documento ya está registrado');
         if (erroresUnicos.length > 0) {
-            return res.status(400).json({ message: 'Error de validación', errores: erroresUnicos });
+            return res.status(409).json({ message: erroresUnicos[0], errores: erroresUnicos });
         }
         // ─────────────────────────────────────────────────────────────────────
 
@@ -142,17 +160,19 @@ const updateProveedor = async (req, res) => {
             estado,
         } = req.body;
 
-        // ── Validación de unicidad (excluye el propio registro) ───────────────
-        const [emailExiste, docExiste] = await Promise.all([
-            email           ? Proveedores.findOne({ where: { email,           id: { [Op.ne]: id } } }) : null,
-            numeroDocumento ? Proveedores.findOne({ where: { numeroDocumento, id: { [Op.ne]: id } } }) : null,
+        // ── Validación de unicidad case-insensitive (excluye el propio registro) ──
+        const [nombreExiste, emailExiste, docExiste] = await Promise.all([
+            proveedorCampoDuplicado('nombreEmpresa', nombreEmpresa, id),
+            proveedorCampoDuplicado('email', email, id),
+            proveedorCampoDuplicado('numeroDocumento', numeroDocumento, id),
         ]);
 
         const erroresUnicos = [];
-        if (emailExiste) erroresUnicos.push('El correo electrónico ya está registrado');
-        if (docExiste)   erroresUnicos.push('El número de documento ya está registrado');
+        if (nombreExiste) erroresUnicos.push('Ya existe un proveedor con ese nombre');
+        if (emailExiste)  erroresUnicos.push('El correo electrónico ya está registrado');
+        if (docExiste)    erroresUnicos.push('El número de documento ya está registrado');
         if (erroresUnicos.length > 0) {
-            return res.status(400).json({ message: 'Error de validación', errores: erroresUnicos });
+            return res.status(409).json({ message: erroresUnicos[0], errores: erroresUnicos });
         }
         // ─────────────────────────────────────────────────────────────────────
 

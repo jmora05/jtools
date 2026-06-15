@@ -5,6 +5,23 @@ const {
     FichaTecnica,
 } = require('../models/index.js');
 const { validarInsumo } = require('../validators/insumosValidator.js');
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/jtools_db');
+
+// Verifica si existe otro insumo con el mismo nombre (case-insensitive, trim).
+async function nombreInsumoDuplicado(nombre, excluirId = null) {
+    if (!nombre) return false;
+    const where = {
+        [Op.and]: [
+            sequelize.where(
+                sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('nombreInsumo'))),
+                nombre.toString().trim().toLowerCase(),
+            ),
+            ...(excluirId != null ? [{ id: { [Op.ne]: excluirId } }] : []),
+        ],
+    };
+    return (await Insumos.findOne({ where })) != null;
+}
 
 const includeProveedores = [
     {
@@ -152,6 +169,11 @@ const createInsumo = async (req, res) => {
 
         const ids = Array.isArray(proveedoresIds) ? proveedoresIds.map(Number).filter(Boolean) : [];
 
+        // Duplicado case-insensitive del nombre
+        if (await nombreInsumoDuplicado(nombreInsumo)) {
+            return res.status(409).json({ message: 'Ya existe un insumo con ese nombre' });
+        }
+
         const insumo = await Insumos.create({
             nombreInsumo,
             descripcion:    descripcion    ?? null,
@@ -201,6 +223,11 @@ const updateInsumo = async (req, res) => {
         } = req.body;
 
         const ids = Array.isArray(proveedoresIds) ? proveedoresIds.map(Number).filter(Boolean) : undefined;
+
+        // Duplicado case-insensitive del nombre (excluyendo el propio registro)
+        if (nombreInsumo !== undefined && await nombreInsumoDuplicado(nombreInsumo, insumo.id)) {
+            return res.status(409).json({ message: 'Ya existe un insumo con ese nombre' });
+        }
 
         await insumo.update({
             ...(nombreInsumo   !== undefined && { nombreInsumo }),
