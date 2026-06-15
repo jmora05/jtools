@@ -32,13 +32,14 @@ class AuthProvider extends ChangeNotifier {
       final data = await ApiService.post('/auth/login', {
         'email': email,
         'password': password,
+        'origin': 'movil',
       });
       final token = data['token'] as String?;
       if (token == null) throw Exception('Token no recibido');
       await ApiService.setToken(token);
       _isLoggedIn = true;
-      _userName = data['usuario']?['nombres'] ?? data['usuario']?['email'] ?? email;
-      _userRole = data['usuario']?['rol']?['nombre'] ?? '';
+      _userName = data['usuario']?['email'] ?? email;
+      _userRole = data['usuario']?['rolName'] ?? data['usuario']?['userType'] ?? '';
     } finally {
       _loading = false;
       notifyListeners();

@@ -70,13 +70,16 @@ const login = async (req, res) => {
         const rolName  = usuario.rol?.name || '';
         const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 
-        // ── Acceso al panel SOLO para administradores ───────────────────────
-        // Los usuarios con rol "Cliente" pertenecen al portal/e-commerce y NO
-        // pueden ingresar al panel de administración. El login de cliente, si
-        // existe, vive en otra ruta y no se ve afectado por este bloqueo.
-        if (userType === 'client') {
+        // ── Restricción por plataforma ──────────────────────────────────────
+        // WEB: todos los roles pueden entrar (admin, asistente, cliente).
+        // MÓVIL: solo el rol "Administrador" puede acceder al panel.
+        const esMovil =
+            req.body?.origin === 'movil' ||
+            req.headers['x-app-platform'] === 'movil';
+
+        if (esMovil && rolName.toLowerCase() !== 'administrador') {
             return res.status(403).json({
-                message: 'Acceso restringido: solo administradores pueden ingresar.',
+                message: 'Acceso restringido: solo administradores pueden usar la app móvil.',
             });
         }
 
