@@ -9,6 +9,11 @@ import 'compra_model.dart';
 import 'compra_detalle_page.dart';
 import 'compra_form_page.dart';
 
+String _refCompra(Compra c) {
+  final nf = c.numeroFactura;
+  return (nf != null && nf.trim().isNotEmpty) ? 'Factura ${nf.trim()}' : 'la compra';
+}
+
 // Prioridad para ordenamiento en pantalla: pendiente → completada → anulada → resto
 int _prioridad(String estado) {
   switch (estado) {
@@ -43,7 +48,7 @@ class _ComprasPageState extends State<ComprasPage> {
         title: const Text('Completar compra',
           style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text(
-          '¿Marcar la compra #${c.id} como completada? '
+          '¿Marcar ${_refCompra(c)} como completada? '
           'El stock de insumos será actualizado.'),
         actions: [
           TextButton(
@@ -62,7 +67,7 @@ class _ComprasPageState extends State<ComprasPage> {
     try {
       await ctx.read<CompraProvider>().cambiarEstado(c.id, 'completada');
       if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text('Compra #${c.id} completada. Stock actualizado.'),
+        content: Text('${_refCompra(c)} completada. Stock actualizado.'),
         backgroundColor: kPrimary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
@@ -82,7 +87,7 @@ class _ComprasPageState extends State<ComprasPage> {
         title: const Text('Anular compra',
           style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text(
-          '¿Anular la compra #${c.id}? '
+          '¿Anular ${_refCompra(c)}? '
           '${c.estado == 'completada' ? 'El stock será devuelto al inventario. ' : ''}'
           'Esta acción no se puede deshacer.'),
         actions: [
@@ -102,7 +107,7 @@ class _ComprasPageState extends State<ComprasPage> {
     try {
       await ctx.read<CompraProvider>().anular(c.id);
       if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content: Text('Compra #${c.id} anulada'),
+        content: Text('${_refCompra(c)} anulada'),
         backgroundColor: kTextMuted, behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
@@ -119,7 +124,7 @@ class _ComprasPageState extends State<ComprasPage> {
     final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
 
     final lista = prov.compras.where((c) {
-      final matchQ = c.id.toString().contains(_q) ||
+      final matchQ = (c.numeroFactura?.toLowerCase().contains(_q.toLowerCase()) ?? false) ||
           (c.nombreProveedor?.toLowerCase().contains(_q.toLowerCase()) ?? false);
       final matchE = _filtroEstado == 'todos' || c.estado == _filtroEstado;
       return matchQ && matchE;
@@ -146,7 +151,7 @@ class _ComprasPageState extends State<ComprasPage> {
           child: Column(children: [
             TextField(
               onChanged: (v) => setState(() => _q = v),
-              decoration: kInputDeco('Buscar por ID o proveedor...',
+              decoration: kInputDeco('Buscar por factura o proveedor...',
                 prefix: const Icon(Icons.search, color: kTextMuted)),
             ),
             const SizedBox(height: 8),
@@ -304,7 +309,10 @@ class _CompraTile extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Compra #${c.id}',
+            Text(
+              (c.numeroFactura != null && c.numeroFactura!.trim().isNotEmpty)
+                ? 'Factura ${c.numeroFactura!.trim()}'
+                : 'Compra',
               style: const TextStyle(
                 fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
             estadoChip(c.estado),
