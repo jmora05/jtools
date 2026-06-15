@@ -667,6 +667,7 @@ export function SupplyManagement() {
                                 )}
                                 <FieldError msg={formErrors.name} />
                                 {nombreCheck.error && <FieldError msg={nombreCheck.error} />
+}
                             </div>
 
                             {/* Descripción */}
