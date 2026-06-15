@@ -38,6 +38,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
   // Notas (opcional, máx 500).
   final _notasCtrl = TextEditingController();
   String? _fechaError;
+  String? _carritoError;
 
   static const int _facturaMax = 50;
   static const int _notasMax = 500;
@@ -145,6 +146,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                         hint: 'Ej: FAC001 / A-12345'),
                     buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
                         const SizedBox.shrink(),
+                    onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final s = (v ?? '').trim();
                       if (s.isEmpty) return null; // opcional, igual que la web
@@ -217,6 +219,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                         setState(() {
                           _carrito.add(_ItemCarrito(insumo: ins, precio: ins.precioUnitario));
                           _searchInsumo = '';
+                          _carritoError = null;
                         });
                       },
                     ),
@@ -241,6 +244,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   ]),
                 ),
               ],
+              fieldError(_carritoError),
             ]),
 
             // ── Totales ────────────────────────────────────────────────
@@ -272,7 +276,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   backgroundColor: kPrimary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: (_saving || _carrito.isEmpty) ? null : _registrar,
+                onPressed: _saving ? null : _registrar,
                 child: _saving
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -389,24 +393,13 @@ class _CompraFormPageState extends State<CompraFormPage> {
   );
 
   Future<void> _registrar() async {
-    final fechaErr = _validarFecha();
-    setState(() => _fechaError = fechaErr);
+    // Actualiza errores inline antes de validar el Form
+    setState(() {
+      _fechaError = _validarFecha();
+      _carritoError = _carrito.isEmpty ? 'Agrega al menos un insumo' : null;
+    });
     if (!_key.currentState!.validate()) return;
-    if (fechaErr != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(fechaErr), backgroundColor: kError));
-      return;
-    }
-    if (_proveedor == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un proveedor'), backgroundColor: kError));
-      return;
-    }
-    if (_carrito.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agrega al menos un insumo'), backgroundColor: kError));
-      return;
-    }
+    if (_fechaError != null || _carritoError != null) return;
     setState(() => _saving = true);
     try {
       await context.read<CompraProvider>().crear(
