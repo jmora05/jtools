@@ -34,7 +34,18 @@ class ApiService {
     final body = utf8.decode(res.bodyBytes);
     final data = jsonDecode(body);
     if (res.statusCode >= 200 && res.statusCode < 300) return data;
-    final msg = data['message'] ?? data['error'] ?? 'Error ${res.statusCode}';
+
+    // El backend devuelve errores de validación detallados en `errores: [...]`.
+    // Los extraemos y mostramos como una lista legible en lugar del genérico
+    // "Error de validación".
+    final errores = data is Map ? data['errores'] : null;
+    if (errores is List && errores.isNotEmpty) {
+      final lista = errores.map((e) => e.toString()).join('\n');
+      throw ApiException(lista, res.statusCode);
+    }
+
+    final msg = (data is Map ? (data['message'] ?? data['error']) : null) ??
+        'Error ${res.statusCode}';
     throw ApiException(msg.toString(), res.statusCode);
   }
 

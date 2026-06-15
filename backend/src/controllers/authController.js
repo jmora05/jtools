@@ -70,6 +70,16 @@ const login = async (req, res) => {
         const rolName  = usuario.rol?.name || '';
         const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 
+        // ── Acceso al panel SOLO para administradores ───────────────────────
+        // Los usuarios con rol "Cliente" pertenecen al portal/e-commerce y NO
+        // pueden ingresar al panel de administración. El login de cliente, si
+        // existe, vive en otra ruta y no se ve afectado por este bloqueo.
+        if (userType === 'client') {
+            return res.status(403).json({
+                message: 'Acceso restringido: solo administradores pueden ingresar.',
+            });
+        }
+
         const token = jwt.sign(
             { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType, rolName },
             JWT_SECRET,

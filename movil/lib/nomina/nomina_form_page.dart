@@ -71,6 +71,7 @@ class _NominaFormPageState extends State<NominaFormPage> {
       ),
       body: Form(
         key: _key,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(children: [

@@ -68,6 +68,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
       ),
       body: Form(
         key: _key,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
@@ -75,6 +76,10 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
               TextFormField(
                 controller: _nombres,
                 textCapitalization: TextCapitalization.words,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]')),
+                  LengthLimitingTextInputFormatter(30),
+                ],
                 decoration: kInputDeco('Nombres *'),
                 validator: (v) {
                   final s = v?.trim() ?? '';
@@ -87,6 +92,10 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
               TextFormField(
                 controller: _apellidos,
                 textCapitalization: TextCapitalization.words,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]')),
+                  LengthLimitingTextInputFormatter(30),
+                ],
                 decoration: kInputDeco('Apellidos *'),
                 validator: (v) {
                   final s = v?.trim() ?? '';
@@ -172,6 +181,10 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
               TextFormField(
                 controller: _ciudad,
                 textCapitalization: TextCapitalization.words,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]')),
+                  LengthLimitingTextInputFormatter(50),
+                ],
                 decoration: kInputDeco('Ciudad *',
                   prefix: const Icon(Icons.location_city_outlined, color: kTextMuted)),
                 validator: (v) {

@@ -115,7 +115,7 @@ const updateUsuarios = async (req, res) => {
         if (errors.length) return res.status(400).json({ message: 'Error de validación', errores: errors });
 
         const { id } = req.params;
-        const usuario = await Usuarios.findByPk(id);
+        const usuario = await Usuarios.findByPk(id, { include: includeBase });
         if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         const { rolesId, email, password } = req.body;
@@ -123,6 +123,30 @@ const updateUsuarios = async (req, res) => {
         if (rolesId !== undefined && rolesId !== null) {
             const rol = await Roles.findByPk(rolesId);
             if (!rol) return res.status(404).json({ message: 'El rol especificado no existe' });
+
+            // Protección: no permitir quitarle el rol de admin al ÚNICO admin
+            // activo del sistema (así el admin siempre puede editar su perfil,
+            // pero no puede dejar al sistema sin administradores).
+            const rolActual = usuario.rol?.name?.toUpperCase() ?? '';
+            const esAdminActual = ['SUPER_ADMIN', 'ADMIN', 'ADMINISTRADOR'].includes(rolActual);
+            const cambiaDeRol = Number(rolesId) !== Number(usuario.rolesId);
+            const nuevoEsAdmin = ['SUPER_ADMIN', 'ADMIN', 'ADMINISTRADOR']
+                .includes((rol.name || '').toUpperCase());
+
+            if (esAdminActual && cambiaDeRol && !nuevoEsAdmin) {
+                const otrosAdmins = await Usuarios.count({
+                    where: {
+                        id:      { [require('sequelize').Op.ne]: id },
+                        estado:  'activo',
+                        rolesId: usuario.rolesId,
+                    },
+                });
+                if (otrosAdmins === 0) {
+                    return res.status(409).json({
+                        message: 'No se puede quitar el rol de administrador al único administrador activo del sistema.',
+                    });
+                }
+            }
         }
 
         let passwordHash;

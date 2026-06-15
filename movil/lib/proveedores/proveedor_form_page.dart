@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import 'proveedor_model.dart';
@@ -54,6 +55,7 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
     ),
     body: Form(
       key: _key,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
@@ -61,16 +63,25 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
             _drop('Tipo', _tipoProveedor, ['empresa', 'persona'],
               (v) => setState(() { _tipoProveedor = v!; _tipoDoc = v == 'empresa' ? 'NIT' : 'CC'; })),
           ]),
+          // Orden de campos igual que SupplierManagement.tsx:
+          //   1. Tipo de documento
+          //   2. Número de documento
+          //   3. Nombre (empresa o completo)
+          //   4. (Empresa) Persona de contacto opcional
           _seccion('Información principal', [
-            _txt(_nombre, _tipoProveedor == 'empresa' ? 'Nombre empresa' : 'Nombre completo',
-              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
-            if (_tipoProveedor == 'empresa')
-              _txt(_contacto, 'Persona de contacto (opcional)'),
             _drop('Tipo documento', _tipoDoc,
               _tipoProveedor == 'empresa' ? ['NIT', 'CC'] : ['CC', 'CE', 'PPT'],
               (v) => setState(() => _tipoDoc = v!)),
             _txt(_numDoc, 'Número de documento',
+              keyboard: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+              ],
               validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+            _txt(_nombre, _tipoProveedor == 'empresa' ? 'Nombre de la empresa (razón social)' : 'Nombre completo',
+              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+            if (_tipoProveedor == 'empresa')
+              _txt(_contacto, 'Empresa de contacto (opcional)'),
           ]),
           _seccion('Contacto', [
             _txt(_email, 'Correo electrónico',
@@ -81,6 +92,9 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
                 return null;
               }),
             _txt(_telefono, 'Teléfono', keyboard: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d\+\s\-]')),
+              ],
               validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
             _txt(_ciudad, 'Ciudad'),
             _txt(_direccion, 'Dirección'),
@@ -125,9 +139,12 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   );
 
   Widget _txt(TextEditingController c, String label,
-      {TextInputType? keyboard, String? Function(String?)? validator}) =>
+      {TextInputType? keyboard,
+      List<TextInputFormatter>? inputFormatters,
+      String? Function(String?)? validator}) =>
     Padding(padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(controller: c, keyboardType: keyboard,
+        inputFormatters: inputFormatters,
         validator: validator, decoration: kInputDeco(label)));
 
   Widget _drop(String label, String value, List<String> items, void Function(String?) cb) =>

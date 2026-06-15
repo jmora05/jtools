@@ -64,6 +64,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final auth = context.watch<AuthProvider>();
     return Form(
       key: _key,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('Información personal', style: TextStyle(
           fontWeight: FontWeight.w700, fontSize: 16, color: kText)),

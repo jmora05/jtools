@@ -134,6 +134,16 @@ class _AnimatedListItemState extends State<AnimatedListItem>
   );
 }
 
+// ─── Error de campo (validación en tiempo real, igual que la web) ─────────────
+/// Muestra un mensaje de error rojo debajo de un campo, igual que la web.
+Widget fieldError(String? msg) {
+  if (msg == null || msg.isEmpty) return const SizedBox.shrink();
+  return Padding(
+    padding: const EdgeInsets.only(left: 4, top: 4),
+    child: Text(msg, style: const TextStyle(color: kError, fontSize: 12)),
+  );
+}
+
 // ─── Decoración de inputs ─────────────────────────────────────────────────────
 InputDecoration kInputDeco(String label, {String? hint, Widget? prefix}) =>
     InputDecoration(

@@ -63,27 +63,15 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
     ),
     body: Form(
       key: _key,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
 
-          // ── Información principal ──────────────────────────────────────────────
+          // ── 1. Nombre + 2. Notas (orden igual que la web) ─────────────────────
           _seccion('Información principal', [
             _buildNombre(),
             _buildDescripcion(),
-          ]),
-
-          // ── Unidad de medida ───────────────────────────────────────────────────
-          _seccion('Unidad de medida', [
-            Padding(padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                value: _unidad,
-                decoration: kInputDeco('Unidad de medida'),
-                items: _kUnidades.map((u) =>
-                  DropdownMenuItem(value: u, child: Text(u))).toList(),
-                validator: (v) => (v?.isEmpty ?? true) ? 'Selecciona una unidad' : null,
-                onChanged: (v) => setState(() => _unidad = v!),
-              )),
           ]),
 
           // ── Precio (informativo, no editable) ─────────────────────────────────
@@ -105,15 +93,18 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
             ),
           ),
 
-          // ── Proveedores (multi-selección con búsqueda) ─────────────────────────
+          // ── 3. Proveedores (multi-selección con búsqueda) ─────────────────────
+          //     La lista permanece OCULTA hasta que el usuario escribe algo en el
+          //     buscador (igual que la web en SupplyManagement.tsx).
           Consumer<ProveedorProvider>(builder: (_, provProv, __) {
             final activos = provProv.proveedores.where((p) => p.activo).toList();
-            final query = _busquedaProveedor.text.toLowerCase();
-            final filtrados = query.isEmpty
-              ? activos
-              : activos.where((p) =>
+            final query = _busquedaProveedor.text.trim().toLowerCase();
+            final mostrarLista = query.isNotEmpty;
+            final filtrados = mostrarLista
+              ? activos.where((p) =>
                   p.nombreEmpresa.toLowerCase().contains(query) ||
-                  p.numeroDocumento.toLowerCase().contains(query)).toList();
+                  p.numeroDocumento.toLowerCase().contains(query)).toList()
+              : <Proveedor>[];
 
             final seleccionados = activos
               .where((p) => _selectedProveedoresIds.contains(p.id)).toList();
@@ -142,56 +133,72 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
               TextField(
                 controller: _busquedaProveedor,
                 onChanged: (_) => setState(() {}),
-                decoration: kInputDeco('Buscar proveedor...',
+                decoration: kInputDeco('Buscar proveedores...',
                   prefix: const Icon(Icons.search, color: kTextMuted)),
               ),
-              const SizedBox(height: 8),
 
-              if (provProv.loading)
-                const Center(child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))))
-              else if (filtrados.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text('Sin proveedores activos.',
-                    style: TextStyle(color: kTextMuted, fontSize: 13)))
-              else
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: kBorder),
-                    borderRadius: BorderRadius.circular(10),
-                    color: Colors.white),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: filtrados.length,
-                    itemBuilder: (_, i) {
-                      final p = filtrados[i];
-                      final sel = _selectedProveedoresIds.contains(p.id);
-                      return CheckboxListTile(
-                        dense: true,
-                        title: Text(p.nombreEmpresa,
-                          style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(p.numeroDocumento,
-                          style: const TextStyle(fontSize: 11, color: kTextMuted)),
-                        value: sel,
-                        activeColor: kPrimary,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (v) => setState(() {
-                          if (v == true) {
-                            _selectedProveedoresIds.add(p.id);
-                          } else {
-                            _selectedProveedoresIds.remove(p.id);
-                          }
-                        }),
-                      );
-                    },
+              // La lista solo aparece cuando hay texto en el buscador.
+              if (mostrarLista) ...[
+                const SizedBox(height: 8),
+                if (provProv.loading)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))))
+                else if (filtrados.isEmpty)
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Sin resultados.',
+                      style: TextStyle(color: kTextMuted, fontSize: 13)))
+                else
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: kBorder),
+                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.white),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtrados.length,
+                      itemBuilder: (_, i) {
+                        final p = filtrados[i];
+                        final sel = _selectedProveedoresIds.contains(p.id);
+                        return CheckboxListTile(
+                          dense: true,
+                          title: Text(p.nombreEmpresa,
+                            style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(p.numeroDocumento,
+                            style: const TextStyle(fontSize: 11, color: kTextMuted)),
+                          value: sel,
+                          activeColor: kPrimary,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged: (v) => setState(() {
+                            if (v == true) {
+                              _selectedProveedoresIds.add(p.id);
+                            } else {
+                              _selectedProveedoresIds.remove(p.id);
+                            }
+                          }),
+                        );
+                      },
+                    ),
                   ),
-                ),
+              ],
               const SizedBox(height: 4),
             ]);
           }),
+
+          // ── 4. Unidad de medida ───────────────────────────────────────────────
+          _seccion('Unidad de medida', [
+            Padding(padding: const EdgeInsets.only(bottom: 12),
+              child: DropdownButtonFormField<String>(
+                value: _unidad,
+                decoration: kInputDeco('Unidad de medida'),
+                items: _kUnidades.map((u) =>
+                  DropdownMenuItem(value: u, child: Text(u))).toList(),
+                validator: (v) => (v?.isEmpty ?? true) ? 'Selecciona una unidad' : null,
+                onChanged: (v) => setState(() => _unidad = v!),
+              )),
+          ]),
 
           // ── Estado (solo en edición) ───────────────────────────────────────────
           if (_isEdit) _seccion('Estado', [
@@ -250,7 +257,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
       controller: _descripcion,
       maxLines: 3,
       maxLength: 255,
-      decoration: kInputDeco('Descripción (opcional)'),
+      decoration: kInputDeco('Notas (opcional)'),
     ),
   );
 
