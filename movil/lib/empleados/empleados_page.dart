@@ -76,6 +76,47 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
   }
 
   Future<void> _eliminar(BuildContext ctx, Empleado e) async {
+    final prov = ctx.read<EmpleadoProvider>();
+
+    // 1. Verificar primero si el empleado puede eliminarse.
+    Map<String, dynamic> verif;
+    try {
+      verif = await prov.puedeEliminarse(e.id);
+    } catch (err) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(err.toString()),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (!ctx.mounted) return;
+
+    // 2. Si no puede eliminarse, mostrar el motivo real del backend.
+    if (verif['puedeEliminarse'] == false) {
+      await showDialog<void>(
+        context: ctx,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('No se puede eliminar',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+          content: Text(
+            (verif['mensaje'] ?? 'Este empleado tiene referencias en el sistema y no puede eliminarse.')
+              .toString()),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 3. Puede eliminarse → confirmación normal.
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
@@ -99,16 +140,16 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     );
     if (ok != true || !ctx.mounted) return;
     try {
-      await ctx.read<EmpleadoProvider>().eliminar(e.id);
+      await prov.eliminar(e.id);
       if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${e.nombreCompleto} eliminado'),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
-    } catch (_) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-        content: Text('Error al eliminar'),
+    } catch (err) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(err.toString()),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
       ));

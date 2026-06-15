@@ -103,31 +103,47 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                   (v) => setState(() { _tipoDocValue = v!; _tipoDoc.text = v; })),
                 _textField(_numDoc, 'N° Documento',
                   keyboard: TextInputType.number,
+                  maxLength: 11,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+                  validator: (v) {
+                    final s = (v ?? '').trim();
+                    if (s.isEmpty) return 'Requerido';
+                    if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números';
+                    if (s.length < 6) return 'Mínimo 6 dígitos';
+                    if (s.length > 11) return 'Máximo 11 dígitos';
+                    return null;
+                  }),
               ]),
               _row([
                 _textField(_nombres, 'Nombres',
-                  validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+                  maxLength: 50,
+                  validator: (v) => _validarNombre(v)),
                 _textField(_apellidos, 'Apellidos',
-                  validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+                  maxLength: 50,
+                  validator: (v) => _validarNombre(v)),
               ]),
             ]),
             _seccion('Contacto', [
               _textField(_email, 'Correo electrónico',
                 keyboard: TextInputType.emailAddress,
+                maxLength: 50,
                 validator: (v) {
-                  if (v?.isEmpty ?? true) return 'Requerido';
-                  if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v!)) return 'Email inválido';
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Requerido';
+                  if (!RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$').hasMatch(s)) return 'Email inválido';
+                  if (s.length > 50) return 'Máximo 50 caracteres';
                   return null;
                 }),
               _textField(_telefono, 'Teléfono',
                 keyboard: TextInputType.phone,
+                maxLength: 11,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (v) {
                   final s = (v ?? '').trim();
                   if (s.isEmpty) return 'Requerido';
                   if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números';
+                  if (s.length < 7) return 'Mínimo 7 dígitos';
+                  if (s.length > 11) return 'Máximo 11 dígitos';
                   return null;
                 }),
               _row([
@@ -137,17 +153,26 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
             ]),
             _seccion('Información Laboral', [
               _textField(_cargo, 'Cargo',
-                validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+                maxLength: 50,
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Requerido';
+                  if (s.length < 2) return 'Mínimo 2 caracteres';
+                  if (s.length > 50) return 'Máximo 50 caracteres';
+                  return null;
+                }),
               _dropField('Área', _areaValue, _areas,
                 (v) => setState(() { _areaValue = v!; _area.text = v; })),
               _datePicker(),
               _textField(_salario, 'Salario base mensual',
                 keyboard: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                 validator: (v) {
-                  if (v?.isEmpty ?? true) return 'Requerido';
-                  final n = double.tryParse(v!);
-                  if (n == null || n <= 0) return 'Debe ser mayor a 0';
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Requerido';
+                  final n = double.tryParse(s);
+                  if (n == null) return 'Número inválido';
+                  if (n <= 0) return 'Debe ser mayor a 0';
                   return null;
                 }),
               if (_isEdit) _estadoField(),
@@ -249,8 +274,18 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
       ..last = Expanded(child: children.last),
   );
 
+  String? _validarNombre(String? v) {
+    final s = (v ?? '').trim();
+    if (s.isEmpty) return 'Requerido';
+    if (s.length < 2) return 'Mínimo 2 caracteres';
+    if (s.length > 50) return 'Máximo 50 caracteres';
+    if (RegExp(r'[0-9]').hasMatch(s)) return 'Solo se permiten letras';
+    return null;
+  }
+
   Widget _textField(TextEditingController c, String label, {
     TextInputType? keyboard,
+    int? maxLength,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) => Padding(
@@ -258,9 +293,10 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     child: TextFormField(
       controller: c,
       keyboardType: keyboard,
+      maxLength: maxLength,
       inputFormatters: inputFormatters,
       validator: validator,
-      decoration: kInputDeco(label),
+      decoration: kInputDeco(label).copyWith(counterText: ''),
     ),
   );
 

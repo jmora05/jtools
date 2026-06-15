@@ -52,6 +52,12 @@ class EmpleadoProvider extends ChangeNotifier {
     await cargar();
   }
 
+  // ─── Verificar si puede eliminarse ─────────────────────────────────────────
+  Future<Map<String, dynamic>> puedeEliminarse(int id) async {
+    final data = await ApiService.get('/empleados/$id/puede-eliminarse');
+    return data as Map<String, dynamic>;
+  }
+
   // ─── Eliminar ─────────────────────────────────────────────────────────────
   Future<void> eliminar(int id) async {
     await ApiService.delete('/empleados/$id');

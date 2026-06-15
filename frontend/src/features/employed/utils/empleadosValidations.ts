@@ -29,7 +29,7 @@ const SOLO_LETRAS    = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
 const SOLO_DIGITOS   = /^\d+$/;
 const ALFANUM        = /^[a-zA-Z0-9]+$/;
 const REGEX_EMAIL    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const REGEX_TELEFONO = /^[+]?[\d\s\-(). ]{7,20}$/;
+const REGEX_TELEFONO = /^\d{7,11}$/;
 
 const REGEX_PWD_UPPER   = /[A-Z]/;
 const REGEX_PWD_NUMBER  = /[0-9]/;
@@ -53,40 +53,15 @@ export function sanitizarNombre(valor: string): string {
  */
 export function sanitizarDocumento(valor: string, tipo: FormState['tipoDocumento']): string {
   const soloDigitos = valor.replace(/\D/g, '');
-  return soloDigitos.slice(0, 10); // Máximo 10 dígitos para todos
+  return soloDigitos.slice(0, 11); // Máximo 11 dígitos para todos
 }
 
 /**
- * Filtra el teléfono: valida formato +57 + 10 dígitos máximo.
- * Permite espacios, guiones y paréntesis para formato visual.
+ * Filtra el teléfono: solo dígitos, máximo 11.
  */
 export function sanitizarTelefono(valor: string): string {
-  // Permitir solo +, dígitos, espacios, guiones y paréntesis
-  let limpio = valor.replace(/[^\d+\s\-(). ]/g, '');
-  
-  // Si no comienza con +57, agregarlo
-  if (!limpio.startsWith('+57')) {
-    // Si comienza con 57 sin +, reemplazar
-    if (limpio.startsWith('57')) {
-      limpio = '+' + limpio;
-    } else {
-      // Si no tiene nada, agregar +57
-      if (limpio.length > 0 && !limpio.startsWith('+')) {
-        limpio = '+57' + limpio.replace(/\D/g, '');
-      }
-    }
-  }
-  
-  // Extraer solo los dígitos después de +57
-  const match = limpio.match(/^\+57(.*)$/);
-  if (match) {
-    const digitos = match[1].replace(/\D/g, '');
-    // Limitar a 10 dígitos
-    const digitosLimitados = digitos.slice(0, 10);
-    return '+57' + digitosLimitados;
-  }
-  
-  return limpio;
+  // Solo dígitos, máximo 11
+  return valor.replace(/\D/g, '').slice(0, 11);
 }
 
 /**
@@ -131,7 +106,7 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       if (!v) return 'El número de documento es obligatorio';
       const tipo = form.tipoDocumento;
       
-      if (v.length < 8 || v.length > 10) return 'El número de documento debe tener entre 8 y 10 dígitos';
+      if (v.length < 6 || v.length > 11) return 'El número de documento debe tener entre 6 y 11 dígitos';
       if (!/^\d+$/.test(v)) return 'Solo se permiten dígitos';
       return '';
     }
@@ -144,11 +119,7 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
 
     case 'telefono': {
       if (!v)                       return 'El teléfono es obligatorio';
-      // Validar formato: +57 seguido de 10 dígitos
-      const teleNorm = v.replace(/[\s\-(). ]/g, '');
-      if (!teleNorm.startsWith('+57')) return 'El teléfono debe comenzar con +57';
-      const digitos = teleNorm.replace('+57', '');
-      if (!/^\d{10}$/.test(digitos)) return 'Después de +57 debe haber exactamente 10 dígitos';
+      if (!REGEX_TELEFONO.test(v))  return 'El teléfono debe contener entre 7 y 11 dígitos';
       return '';
     }
 

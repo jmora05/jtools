@@ -44,8 +44,17 @@ class ApiService {
       throw ApiException(lista, res.statusCode);
     }
 
-    final msg = (data is Map ? (data['message'] ?? data['error']) : null) ??
-        'Error ${res.statusCode}';
+    // Conflictos (409) y otros errores con `message` + `razon` opcional.
+    if (data is Map && data['message'] != null) {
+      final partes = <String>[
+        data['message'].toString(),
+        if (data['razon'] != null && data['razon'].toString().trim().isNotEmpty)
+          data['razon'].toString(),
+      ];
+      throw ApiException(partes.join('\n').trim(), res.statusCode);
+    }
+
+    final msg = (data is Map ? data['error'] : null) ?? 'Error ${res.statusCode}';
     throw ApiException(msg.toString(), res.statusCode);
   }
 
