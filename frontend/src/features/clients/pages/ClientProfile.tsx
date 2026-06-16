@@ -405,7 +405,7 @@ export function ClientProfile() {
 
             {/* Modal Cambiar Contraseña */}
             <Dialog open={showPwdModal} onOpenChange={(open) => { if (!open) setShowPwdModal(false); }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md p-4">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <KeyRound className="w-5 h-5 text-blue-600" />Cambiar Contraseña
