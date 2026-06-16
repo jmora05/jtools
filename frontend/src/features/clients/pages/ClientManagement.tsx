@@ -1,3 +1,20 @@
+/**
+ * ClientManagement.tsx
+ * Página principal de administración de clientes.
+ *
+ * Responsabilidades:
+ *   - Listar clientes con búsqueda (nombre, documento, email, teléfono) y
+ *     filtro por estado (activo / inactivo / todos).
+ *   - Crear y editar clientes (Persona Natural o Empresa) con validación
+ *     local y verificación de unicidad en tiempo real vía useUniquenessCheck.
+ *   - Permitir la desactivación lógica con toggle de estado (solo admin).
+ *   - Lanzar la eliminación física solo cuando el cliente no tiene historial,
+ *     bloqueando el botón para clientes inactivos hasta que sean reactivados.
+ *   - Mostrar el modal de detalle con toda la ficha del cliente.
+ *
+ * Acceso diferenciado: el rol 'administrador' puede cambiar estado y eliminar;
+ * otros roles solo pueden ver y editar clientes activos.
+ */
 // src/features/clients/ClientManagement.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Switch } from '@/shared/components/ui/switch';
@@ -27,7 +44,9 @@ import {
 } from '../services/clientesService';
 import { useUniquenessCheck } from '@/hooks/useUniquenessCheck';
 
-// ── Tipos de documento ────────────────────────────────────────────────────────
+// Tipos de documento disponibles según la categoría del cliente.
+// Persona Natural admite cédula, extranjería, pasaporte y RUT;
+// Empresa solo opera con NIT o RUT, ya que son los identificadores tributarios.
 const DOCS_PERSONA_NATURAL = [
     { value: 'cedula',                label: 'Cédula de Ciudadanía'  },
     { value: 'cedula de extranjeria', label: 'Cédula de Extranjería' },
@@ -40,6 +59,9 @@ const DOCS_EMPRESA = [
 ];
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
+// clientType es un campo derivado calculado en el frontend: si nombres='N/A'
+// el registro se trata como Empresa, de lo contrario como Persona Natural.
+// No existe en BD; se enriquece al cargar la lista para simplificar la vista.
 interface Cliente {
     id: number;
     tipo_documento: string;
@@ -73,7 +95,9 @@ interface FormData {
     confirmPassword: string;
 }
 
-// ── Validación de formulario en el frontend ───────────────────────────────────
+// FormErrors mapea cada campo editable a su mensaje de error.
+// Todos los campos son opcionales para permitir validación incremental
+// (solo se muestra el error del campo que falló, no de todos).
 interface FormErrors {
     nombres?: string;
     apellidos?: string;
@@ -88,8 +112,19 @@ interface FormErrors {
     confirmPassword?: string;
 }
 
+/**
+ * Valida el formulario de creación/edición en el cliente (sin llamadas a red).
+ * La validación se bifurca según clientType para aplicar reglas distintas:
+ *   - Persona Natural → nombres + apellidos obligatorios; solo letras y espacios.
+ *   - Empresa         → razón social + persona de contacto obligatorios.
+ * La contraseña es completamente opcional; si se proporciona debe cumplir la
+ * política de seguridad (8 chars, mayúscula, número, carácter especial).
+ * Esta función es síncrona; la unicidad en tiempo real se delega al hook.
+ */
 function validarFormulario(data: FormData): FormErrors {
     const errs: FormErrors = {};
+    // Expresión reutilizada en varios campos de texto libre para rechazar números
+    // y símbolos donde el negocio solo espera nombres o ciudades.
     const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
 
     if (data.clientType === 'Persona natural') {
@@ -143,7 +178,9 @@ function validarFormulario(data: FormData): FormErrors {
     if (!data.direccion.trim())
         errs.direccion = 'La dirección es obligatoria';
 
-    // Contraseña (opcional — solo si se proporciona)
+    // La contraseña es opcional para permitir clientes sin acceso al portal.
+    // Si se intenta confirmar sin haberla escrito primero, se alerta al usuario
+    // para evitar confusión sobre qué campo está incompleto.
     if (data.password.trim()) {
         if (data.password.length < 8)
             errs.password = 'Mínimo 8 caracteres';
@@ -164,6 +201,9 @@ function validarFormulario(data: FormData): FormErrors {
 }
 
 // ── Banner de notificación inline ─────────────────────────────────────────────
+// El banner global vive encima de la tabla y muestra el resultado de la última
+// operación (crear, editar, eliminar). Se auto-descarta a los 5 segundos para
+// no saturar la UI en flujos de trabajo repetitivos.
 type BannerVariant = 'success' | 'error' | 'warning' | 'info';
 
 interface BannerMsg {
@@ -185,13 +225,16 @@ const bannerIcons: Record<BannerVariant, React.ReactNode> = {
     info:    <Info className="w-5 h-5 text-blue-500 shrink-0" />,
 };
 
-// ── Componente de campo con error ─────────────────────────────────────────────
+// Componente auxiliar para renderizar mensajes de error bajo cada campo.
+// Retorna null si no hay error para no ocupar espacio visual innecesario.
 function FieldError({ msg }: { msg?: string }) {
     if (!msg) return null;
     return <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{msg}</p>;
 }
 
-// ─── Helper detalle cliente ───────────────────────────────────────────────────
+// Fila de información en el modal de detalle: icono + etiqueta + valor.
+// Se parametrizan los colores para adaptar el estilo según el estado del cliente
+// (activo → azul, inactivo → gris) sin duplicar el componente.
 function ClientInfoItem({ icon, label, value, iconBg, iconColor }: {
     icon: React.ReactNode; label: string; value: string;
     iconBg: string; iconColor: string;
@@ -210,7 +253,15 @@ function ClientInfoItem({ icon, label, value, iconBg, iconColor }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Componente principal de gestión de clientes.
+ * onNavigateToSales permite al componente padre navegar al módulo de ventas
+ * (por ejemplo, al hacer clic en el historial de un cliente), manteniendo
+ * la separación entre módulos sin acoplamiento directo al router.
+ */
 export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: () => void }) {
+    // El rol se lee de localStorage en lugar de un contexto global porque
+    // el panel de administración no requiere reactividad sobre cambios de sesión.
     const stored = localStorage.getItem('jrepuestos_user');
     const currentUser = stored ? JSON.parse(stored) : null;
     const isAdmin = currentUser?.role?.toLowerCase() === 'administrador';
@@ -242,7 +293,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setTimeout(() => setBanner(null), 5000);
     }, []);
 
-    // Banner de fila (cliente inactivo al intentar editar/eliminar)
+    // Banner por fila: aparece debajo del cliente inactivo cuando el operador
+    // intenta editar o eliminar sin haberlo reactivado primero, explicando
+    // qué acción debe tomar en lugar de simplemente ignorar el clic.
     const [inactiveBannerId, setInactiveBannerId] = useState<number | null>(null);
     const [inactiveBannerAction, setInactiveBannerAction] = useState<'edit' | 'delete' | null>(null);
 
@@ -266,22 +319,36 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
     // ── Verificación de unicidad en tiempo real ─────────────────────────────────
+    // Cada hook consulta /clientes/verificar con debounce para evitar saturar la API
+    // mientras el usuario escribe. Al editar, se pasa excluirId para que el backend
+    // no considere el propio registro como duplicado.
     const excluirId = editingClient?.id;
     const docCheck   = useUniquenessCheck('clientes', 'numero_documento', excluirId);
     const emailCheck = useUniquenessCheck('clientes', 'email', excluirId);
     const phoneCheck = useUniquenessCheck('clientes', 'telefono', excluirId);
+    // El botón de submit se bloquea si alguno de los tres campos únicos ya existe,
+    // evitando una llamada fallida al backend que el usuario ya podría corregir.
     const hayErroresUnicidad = !!docCheck.error || !!emailCheck.error || !!phoneCheck.error;
 
-    // Revalidar en tiempo real cuando el usuario ya intentó enviar
+    // Revalidar reglas locales cada vez que cambia el formulario, pero solo
+    // después del primer intento de envío para no molestar al usuario antes de tiempo.
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
     }, [formData, submitAttempted]);
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
+    /**
+     * Carga todos los clientes desde la API y les agrega el campo derivado
+     * clientType. La convención nombres='N/A' indica que es una Empresa; en BD
+     * no existe una columna tipo_cliente para no duplicar información que ya
+     * se infiere del tipo de documento y de si tiene razón social.
+     */
     const fetchClientes = async () => {
         try {
             setLoading(true);
             const data = await getClientes();
+            // Enriquecimiento local: clientType no viene del backend, se deduce
+            // del valor centinela 'N/A' usado en nombres para registros de empresa.
             const enriched = data.map((c: Cliente) => ({
                 ...c,
                 clientType: c.nombres === 'N/A' ? 'Empresa' : 'Persona natural',
@@ -297,6 +364,13 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     useEffect(() => { fetchClientes(); }, []);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+    /**
+     * Resuelve el nombre visible para tabla, avatar y modales.
+     * Para empresas devuelve la razón social (fallback: persona de contacto),
+     * para personas naturales concatena nombres y apellidos.
+     * El doble chequeo (clientType + nombres==='N/A') cubre casos donde el
+     * campo derivado aún no fue enriquecido tras una carga parcial.
+     */
     const getDisplayName = (client: Cliente): string => {
         if (client.clientType === 'Empresa' || client.nombres === 'N/A') {
             return client.razon_social || client.contacto || 'Sin nombre';
@@ -311,6 +385,11 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             : name.substring(0, 2).toUpperCase();
     };
 
+    /**
+     * Limpia completamente el estado del formulario y los checks de unicidad.
+     * Se llama al cancelar, al cerrar el modal y al terminar un guardado exitoso,
+     * para que la próxima apertura siempre parta de un estado limpio.
+     */
     const resetForm = () => {
         setFormData(emptyForm);
         setFormErrors({});
@@ -322,6 +401,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         phoneCheck.reset();
     };
 
+    /**
+     * Al cambiar el tipo de cliente se resetean los campos que difieren entre
+     * ambas categorías (nombres vs razón social, tipo de documento, número).
+     * Esto evita que datos de un tipo anterior contaminen el nuevo registro,
+     * por ejemplo que quede un NIT en un campo de cédula.
+     */
     const handleClientTypeChange = (value: 'Persona natural' | 'Empresa') => {
         setFormData(prev => ({
             ...prev,
@@ -330,10 +415,23 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             numero_documento: '',
             nombres: '', apellidos: '', razon_social: '', contacto: '',
         }));
+        // Limpiar errores al cambiar de tipo evita mensajes huérfanos de campos
+        // que ya no son visibles (ej. error en "apellidos" si ahora es Empresa).
         if (submitAttempted) setFormErrors({});
     };
 
     // ── Submit ────────────────────────────────────────────────────────────────
+    /**
+     * Maneja la creación o actualización de un cliente.
+     * Flujo:
+     *   1. Validación local (sincrona) — campos vacíos, formatos, contraseña.
+     *   2. Construcción del payload normalizado para el backend.
+     *      - Empresas usan 'N/A' en nombres/apellidos como valor centinela BD.
+     *      - La contraseña solo se envía si el operador la completó.
+     *   3. Llamada a la API y refresco de la lista tras éxito.
+     *   4. Gestión granular de errores de duplicado del backend, pintando el
+     *      error directamente en el campo afectado sin recargar el formulario.
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitAttempted(true);
@@ -346,6 +444,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         }
 
         const isEmpresa = formData.clientType === 'Empresa';
+        // Para empresas, nombres y apellidos se llenan con 'N/A' porque la BD
+        // requiere un valor en esas columnas aunque el dato real sea razon_social.
         const payload = {
             nombres:          isEmpresa ? 'N/A' : formData.nombres,
             apellidos:        isEmpresa ? 'N/A' : formData.apellidos,
@@ -358,6 +458,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             ciudad:           formData.ciudad,
             estado:           formData.estado,
             ...(isEmpresa ? { contacto: formData.contacto } : {}),
+            // La contraseña se omite del payload si está vacía para no sobreescribir
+            // accidentalmente la contraseña existente en una edición sin cambio de clave.
             ...(formData.password ? { password: formData.password, confirmPassword: formData.confirmPassword } : {}),
         };
 
@@ -375,7 +477,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             await fetchClientes();
             resetForm();
         } catch (error: any) {
-            // ── Duplicados ────────────────────────────────────────────────
+            // Análisis granular del error del backend para marcar exactamente
+            // el campo duplicado sin mostrar un mensaje genérico que confunda al operador.
+            // Se revisan tanto el mensaje principal como el array de errores de validación.
             const msg: string = error.message?.toLowerCase() ?? '';
             const errores: string[] = error.errores ?? [];
 
@@ -413,6 +517,13 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
 
     // ── Editar ────────────────────────────────────────────────────────────────
+    /**
+     * Pre-carga el formulario con los datos del cliente seleccionado para edición.
+     * Los clientes inactivos no pueden editarse: se exige reactivarlos primero
+     * para garantizar que el operador toma conciencia del cambio de estado.
+     * Se resetean los hooks de unicidad para que no queden errores residuales
+     * del último formulario abierto.
+     */
     const handleEdit = (client: Cliente) => {
         if (client.estado === 'inactivo') {
             triggerInactiveBanner(client.id, 'edit');
@@ -445,14 +556,24 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
 
     // ── Toggle estado ─────────────────────────────────────────────────────────
+    /**
+     * Cambia el estado del cliente entre activo/inactivo de forma optimista:
+     * actualiza la UI inmediatamente y revierte si la API falla.
+     * El Set togglingIds permite deshabilitar todos los botones de esa fila
+     * mientras la petición está en vuelo, evitando dobles clics concurrentes.
+     * Solo disponible para el rol administrador (el botón no se renderiza para otros).
+     */
     const handleToggleEstado = async (client: Cliente) => {
         const nuevoEstado: 'activo' | 'inactivo' = client.estado === 'activo' ? 'inactivo' : 'activo';
+        // Actualización optimista: la UI responde de inmediato sin esperar la red.
         setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: nuevoEstado } : c));
         setTogglingIds(prev => new Set(prev).add(client.id));
         try {
             await updateCliente(client.id, { estado: nuevoEstado });
             toast.success(`Cliente ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} exitosamente`);
         } catch (error: any) {
+            // Rollback: si la API falla se restaura el estado previo para mantener
+            // la consistencia entre la UI y la BD.
             setClients(prev => prev.map(c => c.id === client.id ? { ...c, estado: client.estado } : c));
             toast.error(`Error: ${error.message}`);
         } finally {
@@ -461,6 +582,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
+    /**
+     * Abre el modal de confirmación de eliminación para el cliente seleccionado.
+     * Los clientes inactivos tampoco pueden eliminarse directamente: requieren
+     * ser reactivados primero, lo que obliga al operador a revisar su estado
+     * antes de tomar una acción irreversible.
+     */
     const handleDelete = (client: Cliente) => {
         if (client.estado === 'inactivo') {
             triggerInactiveBanner(client.id, 'delete');
@@ -470,6 +597,12 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
         setShowDeleteModal(true);
     };
 
+    /**
+     * Ejecuta la eliminación física tras la confirmación del operador.
+     * Llama a /force, que el backend solo acepta si el cliente no tiene
+     * historial de ventas ni pedidos; de lo contrario devuelve 400 y el
+     * mensaje de error se muestra al operador sin cerrar el modal.
+     */
     const confirmDelete = async () => {
         if (!deletingClient) return;
         try {
@@ -479,6 +612,8 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             toast.success('Cliente eliminado exitosamente');
             await fetchClientes();
         } catch (error: any) {
+            // El backend puede rechazar la eliminación si se detectó historial
+            // en Ventas después de que el usuario abrió el modal de confirmación.
             toast.error(`No se puede eliminar: ${error.message}`);
             showBanner(`No se puede eliminar: ${error.message}`, 'error');
         } finally {
@@ -489,6 +624,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
 
     // ── Filtros y paginación ──────────────────────────────────────────────────
+    // El filtrado es completamente local (sin llamadas a la API) porque el
+    // volumen de clientes no justifica paginación en servidor. Los criterios
+    // de búsqueda cubren los campos más usados por los operadores en su día a día.
     const filteredClients = clients.filter((client) => {
         const name = getDisplayName(client);
         const q = searchTerm.toLowerCase();
@@ -514,14 +652,25 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     const docsDisponibles = formData.clientType === 'Empresa' ? DOCS_EMPRESA : DOCS_PERSONA_NATURAL;
 
     // ── Helpers de input con restricciones ───────────────────────────────────
+    // Estas funciones sanitizan el valor en cada pulsación de tecla para
+    // rechazar caracteres inválidos antes de que lleguen al estado o al backend.
+    // Se prefiere este enfoque frente a solo validar al submit para dar
+    // retroalimentación inmediata y reducir errores de formato en producción.
     const onlyLetters   = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
     const onlyPhone     = (v: string) => v.replace(/[^0-9+\s\-]/g, '');
+    // El formato de documento varía según tipo: cédula/RUT solo números,
+    // NIT acepta guion para el dígito de verificación (ej. 900123456-7),
+    // pasaporte acepta alfanumérico.
     const onlyDoc       = (v: string, tipo: string) => {
         if (tipo === 'cedula' || tipo === 'rut') return v.replace(/[^0-9]/g, '');
         if (tipo === 'nit')                       return v.replace(/[^0-9\-]/g, '');
         return v.replace(/[^a-zA-Z0-9]/g, '');
     };
+    // Dirección admite números y caracteres especiales comunes en nomenclatura
+    // colombiana (Calle 50 #25-30, Manzana A, etc.).
     const onlyAddress   = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-\.]/g, '');
+    // El email no puede tener espacios; se eliminan en tiempo real para evitar
+    // errores de validación por espacios accidentales al pegar desde el portapapeles.
     const noSpaces      = (v: string) => v.replace(/\s/g, '');
 
     // ─────────────────────────────────────────────────────────────────────────

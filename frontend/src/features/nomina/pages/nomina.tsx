@@ -37,25 +37,39 @@ import {
 import { generarPdfNomina } from '../utils/generarPdfNomina';
 import { NominaDetailModal } from '../components/NominaDetailModal';
 
-// Constantes para cálculos de nómina en Colombia 2026
-const SALARIO_MINIMO_2026 = 1423500;
-const AUXILIO_TRANSPORTE_2026 = 200000;
-const PCT_REC_NOC      = 0.35;   // Recargo Nocturno
-const PCT_REC_DIUR_DOM = 0.75;   // Recargo Diurno Dominical
-const PCT_REC_NOC_DOM  = 1.10;   // Recargo Nocturno Dominical
-const PCT_HE_DIUR      = 0.25;   // Hora Extra Diurna
-const PCT_HE_NOC       = 0.75;   // Hora Extra Nocturna
-const PCT_HE_DIUR_DOM  = 1.00;   // Hora Extra Diurna Dominical
-const PCT_HE_NOC_DOM   = 1.50;   // Hora Extra Nocturna Dominical
+/**
+ * Constantes salariales y de recargos vigentes para Colombia 2026.
+ * Fuente: Decreto 2654 de 2024 (SMMLV) y Código Sustantivo del Trabajo (CST).
+ * Centralizar estas constantes aquí evita valores mágicos dispersos y facilita
+ * la actualización anual con un solo cambio.
+ */
+const SALARIO_MINIMO_2026 = 1423500;       // SMMLV 2026 — Decreto 2654/2024
+const AUXILIO_TRANSPORTE_2026 = 200000;    // Auxilio de transporte 2026 — Decreto 2655/2024
+// Porcentajes de recargo sobre el valor de la hora ordinaria (CST arts. 168-169, 171-172, 179-180)
+const PCT_REC_NOC      = 0.35;   // Recargo Nocturno: +35% (hora entre 21:00 y 06:00)
+const PCT_REC_DIUR_DOM = 0.75;   // Recargo Diurno Dominical/Festivo: +75%
+const PCT_REC_NOC_DOM  = 1.10;   // Recargo Nocturno Dominical/Festivo: +110%
+const PCT_HE_DIUR      = 0.25;   // Hora Extra Diurna: +25% sobre valor hora
+const PCT_HE_NOC       = 0.75;   // Hora Extra Nocturna: +75%
+const PCT_HE_DIUR_DOM  = 1.00;   // Hora Extra Diurna Dominical/Festiva: +100%
+const PCT_HE_NOC_DOM   = 1.50;   // Hora Extra Nocturna Dominical/Festiva: +150%
+// Bases de proporcionalidad semanal: Colombia usa 30 días y 8h/día × 30 = 240h mensuales.
 const DIAS_MES = 30;
 const HORAS_MENSUALES = 240;
 
 // ─── Helpers de semana ───────────────────────────────────────────────────────
 
+// Serializa una fecha a formato YYYY-MM-DD para comparaciones y envío al backend.
 const toYMD = (d: Date) => d.toISOString().split('T')[0];
 
 const addDays = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
+/**
+ * Calcula el viernes de la semana que contiene la fecha de referencia.
+ * El ciclo de nómina cierra cada viernes, por lo que todos los cálculos
+ * de período parten de este punto de corte.
+ * Si hoy es viernes (getDay() === 5), diff = 0 y retorna el mismo día.
+ */
 const getFriday = (ref: Date): Date => {
   const d = new Date(ref);
   d.setHours(0, 0, 0, 0);
@@ -64,6 +78,7 @@ const getFriday = (ref: Date): Date => {
   return d;
 };
 
+// Formato corto para el rango "sáb 07 jun – vie 13 jun" del navegador de semanas.
 const fmtShort = (d: Date) => d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 const fmtFull  = (d: Date) => d.toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -107,13 +122,21 @@ interface PayrollRecord {
   createdAt: string;
 }
 
+/**
+ * Módulo principal de Control de Pagos (nómina semanal).
+ * Orquesta el flujo completo: selección de semana → selección de empleado →
+ * carga automática de horas extra y ausencias → cálculo → previsualización
+ * en modal calculadora → guardado en backend → generación de PDF.
+ */
 export function PayrollModule() {
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [employees, setEmployees] = useState<Empleado[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  // La semana activa se representa por su viernes de cierre; se inicializa al viernes de la semana actual.
   const [selectedFriday, setSelectedFriday] = useState<Date>(() => getFriday(new Date()));
+  // Se cargan TODAS las HE y novedades una sola vez y se filtran en cliente para evitar N+1 de red.
   const [allHE, setAllHE] = useState<HoraExtra[]>([]);
   const [allNov, setAllNov] = useState<Novedad[]>([]);
   const [loadingWeek, setLoadingWeek] = useState(false);
@@ -121,6 +144,7 @@ export function PayrollModule() {
   const [empWeekHE, setEmpWeekHE] = useState<HoraExtra[]>([]);
   const [empWeekNov, setEmpWeekNov] = useState<Novedad[]>([]);
 
+  // El período va del sábado anterior al viernes seleccionado (semana laboral colombiana de 7 días).
   const weekStart = addDays(selectedFriday, -6);
   const weekLabel = `${fmtShort(weekStart)} – ${fmtFull(selectedFriday)}`;
 
@@ -148,6 +172,7 @@ export function PayrollModule() {
     hasTransportAllowance: true,
   });
 
+  // Recarga el listado de pagos desde el servidor y actualiza el estado local.
   const fetchNominas = async () => {
     try {
       const data = await getNominas();
@@ -157,6 +182,8 @@ export function PayrollModule() {
     }
   };
 
+  // Carga inicial en paralelo: empleados, horas extra y novedades se traen de una vez
+  // para poder filtrar localmente sin nuevas peticiones al cambiar de semana o empleado.
   useEffect(() => {
     setLoadingEmployees(true);
     setLoadingWeek(true);
@@ -174,17 +201,27 @@ export function PayrollModule() {
     fetchNominas();
   }, []);
 
-  // Recalcular días trabajados y horas extra cuando cambia la semana seleccionada
+  // Cuando el usuario navega de semana con un empleado ya seleccionado, recalcula
+  // automáticamente los días trabajados y HE para el nuevo período sin requerir
+  // que el usuario vuelva a escoger el empleado.
   useEffect(() => {
     if (formData.employeeId && employees.length > 0) {
       handleEmployeeChange(formData.employeeId);
     }
   }, [selectedFriday]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Transforma un registro del backend (snake_case, strings de BD) al formato
+   * interno del componente (camelCase, numbers).
+   * Los campos de recargos/HE se inicializan en 0 porque el backend no los
+   * persiste por separado; el detalle desglosado solo existe en el formulario
+   * de cálculo durante la sesión activa.
+   */
   const mapNominaToRecord = (n: NominaBackend): PayrollRecord => {
     const salBase   = parseFloat(String(n.salario_base));
     const auxTrans  = parseFloat(String(n.auxilio_transporte));
     const neto      = parseFloat(String(n.pago_neto));
+    // Salario proporcional para mostrar en el listado: base mensual ÷ 30 × días trabajados.
     const propSal   = salBase / DIAS_MES * n.dias_trabajados;
     return {
       id: n.id,
@@ -228,6 +265,14 @@ export function PayrollModule() {
     }
   };
 
+  /**
+   * Se ejecuta al seleccionar un empleado o al cambiar la semana activa.
+   * Realiza dos operaciones clave sin ir al servidor:
+   *   1. Acumula las horas extra aprobadas del empleado por tipo, para poblar
+   *      el formulario con los valores reales ya validados en nóminas anteriores.
+   *   2. Calcula los días ausentes cruzando las novedades con el rango de la semana,
+   *      descontando automáticamente del total de 7 días laborables.
+   */
   const handleEmployeeChange = (employeeId: string) => {
     const emp = employees.find((e) => String(e.id) === employeeId);
     if (!emp) return;
@@ -235,7 +280,7 @@ export function PayrollModule() {
     const startYMD = toYMD(weekStart);
     const endYMD   = toYMD(selectedFriday);
 
-    // Todas las horas extras aprobadas del empleado (sin restricción de período)
+    // Solo HE en estado 'aprobada'; las pendientes o rechazadas no generan pago.
     const empHE = allHE.filter(
       (he) => he.empleadoId === emp.id && he.estado === 'aprobada'
     );
@@ -252,7 +297,10 @@ export function PayrollModule() {
       }
     });
 
-    // Días ausentes por novedades aprobadas sin remuneración o rechazadas que se solapen con la semana
+    // Solo descuentan días las novedades sin remuneración ('aprobada_sin_remuneracion')
+    // o rechazadas; una novedad 'aprobada' con remuneración (ej. incapacidad pagada) no descuenta.
+    // La intersección con el rango de la semana es necesaria porque la novedad puede ser
+    // multi-semana (ej. una incapacidad de 10 días que cruza dos semanas de nómina).
     const empNov = allNov.filter(
       (n) => Number(n.empleado_afectado) === emp.id &&
               (n.estado === 'aprobada_sin_remuneracion' || n.estado === 'rechazada') &&
@@ -262,14 +310,17 @@ export function PayrollModule() {
     let absentDays = 0;
     empNov.forEach((n) => {
       if (n.horas_ausencia != null && n.horas_ausencia > 0) {
+        // Si la novedad registra horas específicas, se convierten a días (jornada de 8h).
         absentDays += n.horas_ausencia / 8;
       } else {
+        // Si no hay horas, se cuenta por días calendario dentro del rango de la semana.
         const s = n.fecha_inicio.substring(0, 10)       > startYMD ? n.fecha_inicio.substring(0, 10)       : startYMD;
         const e = n.fecha_finalizacion.substring(0, 10) < endYMD   ? n.fecha_finalizacion.substring(0, 10) : endYMD;
         const ms = new Date(e + 'T00:00:00').getTime() - new Date(s + 'T00:00:00').getTime();
         absentDays += Math.round(ms / 86400000) + 1;
       }
     });
+    // Se garantiza mínimo 0 días; si las ausencias superan la semana, no se cobra negativo.
     const daysWorked = Math.max(0, 7 - absentDays);
 
     setWeekInfo({ heCount: empHE.length, absenceDays: absentDays });
@@ -293,6 +344,17 @@ export function PayrollModule() {
     }));
   };
 
+  /**
+   * Motor de cálculo del pago semanal.
+   * Implementa las fórmulas del CST colombiano:
+   *   - Salario proporcional: salario_mensual ÷ 30 × días_trabajados
+   *   - Valor hora ordinaria: salario_mensual ÷ 240 (8h × 30 días)
+   *   - Recargos: valor_hora × porcentaje_recargo × horas
+   *   - HE: valor_hora × (1 + porcentaje_HE) × horas  ← el "1" es la hora ordinaria ya pagada
+   *   - Auxilio de transporte: proporcional a días trabajados, solo si salario ≤ 2 SMMLV
+   * Las deducciones de salud y pensión están reservadas para implementación futura;
+   * actualmente la empresa las gestiona fuera del sistema.
+   */
   const calculatePayroll = () => {
     const baseSalary   = parseFloat(formData.baseSalary) || 0;
     const daysWorked   = parseFloat(formData.daysWorked) || 0;
@@ -304,21 +366,27 @@ export function PayrollModule() {
     const h_heDiurDom  = parseFloat(formData.horaExtraDiurnaDominical)  || 0;
     const h_heNocDom   = parseFloat(formData.horaExtraNocturnaDominical) || 0;
 
+    // Salario proporcional a los días efectivamente trabajados en la semana.
     const proportionalSalary       = (baseSalary / DIAS_MES) * daysWorked;
+    // Valor de la hora ordinaria: base de todos los cálculos de recargos y HE.
     const hourValue                 = baseSalary / HORAS_MENSUALES;
+    // Recargos: se paga solo el porcentaje adicional sobre la hora ya pagada en el salario base.
     const recargoNocturno           = hourValue * PCT_REC_NOC      * h_recNoc;
     const recargoDiurnoDominical    = hourValue * PCT_REC_DIUR_DOM * h_recDiurDom;
     const recargoNocturnoDominical  = hourValue * PCT_REC_NOC_DOM  * h_recNocDom;
+    // HE: se paga la hora completa (1) más el recargo extra; por eso el factor es (1 + porcentaje).
     const horaExtraDiurna           = hourValue * (1 + PCT_HE_DIUR)     * h_heDiur;
     const horaExtraNocturna         = hourValue * (1 + PCT_HE_NOC)      * h_heNoc;
     const horaExtraDiurnaDominical  = hourValue * (1 + PCT_HE_DIUR_DOM) * h_heDiurDom;
     const horaExtraNocturnaDominical = hourValue * (1 + PCT_HE_NOC_DOM) * h_heNocDom;
+    // Auxilio de transporte proporcional: aplica solo si trabaja al menos 1 día y gana ≤ 2 SMMLV.
     const transportAllowance        =
       daysWorked > 0 && formData.hasTransportAllowance && baseSalary <= SALARIO_MINIMO_2026 * 2
         ? (AUXILIO_TRANSPORTE_2026 / DIAS_MES) * daysWorked : 0;
     const totalEarned      = proportionalSalary + recargoNocturno + recargoDiurnoDominical
                            + recargoNocturnoDominical + horaExtraDiurna + horaExtraNocturna
                            + horaExtraDiurnaDominical + horaExtraNocturnaDominical + transportAllowance;
+    // Salud y pensión se calculan desde el empleador externamente; se dejan en 0 hasta integración.
     const healthDeduction  = 0;
     const pensionDeduction = 0;
     const totalDeductions  = 0;
@@ -331,6 +399,15 @@ export function PayrollModule() {
     };
   };
 
+  /**
+   * Maneja el envío del formulario (crear o editar un pago).
+   * Aplica tres validaciones de negocio en el cliente antes de ir al servidor:
+   *   1. Semanas pasadas: no se puede registrar retroactivamente (evita manipulación).
+   *   2. Semanas muy futuras: máximo una semana adelante del viernes actual.
+   *   3. Duplicado local: previene doble submit por red lenta sin esperar al backend.
+   * El total de HE se consolida como un único valor monetario porque el backend
+   * solo persiste el monto agregado, no el desglose por tipo.
+   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -339,8 +416,18 @@ export function PayrollModule() {
       return;
     }
 
-    // Validar que el viernes seleccionado no supere una semana más allá del viernes actual
-    const maxFriday = addDays(getFriday(new Date()), 7);
+    // Política de negocio: los pagos solo se liquidan en la semana actual o la siguiente.
+    // Impide corregir semanas ya cerradas, que deben gestionarse via ajuste o nota.
+    const currentFriday = getFriday(new Date());
+    if (toYMD(selectedFriday) < toYMD(currentFriday)) {
+      toast.error(
+        `No se pueden registrar pagos para semanas pasadas. La fecha de corte debe ser la semana actual (${toYMD(currentFriday)}) o una futura.`
+      );
+      return;
+    }
+
+    // Límite de una semana hacia adelante: más allá no hay datos de HE ni ausencias confiables.
+    const maxFriday = addDays(currentFriday, 7);
     if (selectedFriday > maxFriday) {
       toast.error(
         `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular el control de pagos para semanas tan adelantadas.`
@@ -350,6 +437,8 @@ export function PayrollModule() {
 
     const fechaCorte = toYMD(selectedFriday);
     const empId = parseInt(formData.employeeId);
+    // Verificación client-side de duplicado para respuesta inmediata al usuario;
+    // el backend tiene su propia verificación como segunda línea de defensa.
     const duplicado = payrollRecords.find(r =>
       r.employeeId === empId &&
       r.paymentDate === fechaCorte &&
@@ -361,12 +450,15 @@ export function PayrollModule() {
     }
 
     const calculatedValues = calculatePayroll();
+    // Se suma el valor monetario de todos los tipos de HE/recargos en un solo campo
+    // porque el backend no modela el desglose; el detalle queda solo en el PDF.
     const totalHE =
       calculatedValues.recargoNocturno + calculatedValues.recargoDiurnoDominical +
       calculatedValues.recargoNocturnoDominical + calculatedValues.horaExtraDiurna +
       calculatedValues.horaExtraNocturna + calculatedValues.horaExtraDiurnaDominical +
       calculatedValues.horaExtraNocturnaDominical;
 
+    // fecha_fin_periodo y fecha_pago coinciden porque el pago se realiza el mismo viernes de corte.
     const payload = {
       empleado_id:          parseInt(formData.employeeId),
       fecha_inicio_periodo: toYMD(weekStart),
@@ -398,6 +490,11 @@ export function PayrollModule() {
     }
   };
 
+  /**
+   * Reinicia el formulario a su estado neutro tras guardar o cancelar.
+   * daysWorked arranca en '7' (semana completa) como valor por defecto optimista;
+   * hasTransportAllowance en true porque la mayoría de empleados califica.
+   */
   const resetForm = () => {
     setFormData({
       employeeId: '',
@@ -422,6 +519,12 @@ export function PayrollModule() {
     setShowCalculatorModal(false);
   };
 
+  /**
+   * Carga un registro existente en el formulario para edición.
+   * Reutiliza el modal calculadora en modo edición: setEditingRecord indica
+   * al handleSubmit que debe llamar updateNominaApi en lugar de createNomina.
+   * Solo disponible para registros en estado 'pendiente'.
+   */
   const handleEdit = (record: PayrollRecord) => {
     setFormData({
       employeeId:           record.employeeId ? String(record.employeeId) : '',
@@ -443,6 +546,11 @@ export function PayrollModule() {
     setShowCalculatorModal(true);
   };
 
+  /**
+   * Abre el modal de detalle enriqueciendo el documento del empleado con datos
+   * frescos del array local, ya que mapNominaToRecord puede no tenerlo si el
+   * empleado no estaba en el join de la respuesta original.
+   */
   const handleViewDetail = (record: PayrollRecord) => {
     const emp = employees.find((e) => String(e.id) === String(record.employeeId));
     setViewingRecord({
@@ -454,11 +562,14 @@ export function PayrollModule() {
     setShowDetailModal(true);
   };
 
+  // Genera y descarga el PDF del desprendible; la función reside en utils para
+  // mantener la lógica de presentación PDF separada del componente de negocio.
   const generatePDF = (record: PayrollRecord) => {
     generarPdfNomina(record, formatCurrency);
     toast.success(`Desprendible generado para ${record.employeeName}`);
   };
 
+  // Formatea valores a pesos colombianos (COP) sin decimales para legibilidad en UI y PDF.
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -467,12 +578,16 @@ export function PayrollModule() {
       maximumFractionDigits: 0,
     }).format(value);
 
+  // Precalcula en tiempo real mientras el usuario completa el formulario;
+  // null cuando no hay salario base evita mostrar $0 en la previsualización.
   const previewCalculation = formData.baseSalary ? calculatePayroll() : null;
 
   const totalPages    = Math.ceil(payrollRecords.length / itemsPerPage);
   const startIndex    = (currentPage - 1) * itemsPerPage;
   const currentRecords = payrollRecords.slice(startIndex, startIndex + itemsPerPage);
 
+  // Solo se ofrecen empleados activos para nuevos pagos; los inactivos pueden
+  // tener pagos históricos pero no se les puede generar uno nuevo.
   const activeEmployees = employees.filter((e) => e.estado === 'activo');
 
   return (
@@ -490,12 +605,15 @@ export function PayrollModule() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Navegación de semana */}
+            {/* Navegación de semana:
+                La flecha izquierda se deshabilita al llegar a la semana actual
+                para reforzar la política de no registrar pagos retroactivos. */}
             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-7 w-7 p-0"
+                disabled={toYMD(selectedFriday) <= toYMD(getFriday(new Date()))}
                 onClick={() => setSelectedFriday((prev) => addDays(prev, -7))}
               >
                 <ChevronLeftIcon className="w-4 h-4" />
