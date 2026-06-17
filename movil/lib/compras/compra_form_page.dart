@@ -13,7 +13,17 @@ class _ItemCarrito {
   final Insumo insumo;
   int cantidad = 1;
   double precio;
-  _ItemCarrito({required this.insumo, required this.precio});
+  final TextEditingController cantidadCtrl;
+  final TextEditingController precioCtrl;
+
+  _ItemCarrito({required this.insumo, required this.precio})
+      : cantidadCtrl = TextEditingController(text: '1'),
+        precioCtrl = TextEditingController(text: precio.toStringAsFixed(0));
+
+  void dispose() {
+    cantidadCtrl.dispose();
+    precioCtrl.dispose();
+  }
 }
 
 class CompraFormPage extends StatefulWidget {
@@ -61,6 +71,9 @@ class _CompraFormPageState extends State<CompraFormPage> {
     _ivaCtrl.dispose();
     _facturaCtrl.dispose();
     _notasCtrl.dispose();
+    for (final item in _carrito) {
+      item.dispose();
+    }
     super.dispose();
   }
 
@@ -149,7 +162,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final s = (v ?? '').trim();
-                      if (s.isEmpty) return null; // opcional, igual que la web
+                      if (s.isEmpty) return 'El número de factura es obligatorio.';
                       if (!_facturaRegex.hasMatch(s)) {
                         return 'Solo letras, números, guion (-) y slash (/).';
                       }
@@ -291,9 +304,6 @@ class _CompraFormPageState extends State<CompraFormPage> {
   }
 
   Widget _carritoRow(_ItemCarrito item, NumberFormat fmt) {
-    final ctrlCantidad = TextEditingController(text: item.cantidad.toString());
-    final ctrlPrecio = TextEditingController(text: item.precio.toStringAsFixed(0));
-
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -305,14 +315,17 @@ class _CompraFormPageState extends State<CompraFormPage> {
             Expanded(child: Text(item.insumo.nombreInsumo,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
             GestureDetector(
-              onTap: () => setState(() => _carrito.remove(item)),
+              onTap: () => setState(() {
+                item.dispose();
+                _carrito.remove(item);
+              }),
               child: const Icon(Icons.close, color: kError, size: 18),
             ),
           ]),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: TextFormField(
-              controller: ctrlCantidad,
+              controller: item.cantidadCtrl,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: kInputDeco('Cantidad'),
@@ -325,7 +338,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
             )),
             const SizedBox(width: 8),
             Expanded(child: TextFormField(
-              controller: ctrlPrecio,
+              controller: item.precioCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               decoration: kInputDeco('Precio unit.'),
