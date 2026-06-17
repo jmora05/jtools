@@ -1013,7 +1013,7 @@ export function EmployeeManagement() {
                             <Button
                                 onClick={handleDeletePermanente}
                                 disabled={saving}
-                                className="bg-red-600 hover:bg-red-700 text-white"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                                 {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                                 Eliminar Permanentemente

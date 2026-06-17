@@ -78,13 +78,7 @@ const FichaTecnica = sequelize.define('FichaTecnica', {
         defaultValue: null,
         comment: 'Parámetros de la máquina inyectora: unidad de inyección y prensa'
     },
-
-    responsableId: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: { model: 'empleados', key: 'id' },
-        comment: 'Empleado responsable de la ficha técnica'
-    }
+    // Nota: El responsable se maneja a nivel de cada proceso dentro de `procesos`.
 
 }, {
     timestamps: true,

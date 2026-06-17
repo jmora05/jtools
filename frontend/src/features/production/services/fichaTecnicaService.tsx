@@ -47,7 +47,6 @@ export type FichaTecnica = {
   notas?: string;
   numeroMolde?: string | null;
   parametrosMaquina?: ParametrosMaquina | null;
-  responsableId?: number | null;
   createdAt?: string;
   updatedAt?: string;
   // Relaciones
@@ -68,7 +67,6 @@ export type CreateFichaPayload = {
   notas?: string;
   numeroMolde?: string;
   parametrosMaquina?: ParametrosMaquina;
-  responsableId?: number;
 };
 
 export type UpdateFichaPayload = Partial<{
@@ -79,7 +77,6 @@ export type UpdateFichaPayload = Partial<{
   estado: 'Activa' | 'Inactiva';
   numeroMolde: string | null;
   parametrosMaquina: ParametrosMaquina | null;
-  responsableId: number | null;
 }>;
 
 // ─── Servicio ─────────────────────────────────────────────────────────────────
