@@ -57,36 +57,10 @@ export function sanitizarDocumento(valor: string, tipo: FormState['tipoDocumento
 }
 
 /**
- * Filtra el teléfono: valida formato +57 + 10 dígitos máximo.
- * Permite espacios, guiones y paréntesis para formato visual.
+ * Filtra el teléfono: solo dígitos, máximo 11.
  */
 export function sanitizarTelefono(valor: string): string {
-  // Permitir solo +, dígitos, espacios, guiones y paréntesis
-  let limpio = valor.replace(/[^\d+\s\-(). ]/g, '');
-  
-  // Si no comienza con +57, agregarlo
-  if (!limpio.startsWith('+57')) {
-    // Si comienza con 57 sin +, reemplazar
-    if (limpio.startsWith('57')) {
-      limpio = '+' + limpio;
-    } else {
-      // Si no tiene nada, agregar +57
-      if (limpio.length > 0 && !limpio.startsWith('+')) {
-        limpio = '+57' + limpio.replace(/\D/g, '');
-      }
-    }
-  }
-  
-  // Extraer solo los dígitos después de +57
-  const match = limpio.match(/^\+57(.*)$/);
-  if (match) {
-    const digitos = match[1].replace(/\D/g, '');
-    // Limitar a 10 dígitos
-    const digitosLimitados = digitos.slice(0, 10);
-    return '+57' + digitosLimitados;
-  }
-  
-  return limpio;
+  return valor.replace(/\D/g, '').slice(0, 11);
 }
 
 /**
@@ -143,12 +117,8 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       return '';
 
     case 'telefono': {
-      if (!v)                       return 'El teléfono es obligatorio';
-      // Validar formato: +57 seguido de 10 dígitos
-      const teleNorm = v.replace(/[\s\-(). ]/g, '');
-      if (!teleNorm.startsWith('+57')) return 'El teléfono debe comenzar con +57';
-      const digitos = teleNorm.replace('+57', '');
-      if (!/^\d{10}$/.test(digitos)) return 'Después de +57 debe haber exactamente 10 dígitos';
+      if (!v) return 'El teléfono es obligatorio';
+      if (!/^\d{7,11}$/.test(v)) return 'El teléfono debe contener entre 7 y 11 dígitos';
       return '';
     }
 
@@ -265,7 +235,7 @@ export function validarUnicidad(
 
   const docNorm   = form.numeroDocumento.trim().toLowerCase();
   const emailNorm = form.email.trim().toLowerCase();
-  const teleNorm  = form.telefono.replace(/[\s\-(). ]/g, '');
+  const teleNorm  = form.telefono.replace(/\D/g, '');
 
   if (docNorm && otros.some(e => e.numeroDocumento.trim().toLowerCase() === docNorm)) {
     errores.numeroDocumento = 'Ya existe un empleado con este número de documento';
@@ -275,7 +245,7 @@ export function validarUnicidad(
     errores.email = 'Este correo electrónico ya está registrado';
   }
 
-  if (teleNorm && otros.some(e => e.telefono.replace(/[\s\-(). ]/g, '') === teleNorm)) {
+  if (teleNorm && otros.some(e => e.telefono.replace(/\D/g, '') === teleNorm)) {
     errores.telefono = 'Este número de teléfono ya está registrado';
   }
 

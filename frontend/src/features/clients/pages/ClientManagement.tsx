@@ -317,7 +317,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
     // ── Verificación de unicidad en tiempo real ─────────────────────────────────
     // Cada hook consulta /clientes/verificar con debounce para evitar saturar la API
     // mientras el usuario escribe. Al editar, se pasa excluirId para que el backend
@@ -332,9 +332,9 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
 
     // Revalidar reglas locales cada vez que cambia el formulario, pero solo
     // después del primer intento de envío para no molestar al usuario antes de tiempo.
-=======
+//=======
     // Revalidar en tiempo real cuando el usuario ya intentó enviar
->>>>>>> e92d0780424bd94b1ef634ffe7c275903b6d731e
+//>>>>>>> e92d0780424bd94b1ef634ffe7c275903b6d731e
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
     }, [formData, submitAttempted]);
