@@ -10,6 +10,7 @@ class Empleado {
   final String area;
   final String? direccion;
   final String? ciudad;
+  final String? departamento;
   final String fechaIngreso;
   final double salario;
   final String estado;
@@ -26,6 +27,7 @@ class Empleado {
     required this.area,
     this.direccion,
     this.ciudad,
+    this.departamento,
     required this.fechaIngreso,
     required this.salario,
     required this.estado,
@@ -46,6 +48,7 @@ class Empleado {
         area: j['area']?.toString() ?? '',
         direccion: j['direccion']?.toString(),
         ciudad: j['ciudad']?.toString(),
+        departamento: j['departamento']?.toString(),
         fechaIngreso: j['fechaIngreso']?.toString() ?? '',
         salario: double.tryParse(j['salario']?.toString() ?? '0') ?? 0,
         estado: j['estado']?.toString() ?? 'activo',
@@ -62,6 +65,7 @@ class Empleado {
         'area': area,
         if (direccion != null) 'direccion': direccion,
         if (ciudad != null) 'ciudad': ciudad,
+        if (departamento != null) 'departamento': departamento,
         'fechaIngreso': fechaIngreso,
         'salario': salario,
         'estado': estado,

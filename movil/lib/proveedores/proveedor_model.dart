@@ -8,6 +8,7 @@ class Proveedor {
   final String email;
   final String telefono;
   final String? ciudad;
+  final String? departamento;
   final String? direccion;
   final String estado; // 'activo' | 'inactivo'
 
@@ -21,6 +22,7 @@ class Proveedor {
     required this.email,
     required this.telefono,
     this.ciudad,
+    this.departamento,
     this.direccion,
     required this.estado,
   });
@@ -37,6 +39,7 @@ class Proveedor {
         email: j['email']?.toString() ?? '',
         telefono: j['telefono']?.toString() ?? '',
         ciudad: j['ciudad']?.toString(),
+        departamento: j['departamento']?.toString(),
         direccion: j['direccion']?.toString(),
         estado: j['estado']?.toString() ?? 'activo',
       );
@@ -50,6 +53,7 @@ class Proveedor {
         'email': email,
         'telefono': telefono,
         if (ciudad != null) 'ciudad': ciudad,
+        if (departamento != null) 'departamento': departamento,
         if (direccion != null) 'direccion': direccion,
         'estado': estado,
       };

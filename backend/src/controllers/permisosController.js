@@ -13,6 +13,7 @@ const SYSTEM_MODULES = [
   { moduleKey: 'purchases',                   name: 'Compras de Insumos',          description: 'Módulo de compras de insumos' },
   { moduleKey: 'sales',                       name: 'Ventas',                      description: 'Módulo de ventas' },
   { moduleKey: 'orders',                      name: 'Pedidos',                     description: 'Módulo de pedidos' },
+  { moduleKey: 'client-purchases',            name: 'Mis Compras',                 description: 'Portal de compras del cliente' },
   { moduleKey: 'news',                        name: 'Novedades',                   description: 'Novedades y comunicados' },
   { moduleKey: 'users',                       name: 'Usuarios',                    description: 'Gestión de usuarios del sistema' },
   { moduleKey: 'roles',                       name: 'Roles y Permisos',            description: 'Gestión de roles y permisos' },

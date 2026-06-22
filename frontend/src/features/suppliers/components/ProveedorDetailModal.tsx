@@ -20,6 +20,7 @@ export interface Supplier {
     email: string;
     phone: string;
     city: string;
+    department?: string;
     address: string;
     isActive: boolean;
 }
@@ -98,7 +99,7 @@ export function ProveedorDetailModal({ open, onClose, proveedor }: ProveedorDeta
                                 {proveedor?.name ?? '—'}
                             </div>
                             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
-                                {tipoLabel}{proveedor?.city ? ` · ${proveedor.city}` : ''}
+                                {tipoLabel}{proveedor?.city ? ` · ${proveedor.city}${proveedor.department ? ', ' + proveedor.department : ''}` : ''}
                             </div>
                         </div>
                         {proveedor && (
@@ -144,7 +145,7 @@ export function ProveedorDetailModal({ open, onClose, proveedor }: ProveedorDeta
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                         {proveedor.email && <InfoItem icon={<Mail className="w-4 h-4" />}   label="Correo"    value={proveedor.email}   iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                         {proveedor.phone && <InfoItem icon={<Phone className="w-4 h-4" />}  label="Teléfono"  value={proveedor.phone}   iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
-                                        {proveedor.city  && <InfoItem icon={<MapPin className="w-4 h-4" />} label="Ciudad"    value={proveedor.city}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                        {proveedor.city  && <InfoItem icon={<MapPin className="w-4 h-4" />} label="Ciudad"    value={proveedor.department ? `${proveedor.city}, ${proveedor.department}` : proveedor.city} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                         {proveedor.address && <InfoItem icon={<FileText className="w-4 h-4" />} label="Dirección" value={proveedor.address} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                     </div>
                                 </div>

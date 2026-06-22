@@ -24,11 +24,12 @@ import {
 } from '../services/empleadosService';
 import {
     validarFormEmpleado, validarCampo, validarUnicidad, hayErrores,
-    sanitizarNombre, sanitizarDocumento, sanitizarTelefono, sanitizarCiudad,
+    sanitizarNombre, sanitizarDocumento, sanitizarTelefono,
     sanitizarSalario,
     type FormErrors,
 } from '../utils/empleadosValidations';
 import { EmpleadoDetailModal } from '../components/EmpleadoDetailModal';
+import { DepartamentoCiudadSelect } from '@/shared/components/DepartamentoCiudadSelect';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const AREAS:  Empleado['area'][]  = ['Producción', 'Administración'];
@@ -44,6 +45,7 @@ type FormState = {
     area: string;
     direccion: string;
     ciudad: string;
+    departamento: string;
     fechaIngreso: string;
     salario: string;
     estado: 'activo' | 'inactivo';
@@ -62,6 +64,7 @@ const EMPTY_FORM: FormState = {
     area: '',
     direccion: '',
     ciudad: '',
+    departamento: '',
     fechaIngreso: new Date().toISOString().split('T')[0],
     salario: '',
     estado: 'activo',
@@ -117,7 +120,7 @@ function FormFields({
     isEditing = false,
 }: {
     form: FormState;
-    setForm: (f: FormState) => void;
+    setForm: React.Dispatch<React.SetStateAction<FormState>>;
     errores?: FormErrors;
     setErrores: (e: FormErrors) => void;
     roles?: Rol[];
@@ -127,10 +130,10 @@ function FormFields({
     const [showConfirm, setShowConfirm] = React.useState(false);
 
     function update<K extends keyof FormState>(campo: K, valor: FormState[K], sanitizado?: string) {
-        const nuevoForm = { ...form, [campo]: sanitizado !== undefined ? sanitizado : valor };
-        setForm(nuevoForm);
+        const valorFinal = sanitizado !== undefined ? sanitizado : valor;
+        setForm(prev => ({ ...prev, [campo]: valorFinal }));
         const msgAnterior = errores[campo as keyof FormErrors];
-        const msgNuevo = validarCampo(campo as keyof FormState, nuevoForm);
+        const msgNuevo = validarCampo(campo as keyof FormState, { ...form, [campo]: valorFinal });
         if (msgAnterior !== undefined || msgNuevo) {
             setErrores({ ...errores, [campo]: msgNuevo || undefined });
         }
@@ -240,18 +243,6 @@ function FormFields({
                             <FieldError mensaje={errores.telefono} />
                         </div>
                         <div>
-                            <label className="block text-sm text-gray-700 mb-2">Ciudad</label>
-                            <Input
-                                placeholder="Ciudad"
-                                value={form.ciudad}
-                                onChange={e => update('ciudad', e.target.value, sanitizarCiudad(e.target.value))}
-                                onBlur={() => blur('ciudad')}
-                                className={errores.ciudad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={50}
-                            />
-                            <FieldError mensaje={errores.ciudad} />
-                        </div>
-                        <div>
                             <label className="block text-sm text-gray-700 mb-2">Dirección</label>
                             <Input
                                 placeholder="Dirección de residencia"
@@ -263,6 +254,18 @@ function FormFields({
                             />
                             <FieldError mensaje={errores.direccion} />
                         </div>
+                    </div>
+                    <div className="mt-4">
+                        <DepartamentoCiudadSelect
+                            departamento={form.departamento}
+                            ciudad={form.ciudad}
+                            onDepartamentoChange={(v) => update('departamento', v)}
+                            onCiudadChange={(v) => update('ciudad', v)}
+                            departamentoError={errores.departamento}
+                            ciudadError={errores.ciudad}
+                            departamentoRequired={false}
+                            ciudadRequired={false}
+                        />
                     </div>
                 </div>
             </div>
@@ -527,6 +530,7 @@ export function EmployeeManagement() {
                 area:            form.area  as Empleado['area'],
                 direccion:       form.direccion || undefined,
                 ciudad:          form.ciudad   || undefined,
+                departamento:    form.departamento || undefined,
                 fechaIngreso:    form.fechaIngreso,
                 salario:         parseFloat(form.salario),
                 estado:          form.estado,
@@ -577,6 +581,7 @@ export function EmployeeManagement() {
                 area:            form.area  as Empleado['area'],
                 direccion:       form.direccion || undefined,
                 ciudad:          form.ciudad   || undefined,
+                departamento:    form.departamento || undefined,
                 fechaIngreso:    form.fechaIngreso,
                 salario:         parseFloat(form.salario),
                 estado:          form.estado,
@@ -635,6 +640,7 @@ export function EmployeeManagement() {
             area:            emp.area,
             direccion:       emp.direccion ?? '',
             ciudad:          emp.ciudad    ?? '',
+            departamento:    emp.departamento ?? '',
             fechaIngreso:    emp.fechaIngreso,
             salario:         emp.salario?.toString() ?? '',
             estado:          emp.estado,

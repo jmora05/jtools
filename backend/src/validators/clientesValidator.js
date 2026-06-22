@@ -23,7 +23,7 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     const errores = [];
     const {
         nombres, apellidos, tipo_documento, numero_documento,
-        telefono, email, direccion, ciudad, razon_social, estado, foto,
+        telefono, email, direccion, ciudad, departamento, razon_social, estado, foto,
         password, confirmPassword,
     } = data;
 
@@ -31,7 +31,7 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
     if (!esActualizacion) {
         const requeridos = {
             nombres, apellidos, tipo_documento,
-            numero_documento, telefono, email, ciudad,
+            numero_documento, telefono, email, ciudad, departamento,
         };
         for (const [campo, valor] of Object.entries(requeridos)) {
             if (!valor || String(valor).trim() === '') {
@@ -107,6 +107,15 @@ async function validarCliente(data, esActualizacion = false, idExcluir = null) {
             errores.push('La ciudad debe tener entre 2 y 50 caracteres');
         else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(c))
             errores.push('La ciudad solo puede contener letras y espacios');
+    }
+
+    // ── 8b. Departamento ────────────────────────────────────────────────
+    if (departamento) {
+        const d = departamento.trim();
+        if (d.length < 2 || d.length > 50)
+            errores.push('El departamento debe tener entre 2 y 50 caracteres');
+        else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(d))
+            errores.push('El departamento solo puede contener letras y espacios');
     }
 
     // ── 9. Dirección (opcional) ────────────────────────────────────────

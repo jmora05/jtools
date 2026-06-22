@@ -42,6 +42,7 @@ import {
     getClientes, createCliente, updateCliente,
     deleteCliente, forceDeleteCliente,
 } from '../services/clientesService';
+import { DepartamentoCiudadSelect } from '@/shared/components/DepartamentoCiudadSelect';
 
 // Tipos de documento disponibles según la categoría del cliente.
 // Persona Natural admite cédula, extranjería, pasaporte y RUT;
@@ -72,6 +73,7 @@ interface Cliente {
     email: string;
     direccion: string;
     ciudad: string;
+    departamento: string;
     estado: 'activo' | 'inactivo';
     clientType?: 'Persona natural' | 'Empresa';
     contacto?: string | null;
@@ -87,6 +89,7 @@ interface FormData {
     email: string;
     direccion: string;
     ciudad: string;
+    departamento: string;
     clientType: 'Persona natural' | 'Empresa';
     estado: 'activo' | 'inactivo';
     contacto: string;
@@ -106,6 +109,7 @@ interface FormErrors {
     email?: string;
     telefono?: string;
     ciudad?: string;
+    departamento?: string;
     direccion?: string;
     password?: string;
     confirmPassword?: string;
@@ -173,6 +177,9 @@ function validarFormulario(data: FormData): FormErrors {
         errs.ciudad = 'La ciudad es obligatoria';
     else if (!soloLetras.test(data.ciudad.trim()))
         errs.ciudad = 'Solo letras y espacios';
+
+    if (!data.departamento.trim())
+        errs.departamento = 'El departamento es obligatorio';
 
     if (!data.direccion.trim())
         errs.direccion = 'La dirección es obligatoria';
@@ -311,30 +318,13 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
     const emptyForm: FormData = {
         nombres: '', apellidos: '', razon_social: '',
         tipo_documento: 'cedula', numero_documento: '',
-        telefono: '', email: '', direccion: '', ciudad: '',
+        telefono: '', email: '', direccion: '', ciudad: '', departamento: '',
         clientType: 'Persona natural', estado: 'activo',
         contacto: '', password: '', confirmPassword: '',
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
-//<<<<<<< HEAD
-    // ── Verificación de unicidad en tiempo real ─────────────────────────────────
-    // Cada hook consulta /clientes/verificar con debounce para evitar saturar la API
-    // mientras el usuario escribe. Al editar, se pasa excluirId para que el backend
-    // no considere el propio registro como duplicado.
-    const excluirId = editingClient?.id;
-    const docCheck   = useUniquenessCheck('clientes', 'numero_documento', excluirId);
-    const emailCheck = useUniquenessCheck('clientes', 'email', excluirId);
-    const phoneCheck = useUniquenessCheck('clientes', 'telefono', excluirId);
-    // El botón de submit se bloquea si alguno de los tres campos únicos ya existe,
-    // evitando una llamada fallida al backend que el usuario ya podría corregir.
-    const hayErroresUnicidad = !!docCheck.error || !!emailCheck.error || !!phoneCheck.error;
-
-    // Revalidar reglas locales cada vez que cambia el formulario, pero solo
-    // después del primer intento de envío para no molestar al usuario antes de tiempo.
-//=======
     // Revalidar en tiempo real cuando el usuario ya intentó enviar
-//>>>>>>> e92d0780424bd94b1ef634ffe7c275903b6d731e
     useEffect(() => {
         if (submitAttempted) setFormErrors(validarFormulario(formData));
     }, [formData, submitAttempted]);
@@ -456,6 +446,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             email:            formData.email,
             direccion:        formData.direccion,
             ciudad:           formData.ciudad,
+            departamento:     formData.departamento,
             estado:           formData.estado,
             ...(isEmpresa ? { contacto: formData.contacto } : {}),
             // La contraseña se omite del payload si está vacía para no sobreescribir
@@ -540,6 +531,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
             email:            client.email,
             direccion:        client.direccion || '',
             ciudad:           client.ciudad || '',
+            departamento:     client.departamento || '',
             clientType:       isEmpresa ? 'Empresa' : 'Persona natural',
             estado:           client.estado ?? 'activo',
             contacto:         client.contacto || '',
@@ -1067,40 +1059,33 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                 <FieldError msg={formErrors.email} />
                             </div>
 
-                            {/* Teléfono + Ciudad */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                        Teléfono <span className="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        type="tel"
-                                        value={formData.telefono}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({ ...prev, telefono: onlyPhone(e.target.value) }))
-                                        }
-                                        maxLength={20}
-                                        placeholder="3001234567"
-                                        className={formErrors.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    />
-                                    <FieldError msg={formErrors.telefono} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                        Ciudad <span className="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        value={formData.ciudad}
-                                        onChange={(e) =>
-                                            setFormData(prev => ({ ...prev, ciudad: onlyLetters(e.target.value) }))
-                                        }
-                                        maxLength={50}
-                                        placeholder="Medellín"
-                                        className={formErrors.ciudad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    />
-                                    <FieldError msg={formErrors.ciudad} />
-                                </div>
+                            {/* Teléfono */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                    Teléfono <span className="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    type="tel"
+                                    value={formData.telefono}
+                                    onChange={(e) =>
+                                        setFormData(prev => ({ ...prev, telefono: onlyPhone(e.target.value) }))
+                                    }
+                                    maxLength={20}
+                                    placeholder="3001234567"
+                                    className={formErrors.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                />
+                                <FieldError msg={formErrors.telefono} />
                             </div>
+
+                            {/* Departamento + Ciudad */}
+                            <DepartamentoCiudadSelect
+                                departamento={formData.departamento}
+                                ciudad={formData.ciudad}
+                                onDepartamentoChange={(v) => setFormData(prev => ({ ...prev, departamento: v }))}
+                                onCiudadChange={(v) => setFormData(prev => ({ ...prev, ciudad: v }))}
+                                departamentoError={formErrors.departamento}
+                                ciudadError={formErrors.ciudad}
+                            />
 
                             {/* Dirección */}
                             <div>
@@ -1241,7 +1226,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                                 {getDisplayName(viewingClient)}
                                             </div>
                                             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 5 }}>
-                                                {tipoLabel}{viewingClient.ciudad ? ` · ${viewingClient.ciudad}` : ''}
+                                                {tipoLabel}{viewingClient.ciudad ? ` · ${viewingClient.ciudad}${viewingClient.departamento ? ', ' + viewingClient.departamento : ''}` : ''}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.chipBg, border: `1.5px solid ${cfg.chipBorder}`, borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: cfg.chipText, boxShadow: '0 1px 4px rgba(0,0,0,0.10)', whiteSpace: 'nowrap' }}>
@@ -1278,7 +1263,7 @@ export function ClientManagement({ onNavigateToSales }: { onNavigateToSales?: ()
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                                 {viewingClient.email     && <ClientInfoItem icon={<Mail className="w-4 h-4" />}     label="Correo"    value={viewingClient.email}     iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                                 {viewingClient.telefono  && <ClientInfoItem icon={<Phone className="w-4 h-4" />}    label="Teléfono"  value={viewingClient.telefono}  iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
-                                                {viewingClient.ciudad    && <ClientInfoItem icon={<MapPin className="w-4 h-4" />}   label="Ciudad"    value={viewingClient.ciudad}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                                {viewingClient.ciudad    && <ClientInfoItem icon={<MapPin className="w-4 h-4" />}   label="Ciudad"    value={viewingClient.departamento ? `${viewingClient.ciudad}, ${viewingClient.departamento}` : viewingClient.ciudad}    iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                                 {viewingClient.direccion && <ClientInfoItem icon={<FileText className="w-4 h-4" />} label="Dirección" value={viewingClient.direccion} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                             </div>
                                         </div>

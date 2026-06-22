@@ -155,6 +155,17 @@ testConnection()
         `ALTER TABLE compras ADD COLUMN IF NOT EXISTS "iva" NUMERIC(5,2) NOT NULL DEFAULT 19.00`,
         // Número de compra alfanumérico, separado de la PK. Opcional.
         `ALTER TABLE compras ADD COLUMN IF NOT EXISTS "numeroCompra" VARCHAR(50) NULL`,
+        // Feature: Cambiar Contraseña condicionado a usuarios creados por admin
+        `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS "creadoPorAdmin" BOOLEAN NOT NULL DEFAULT false`,
+        // Feature: Sincronización de email — alinear tamaños de columna con Usuarios (100)
+        `ALTER TABLE clientes  ALTER COLUMN "email" TYPE VARCHAR(100)`,
+        `ALTER TABLE empleados ALTER COLUMN "email" TYPE VARCHAR(100)`,
+        // Feature: Departamento/Ciudad
+        `ALTER TABLE clientes   ALTER COLUMN "ciudad" TYPE VARCHAR(50)`,
+        `ALTER TABLE empleados  ALTER COLUMN "ciudad" TYPE VARCHAR(50)`,
+        `ALTER TABLE clientes   ADD COLUMN IF NOT EXISTS "departamento" VARCHAR(50) NOT NULL DEFAULT 'Por definir'`,
+        `ALTER TABLE empleados  ADD COLUMN IF NOT EXISTS "departamento" VARCHAR(50)`,
+        `ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS "departamento" VARCHAR(50)`,
     ];
     for (const sql of migraciones) {
         try {

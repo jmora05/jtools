@@ -30,7 +30,7 @@ class CatalogScreen extends StatelessWidget {
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.0),
-                  borderSide: BorderSide(color: primaryColor.withOpacity(0.5)),
+                  borderSide: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
                 ),
                 contentPadding: const EdgeInsets.all(10.0),
               ),

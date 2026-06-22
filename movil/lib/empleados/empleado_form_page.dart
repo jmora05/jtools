@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/debouncer.dart';
 import '../core/api_service.dart';
+import '../core/widgets/departamento_ciudad_select.dart';
 import 'empleado_model.dart';
 import 'empleado_provider.dart';
 
@@ -19,7 +20,9 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
 
   late final TextEditingController _nombres, _apellidos, _tipoDoc,
       _numDoc, _telefono, _email, _cargo, _area,
-      _direccion, _ciudad, _fechaIngreso, _salario;
+      _direccion, _fechaIngreso, _salario;
+  String? _departamento;
+  String? _ciudad;
 
   // Contraseña (opcional)
   late final TextEditingController _password, _confirmPassword;
@@ -73,7 +76,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     _cargo        = TextEditingController(text: e?.cargo ?? '');
     _area         = TextEditingController(text: e?.area ?? '');
     _direccion    = TextEditingController(text: e?.direccion ?? '');
-    _ciudad       = TextEditingController(text: e?.ciudad ?? '');
+    _departamento = (e?.departamento?.isNotEmpty ?? false) ? e!.departamento : null;
+    _ciudad       = (e?.ciudad?.isNotEmpty ?? false) ? e!.ciudad : null;
     _fechaIngreso = TextEditingController(
         text: e?.fechaIngreso ?? DateTime.now().toIso8601String().split('T')[0]);
     _salario      = TextEditingController(text: e?.salario.toStringAsFixed(0) ?? '');
@@ -89,7 +93,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
   void dispose() {
     _debouncer.dispose();
     for (final c in [_nombres, _apellidos, _tipoDoc, _numDoc, _telefono,
-        _email, _cargo, _area, _direccion, _ciudad, _fechaIngreso, _salario,
+        _email, _cargo, _area, _direccion, _fechaIngreso, _salario,
         _password, _confirmPassword]) {
       c.dispose();
     }
@@ -177,10 +181,15 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
                   if (s.length > 11) return 'Máximo 11 dígitos';
                   return null;
                 }),
-              _row([
-                _textField(_ciudad, 'Ciudad'),
-                _textField(_direccion, 'Dirección'),
-              ]),
+              _textField(_direccion, 'Dirección'),
+              DepartamentoCiudadSelect(
+                departamento: _departamento,
+                ciudad: _ciudad,
+                onDepartamentoChanged: (v) => setState(() => _departamento = v),
+                onCiudadChanged: (v) => setState(() => _ciudad = v),
+                departamentoRequired: false,
+                ciudadRequired: false,
+              ),
             ]),
             _seccion('Información Laboral', [
               _textField(_cargo, 'Cargo',
@@ -368,7 +377,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
     Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: kInputDeco(label),
         items: items.map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
         onChanged: onChanged,
@@ -399,7 +408,7 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
   Widget _estadoField() => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: DropdownButtonFormField<String>(
-      value: _estadoValue,
+      initialValue: _estadoValue,
       decoration: kInputDeco('Estado'),
       items: const [
         DropdownMenuItem(value: 'activo', child: Text('Activo')),
@@ -424,7 +433,8 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
         'cargo':            _cargo.text.trim(),
         'area':             _areaValue,
         'direccion':        _direccion.text.trim(),
-        'ciudad':           _ciudad.text.trim(),
+        'ciudad':           _ciudad ?? '',
+        'departamento':     _departamento ?? '',
         'fechaIngreso':     _fechaIngreso.text,
         'salario':          double.parse(_salario.text),
         'estado':           _estadoValue,

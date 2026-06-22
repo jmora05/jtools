@@ -88,7 +88,7 @@ Widget estadoChip(String estado, {String? customLabel}) {
     decoration: BoxDecoration(
       color: bg,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: fg.withOpacity(0.4)),
+      border: Border.all(color: fg.withValues(alpha: 0.4)),
     ),
     child: Text(lbl, style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
   );

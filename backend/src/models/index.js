@@ -123,6 +123,10 @@ Permisos.belongsToMany(Roles, { through: RolPermiso, foreignKey: 'permisosId', o
 Usuarios.hasOne(Clientes,    { foreignKey: 'email', sourceKey: 'email', as: 'cliente', constraints: false });
 Clientes.belongsTo(Usuarios, { foreignKey: 'email', targetKey: 'email', as: 'usuario', constraints: false });
 
+// Usuarios ↔ Empleados (mismo patrón: vínculo por email compartido, sin FK real)
+Usuarios.hasOne(Empleados,    { foreignKey: 'email', sourceKey: 'email', as: 'empleado', constraints: false });
+Empleados.belongsTo(Usuarios, { foreignKey: 'email', targetKey: 'email', as: 'usuario',   constraints: false });
+
 // Ventas
 Ventas.belongsTo(Clientes,         { foreignKey: 'clientesId',  as: 'cliente' });
 Clientes.hasMany(Ventas,           { foreignKey: 'clientesId',  as: 'ventas' });

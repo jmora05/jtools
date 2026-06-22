@@ -14,6 +14,7 @@ export type FormState = {
   area: string;
   direccion: string;
   ciudad: string;
+  departamento: string;
   fechaIngreso: string;
   salario: string;
   estado: 'activo' | 'inactivo';
@@ -159,6 +160,11 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
       if (v && !SOLO_LETRAS.test(v)) return 'Solo letras, espacios y guiones';
       return '';
 
+    case 'departamento':
+      if (v && v.length > 50)       return 'Máximo 50 caracteres';
+      if (v && !SOLO_LETRAS.test(v)) return 'Solo letras, espacios y guiones';
+      return '';
+
     case 'direccion':
       if (v && v.length > 200) return 'Máximo 200 caracteres';
       return '';
@@ -191,7 +197,7 @@ export function validarCampo(campo: keyof FormState, form: FormState): string {
 export function validarFormEmpleado(form: FormState): FormErrors {
   const campos: (keyof FormState)[] = [
     'nombres', 'apellidos', 'numeroDocumento', 'email',
-    'telefono', 'cargo', 'area', 'fechaIngreso', 'salario', 'ciudad', 'direccion',
+    'telefono', 'cargo', 'area', 'fechaIngreso', 'salario', 'ciudad', 'departamento', 'direccion',
     'password', 'confirmPassword',
   ];
   const errores: FormErrors = {};

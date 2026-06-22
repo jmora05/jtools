@@ -437,7 +437,7 @@ class _InsumoDetallePageState extends State<InsumoDetallePage> {
     decoration: BoxDecoration(
       color: bg,
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: fg.withOpacity(0.4)),
+      border: Border.all(color: fg.withValues(alpha: 0.4)),
     ),
     child: Text(msg, style: TextStyle(color: fg, fontSize: 13)),
   );

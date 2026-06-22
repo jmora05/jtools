@@ -23,6 +23,7 @@ function validarProveedor(data, esActualizacion = false) {
         email,
         direccion,
         ciudad,
+        departamento,
         estado,
     } = data;
 
@@ -121,6 +122,16 @@ function validarProveedor(data, esActualizacion = false) {
             errores.push('La ciudad debe tener entre 2 y 50 caracteres');
         } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(c)) {
             errores.push('La ciudad solo puede contener letras y espacios');
+        }
+    }
+
+    // ── 8b. Departamento (opcional) ─────────────────────────────────────────────
+    if (departamento) {
+        const d = departamento.trim();
+        if (d.length < 2 || d.length > 50) {
+            errores.push('El departamento debe tener entre 2 y 50 caracteres');
+        } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/.test(d)) {
+            errores.push('El departamento solo puede contener letras y espacios');
         }
     }
 

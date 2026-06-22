@@ -198,7 +198,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
           _seccion('Unidad de medida', [
             Padding(padding: const EdgeInsets.only(bottom: 12),
               child: DropdownButtonFormField<String>(
-                value: _unidad,
+                initialValue: _unidad,
                 decoration: kInputDeco('Unidad de medida'),
                 items: _kUnidades.map((u) =>
                   DropdownMenuItem(value: u, child: Text(u))).toList(),
@@ -211,7 +211,7 @@ class _InsumoFormPageState extends State<InsumoFormPage> {
           if (_isEdit) _seccion('Estado', [
             Padding(padding: const EdgeInsets.only(bottom: 12),
               child: DropdownButtonFormField<String>(
-                value: _estado,
+                initialValue: _estado,
                 decoration: kInputDeco('Estado del insumo'),
                 items: const [
                   DropdownMenuItem(value: 'disponible', child: Text('Disponible')),

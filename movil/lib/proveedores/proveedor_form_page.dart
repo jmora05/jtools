@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/debouncer.dart';
 import '../core/api_service.dart';
+import '../core/widgets/departamento_ciudad_select.dart';
 import 'proveedor_model.dart';
 import 'proveedor_provider.dart';
 
@@ -18,7 +19,9 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   bool _saving = false;
 
   late final TextEditingController _nombre, _contacto, _numDoc,
-      _email, _telefono, _ciudad, _direccion;
+      _email, _telefono, _direccion;
+  String? _departamento;
+  String? _ciudad;
   String _tipoProveedor = 'empresa';
   String _tipoDoc = 'NIT';
   String _estado = 'activo';
@@ -57,7 +60,8 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
     _numDoc = TextEditingController(text: p?.numeroDocumento ?? '');
     _email = TextEditingController(text: p?.email ?? '');
     _telefono = TextEditingController(text: p?.telefono ?? '');
-    _ciudad = TextEditingController(text: p?.ciudad ?? '');
+    _departamento = (p?.departamento?.isNotEmpty ?? false) ? p!.departamento : null;
+    _ciudad = (p?.ciudad?.isNotEmpty ?? false) ? p!.ciudad : null;
     _direccion = TextEditingController(text: p?.direccion ?? '');
     _tipoProveedor = p?.tipoProveedor ?? 'empresa';
     _tipoDoc = p?.tipoDocumento ?? 'NIT';
@@ -67,7 +71,9 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   @override
   void dispose() {
     _debouncer.dispose();
-    for (final c in [_nombre, _contacto, _numDoc, _email, _telefono, _ciudad, _direccion]) c.dispose();
+    for (final c in [_nombre, _contacto, _numDoc, _email, _telefono, _direccion]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -140,8 +146,15 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
                 if (!RegExp(r'^[\d\+\s\-]+$').hasMatch(s)) return 'Solo se permiten números';
                 return null;
               }),
-            _txt(_ciudad, 'Ciudad'),
             _txt(_direccion, 'Dirección'),
+            DepartamentoCiudadSelect(
+              departamento: _departamento,
+              ciudad: _ciudad,
+              onDepartamentoChanged: (v) => setState(() => _departamento = v),
+              onCiudadChanged: (v) => setState(() => _ciudad = v),
+              departamentoRequired: false,
+              ciudadRequired: false,
+            ),
           ]),
           if (_isEdit) _seccion('Estado', [
             _drop('Estado', _estado, ['activo', 'inactivo'],
@@ -203,7 +216,7 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   Widget _drop(String label, String value, List<String> items, void Function(String?) cb) =>
     Padding(padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: value, decoration: kInputDeco(label),
+        initialValue: value, decoration: kInputDeco(label),
         items: items.map((i) => DropdownMenuItem(
           value: i,
           child: Text(i == 'empresa' ? 'Empresa' : i == 'persona' ? 'Persona Natural' : i),
@@ -224,12 +237,16 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
         'numeroDocumento': _numDoc.text.trim(),
         'email': _email.text.trim(),
         'telefono': _telefono.text.trim(),
-        'ciudad': _ciudad.text.trim(),
+        'ciudad': _ciudad ?? '',
+        'departamento': _departamento ?? '',
         'direccion': _direccion.text.trim(),
         'estado': _estado,
       };
-      if (_isEdit) await prov.actualizar(widget.proveedor!.id, body);
-      else await prov.crear(body);
+      if (_isEdit) {
+        await prov.actualizar(widget.proveedor!.id, body);
+      } else {
+        await prov.crear(body);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isEdit ? 'Proveedor actualizado' : 'Proveedor registrado'),
@@ -237,8 +254,10 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: kError));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

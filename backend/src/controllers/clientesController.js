@@ -15,6 +15,7 @@ const bcrypt = require('bcryptjs');
 const { Clientes, Ventas, Usuarios, Roles } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
 const { validarCliente } = require('../validators/clientesValidator.js');
+const { sincronizarEmailEnTablasRelacionadas } = require('../services/emailSyncService');
 
 // Número de rondas de hash configurable por entorno; 12 es el mínimo recomendado
 // para producción: aumenta el costo computacional y dificulta ataques de fuerza bruta.
@@ -121,7 +122,7 @@ const createCliente = async (req, res) => {
 
         const {
             razon_social, tipo_documento, numero_documento,
-            direccion, ciudad, telefono, email, estado,
+            direccion, ciudad, departamento, telefono, email, estado,
             nombres, apellidos, contacto, password,
         } = req.body;
 
@@ -129,7 +130,7 @@ const createCliente = async (req, res) => {
 
         const cliente = await Clientes.create({
             razon_social, tipo_documento, numero_documento,
-            direccion, ciudad, telefono, email: emailNorm, estado,
+            direccion, ciudad, departamento, telefono, email: emailNorm, estado,
             nombres, apellidos, contacto,
         });
 
@@ -142,7 +143,7 @@ const createCliente = async (req, res) => {
                 const rol = await resolverRolCliente();
                 if (rol) {
                     const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-                    await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash });
+                    await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash, creadoPorAdmin: true });
                 }
             }
         }
@@ -184,34 +185,42 @@ const updateCliente = async (req, res) => {
 
         const {
             razon_social, tipo_documento, numero_documento,
-            direccion, ciudad, telefono, email, estado,
+            direccion, ciudad, departamento, telefono, email, estado,
             nombres, apellidos, contacto, password,
         } = req.body;
 
-        await cliente.update({
-            razon_social, tipo_documento, numero_documento,
-            direccion, ciudad, telefono, email, estado,
-            nombres, apellidos, contacto,
-        });
+        const emailAnterior  = cliente.email;
+        const emailNuevoNorm = email ? String(email).trim().toLowerCase() : cliente.email;
 
-        // Se usa el email del cuerpo de la petición como fuente primaria; si no
-        // viene (actualización parcial), se recurre al email actual del cliente.
-        if (password && String(password).trim() !== '') {
-            const emailBuscar = (email?.trim().toLowerCase()) || cliente.email;
-            let usuario = await Usuarios.findOne({ where: { email: emailBuscar } });
-            if (!usuario) {
-                // Primera vez que se asigna contraseña: crear cuenta de portal
-                const rol = await resolverRolCliente();
-                if (rol) {
-                    const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-                    await Usuarios.create({ rolesId: rol.id, email: emailBuscar, password: hash });
-                }
-            } else {
-                // Rotación de contraseña: reemplaza el hash existente
-                const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-                await usuario.update({ password: hash });
+        await sequelize.transaction(async (t) => {
+            await cliente.update({
+                razon_social, tipo_documento, numero_documento,
+                direccion, ciudad, departamento, telefono, email: emailNuevoNorm, estado,
+                nombres, apellidos, contacto,
+            }, { transaction: t });
+
+            // Propagar el cambio de email a Usuarios/Empleados antes de tocar
+            // contraseñas, para no buscar/crear un Usuario con el email viejo.
+            if (emailNuevoNorm !== emailAnterior) {
+                await sincronizarEmailEnTablasRelacionadas(emailAnterior, emailNuevoNorm, t, { skip: ['clientes'] });
             }
-        }
+
+            if (password && String(password).trim() !== '') {
+                let usuario = await Usuarios.findOne({ where: { email: emailNuevoNorm }, transaction: t });
+                if (!usuario) {
+                    // Primera vez que se asigna contraseña: crear cuenta de portal
+                    const rol = await resolverRolCliente();
+                    if (rol) {
+                        const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+                        await Usuarios.create({ rolesId: rol.id, email: emailNuevoNorm, password: hash, creadoPorAdmin: true }, { transaction: t });
+                    }
+                } else {
+                    // Rotación de contraseña: reemplaza el hash existente
+                    const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+                    await usuario.update({ password: hash }, { transaction: t });
+                }
+            }
+        });
 
         res.status(200).json({ message: 'Cliente actualizado correctamente', cliente });
     } catch (error) {

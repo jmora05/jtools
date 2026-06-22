@@ -5,6 +5,7 @@ class Cliente {
   final String email;
   final String telefono;
   final String ciudad;
+  final String departamento;
   final String? direccion;
   final String tipoDocumento;
   final String numeroDocumento;
@@ -19,6 +20,7 @@ class Cliente {
     required this.email,
     required this.telefono,
     required this.ciudad,
+    required this.departamento,
     this.direccion,
     required this.tipoDocumento,
     required this.numeroDocumento,
@@ -37,6 +39,7 @@ class Cliente {
     email:           j['email']?.toString() ?? '',
     telefono:        j['telefono']?.toString() ?? '',
     ciudad:          j['ciudad']?.toString() ?? '',
+    departamento:    j['departamento']?.toString() ?? '',
     direccion:       j['direccion']?.toString(),
     tipoDocumento:   j['tipo_documento']?.toString() ?? '',
     numeroDocumento: j['numero_documento']?.toString() ?? '',
@@ -52,6 +55,7 @@ class Cliente {
       'email':            email,
       'telefono':         telefono,
       'ciudad':           ciudad,
+      'departamento':     departamento,
       'tipo_documento':   tipoDocumento,
       'numero_documento': numeroDocumento,
       'estado':           estado,

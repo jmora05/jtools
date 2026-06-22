@@ -60,18 +60,22 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
       } else {
         await ctx.read<EmpleadoProvider>().reactivar(e.id);
       }
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${e.nombres} ${desactivar ? 'desactivado' : 'activado'}'),
         backgroundColor: desactivar ? kTextMuted : kPrimary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (_) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
         content: Text('Error al cambiar el estado'),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
       ));
+      }
     }
   }
 
@@ -83,11 +87,13 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     try {
       verif = await prov.puedeEliminarse(e.id);
     } catch (err) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(err.toString()),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
       ));
+      }
       return;
     }
     if (!ctx.mounted) return;
@@ -141,18 +147,22 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await prov.eliminar(e.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${e.nombreCompleto} eliminado'),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (err) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(err.toString()),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
       ));
+      }
     }
   }
 
@@ -360,9 +370,9 @@ class _EmpleadoTile extends StatelessWidget {
   Widget _areaChip(String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: kPrimaryLight.withOpacity(0.1),
+      color: kPrimaryLight.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: kPrimaryLight.withOpacity(0.4)),
+      border: Border.all(color: kPrimaryLight.withValues(alpha: 0.4)),
     ),
     child: Text(label,
       style: const TextStyle(

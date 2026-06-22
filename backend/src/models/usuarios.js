@@ -46,6 +46,12 @@ estado: {
     notEmpty: { msg: 'La contraseña no puede estar vacía' },
     len: { args: [6, 255], msg: 'La contraseña debe tener entre 6 y 255 caracteres' }
     }
+},
+creadoPorAdmin: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: 'true si la cuenta fue creada desde el panel admin; false si fue auto-registro público'
 }
 },  {
 tableName: 'usuarios',

@@ -163,7 +163,8 @@ class _ClienteDetallePageState extends State<ClienteDetallePage> {
           const SizedBox(height: 12),
           _fila(Icons.email_outlined, 'Correo', c.email),
           _fila(Icons.phone_outlined, 'Teléfono', c.telefono),
-          _fila(Icons.location_city_outlined, 'Ciudad', c.ciudad),
+          _fila(Icons.location_city_outlined, 'Ciudad',
+            c.departamento.isNotEmpty ? '${c.ciudad}, ${c.departamento}' : c.ciudad),
           if (c.direccion != null && c.direccion!.isNotEmpty)
             _fila(Icons.home_outlined, 'Dirección', c.direccion!),
         ]),
@@ -290,14 +291,18 @@ class _ClienteDetallePageState extends State<ClienteDetallePage> {
     try {
       await context.read<ClienteProvider>().cambiarEstado(c.id, nuevoEstado);
       await _cargar();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('${c.nombreCompleto} ${nuevoEstado == 'activo' ? 'activado' : 'desactivado'}'),
         backgroundColor: nuevoEstado == 'activo' ? const Color(0xFF16A34A) : kWarning,
         behavior: SnackBarBehavior.floating));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -324,7 +329,7 @@ class _ClienteDetallePageState extends State<ClienteDetallePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withOpacity(0.4))),
+        border: Border.all(color: fg.withValues(alpha: 0.4))),
       child: Text(estado[0].toUpperCase() + estado.substring(1),
         style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.w600)),
     );

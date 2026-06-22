@@ -27,6 +27,7 @@ import {
     mapSupplierToDTO,
 } from '../services/proveedoresService';
 import { ProveedorDetailModal } from '../components/ProveedorDetailModal';
+import { DepartamentoCiudadSelect } from '@/shared/components/DepartamentoCiudadSelect';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Supplier {
@@ -41,6 +42,7 @@ interface Supplier {
     email:               string;
     phone:               string;
     city:                string;
+    department:          string;
     address:             string;
     isActive:            boolean;
 }
@@ -56,6 +58,7 @@ interface FormData {
     email:               string;
     phone:               string;
     city:                string;
+    department:          string;
     address:             string;
     isActive:            boolean;
 }
@@ -70,6 +73,7 @@ interface FormErrors {
     email?:               string;
     phone?:               string;
     city?:                string;
+    department?:          string;
     address?:             string;
 }
 
@@ -120,6 +124,9 @@ function validarFormulario(data: FormData): FormErrors {
 
     if (data.city && data.city.trim().length > 50)
         errs.city = 'Máximo 50 caracteres';
+
+    if (data.department && data.department.trim().length > 50)
+        errs.department = 'Máximo 50 caracteres';
 
     if (data.address && data.address.trim().length > 200)
         errs.address = 'Máximo 200 caracteres';
@@ -215,7 +222,7 @@ export function SupplierManagement() {
     const emptyForm: FormData = {
         type: 'empresa', firstName: '', lastName: '', name: '',
         legalRepresentative: '', documentType: 'NIT', documentNumber: '',
-        email: '', phone: '', city: '', address: '', isActive: true,
+        email: '', phone: '', city: '', department: '', address: '', isActive: true,
     };
     const [formData, setFormData] = useState<FormData>(emptyForm);
 
@@ -309,6 +316,8 @@ export function SupplierManagement() {
                         backendFieldErrors.address = msg;
                     else if (lower.includes('ciudad'))
                         backendFieldErrors.city = msg;
+                    else if (lower.includes('departamento'))
+                        backendFieldErrors.department = msg;
                     else
                         toast.error(msg);
                 });
@@ -344,6 +353,7 @@ export function SupplierManagement() {
             email:               supplier.email,
             phone:               supplier.phone,
             city:                supplier.city,
+            department:          supplier.department || '',
             address:             supplier.address,
             isActive:            supplier.isActive,
         });
@@ -830,36 +840,34 @@ export function SupplierManagement() {
                                 <FieldError msg={formErrors.email} />
                             </div>
 
-                            {/* Teléfono + Ciudad */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-                                <div>
-                                    <label style={Sf.label}>
-                                        Teléfono <span style={{ color: '#f87171' }}>*</span>
-                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(7–15 dígitos)</span>
-                                    </label>
-                                    <Input
-                                        type="tel" value={formData.phone}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))}
-                                        maxLength={15} placeholder="3001234567"
-                                        className={formErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
-                                    />
-                                    <FieldError msg={formErrors.phone} />
-                                </div>
-                                <div>
-                                    <label style={Sf.label}>
-                                        Ciudad
-                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(opcional)</span>
-                                    </label>
-                                    <Input
-                                        value={formData.city}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, city: onlyLetters(e.target.value) }))}
-                                        maxLength={50} placeholder="Medellín"
-                                        className={formErrors.city ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                        style={{ height: 40, background: '#fff', fontSize: 14 }}
-                                    />
-                                    <FieldError msg={formErrors.city} />
-                                </div>
+                            {/* Teléfono */}
+                            <div style={{ marginBottom: 18 }}>
+                                <label style={Sf.label}>
+                                    Teléfono <span style={{ color: '#f87171' }}>*</span>
+                                    <span style={{ marginLeft: 4, fontSize: 10, color: '#9ca3af', textTransform: 'none', fontWeight: 400 }}>(7–15 dígitos)</span>
+                                </label>
+                                <Input
+                                    type="tel" value={formData.phone}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, phone: onlyPhone(e.target.value) }))}
+                                    maxLength={15} placeholder="3001234567"
+                                    className={formErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                                    style={{ height: 40, background: '#fff', fontSize: 14 }}
+                                />
+                                <FieldError msg={formErrors.phone} />
+                            </div>
+
+                            {/* Departamento + Ciudad */}
+                            <div style={{ marginBottom: 18 }}>
+                                <DepartamentoCiudadSelect
+                                    departamento={formData.department}
+                                    ciudad={formData.city}
+                                    onDepartamentoChange={(v) => setFormData(prev => ({ ...prev, department: v }))}
+                                    onCiudadChange={(v) => setFormData(prev => ({ ...prev, city: v }))}
+                                    departamentoError={formErrors.department}
+                                    ciudadError={formErrors.city}
+                                    departamentoRequired={false}
+                                    ciudadRequired={false}
+                                />
                             </div>
 
                             {/* Dirección */}

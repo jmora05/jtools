@@ -46,15 +46,19 @@ class _VentasPageState extends State<VentasPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<VentaProvider>().cambiarEstado(v.id, 'activa');
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('Pedido #${v.id} marcado como activo'),
         backgroundColor: const Color(0xFF0F766E), behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -78,15 +82,19 @@ class _VentasPageState extends State<VentasPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<VentaProvider>().anular(v.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('Pedido #${v.id} anulado'),
         backgroundColor: kError, behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -314,7 +322,7 @@ Widget _estadoChip(String estado) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: fg.withOpacity(0.4))),
+      border: Border.all(color: fg.withValues(alpha: 0.4))),
     child: Text(label, style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
   );
 }

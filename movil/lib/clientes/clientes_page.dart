@@ -49,15 +49,19 @@ class _ClientesPageState extends State<ClientesPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<ClienteProvider>().cambiarEstado(c.id, nuevoEstado);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${c.nombreCompleto} ${nuevoEstado == 'activo' ? 'activado' : 'desactivado'}'),
         backgroundColor: nuevoEstado == 'activo' ? const Color(0xFF16A34A) : kWarning,
         behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -81,15 +85,19 @@ class _ClientesPageState extends State<ClientesPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<ClienteProvider>().eliminar(c.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${c.nombreCompleto} eliminado'),
         backgroundColor: kError, behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -301,7 +309,7 @@ Widget _estadoChipLocal(bool activo) => Container(
     color: activo ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
-      color: activo ? const Color(0xFF16A34A).withOpacity(0.4) : kTextMuted.withOpacity(0.4)),
+      color: activo ? const Color(0xFF16A34A).withValues(alpha: 0.4) : kTextMuted.withValues(alpha: 0.4)),
   ),
   child: Text(activo ? 'Activo' : 'Inactivo',
     style: TextStyle(

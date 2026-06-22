@@ -125,7 +125,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
             // ── Proveedor ────────────────────────────────────────────────
             _seccion('Proveedor', [
               DropdownButtonFormField<Proveedor>(
-                value: _proveedor,
+                initialValue: _proveedor,
                 decoration: kInputDeco('Seleccionar proveedor'),
                 items: provProv.proveedores.where((p) => p.activo).map((p) =>
                   DropdownMenuItem(value: p, child: Text(p.nombreEmpresa))).toList(),
@@ -140,7 +140,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
               fieldError(_fechaError),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _metodoPago,
+                initialValue: _metodoPago,
                 decoration: kInputDeco('Método de pago'),
                 items: _metodos.map((m) => DropdownMenuItem(
                   value: m,
@@ -434,8 +434,10 @@ class _CompraFormPageState extends State<CompraFormPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: kError));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

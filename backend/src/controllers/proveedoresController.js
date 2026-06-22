@@ -94,6 +94,7 @@ const createProveedor = async (req, res) => {
             email,
             direccion,
             ciudad,
+            departamento,
             estado,
         } = req.body;
 
@@ -121,6 +122,7 @@ const createProveedor = async (req, res) => {
             email,
             direccion,
             ciudad,
+            departamento,
             estado,
         });
 
@@ -157,6 +159,7 @@ const updateProveedor = async (req, res) => {
             email,
             direccion,
             ciudad,
+            departamento,
             estado,
         } = req.body;
 
@@ -184,6 +187,7 @@ const updateProveedor = async (req, res) => {
             email,
             direccion,
             ciudad,
+            departamento,
             estado,
         });
 

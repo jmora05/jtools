@@ -22,8 +22,8 @@ const { SYSTEM_MODULES } = require('./src/controllers/permisosController.js');
  * =========================================================
  */
 
-const PERMISOS_EXCLUIDOS_ASISTENTE = ['users', 'roles'];
-const PERMISOS_CLIENTE             = ['catalog', 'orders', 'sales', 'dashboard'];
+const PERMISOS_EXCLUIDOS_ASISTENTE = ['users', 'roles', 'payroll'];
+const PERMISOS_CLIENTE             = ['catalog', 'client-purchases'];
 
 /**
  * Busca un rol por nombre de forma CASE-INSENSITIVE.

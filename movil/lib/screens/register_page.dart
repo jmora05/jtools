@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/auth_provider.dart';
+import '../core/widgets/departamento_ciudad_select.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -21,7 +22,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final _tipoDoc       = ValueNotifier<String?>('cedula');
   final _numDoc        = TextEditingController();
   final _telefono      = TextEditingController();
-  final _ciudad        = TextEditingController();
+  String? _departamento;
+  String? _ciudad;
   final _direccion     = TextEditingController();
   final _otp           = TextEditingController();
 
@@ -37,7 +39,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _nombres.dispose(); _apellidos.dispose(); _email.dispose();
     _password.dispose(); _confirmPass.dispose(); _numDoc.dispose();
-    _telefono.dispose(); _ciudad.dispose(); _direccion.dispose();
+    _telefono.dispose(); _direccion.dispose();
     _otp.dispose(); _tipoDoc.dispose();
     super.dispose();
   }
@@ -169,7 +171,7 @@ class _RegisterPageState extends State<RegisterPage> {
         ValueListenableBuilder<String?>(
           valueListenable: _tipoDoc,
           builder: (_, val, __) => DropdownButtonFormField<String>(
-            value: val,
+            initialValue: val,
             decoration: kInputDeco('Tipo de documento *'),
             items: _tiposDoc.map((t) => DropdownMenuItem(
               value: t,
@@ -221,18 +223,11 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
         const SizedBox(height: 12),
 
-        TextFormField(
-          controller: _ciudad,
-          textCapitalization: TextCapitalization.words,
-          decoration: kInputDeco('Ciudad *',
-            prefix: const Icon(Icons.location_city_outlined, color: kTextMuted)),
-          validator: (v) {
-            final s = v?.trim() ?? '';
-            if (s.isEmpty) return 'Requerida';
-            if (s.length < 2) return 'Mínimo 2 caracteres';
-            if (s.length > 100) return 'Máximo 100 caracteres';
-            return null;
-          },
+        DepartamentoCiudadSelect(
+          departamento: _departamento,
+          ciudad: _ciudad,
+          onDepartamentoChanged: (v) => setState(() => _departamento = v),
+          onCiudadChanged: (v) => setState(() => _ciudad = v),
         ),
         const SizedBox(height: 12),
 
@@ -272,7 +267,7 @@ class _RegisterPageState extends State<RegisterPage> {
       Container(
         width: 72, height: 72,
         decoration: BoxDecoration(
-          color: kPrimary.withOpacity(0.1),
+          color: kPrimary.withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: const Icon(Icons.mark_email_unread_outlined, color: kPrimary, size: 36),
@@ -332,8 +327,8 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget _errorBanner(String msg) => Container(
     width: double.infinity, padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: kError.withOpacity(0.08),
-      border: Border.all(color: kError.withOpacity(0.3)),
+      color: kError.withValues(alpha: 0.08),
+      border: Border.all(color: kError.withValues(alpha: 0.3)),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -354,7 +349,8 @@ class _RegisterPageState extends State<RegisterPage> {
       'tipo_documento':   _tipoDoc.value,
       'numero_documento': _numDoc.text.trim(),
       'telefono':         _telefono.text.trim(),
-      'ciudad':           _ciudad.text.trim(),
+      'ciudad':           _ciudad ?? '',
+      'departamento':     _departamento ?? '',
     };
     if (_direccion.text.trim().isNotEmpty) {
       body['direccion'] = _direccion.text.trim();

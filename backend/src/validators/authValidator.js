@@ -108,6 +108,13 @@ function validateRegisterBody(body) {
     errors.push('La ciudad debe tener entre 2 y 100 caracteres');
   }
 
+  // Departamento
+  if (!body?.departamento || !String(body.departamento).trim()) {
+    errors.push('El departamento es obligatorio');
+  } else if (String(body.departamento).trim().length < 2 || String(body.departamento).trim().length > 100) {
+    errors.push('El departamento debe tener entre 2 y 100 caracteres');
+  }
+
   // Dirección (opcional)
   if (body?.direccion && String(body.direccion).trim().length > 200) {
     errors.push('La dirección no puede superar los 200 caracteres');

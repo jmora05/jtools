@@ -73,7 +73,7 @@ class _SeleccionarProductosPageState extends State<SeleccionarProductosPage> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
                 const SizedBox(height: 12),
                 const Text('Items seleccionados',
                     style:

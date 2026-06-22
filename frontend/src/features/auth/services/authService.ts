@@ -25,6 +25,7 @@ export type SafeUser = {
   email: string;
   createdAt?: string;
   updatedAt?: string;
+  creadoPorAdmin?: boolean;
 };
 
 export type LoginResponse = {
@@ -54,6 +55,7 @@ export type RegisterPayload = {
   numero_documento: string;
   telefono:         string;
   ciudad:           string;
+  departamento:     string;
   razon_social?:    string;   // opcional: solo para NIT/RUT (empresas)
   direccion?:       string;   // opcional
   contacto?:        string;   // opcional: persona de contacto en empresas
