@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import 'nomina_model.dart';
-import 'nomina_provider.dart';
 
 class NominaDetallePage extends StatelessWidget {
   final Nomina nomina;
@@ -48,24 +46,6 @@ class NominaDetallePage extends StatelessWidget {
               )),
             ),
           ),
-          actions: [
-            if (!nomina.pagado)
-              TextButton.icon(
-                icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-                label: const Text('Marcar pagado', style: TextStyle(color: Colors.white)),
-                onPressed: () => _marcarPagado(context),
-              ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              onSelected: (v) => _accion(context, v),
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'eliminar',
-                  child: Text('Eliminar registro', style: TextStyle(color: kError)),
-                ),
-              ],
-            ),
-          ],
         ),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.all(16),
@@ -89,21 +69,6 @@ class NominaDetallePage extends StatelessWidget {
                 _filaMoneda('Auxilio de transporte', fmt.format(nomina.auxilioTransporte), fmt),
             ]),
             _netoCard(fmt),
-            if (!nomina.pagado) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity, height: 50,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Marcar como pagado', style: TextStyle(fontSize: 15)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary, foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () => _marcarPagado(context),
-                ),
-              ),
-            ],
             const SizedBox(height: 60),
           ]),
         )),
@@ -170,57 +135,4 @@ class NominaDetallePage extends StatelessWidget {
       Text(value, style: const TextStyle(color: kText, fontSize: 14, fontWeight: FontWeight.w600)),
     ]),
   );
-
-  Future<void> _marcarPagado(BuildContext ctx) async {
-    final ok = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirmar pago'),
-        content: Text('¿Marcar el control de pagos de ${nomina.nombreEmpleado} como pagado?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: kPrimary),
-            child: const Text('Confirmar')),
-        ],
-      ),
-    );
-    if (ok != true || !ctx.mounted) return;
-    try {
-      await ctx.read<NominaProvider>().marcarPagada(nomina.id);
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(content: Text('Control de pagos marcado como pagado'), backgroundColor: kPrimary));
-        Navigator.pop(ctx);
-      }
-    } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: kError));
-    }
-  }
-
-  Future<void> _accion(BuildContext ctx, String accion) async {
-    if (accion != 'eliminar') return;
-    final ok = await showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar registro'),
-        content: const Text('¿Eliminar este registro permanentemente?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: kError),
-            child: const Text('Eliminar')),
-        ],
-      ),
-    );
-    if (ok != true || !ctx.mounted) return;
-    try {
-      await ctx.read<NominaProvider>().eliminar(nomina.id);
-      if (ctx.mounted) Navigator.pop(ctx);
-    } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: kError));
-    }
-  }
 }

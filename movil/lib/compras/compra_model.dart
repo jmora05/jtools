@@ -3,6 +3,7 @@ class DetalleCompra {
   final int insumosId;
   final int cantidad;
   final double precioUnitario;
+  final double cantidadMerma;
   final String? nombreInsumo;
   final String? unidadMedida;
 
@@ -11,6 +12,7 @@ class DetalleCompra {
     required this.insumosId,
     required this.cantidad,
     required this.precioUnitario,
+    this.cantidadMerma = 0,
     this.nombreInsumo,
     this.unidadMedida,
   });
@@ -20,8 +22,9 @@ class DetalleCompra {
   factory DetalleCompra.fromJson(Map<String, dynamic> j) => DetalleCompra(
         id: j['id'] != null ? int.tryParse(j['id'].toString()) : null,
         insumosId: int.tryParse(j['insumosId'].toString()) ?? 0,
-        cantidad: int.tryParse(j['cantidad'].toString()) ?? 0,
+        cantidad: (double.tryParse(j['cantidad']?.toString() ?? '0') ?? 0).round(),
         precioUnitario: double.tryParse(j['precioUnitario'].toString()) ?? 0,
+        cantidadMerma: double.tryParse(j['cantidadMerma']?.toString() ?? '0') ?? 0,
         nombreInsumo: j['insumo']?['nombreInsumo'],
         unidadMedida: j['insumo']?['unidadMedida'],
       );
@@ -39,8 +42,12 @@ class Compra {
   final String fecha;
   final String metodoPago;
   final String estado;
+  final String? numeroFactura;
+  final String? numeroCompra;
   final String? nombreProveedor;
   final List<DetalleCompra> detalles;
+  // IVA en porcentaje (ej. 19 = 19%). Editable por compra, igual que la web.
+  final double ivaPorcentaje;
 
   Compra({
     required this.id,
@@ -48,12 +55,15 @@ class Compra {
     required this.fecha,
     required this.metodoPago,
     required this.estado,
+    this.numeroFactura,
+    this.numeroCompra,
     this.nombreProveedor,
     this.detalles = const [],
+    this.ivaPorcentaje = 19,
   });
 
   double get subtotal => detalles.fold(0, (s, d) => s + d.subtotal);
-  double get iva => subtotal * 0.19;
+  double get iva => subtotal * (ivaPorcentaje / 100);
   double get total => subtotal + iva;
 
   static const Map<String, String> estadoLabel = {
@@ -69,8 +79,22 @@ class Compra {
         fecha: j['fecha']?.toString() ?? '',
         metodoPago: j['metodoPago']?.toString() ?? '',
         estado: j['estado']?.toString() ?? 'pendiente',
+        numeroFactura: j['numeroFactura']?.toString(),
+        numeroCompra: j['numeroCompra']?.toString(),
+        ivaPorcentaje: double.tryParse(j['iva']?.toString() ?? '') ?? 19,
         nombreProveedor: j['proveedor']?['nombreEmpresa']?.toString(),
         detalles: (j['detalles'] as List? ?? [])
             .map((d) => DetalleCompra.fromJson(d as Map<String, dynamic>)).toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'proveedoresId': proveedoresId,
+        'fecha': fecha,
+        'metodoPago': metodoPago,
+        'estado': estado,
+        'iva': ivaPorcentaje,
+        if (numeroFactura != null) 'numeroFactura': numeroFactura,
+        if (numeroCompra != null) 'numeroCompra': numeroCompra,
+        'detalles': detalles.map((d) => d.toJson()).toList(),
+      };
 }

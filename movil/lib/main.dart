@@ -49,6 +49,12 @@ class JToolsApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
         scaffoldBackgroundColor: kBg,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS:     CupertinoPageTransitionsBuilder(),
+          },
+        ),
         appBarTheme: const AppBarTheme(
           backgroundColor: kPrimaryDark,
           foregroundColor: Colors.white,
@@ -91,7 +97,7 @@ class JToolsApp extends StatelessWidget {
   }
 }
 
-// ─── Auth gate: muestra login o app según token ───────────────────────────────
+// ─── Auth gate ────────────────────────────────────────────────────────────────
 class _AuthGate extends StatefulWidget {
   const _AuthGate();
   @override State<_AuthGate> createState() => _AuthGateState();
@@ -108,11 +114,68 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    if (auth.initializing) return const _AppLoadingScreen();
     return auth.isLoggedIn ? const MainShell() : const LoginPage();
   }
 }
 
-// ─── Shell principal con bottom nav ──────────────────────────────────────────
+// ─── Pantalla de carga inicial ────────────────────────────────────────────────
+class _AppLoadingScreen extends StatefulWidget {
+  const _AppLoadingScreen();
+  @override State<_AppLoadingScreen> createState() => _AppLoadingScreenState();
+}
+
+class _AppLoadingScreenState extends State<_AppLoadingScreen> {
+  bool _showSlowMessage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _showSlowMessage = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F2347),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 96, height: 96,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(Icons.build_circle_outlined,
+                color: Colors.white, size: 52),
+            ),
+            const SizedBox(height: 24),
+            const Text('JTools',
+              style: TextStyle(
+                fontSize: 32, fontWeight: FontWeight.w800,
+                color: Colors.white, letterSpacing: 0.5)),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+            const SizedBox(height: 20),
+            AnimatedOpacity(
+              opacity: _showSlowMessage ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              child: const Text(
+                'Conectando con el servidor...',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Shell principal ──────────────────────────────────────────────────────────
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
   @override State<MainShell> createState() => _MainShellState();
@@ -124,23 +187,41 @@ class _MainShellState extends State<MainShell> {
   static const _pages = [
     EmpleadosPage(),
     ProveedoresPage(),
-    InsumosPage(),
     ComprasPage(),
+    InsumosPage(),
     NominaPage(),
   ];
 
   static const _items = [
-    BottomNavigationBarItem(icon: Icon(Icons.people_outlined), activeIcon: Icon(Icons.people), label: 'Empleados'),
-    BottomNavigationBarItem(icon: Icon(Icons.business_outlined), activeIcon: Icon(Icons.business), label: 'Proveedores'),
-    BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2), label: 'Insumos'),
-    BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart), label: 'Compras'),
-    BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long), label: 'Control de Pagos'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.people_outlined), activeIcon: Icon(Icons.people),
+      label: 'Empleados'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.business_outlined), activeIcon: Icon(Icons.business),
+      label: 'Proveedores'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.shopping_cart_outlined), activeIcon: Icon(Icons.shopping_cart),
+      label: 'Compras'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2),
+      label: 'Insumos'),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long),
+      label: 'Control de Pagos'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _idx, children: _pages),
+      // ── Fade entre pestañas ──────────────────────────────────────────────────
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
+        ),
+        child: KeyedSubtree(key: ValueKey(_idx), child: _pages[_idx]),
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: kBorder, width: 1)),
@@ -158,46 +239,7 @@ class _MainShellState extends State<MainShell> {
           items: _items,
         ),
       ),
-      // Botón de cerrar sesión en drawer
-      drawer: _drawer(context),
-    );
-  }
-
-  Widget _drawer(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    return Drawer(
-      child: Column(children: [
-        DrawerHeader(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const CircleAvatar(
-              radius: 28, backgroundColor: Colors.white24,
-              child: Icon(Icons.person, color: Colors.white, size: 32),
-            ),
-            const SizedBox(height: 12),
-            Text(auth.userName ?? 'Usuario',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
-            if (auth.userRole?.isNotEmpty ?? false)
-              Text(auth.userRole!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          ]),
-        ),
-        const Spacer(),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.logout, color: kError),
-          title: const Text('Cerrar sesión', style: TextStyle(color: kError)),
-          onTap: () async {
-            Navigator.pop(context);
-            await context.read<AuthProvider>().logout();
-          },
-        ),
-        const SizedBox(height: 20),
-      ]),
     );
   }
 }
+

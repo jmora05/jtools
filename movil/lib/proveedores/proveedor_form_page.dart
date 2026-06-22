@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/debouncer.dart';
+import '../core/api_service.dart';
 import 'proveedor_model.dart';
 import 'proveedor_provider.dart';
 
@@ -20,7 +23,30 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   String _tipoDoc = 'NIT';
   String _estado = 'activo';
 
+  // Validación de unicidad en tiempo real
+  final _debouncer = Debouncer();
+  String? _errorNombre, _errorNumDoc, _errorEmail, _errorTelefono;
+
   bool get _isEdit => widget.proveedor != null;
+  bool get _hayErroresUnicidad =>
+      _errorNombre != null || _errorNumDoc != null ||
+      _errorEmail != null || _errorTelefono != null;
+
+  void _verificar(String campo, String valor, void Function(String?) asignar) {
+    setState(() => asignar(null));
+    if (valor.trim().isEmpty) return;
+    _debouncer.run(() async {
+      final res = await ApiService.verificarUnicidad(
+        modulo: 'proveedores',
+        campo: campo,
+        valor: valor.trim(),
+        excluirId: widget.proveedor?.id,
+      );
+      if (mounted && res['existe'] == true) {
+        setState(() => asignar(res['mensaje']?.toString() ?? 'Ya está registrado'));
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -40,6 +66,7 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
 
   @override
   void dispose() {
+    _debouncer.dispose();
     for (final c in [_nombre, _contacto, _numDoc, _email, _telefono, _ciudad, _direccion]) c.dispose();
     super.dispose();
   }
@@ -54,6 +81,7 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
     ),
     body: Form(
       key: _key,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
@@ -61,27 +89,57 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
             _drop('Tipo', _tipoProveedor, ['empresa', 'persona'],
               (v) => setState(() { _tipoProveedor = v!; _tipoDoc = v == 'empresa' ? 'NIT' : 'CC'; })),
           ]),
+          // Orden de campos igual que SupplierManagement.tsx:
+          //   1. Tipo de documento
+          //   2. Número de documento
+          //   3. Nombre (empresa o completo)
+          //   4. (Empresa) Persona de contacto opcional
           _seccion('Información principal', [
-            _txt(_nombre, _tipoProveedor == 'empresa' ? 'Nombre empresa' : 'Nombre completo',
-              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
-            if (_tipoProveedor == 'empresa')
-              _txt(_contacto, 'Persona de contacto (opcional)'),
             _drop('Tipo documento', _tipoDoc,
               _tipoProveedor == 'empresa' ? ['NIT', 'CC'] : ['CC', 'CE', 'PPT'],
               (v) => setState(() => _tipoDoc = v!)),
             _txt(_numDoc, 'Número de documento',
+              keyboard: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+              ],
+              onChanged: (v) => _verificar('numeroDocumento', v, (e) => _errorNumDoc = e),
+              errorUnicidad: _errorNumDoc,
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.isEmpty) return 'Requerido';
+                if (!RegExp(r'^[0-9\-]+$').hasMatch(s)) return 'Solo se permiten números';
+                return null;
+              }),
+            _txt(_nombre, _tipoProveedor == 'empresa' ? 'Nombre de la empresa (razón social)' : 'Nombre completo',
+              onChanged: (v) => _verificar('nombreEmpresa', v, (e) => _errorNombre = e),
+              errorUnicidad: _errorNombre,
               validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+            if (_tipoProveedor == 'empresa')
+              _txt(_contacto, 'Empresa de contacto (opcional)'),
           ]),
           _seccion('Contacto', [
             _txt(_email, 'Correo electrónico',
               keyboard: TextInputType.emailAddress,
+              onChanged: (v) => _verificar('email', v, (e) => _errorEmail = e),
+              errorUnicidad: _errorEmail,
               validator: (v) {
                 if (v?.isEmpty ?? true) return 'Requerido';
                 if (!v!.contains('@')) return 'Email inválido';
                 return null;
               }),
             _txt(_telefono, 'Teléfono', keyboard: TextInputType.phone,
-              validator: (v) => (v?.isEmpty ?? true) ? 'Requerido' : null),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d\+\s\-]')),
+              ],
+              onChanged: (v) => _verificar('telefono', v, (e) => _errorTelefono = e),
+              errorUnicidad: _errorTelefono,
+              validator: (v) {
+                final s = (v ?? '').trim();
+                if (s.isEmpty) return 'Requerido';
+                if (!RegExp(r'^[\d\+\s\-]+$').hasMatch(s)) return 'Solo se permiten números';
+                return null;
+              }),
             _txt(_ciudad, 'Ciudad'),
             _txt(_direccion, 'Dirección'),
           ]),
@@ -97,7 +155,7 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
                 backgroundColor: kPrimary, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: _saving ? null : _guardar,
+              onPressed: (_saving || _hayErroresUnicidad) ? null : _guardar,
               child: _saving
                 ? const SizedBox(width: 20, height: 20,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -125,10 +183,22 @@ class _ProveedorFormPageState extends State<ProveedorFormPage> {
   );
 
   Widget _txt(TextEditingController c, String label,
-      {TextInputType? keyboard, String? Function(String?)? validator}) =>
+      {TextInputType? keyboard,
+      List<TextInputFormatter>? inputFormatters,
+      String? Function(String?)? validator,
+      void Function(String)? onChanged,
+      String? errorUnicidad}) =>
     Padding(padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(controller: c, keyboardType: keyboard,
-        validator: validator, decoration: kInputDeco(label)));
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(controller: c, keyboardType: keyboard,
+            inputFormatters: inputFormatters,
+            onChanged: onChanged,
+            validator: validator, decoration: kInputDeco(label)),
+          fieldError(errorUnicidad),
+        ],
+      ));
 
   Widget _drop(String label, String value, List<String> items, void Function(String?) cb) =>
     Padding(padding: const EdgeInsets.only(bottom: 12),

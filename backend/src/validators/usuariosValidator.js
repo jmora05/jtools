@@ -1,8 +1,13 @@
 // Validaciones de negocio — Módulo Usuarios
-const { Op }             = require('sequelize');
+const { Op, fn, col, where: seqWhere } = require('sequelize');
 const { Usuarios, Roles } = require('../models/index.js');
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// Coincidencia de email case-insensitive (trim + lower a nivel de columna).
+function emailMatchCI(mail) {
+    return seqWhere(fn('LOWER', fn('TRIM', col('email'))), mail.trim().toLowerCase());
+}
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
 // Mismas reglas que authValidator.js para consistencia
 const PASSWORD_RULES = [
@@ -30,11 +35,15 @@ async function validateCreateUsuario(body) {
     if (errores.length > 0) return errores;
 
     // ── 2. Email ────────────────────────────────────────────────────────
-    const mail = String(body.email).trim();
-    if (!EMAIL_REGEX.test(mail))
-        errores.push('El email no tiene un formato válido');
-    else if (mail.length > 100)
+    const mail = String(body.email).trim().toLowerCase();
+    if (mail.length > 100)
         errores.push('El email no puede superar los 100 caracteres');
+    else if (!EMAIL_REGEX.test(mail))
+        errores.push('El email no tiene un formato válido (ej: usuario@dominio.com)');
+    else if (mail.includes('..'))
+        errores.push('El email no puede contener puntos consecutivos');
+    else if (mail.split('@')[0].startsWith('.') || mail.split('@')[0].endsWith('.'))
+        errores.push('El nombre de usuario del email no puede empezar ni terminar con punto');
 
     // ── 3. Contraseña ───────────────────────────────────────────────────
     const pass = String(body.password);
@@ -64,7 +73,7 @@ async function validateCreateUsuario(body) {
     // ── 6. Duplicado email — solo si no hay errores previos ─────────────
     if (errores.length === 0) {
         const emailExiste = await Usuarios.findOne({
-            where: { email: mail.toLowerCase() },
+            where: emailMatchCI(mail),
         });
         if (emailExiste)
             errores.push('Ya existe un usuario registrado con ese correo electrónico');
@@ -87,11 +96,15 @@ async function validateUpdateUsuario(body, idExcluir = null) {
         if (!String(body.email).trim()) {
             errores.push('El email no puede estar vacío');
         } else {
-            const mail = String(body.email).trim();
-            if (!EMAIL_REGEX.test(mail))
-                errores.push('El email no tiene un formato válido');
-            else if (mail.length > 100)
+            const mail = String(body.email).trim().toLowerCase();
+            if (mail.length > 100)
                 errores.push('El email no puede superar los 100 caracteres');
+            else if (!EMAIL_REGEX.test(mail))
+                errores.push('El email no tiene un formato válido (ej: usuario@dominio.com)');
+            else if (mail.includes('..'))
+                errores.push('El email no puede contener puntos consecutivos');
+            else if (mail.split('@')[0].startsWith('.') || mail.split('@')[0].endsWith('.'))
+                errores.push('El nombre de usuario del email no puede empezar ni terminar con punto');
         }
     }
 
@@ -128,9 +141,10 @@ async function validateUpdateUsuario(body, idExcluir = null) {
     if (errores.length === 0 && body?.email !== undefined && body?.email !== null) {
         const mail = String(body.email).trim();
         if (mail) {
-            const whereExcluir = idExcluir ? { id: { [Op.ne]: idExcluir } } : {};
+            const condiciones = [emailMatchCI(mail)];
+            if (idExcluir) condiciones.push({ id: { [Op.ne]: idExcluir } });
             const emailExiste = await Usuarios.findOne({
-                where: { ...whereExcluir, email: mail.toLowerCase() },
+                where: { [Op.and]: condiciones },
             });
             if (emailExiste)
                 errores.push('Ya existe un usuario registrado con ese correo electrónico');

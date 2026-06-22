@@ -13,8 +13,8 @@ const AREAS = [
 // Solo letras (incluye tildes, ñ), espacios, guiones y apóstrofes
 const REGEX_NOMBRE = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'\-]+$/;
 
-// Teléfono: debe ser +57 seguido de exactamente 10 dígitos
-const REGEX_TELEFONO = /^\+57\d{10}$/;
+// Teléfono: solo dígitos, entre 7 y 11 caracteres
+const REGEX_TELEFONO = /^\d{7,11}$/;
 
 // Solo letras, números, espacios y guiones (para ciudad)
 const REGEX_CIUDAD = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s\-]+$/;
@@ -85,8 +85,8 @@ function validarEmpleado(data, esActualizacion = false) {
   if (numeroDocumento) {
     const doc = String(numeroDocumento).trim();
     
-    if (doc.length < 8 || doc.length > 10) {
-      errores.push('El número de documento debe tener entre 8 y 10 dígitos');
+    if (doc.length < 6 || doc.length > 11) {
+      errores.push('El número de documento debe tener entre 6 y 11 dígitos');
     } else if (!/^\d+$/.test(doc)) {
       errores.push('El número de documento solo puede contener dígitos');
     }
@@ -115,14 +115,8 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 6. Teléfono ────────────────────────────────────────────────────────────
   if (telefono) {
     const tel = String(telefono).trim();
-    // Validar que sea +57 seguido de exactamente 10 dígitos
-    if (!tel.startsWith('+57')) {
-      errores.push('El teléfono debe comenzar con +57');
-    } else {
-      const digitos = tel.replace('+57', '');
-      if (!/^\d{10}$/.test(digitos)) {
-        errores.push('Después de +57 debe haber exactamente 10 dígitos');
-      }
+    if (!REGEX_TELEFONO.test(tel)) {
+      errores.push('El teléfono debe contener entre 7 y 11 dígitos');
     }
   }
 

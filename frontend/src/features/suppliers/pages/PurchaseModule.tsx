@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
     Search, Plus, Edit, Eye, ShoppingCart, ChevronLeft, ChevronRight,
     Loader2, Lock, X, BanIcon,
-    TruckIcon, CheckCircleIcon, ClockIcon, PackageX,
+    CheckCircleIcon, ClockIcon, PackageX,
 } from 'lucide-react';
 
 import {
@@ -45,10 +45,9 @@ const BlockedAlert = ({ message, onClose }: { message: string; onClose: () => vo
 
 const EstadoBadge = ({ estado }: { estado: string }) => {
     const config: Record<string, { icon: React.ReactNode; clase: string }> = {
-        pendiente:     { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-amber-50 text-amber-700 border border-amber-200' },
-        'en transito': { icon: <TruckIcon className="w-3 h-3 mr-1" />,       clase: 'bg-blue-100 text-blue-800 border border-blue-300' },
-        completada:    { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-green-50 text-green-700 border border-green-200' },
-        anulada:       { icon: <BanIcon className="w-3 h-3 mr-1" />,         clase: 'bg-blue-50 text-red-600 border border-red-200' },
+        pendiente:  { icon: <ClockIcon className="w-3 h-3 mr-1" />,       clase: 'bg-yellow-50 text-yellow-600 border border-yellow-200' },
+        completada: { icon: <CheckCircleIcon className="w-3 h-3 mr-1" />, clase: 'bg-teal-50 text-teal-600 border border-teal-200' },
+        anulada:    { icon: <BanIcon className="w-3 h-3 mr-1" />,         clase: 'bg-gray-100 text-gray-500 border border-gray-200' },
     };
     const { icon, clase } = config[estado] ?? { icon: null, clase: 'bg-gray-100 text-gray-600' };
     return (
@@ -101,7 +100,16 @@ export function PurchaseModule() {
             const [comprasData, proveedoresData, insumosData] = await Promise.all([
                 getCompras(), getProveedores(), getInsumos(),
             ]);
-            setCompras(comprasData);
+            // Más recientes primero; dentro de la misma fecha: pendiente → completada → anulada
+            const estadoPriority: Record<string, number> = {
+                pendiente: 0, completada: 1, 'en transito': 2, anulada: 3,
+            };
+            const sorted = [...comprasData].sort((a: Compra, b: Compra) => {
+                const fa = a.fecha.split('T')[0], fb = b.fecha.split('T')[0];
+                if (fa !== fb) return fb.localeCompare(fa);
+                return (estadoPriority[a.estado] ?? 99) - (estadoPriority[b.estado] ?? 99);
+            });
+            setCompras(sorted);
             setProveedores(proveedoresData.filter((p: Proveedor) => p.estado !== 'inactivo'));
             setInsumos(insumosData);
         } catch (error: any) {
@@ -425,7 +433,6 @@ export function PurchaseModule() {
                                                                 className="text-xs border border-gray-300 rounded-md px-2 py-1.5 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
                                                             >
                                                                 <option value="pendiente">Pendiente</option>
-                                                                <option value="en transito">En tránsito</option>
                                                                 <option value="completada">Completada</option>
                                                                 <option value="anulada">Anulada</option>
                                                             </select>

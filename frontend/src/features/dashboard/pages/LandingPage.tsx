@@ -500,7 +500,7 @@ export default function LandingPage({ onGoToSystem, userType, currentUser, onLog
                         </p>
                       </div>
                       <div className="text-2xl font-bold text-gray-900">
-                        ${Number(product.precio).toLocaleString('es-CO')}
+                        ${Number(product.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                       </div>
                       <Button
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white"

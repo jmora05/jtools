@@ -1,4 +1,10 @@
-// Novedades empleados - Gestión de incidencias, mejoras y novedades del equipo
+/**
+ * Módulo de Novedades — gestiona ausencias e incidencias del equipo.
+ * Está dividido en dos sub-vistas accesibles desde la misma pantalla:
+ *   - Ausencias: novedades con ciclo de vida de estados (registrada → aprobada/rechazada/anulada)
+ *   - Horas Extra / Recargos: registros de trabajo en tiempo especial (festivos, nocturnos, etc.)
+ * Las novedades aprobadas sin remuneración o rechazadas impactan el cálculo de nómina.
+ */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
@@ -37,6 +43,8 @@ import {
 
 // ─── Helpers visuales ─────────────────────────────────────────────────────────
 
+// Clases CSS del selector de estado en tabla — gris neutro para todos los estados para no
+// inducir sesgos visuales en la selección de quién gestiona la novedad
 const ESTADO_SELECT_CLASSES: Record<string, string> = {
   registrada:                'border-gray-300 bg-gray-100 text-gray-600',
   aprobada_remunera:         'border-gray-300 bg-gray-100 text-gray-600',
@@ -62,6 +70,7 @@ const ESTADO_LABELS: Record<string, string> = {
 };
 
 // Estados terminales — el usuario no puede cambiarlos desde el frontend
+// Se usan como Set para O(1) en las comprobaciones de acceso dentro del render
 const ESTADOS_TERMINALES = new Set(['anulada', 'rechazada']);
 
 const nombreCompleto = (emp?: { nombres: string; apellidos: string } | null) =>
@@ -74,6 +83,20 @@ const formatFecha = (fecha?: string) =>
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
+/**
+ * Devuelve la fecha del lunes de la semana actual (ISO string).
+ * La política de negocio exige que solo se puedan registrar novedades desde el lunes
+ * en curso para evitar retroactividad que falsifique el historial de asistencia.
+ */
+const getWeekStartString = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = today.getDay(); // 0=Dom, 1=Lun … 6=Sáb
+  today.setDate(today.getDate() + (day === 0 ? -6 : 1 - day)); // retroceder al lunes
+  return today.toISOString().split('T')[0];
+};
+
+// La fecha de fin no puede ser anterior a la de inicio; como mínimo se acepta la misma fecha
 const getMinFechaFin = (fechaInicio: string) => {
   if (!fechaInicio) return getTodayString();
   return fechaInicio;
@@ -81,9 +104,11 @@ const getMinFechaFin = (fechaInicio: string) => {
 
 // ─── Lógica de permisos por estado ───────────────────────────────────────────
 
+// Solo novedades en estado inicial son mutables; las gestionadas son de solo lectura
 const canEdit   = (n: Novedad) => n.estado === 'registrada';
 const canDelete = (n: Novedad) => n.estado === 'registrada';
 
+// Mensajes descriptivos para tooltips y banners de bloqueo; explican el motivo al usuario
 const editBlockReason   = (n: Novedad) => !canEdit(n) ? `No se puede editar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
 const deleteBlockReason = (n: Novedad) => n.estado !== 'registrada' ? `No se puede eliminar: la novedad está ${ESTADO_LABELS[n.estado]?.toLowerCase() ?? n.estado}` : null;
 
@@ -127,6 +152,12 @@ const emptyForm: FormValues = {
 
 // ─── Validaciones ─────────────────────────────────────────────────────────────
 
+/**
+ * Valida el formulario de ausencia y retorna un mapa de errores por campo.
+ * En modo edición (isEdit=true) se omite la validación de retroactividad de fechas
+ * porque el responsable de RRHH puede necesitar ajustar datos de novedades existentes
+ * sin estar limitado por la regla del lunes de la semana actual.
+ */
 function validateForm(values: FormValues, isEdit = false): FormErrors {
   const errors: FormErrors = {};
 
@@ -146,15 +177,22 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
 
+  // Solo al crear: la fecha de inicio no puede ser anterior al lunes de la semana actual
+  // para evitar registrar ausencias retroactivas que ya debieron haberse reportado antes
   if (!isEdit && values.fecha_inicio) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const day = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
     const inicio = new Date(values.fecha_inicio + 'T00:00:00');
-    if (inicio < today) {
-      errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al día de hoy';
+    if (inicio < weekStart) {
+      errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al lunes de la semana actual';
     }
   }
 
+  // Las horas de ausencia parcial tienen un mínimo de 30 minutos (media jornada como umbral
+  // mínimo operativo) y un máximo de 8 h porque una jornada completa es una ausencia de día completo
   if (values.horas_ausencia !== '') {
     const h = parseFloat(values.horas_ausencia);
     if (!isNaN(h) && h > 0 && h < 0.5) {
@@ -203,6 +241,8 @@ function Field({ label, required, error, hint, children }: FieldProps) {
 }
 
 // ─── Componente Autocomplete de Empleados ─────────────────────────────────────
+// Componente de búsqueda reutilizable para seleccionar un empleado por nombre o cargo.
+// Muestra hasta 8 coincidencias para mantener el dropdown manejable y evitar scroll excesivo.
 
 interface EmpleadoAutocompleteProps {
   label: string;
@@ -226,6 +266,7 @@ function EmpleadoAutocomplete({
   const wrapperRef            = useRef<HTMLDivElement>(null);
   const prevValueIdRef        = useRef<number | null | undefined>(undefined);
 
+  // Cierra el dropdown al hacer clic fuera del componente
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -237,6 +278,8 @@ function EmpleadoAutocomplete({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Sincroniza el texto del input cuando el valor externo cambia (ej. al abrir editar con empleado ya asignado).
+  // Usa ref para comparar el ID previo y evitar loops cuando el prop 'value' es el mismo objeto
   useEffect(() => {
     const prevId = prevValueIdRef.current;
     const currId = value?.id ?? null;
@@ -366,13 +409,19 @@ function NInfoItem({ icon, label, value, iconBg, iconColor }: {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-
+/**
+ * Componente raíz del módulo de Novedades.
+ * Maneja el estado global de ausencias, la lista de empleados activos y la navegación
+ * entre las dos sub-vistas (Ausencias / Horas Extra). Delega el render de Horas Extra
+ * al sub-componente HorasExtraSubmodule para mantener cada sección cohesiva.
+ */
 export function NewsModule() {
 
   const [novedades, setNovedades]   = useState<Novedad[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Lista de empleados ACTIVOS disponibles para asignar como afectados en una novedad
   const [allEmpleados, setAllEmpleados]         = useState<EmpleadoSeleccionado[]>([]);
   const [loadingEmpleados, setLoadingEmpleados] = useState(false);
 
@@ -392,8 +441,11 @@ export function NewsModule() {
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
   const [isEditMode, setIsEditMode] = useState(false);
 
+  // Controla el banner de bloqueo inline en la fila de la tabla cuando se intenta editar/eliminar
+  // una novedad que ya no lo permite; evita abrir un diálogo solo para mostrar un error
   const [bannerNovedadId, setBannerNovedadId] = useState<number | null>(null);
   const [bannerAction,    setBannerAction]    = useState<'edit' | 'delete' | 'terminal' | null>(null);
+  // Trackea qué novedades están en medio de un cambio de estado optimista (UI bloqueada temporalmente)
   const [togglingIds,     setTogglingIds]     = useState<Set<number>>(new Set());
   const [activeView,      setActiveView]      = useState<'ausencias' | 'horas-extra'>('ausencias');
   const [heIsNewOpen,     setHeIsNewOpen]     = useState(false);
@@ -401,14 +453,24 @@ export function NewsModule() {
   const showRowBanner = (id: number, action: 'edit' | 'delete') => { setBannerNovedadId(id); setBannerAction(action); };
   const closeBanner   = () => { setBannerNovedadId(null); setBannerAction(null); };
 
+  /**
+   * Cambia el estado de una novedad desde el selector inline de la tabla con actualización
+   * optimista: primero actualiza la UI y luego confirma con el servidor.
+   * Si la aprobación incluye al empleado, lo reactiva en el sistema porque una ausencia
+   * aprobada significa que el empleado ya puede volver a recibir nuevas novedades asignadas.
+   * En caso de error del servidor, revierte el estado visual al valor anterior.
+   */
   const handleCambiarEstado = async (novedad: Novedad, nuevoEstado: EstadoNovedad) => {
     if (novedad.estado === nuevoEstado) return;
+    // Actualización optimista para respuesta inmediata en la UI
     setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: nuevoEstado } : n));
     setTogglingIds(prev => new Set(prev).add(novedad.id));
     try {
       const updated = await cambiarEstadoNovedad(novedad.id, nuevoEstado);
       setNovedades(prev => prev.map(n => n.id === updated.id ? updated : n));
 
+      // Al aprobar con o sin remuneración, el empleado puede volver a estar disponible
+      // para asignación de nuevas novedades; se reactiva y se agrega al listado local si no estaba
       const esAprobada = nuevoEstado === 'aprobada_remunera' || nuevoEstado === 'aprobada_sin_remuneracion';
       if (esAprobada && novedad.empleado_afectado) {
         try {
@@ -428,6 +490,7 @@ export function NewsModule() {
 
       toast.success('Estado actualizado exitosamente');
     } catch (err: any) {
+      // Revertir el cambio optimista si el servidor rechaza la transición de estado
       setNovedades(prev => prev.map(n => n.id === novedad.id ? { ...n, estado: novedad.estado } : n));
       toast.error(err.message ?? 'Error al cambiar el estado');
     } finally {
@@ -436,12 +499,17 @@ export function NewsModule() {
   };
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
+  /**
+   * Carga todas las novedades y aplica la regla de auto-rechazo en el frontend como segunda
+   * línea de defensa. El backend ya hace esto en getNovedades(), pero si hay latencia o
+   * la sesión ya estaba abierta, el cliente recalcula y sincroniza el estado por su cuenta.
+   */
   const fetchNovedades = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getNovedades();
 
-      // Auto-rechazar novedades que llevan más de 2 semanas en estado "registrada"
+      // Detecta novedades que llevan más de 2 semanas en estado "registrada" para auto-rechazarlas
       const DOS_SEMANAS_MS = 14 * 24 * 60 * 60 * 1000;
       const ahora = Date.now();
       const vencidas = data.filter(
@@ -473,6 +541,11 @@ export function NewsModule() {
     }
   }, []);
 
+  /**
+   * Carga la lista de empleados y filtra solo los activos.
+   * Un empleado inactivo no puede ser asignado como afectado porque ya tiene
+   * una novedad pendiente que originó su inactivación, o está fuera de nómina.
+   */
   const fetchEmpleados = useCallback(async () => {
     setLoadingEmpleados(true);
     try {
@@ -494,7 +567,10 @@ export function NewsModule() {
   }, []);
 
   useEffect(() => { fetchNovedades(); fetchEmpleados(); }, [fetchNovedades, fetchEmpleados]);
+  // Resetear paginación cuando cambia la búsqueda para no quedarse en una página inexistente
   useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
+  // Validación en vivo: solo corre si el usuario ya tocó al menos un campo para evitar
+  // mostrar errores antes de que el usuario interactúe con el formulario
   useEffect(() => {
     if (Object.keys(touched).length > 0) setErrors(validateForm(form, isEditMode));
   }, [form, touched, isEditMode]);
@@ -505,16 +581,21 @@ export function NewsModule() {
       setForm(prev => ({ ...prev, [field]: e.target.value }));
     };
 
+  // Al salir del campo se marca como "tocado" y se revalida para mostrar error inmediatamente
   const handleBlur = (field: keyof FormValues) => () => {
     setTouched(prev => ({ ...prev, [field]: true }));
     setErrors(validateForm(form, isEditMode));
   };
 
+  // Filtra en tiempo real caracteres no permitidos del título (solo letras y espacios)
+  // para evitar que lleguen valores inválidos al backend y simplificar la búsqueda posterior
   const handleTituloChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const soloLetras = e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
     setForm(prev => ({ ...prev, titulo: soloLetras }));
   };
 
+  // Bloquea teclas no permitidas antes de que se inserten, como segunda barrera de filtrado
+  // además del replace en onChange; garantiza que el contador de caracteres sea exacto
   const handleTituloKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
     if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
@@ -545,8 +626,15 @@ export function NewsModule() {
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
+  /**
+   * Crea una nueva novedad de ausencia.
+   * Tras el registro exitoso, si la novedad tiene empleado afectado, lo desactiva
+   * en el sistema para que no pueda recibir más asignaciones mientras su ausencia
+   * está siendo gestionada, y lo quita del autocomplete del formulario.
+   */
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Marcar todos los campos relevantes como tocados para mostrar todos los errores a la vez
     setTouched({ titulo: true, descripcion_detallada: true, fecha_inicio: true, fecha_finalizacion: true });
     const validationErrors = validateForm(form, false);
     setErrors(validationErrors);
@@ -566,6 +654,8 @@ export function NewsModule() {
       const nueva = await createNovedad(dto);
       setNovedades(prev => [nueva, ...prev]);
 
+      // Al registrar una ausencia con empleado afectado, se inhabilita al empleado para
+      // evitar que se le asignen nuevas novedades mientras la actual está en curso
       if (dto.empleado_afectado) {
         await desactivarEmpleado(dto.empleado_afectado);
         setAllEmpleados(prev => prev.filter(e => e.id !== dto.empleado_afectado));
@@ -582,10 +672,17 @@ export function NewsModule() {
     }
   };
 
+  /**
+   * Actualiza una novedad existente.
+   * Si la novedad ya no está en estado 'registrada', solo se permite cambiar el estado
+   * (soloEstado=true); los campos de detalle están bloqueados para preservar la trazabilidad.
+   * Si el nuevo estado es una aprobación y hay empleado afectado, se lo reactiva en el sistema.
+   */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedNovedad) return;
 
+    // Cuando la novedad ya fue gestionada, el formulario solo permite cambiar el estado
     const soloEstado = selectedNovedad.estado !== 'registrada';
 
     if (!soloEstado) {
@@ -612,6 +709,7 @@ export function NewsModule() {
         updated = await updateNovedad(selectedNovedad.id, dto);
       }
 
+      // Detectar si el cambio de estado implica aprobación, para saber si hay que reactivar al empleado
       const estadoCambioAAprobada = form.estado !== selectedNovedad.estado &&
         (form.estado === 'aprobada_remunera' || form.estado === 'aprobada_sin_remuneracion');
 
@@ -619,6 +717,7 @@ export function NewsModule() {
         updated = await cambiarEstadoNovedad(selectedNovedad.id, form.estado);
       }
 
+      // Si se aprueba la ausencia, el empleado puede volver a recibir nuevas novedades
       if (estadoCambioAAprobada && updated.empleado_afectado) {
         try {
           await reactivarEmpleado(updated.empleado_afectado);
@@ -668,9 +767,17 @@ export function NewsModule() {
   // ── Abrir diálogos ─────────────────────────────────────────────────────────
   const openView = (n: Novedad) => { setSelectedNovedad(n); setIsViewDialogOpen(true); };
 
+  /**
+   * Inicializa el formulario de edición con los datos de la novedad seleccionada.
+   * Resuelve el objeto empleado desde dos fuentes posibles: la lista local de activos
+   * (preferida) o el objeto anidado de la novedad (fallback para empleados inactivos
+   * que ya están asignados a la novedad pero no aparecen en el autocomplete).
+   */
   const openEdit = (n: Novedad) => {
     setIsEditMode(true);
 
+    // Prioriza el empleado del listado local para tener datos frescos; usa el anidado como fallback
+    // cuando el empleado está inactivo y ya no aparece en allEmpleados
     const resolveEmpleado = (
       idFK: number | null | undefined,
       nested: { id: number; nombres: string; apellidos: string; cargo: string } | null | undefined
@@ -711,16 +818,25 @@ export function NewsModule() {
   };
 
   // ── Render del formulario ──────────────────────────────────────────────────
+  /**
+   * Renderiza el formulario de ausencia compartido entre Crear y Editar.
+   * Cuando está en modo edición con estado diferente a 'registrada', todos los campos
+   * de detalle se deshabilitan (bloqueado=true) y solo el selector de estado permanece activo.
+   * El formulario se conecta al botón Submit del footer mediante el atributo `form` + `formId`,
+   * ya que el footer vive fuera del área scrolleable del dialog (es un <footer> fijo).
+   */
   const renderForm = (
     onSubmit: (e: React.FormEvent) => void,
     isEdit = false,
     formId = 'novedad-form'
   ) => {
+    // bloqueado: novedad ya gestionada — solo se puede cambiar su estado, no sus datos
     const bloqueado = isEdit && selectedNovedad?.estado !== 'registrada';
     return (
     <form id={formId} onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column' }}>
 
       {bloqueado && (
+        // Aviso visual de solo-estado: informa al usuario qué puede y no puede hacer
         <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
           <Lock className="w-4 h-4 shrink-0 text-amber-500" />
           Esta novedad está <strong className="mx-1">{ESTADO_LABELS[form.estado]}</strong> — solo puedes modificar el estado.
@@ -779,7 +895,7 @@ export function NewsModule() {
             <Input
               type="date"
               value={form.fecha_inicio}
-              min={isEdit ? undefined : getTodayString()}
+              min={isEdit ? undefined : getWeekStartString()}
               onChange={handleChange('fecha_inicio')}
               onBlur={handleBlur('fecha_inicio')}
               disabled={bloqueado}
@@ -842,12 +958,16 @@ export function NewsModule() {
           {isEdit && (
             <div className="border-t border-gray-200 pt-4">
               <Field label="Estado">
+                {/* En estados terminales se muestra un texto fijo; no hay select para evitar
+                    que el usuario intente hacer transiciones que el backend rechazaría */}
                 {ESTADOS_TERMINALES.has(form.estado) ? (
                   <div className={`border rounded-md px-3 py-2 text-sm font-medium ${ESTADO_SELECT_CLASSES[form.estado] ?? 'border-gray-300 bg-gray-100 text-gray-600'}`}>
                     {ESTADO_LABELS[form.estado] ?? form.estado}
                     <span className="ml-2 text-xs opacity-70">(estado definitivo, no puede cambiar)</span>
                   </div>
                 ) : (
+                  // 'anulada' se omite del select porque solo el sistema puede auto-anular;
+                  // el usuario solo puede aprobar o rechazar manualmente
                   <select
                     value={form.estado}
                     onChange={e => setForm(prev => ({ ...prev, estado: e.target.value as FormValues['estado'] }))}
@@ -1309,6 +1429,8 @@ export function NewsModule() {
 }
 
 // ─── Horas Extra / Recargos ───────────────────────────────────────────────────
+// Sub-módulo independiente dentro del mismo archivo para mantener la cohesión del módulo
+// de Novedades sin mezclar estado con la sección de Ausencias.
 
 const TIPOS_RECARGO = [
   'Recargo Nocturno',
@@ -1331,7 +1453,14 @@ const TIPO_BADGE_COLORS: Record<TipoRecargo, string> = {
 };
 
 // ─── Festivos Colombia ────────────────────────────────────────────────────────
+// Implementación del algoritmo de cómputo de festivos colombianos para validar
+// que los tipos de recargo dominical/festivo solo se registren en fechas que aplican.
 
+/**
+ * Calcula la fecha de Pascua para un año dado usando el algoritmo de Butcher/Meeus.
+ * Es el punto de anclaje para derivar todos los festivos variables colombianos
+ * (Ascensión, Corpus Christi, Sagrado Corazón, Jueves y Viernes Santo).
+ */
 function calcularPascua(year: number): Date {
   const a = year % 19;
   const b = Math.floor(year / 100);
@@ -1362,15 +1491,21 @@ function siguienteLunes(date: Date): Date {
   return d;
 }
 
+/**
+ * Genera el conjunto completo de festivos colombianos para un año dado.
+ * Combina los festivos de fecha fija con los de la ley Emiliani (que se trasladan
+ * al lunes siguiente si no caen en lunes) y los relativos a la Pascua.
+ * Se retorna como Set<string> con formato YYYY-MM-DD para búsquedas en O(1).
+ */
 function festivosColombia(year: number): Set<string> {
   const fmt = (d: Date) => d.toISOString().split('T')[0];
   const s = new Set<string>();
   const f = (m: number, day: number) => new Date(year, m - 1, day);
 
-  // Fijos sin movimiento
+  // Fijos sin movimiento: Año Nuevo, Día del Trabajo, Independencia, Boyacá, Inmaculada, Navidad
   [f(1,1), f(5,1), f(7,20), f(8,7), f(12,8), f(12,25)].forEach(d => s.add(fmt(d)));
 
-  // Emiliani (se mueven al siguiente lunes)
+  // Emiliani (se mueven al siguiente lunes si no caen en lunes ya)
   [f(1,6), f(3,19), f(6,29), f(8,15), f(10,12), f(11,1), f(11,11)]
     .forEach(d => s.add(fmt(siguienteLunes(d))));
 
@@ -1379,7 +1514,7 @@ function festivosColombia(year: number): Set<string> {
   s.add(fmt(sumarDias(pascua, -3))); // Jueves Santo
   s.add(fmt(sumarDias(pascua, -2))); // Viernes Santo
 
-  // Relativos a Pascua que siempre van al siguiente lunes
+  // Relativos a Pascua que siempre van al siguiente lunes según la ley Emiliani
   s.add(fmt(siguienteLunes(sumarDias(pascua, 39))));  // Ascensión
   s.add(fmt(siguienteLunes(sumarDias(pascua, 60))));  // Corpus Christi
   s.add(fmt(siguienteLunes(sumarDias(pascua, 68))));  // Sagrado Corazón
@@ -1387,12 +1522,18 @@ function festivosColombia(year: number): Set<string> {
   return s;
 }
 
+// Tipos de recargo que legalmente solo aplican en domingos y festivos colombianos;
+// se valida en el formulario para evitar registros inválidos que afecten el cálculo de nómina
 const TIPOS_DOMINICAL_FESTIVA = new Set<string>([
   'Recargo Diurno Dominical',
   'Recargo Nocturno Dominical',
   'Hora Extra Diurna Dominical/Festiva',
 ]);
 
+/**
+ * Determina si una fecha es domingo o festivo colombiano.
+ * Usa mediodía (T12:00:00) para evitar errores de zona horaria al parsear strings de fecha.
+ */
 function esDominicalOFestivo(fechaStr: string): boolean {
   const d = new Date(fechaStr + 'T12:00:00');
   if (isNaN(d.getTime())) return false;
@@ -1422,6 +1563,12 @@ const EMPTY_HE_FORM: HoraExtraFormValues = {
   empleado: null, tipo: '', fecha: '', horas: '', observaciones: '', estado: 'registrada',
 };
 
+/**
+ * Valida el formulario de edición de un registro de hora extra.
+ * Incluye validación cruzada tipo↔fecha: los recargos dominicales/festivos
+ * solo son válidos si la fecha seleccionada es efectivamente domingo o festivo colombiano,
+ * según la legislación laboral vigente (CST y decretos Emiliani).
+ */
 function validateHoraExtraForm(v: HoraExtraFormValues): HoraExtraErrors {
   const e: HoraExtraErrors = {};
   if (!v.empleado) e.empleado = 'El empleado es obligatorio';
@@ -1432,7 +1579,9 @@ function validateHoraExtraForm(v: HoraExtraFormValues): HoraExtraErrors {
     const d   = new Date(v.fecha + 'T12:00:00');
     const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
     if (isNaN(d.getTime())) e.fecha = 'Fecha inválida';
+    // Fechas futuras no se permiten porque las horas extra deben haberse trabajado ya
     else if (d > hoy)       e.fecha = 'La fecha no puede ser futura';
+    // Validación cruzada tipo↔fecha: recargos dominicales exigen que la fecha sea festivo/domingo
     else if (TIPOS_DOMINICAL_FESTIVA.has(v.tipo) && !esDominicalOFestivo(v.fecha))
       e.fecha = 'Este tipo solo aplica en domingos o festivos colombianos';
   }
@@ -1461,6 +1610,11 @@ interface RecargItemError {
   horas?: string;
 }
 
+/**
+ * Valida un ítem del carrito de creación masiva de recargos.
+ * Aplica las mismas reglas de negocio que validateHoraExtraForm pero con mensajes
+ * más cortos, ya que se muestran en celdas de tabla con espacio reducido.
+ */
 function validateRecargItem(item: RecargItem, todayStr: string): RecargItemError {
   const e: RecargItemError = {};
   if (!item.tipo) {
@@ -1486,6 +1640,7 @@ function validateRecargItem(item: RecargItem, todayStr: string): RecargItemError
   return e;
 }
 
+// Genera un ítem vacío con id único; usa Date.now()+random para evitar colisiones al agregar rápido
 const newEmptyItem = (): RecargItem => ({ id: String(Date.now() + Math.random()), tipo: '', fecha: '', horas: '' });
 
 interface HorasExtraSubmoduleProps {
@@ -1495,6 +1650,12 @@ interface HorasExtraSubmoduleProps {
   onNewOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Sub-componente que gestiona los registros de Horas Extra y Recargos (nocturno, dominical, etc.).
+ * Recibe la lista de empleados activos del padre para reutilizar la misma carga y no duplicar
+ * la petición al backend. El dialog de creación soporta múltiples ítems (carrito) para registrar
+ * varios tipos de recargo en una sola operación por empleado.
+ */
 function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewOpenChange }: HorasExtraSubmoduleProps) {
   const [records,    setRecords]    = useState<HoraExtra[]>([]);
   const [loading,    setLoading]    = useState(false);
@@ -1530,6 +1691,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
   const [createSubmitted,      setCreateSubmitted]      = useState(false);
   const [createEmpleadoError,  setCreateEmpleadoError]  = useState<string | undefined>();
 
+  // Se calcula una sola vez al montar; se usa como límite superior de fecha en todos los inputs
   const todayStr = new Date().toISOString().split('T')[0];
 
   const loadRecords = useCallback(async () => {
@@ -1559,9 +1721,11 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
   };
 
   const resetForm = () => { setForm(EMPTY_HE_FORM); setErrors({}); setTouched({}); };
+  // Marca todos los campos como tocados de una vez para mostrar todos los errores al submit
   const touchAll  = () =>
     setTouched({ empleado: true, tipo: true, fecha: true, horas: true, observaciones: true });
 
+  // Limpia completamente el formulario de creación masiva, incluyendo el carrito de ítems
   const resetCreateForm = () => {
     setCreateEmpleado(null);
     setCreateObs('');
@@ -1585,11 +1749,18 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS));
   const paginated  = filtered.slice((currentPage - 1) * ITEMS, currentPage * ITEMS);
 
+  /**
+   * Crea múltiples registros de hora extra/recargo en una sola operación (carrito).
+   * Itera secuencialmente sobre los ítems para poder acumular todos los creados
+   * y revertir el mensaje de éxito si uno falla a mitad del proceso.
+   * Los nuevos registros se insertan al inicio de la lista (más recientes primero).
+   */
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateSubmitted(true);
     const empErr = !createEmpleado ? 'El empleado es obligatorio' : undefined;
     setCreateEmpleadoError(empErr);
+    // Validar todos los ítems del carrito antes de enviar cualquiera al backend
     const anyItemErr = createItems.some(i => Object.keys(validateRecargItem(i, todayStr)).length > 0);
     if (empErr || anyItemErr) return;
 
@@ -1606,6 +1777,7 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
         };
         nuevos.push(await createHoraExtra(dto));
       }
+      // reverse() para que el más reciente quede primero al hacer spread al inicio
       setRecords(prev => [...nuevos.reverse(), ...prev]);
       resetCreateForm();
       onNewOpenChange(false);
@@ -1616,6 +1788,11 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
     } finally { setSubmitting(false); }
   };
 
+  /**
+   * Actualiza un registro de hora extra individual.
+   * A diferencia de Ausencias, en Horas Extra la edición permite modificar todos los campos
+   * independientemente del estado actual, siempre que el estado sea 'registrada'.
+   */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault(); touchAll();
     const errs = validateHoraExtraForm(form);
@@ -1668,15 +1845,22 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
     
   };
 
+  /**
+   * Cambia el estado de un registro de hora extra con actualización optimista.
+   * Horas Extra tiene un flujo más simple que Ausencias: no hay reactivación de empleados
+   * porque estas horas no generan inactivación cuando se registran.
+   */
   const handleCambiarEstadoHE = async (r: HoraExtra, nuevoEstado: 'registrada' | 'aprobada' | 'rechazada') => {
     if (r.estado === nuevoEstado) return;
     setTogglingIds(prev => new Set(prev).add(r.id));
+    // Actualización optimista: actualiza la UI antes de confirmar con el servidor
     setRecords(prev => prev.map(x => x.id === r.id ? { ...x, estado: nuevoEstado } : x));
     try {
       const updated = await cambiarEstadoHoraExtra(r.id, nuevoEstado);
       setRecords(prev => prev.map(x => x.id === updated.id ? updated : x));
       toast.success(`Estado cambiado a ${HE_ESTADO_LABELS[nuevoEstado]}`);
     } catch (err: any) {
+      // Revertir al estado original si el servidor rechaza el cambio
       setRecords(prev => prev.map(x => x.id === r.id ? { ...x, estado: r.estado } : x));
       toast.error(err.message ?? 'Error al cambiar el estado');
     } finally {
@@ -1700,6 +1884,11 @@ function HorasExtraSubmodule({ allEmpleados, loadingEmpleados, isNewOpen, onNewO
     setIsEditOpen(true);
   };
 
+  /**
+   * Renderiza los campos del formulario de edición de un registro de hora extra.
+   * Extraído como función para poder reutilizarlo en el dialog de edición sin duplicar JSX.
+   * Los campos de fecha muestran un hint contextual cuando el tipo seleccionado es dominical/festivo.
+   */
   const renderHeFormFields = () => (
     <div className="space-y-5">
       <EmpleadoAutocomplete

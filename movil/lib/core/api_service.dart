@@ -34,7 +34,27 @@ class ApiService {
     final body = utf8.decode(res.bodyBytes);
     final data = jsonDecode(body);
     if (res.statusCode >= 200 && res.statusCode < 300) return data;
-    final msg = data['message'] ?? data['error'] ?? 'Error ${res.statusCode}';
+
+    // El backend devuelve errores de validación detallados en `errores: [...]`.
+    // Los extraemos y mostramos como una lista legible en lugar del genérico
+    // "Error de validación".
+    final errores = data is Map ? data['errores'] : null;
+    if (errores is List && errores.isNotEmpty) {
+      final lista = errores.map((e) => e.toString()).join('\n');
+      throw ApiException(lista, res.statusCode);
+    }
+
+    // Conflictos (409) y otros errores con `message` + `razon` opcional.
+    if (data is Map && data['message'] != null) {
+      final partes = <String>[
+        data['message'].toString(),
+        if (data['razon'] != null && data['razon'].toString().trim().isNotEmpty)
+          data['razon'].toString(),
+      ];
+      throw ApiException(partes.join('\n').trim(), res.statusCode);
+    }
+
+    final msg = (data is Map ? data['error'] : null) ?? 'Error ${res.statusCode}';
     throw ApiException(msg.toString(), res.statusCode);
   }
 
@@ -84,6 +104,24 @@ class ApiService {
       headers: await _headers(),
     );
     return _parse(res);
+  }
+
+  // ─── Verificación de unicidad en tiempo real ──────────────────────────────
+  static Future<Map<String, dynamic>> verificarUnicidad({
+    required String modulo, // 'proveedores', 'empleados', 'clientes', 'usuarios'
+    required String campo,
+    required String valor,
+    int? excluirId,
+  }) async {
+    final params = StringBuffer(
+        'campo=${Uri.encodeComponent(campo)}&valor=${Uri.encodeComponent(valor)}');
+    if (excluirId != null) params.write('&excluirId=$excluirId');
+    try {
+      final data = await get('/$modulo/verificar?$params');
+      return data as Map<String, dynamic>;
+    } catch (_) {
+      return {'existe': false}; // degrada en silencio
+    }
   }
 }
 

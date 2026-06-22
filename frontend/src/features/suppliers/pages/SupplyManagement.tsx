@@ -482,7 +482,7 @@ export function SupplyManagement() {
                                                     {/* Precio */}
                                                     <td className="py-4 px-6">
                                                         <p className={`text-sm font-medium ${isAgotado ? 'text-gray-400' : 'text-gray-900'}`}>
-                                                            ${supply.price.toLocaleString()}
+                                                            ${supply.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                         </p>
                                                     </td>
 
@@ -860,7 +860,7 @@ export function SupplyManagement() {
                                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                     <p className="font-semibold text-blue-900">{deletingSupply.name}</p>
                                     <p className="text-sm text-blue-700 mt-1">
-                                        {deletingSupply.unit} · ${deletingSupply.price.toLocaleString()}
+                                        {deletingSupply.unit} · ${deletingSupply.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                     </p>
                                 </div>
 

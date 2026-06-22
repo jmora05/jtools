@@ -13,7 +13,17 @@ class _ItemCarrito {
   final Insumo insumo;
   int cantidad = 1;
   double precio;
-  _ItemCarrito({required this.insumo, required this.precio});
+  final TextEditingController cantidadCtrl;
+  final TextEditingController precioCtrl;
+
+  _ItemCarrito({required this.insumo, required this.precio})
+      : cantidadCtrl = TextEditingController(text: '1'),
+        precioCtrl = TextEditingController(text: precio.toStringAsFixed(0));
+
+  void dispose() {
+    cantidadCtrl.dispose();
+    precioCtrl.dispose();
+  }
 }
 
 class CompraFormPage extends StatefulWidget {
@@ -31,7 +41,21 @@ class _CompraFormPageState extends State<CompraFormPage> {
   final List<_ItemCarrito> _carrito = [];
   String _searchInsumo = '';
 
-  final List<String> _metodos = ['efectivo', 'transferencia', 'tarjeta', 'credito'];
+  // IVA editable (porcentaje 0-100). Default 19, igual que la web.
+  final _ivaCtrl = TextEditingController(text: '19');
+  // N° de factura (opcional, mismas reglas que la web).
+  final _facturaCtrl = TextEditingController();
+  // Notas (opcional, máx 500).
+  final _notasCtrl = TextEditingController();
+  String? _fechaError;
+  String? _carritoError;
+
+  static const int _facturaMax = 50;
+  static const int _notasMax = 500;
+  static final RegExp _facturaRegex = RegExp(r'^[A-Za-z0-9\-/]+$');
+
+  // Web: efectivo + transferencia (ENUM del backend).
+  final List<String> _metodos = ['efectivo', 'transferencia'];
 
   @override
   void initState() {
@@ -42,9 +66,37 @@ class _CompraFormPageState extends State<CompraFormPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _ivaCtrl.dispose();
+    _facturaCtrl.dispose();
+    _notasCtrl.dispose();
+    for (final item in _carrito) {
+      item.dispose();
+    }
+    super.dispose();
+  }
+
+  double get _ivaPorcentaje {
+    final v = double.tryParse(_ivaCtrl.text) ?? 0;
+    return v.clamp(0, 100).toDouble();
+  }
+
   double get _subtotal => _carrito.fold(0, (s, i) => s + i.cantidad * i.precio);
-  double get _iva => _subtotal * 0.19;
+  double get _iva => _subtotal * (_ivaPorcentaje / 100);
   double get _total => _subtotal + _iva;
+
+  // Valida la fecha: no futura y máximo 1 semana atrás (igual que la web).
+  String? _validarFecha() {
+    final d = DateTime.tryParse(_fecha);
+    if (d == null) return 'Fecha inválida.';
+    final hoy = DateTime.now();
+    final hoyFin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59);
+    final hace7 = DateTime(hoy.year, hoy.month, hoy.day).subtract(const Duration(days: 7));
+    if (d.isAfter(hoyFin)) return 'La fecha no puede ser futura.';
+    if (d.isBefore(hace7)) return 'La fecha no puede ser anterior a una semana.';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +105,8 @@ class _CompraFormPageState extends State<CompraFormPage> {
     final insProv = context.watch<InsumoProvider>();
 
     final insumosFiltrados = insProv.insumos
-      .where((i) => i.nombreInsumo.toLowerCase().contains(_searchInsumo.toLowerCase()) &&
+      .where((i) => i.disponible &&
+        i.nombreInsumo.toLowerCase().contains(_searchInsumo.toLowerCase()) &&
         !_carrito.any((c) => c.insumo.id == i.id))
       .toList();
 
@@ -65,6 +118,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
       ),
       body: Form(
         key: _key,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
@@ -83,6 +137,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
             // ── Info compra ────────────────────────────────────────────
             _seccion('Información', [
               _datePicker(fmt),
+              fieldError(_fechaError),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _metodoPago,
@@ -92,6 +147,58 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   child: Text(m[0].toUpperCase() + m.substring(1)),
                 )).toList(),
                 onChanged: (v) => setState(() => _metodoPago = v!),
+              ),
+              const SizedBox(height: 12),
+              // N° Factura + IVA (%) en una fila, igual que la web.
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _facturaCtrl,
+                    maxLength: _facturaMax,
+                    decoration: kInputDeco('N° de Factura',
+                        hint: 'Ej: FAC001 / A-12345'),
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+                        const SizedBox.shrink(),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      final s = (v ?? '').trim();
+                      if (s.isEmpty) return 'El número de factura es obligatorio.';
+                      if (!_facturaRegex.hasMatch(s)) {
+                        return 'Solo letras, números, guion (-) y slash (/).';
+                      }
+                      if (s.length > _facturaMax) return 'Máximo $_facturaMax caracteres.';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 110,
+                  child: TextFormField(
+                    controller: _ivaCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    decoration: kInputDeco('IVA %'),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      final n = double.tryParse((v ?? '').trim());
+                      if (n == null) return 'Inválido';
+                      if (n < 0 || n > 100) return '0 a 100';
+                      return null;
+                    },
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              // Notas (opcional)
+              TextFormField(
+                controller: _notasCtrl,
+                maxLines: 3,
+                maxLength: _notasMax,
+                decoration: kInputDeco('Notas (opcional)',
+                    hint: 'Comentarios adicionales...'),
               ),
             ]),
 
@@ -125,6 +232,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                         setState(() {
                           _carrito.add(_ItemCarrito(insumo: ins, precio: ins.precioUnitario));
                           _searchInsumo = '';
+                          _carritoError = null;
                         });
                       },
                     ),
@@ -149,6 +257,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   ]),
                 ),
               ],
+              fieldError(_carritoError),
             ]),
 
             // ── Totales ────────────────────────────────────────────────
@@ -162,7 +271,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                 ),
                 child: Column(children: [
                   _totalRow('Subtotal', fmt.format(_subtotal)),
-                  _totalRow('IVA (19%)', fmt.format(_iva)),
+                  _totalRow('IVA (${_ivaPorcentaje.toStringAsFixed(_ivaPorcentaje == _ivaPorcentaje.roundToDouble() ? 0 : 1)}%)', fmt.format(_iva)),
                   const Divider(color: Colors.white24),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     const Text('Total', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
@@ -180,7 +289,7 @@ class _CompraFormPageState extends State<CompraFormPage> {
                   backgroundColor: kPrimary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: (_saving || _carrito.isEmpty) ? null : _registrar,
+                onPressed: _saving ? null : _registrar,
                 child: _saving
                   ? const SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -195,9 +304,6 @@ class _CompraFormPageState extends State<CompraFormPage> {
   }
 
   Widget _carritoRow(_ItemCarrito item, NumberFormat fmt) {
-    final ctrlCantidad = TextEditingController(text: item.cantidad.toString());
-    final ctrlPrecio = TextEditingController(text: item.precio.toStringAsFixed(0));
-
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -209,14 +315,17 @@ class _CompraFormPageState extends State<CompraFormPage> {
             Expanded(child: Text(item.insumo.nombreInsumo,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
             GestureDetector(
-              onTap: () => setState(() => _carrito.remove(item)),
+              onTap: () => setState(() {
+                item.dispose();
+                _carrito.remove(item);
+              }),
               child: const Icon(Icons.close, color: kError, size: 18),
             ),
           ]),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: TextFormField(
-              controller: ctrlCantidad,
+              controller: item.cantidadCtrl,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: kInputDeco('Cantidad'),
@@ -229,9 +338,9 @@ class _CompraFormPageState extends State<CompraFormPage> {
             )),
             const SizedBox(width: 8),
             Expanded(child: TextFormField(
-              controller: ctrlPrecio,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              controller: item.precioCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               decoration: kInputDeco('Precio unit.'),
               onChanged: (v) => setState(() => item.precio = double.tryParse(v) ?? 0),
               validator: (v) {
@@ -249,19 +358,31 @@ class _CompraFormPageState extends State<CompraFormPage> {
     );
   }
 
-  Widget _datePicker(NumberFormat fmt) => TextFormField(
-    readOnly: true,
-    initialValue: _fecha,
-    decoration: kInputDeco('Fecha de compra', prefix: const Icon(Icons.calendar_today, color: kTextMuted)),
-    onTap: () async {
-      final d = await showDatePicker(
-        context: context,
-        initialDate: DateTime.tryParse(_fecha) ?? DateTime.now(),
-        firstDate: DateTime(2020), lastDate: DateTime.now(),
-      );
-      if (d != null) setState(() => _fecha = d.toIso8601String().split('T')[0]);
-    },
-  );
+  Widget _datePicker(NumberFormat fmt) {
+    final hoy = DateTime.now();
+    final hace7 = DateTime(hoy.year, hoy.month, hoy.day).subtract(const Duration(days: 7));
+    return TextFormField(
+      readOnly: true,
+      key: ValueKey(_fecha),
+      initialValue: _fecha,
+      decoration: kInputDeco('Fecha de compra', prefix: const Icon(Icons.calendar_today, color: kTextMuted)),
+      onTap: () async {
+        final inicial = DateTime.tryParse(_fecha) ?? hoy;
+        final d = await showDatePicker(
+          context: context,
+          initialDate: inicial.isBefore(hace7) ? hace7 : inicial,
+          firstDate: hace7,
+          lastDate: hoy,
+        );
+        if (d != null) {
+          setState(() {
+            _fecha = d.toIso8601String().split('T')[0];
+            _fechaError = _validarFecha();
+          });
+        }
+      },
+    );
+  }
 
   Widget _totalRow(String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
@@ -285,23 +406,22 @@ class _CompraFormPageState extends State<CompraFormPage> {
   );
 
   Future<void> _registrar() async {
+    // Actualiza errores inline antes de validar el Form
+    setState(() {
+      _fechaError = _validarFecha();
+      _carritoError = _carrito.isEmpty ? 'Agrega al menos un insumo' : null;
+    });
     if (!_key.currentState!.validate()) return;
-    if (_proveedor == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un proveedor'), backgroundColor: kError));
-      return;
-    }
-    if (_carrito.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agrega al menos un insumo'), backgroundColor: kError));
-      return;
-    }
+    if (_fechaError != null || _carritoError != null) return;
     setState(() => _saving = true);
     try {
       await context.read<CompraProvider>().crear(
         proveedoresId: _proveedor!.id,
         fecha: _fecha,
         metodoPago: _metodoPago,
+        iva: _ivaPorcentaje,
+        numeroFactura: _facturaCtrl.text,
+        notas: _notasCtrl.text,
         detalles: _carrito.map((i) => {
           'insumosId': i.insumo.id,
           'cantidad': i.cantidad,

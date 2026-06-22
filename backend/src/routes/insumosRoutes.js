@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const {
+    verificarCampo,
     getInsumos,
     getInsumoById,
     getInsumosDisponibles,
@@ -14,6 +15,7 @@ const {
 
 // GET
 router.get('/',                    getInsumos);
+router.get('/verificar',           verificarCampo);
 router.get('/disponibles',         getInsumosDisponibles);
 router.get('/:id/dependencias',    getInsumosDependencias);
 router.get('/:id',                 getInsumoById);

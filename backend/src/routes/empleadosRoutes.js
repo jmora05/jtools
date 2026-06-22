@@ -9,10 +9,12 @@ const {
     desactivarEmpleado,
     reactivarEmpleado,
     puedeEliminarse,
-    deleteEmpleadoPermanente
+    deleteEmpleadoPermanente,
+    verificarCampo
 } = require('../controllers/empleadosController.js');
 
 router.get('/', getEmpleados);
+router.get('/verificar', verificarCampo);
 router.get('/:id/puede-eliminarse', puedeEliminarse);
 router.get('/:id', getEmpleadoById);
 router.post('/', createEmpleado);

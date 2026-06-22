@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/logout_button.dart';
 import 'empleado_provider.dart';
 import 'empleado_model.dart';
 import 'empleado_detalle_page.dart';
@@ -18,9 +20,140 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EmpleadoProvider>().cargar();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) =>
+      context.read<EmpleadoProvider>().cargar());
+  }
+
+  Future<void> _toggleEstado(BuildContext ctx, Empleado e) async {
+    final desactivar = e.activo;
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          desactivar ? 'Desactivar empleado' : 'Activar empleado',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Text(desactivar
+          ? '¿Desactivar a "${e.nombreCompleto}"? No podrá aparecer en nóminas nuevas.'
+          : '¿Activar a "${e.nombreCompleto}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: desactivar ? kTextMuted : kPrimary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(desactivar ? 'Desactivar' : 'Activar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      if (desactivar) {
+        await ctx.read<EmpleadoProvider>().desactivar(e.id);
+      } else {
+        await ctx.read<EmpleadoProvider>().reactivar(e.id);
+      }
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${e.nombres} ${desactivar ? 'desactivado' : 'activado'}'),
+        backgroundColor: desactivar ? kTextMuted : kPrimary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (_) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Error al cambiar el estado'),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Future<void> _eliminar(BuildContext ctx, Empleado e) async {
+    final prov = ctx.read<EmpleadoProvider>();
+
+    // 1. Verificar primero si el empleado puede eliminarse.
+    Map<String, dynamic> verif;
+    try {
+      verif = await prov.puedeEliminarse(e.id);
+    } catch (err) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(err.toString()),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (!ctx.mounted) return;
+
+    // 2. Si no puede eliminarse, mostrar el motivo real del backend.
+    if (verif['puedeEliminarse'] == false) {
+      await showDialog<void>(
+        context: ctx,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('No se puede eliminar',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+          content: Text(
+            (verif['mensaje'] ?? 'Este empleado tiene referencias en el sistema y no puede eliminarse.')
+              .toString()),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 3. Puede eliminarse → confirmación normal.
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar empleado',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Eliminar a "${e.nombreCompleto}"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kError, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await prov.eliminar(e.id);
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${e.nombreCompleto} eliminado'),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (err) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(err.toString()),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
@@ -39,22 +172,20 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
-        backgroundColor: kPrimaryDark,
-        foregroundColor: Colors.white,
+        backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
         title: const Text('Empleados', style: TextStyle(fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar),
-        ],
+        actions: [const LogoutButton(), IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
-        // ── Buscador + filtro ──────────────────────────────────────────────
+        // ── Filtros ──────────────────────────────────────────────────────────
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(children: [
             TextField(
               onChanged: (v) => setState(() => _q = v),
-              decoration: kInputDeco('Buscar empleado...', prefix: const Icon(Icons.search, color: kTextMuted)),
+              decoration: kInputDeco('Buscar empleado...',
+                prefix: const Icon(Icons.search, color: kTextMuted)),
             ),
             const SizedBox(height: 8),
             SingleChildScrollView(
@@ -77,20 +208,104 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
             ),
           ]),
         ),
-        // ── Contenido ──────────────────────────────────────────────────────
+
+        // ── Lista ─────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
-            ? _errorView(prov)
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.error_outline, color: kError, size: 48),
+                const SizedBox(height: 12),
+                Text(prov.error!, textAlign: TextAlign.center,
+                  style: const TextStyle(color: kError)),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: prov.cargar, child: const Text('Reintentar')),
+              ]))
             : lista.isEmpty
-              ? _emptyView()
+              ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.people_outline, size: 64, color: kBorder),
+                  SizedBox(height: 12),
+                  Text('No hay empleados',
+                    style: TextStyle(color: kTextMuted, fontSize: 16)),
+                ]))
               : RefreshIndicator(
-                  color: kPrimary,
-                  onRefresh: prov.cargar,
+                  color: kPrimary, onRefresh: prov.cargar,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _EmpleadoCard(e: lista[i]),
+                    itemBuilder: (ctx, i) {
+                      final e = lista[i];
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                            elevation: 1,
+                            clipBehavior: Clip.hardEdge,
+                            child: Slidable(
+                              key: ValueKey('emp_${e.id}'),
+                              // ── Swipe derecha: Ver + Editar ──────────────
+                              startActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => EmpleadoDetallePage(empleado: e))),
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.info_outline,
+                                    label: 'Ver detalle',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => EmpleadoFormPage(empleado: e))),
+                                    backgroundColor: kPrimaryLight,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.edit_outlined,
+                                    label: 'Editar',
+                                  ),
+                                ],
+                              ),
+                              // ── Swipe izquierda: Activar/Desactivar + Eliminar
+                              endActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.5,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => _toggleEstado(ctx, e),
+                                    backgroundColor: e.activo ? kTextMuted : kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: e.activo
+                                      ? Icons.block_outlined
+                                      : Icons.check_circle_outline,
+                                    label: e.activo ? 'Desactivar' : 'Activar',
+                                  ),
+                                  SlidableAction(
+                                    onPressed: (_) => _eliminar(ctx, e),
+                                    backgroundColor: kError,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.delete_outline,
+                                    label: 'Eliminar',
+                                  ),
+                                ],
+                              ),
+                              child: _EmpleadoTile(
+                                e: e,
+                                onTap: () => Navigator.push(ctx,
+                                  MaterialPageRoute(
+                                    builder: (_) => EmpleadoDetallePage(empleado: e))),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
         ),
@@ -104,72 +319,53 @@ class _EmpleadosPageState extends State<EmpleadosPage> {
       ),
     );
   }
-
-  Widget _errorView(EmpleadoProvider p) => Center(child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Icon(Icons.error_outline, color: kError, size: 48),
-      const SizedBox(height: 12),
-      Text(p.error!, textAlign: TextAlign.center, style: const TextStyle(color: kError)),
-      const SizedBox(height: 16),
-      ElevatedButton(onPressed: p.cargar, child: const Text('Reintentar')),
-    ],
-  ));
-
-  Widget _emptyView() => const Center(child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(Icons.people_outline, size: 64, color: kBorder),
-      SizedBox(height: 12),
-      Text('No hay empleados', style: TextStyle(color: kTextMuted, fontSize: 16)),
-    ],
-  ));
 }
 
-class _EmpleadoCard extends StatelessWidget {
+// ── Tile (sin Card propio; el Card envuelve el Slidable) ──────────────────────
+class _EmpleadoTile extends StatelessWidget {
   final Empleado e;
-  const _EmpleadoCard({required this.e});
+  final VoidCallback onTap;
+  const _EmpleadoTile({required this.e, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: e.activo ? kChipBg : Colors.grey.shade200,
-          child: Text(
-            e.nombres.isNotEmpty ? e.nombres[0].toUpperCase() : '?',
-            style: TextStyle(color: e.activo ? kPrimaryDark : Colors.grey, fontWeight: FontWeight.w700),
-          ),
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    tileColor: Colors.white,
+    leading: CircleAvatar(
+      backgroundColor: e.activo ? kChipBg : Colors.grey.shade200,
+      child: Text(
+        e.nombres.isNotEmpty ? e.nombres[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: e.activo ? kPrimaryDark : Colors.grey,
+          fontWeight: FontWeight.w700,
         ),
-        title: Text(e.nombreCompleto, style: const TextStyle(fontWeight: FontWeight.w600, color: kText)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const SizedBox(height: 2),
-          Text(e.cargo, style: const TextStyle(color: kTextMuted, fontSize: 13)),
-          const SizedBox(height: 4),
-          Row(children: [
-            _chip(e.activo ? 'Activo' : 'Inactivo', e.activo ? kPrimary : Colors.grey),
-            const SizedBox(width: 6),
-            _chip(e.area, kPrimaryLight),
-          ]),
-        ]),
-        trailing: const Icon(Icons.chevron_right, color: kTextMuted),
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => EmpleadoDetallePage(empleado: e))),
       ),
-    );
-  }
+    ),
+    title: Text(e.nombreCompleto,
+      style: const TextStyle(fontWeight: FontWeight.w600, color: kText)),
+    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 2),
+      Text(e.cargo, style: const TextStyle(color: kTextMuted, fontSize: 13)),
+      const SizedBox(height: 4),
+      Row(children: [
+        estadoChip(e.activo ? 'activo' : 'inactivo'),
+        const SizedBox(width: 6),
+        _areaChip(e.area),
+      ]),
+    ]),
+    trailing: const Icon(Icons.chevron_right, color: kTextMuted),
+    onTap: onTap,
+  );
 
-  Widget _chip(String label, Color color) => Container(
+  Widget _areaChip(String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: kPrimaryLight.withOpacity(0.1),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
+      border: Border.all(color: kPrimaryLight.withOpacity(0.4)),
     ),
-    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    child: Text(label,
+      style: const TextStyle(
+        color: kPrimaryLight, fontSize: 11, fontWeight: FontWeight.w600)),
   );
 }

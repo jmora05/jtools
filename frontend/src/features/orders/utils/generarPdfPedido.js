@@ -101,8 +101,8 @@ export function generarPdfPedido(order) {
     d.producto?.nombreProducto ?? `Producto #${d.productoId}`,
     d.producto?.referencia     ?? '—',
     d.cantidad,
-    `$${Number(d.precio_unitario).toLocaleString('es-CO')}`,
-    `$${(d.cantidad * d.precio_unitario).toLocaleString('es-CO')}`,
+    `$${Number(d.precio_unitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
+    `$${(d.cantidad * d.precio_unitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
   ]);
 
   autoTable(doc, {
@@ -139,8 +139,8 @@ export function generarPdfPedido(order) {
   doc.text('IVA (19%):',  126, finalY + 15);
 
   doc.setTextColor(...negro);
-  doc.text(`$${sinIva.toLocaleString('es-CO')}`, 192, finalY + 8,  { align: 'right' });
-  doc.text(`$${iva.toLocaleString('es-CO')}`,    192, finalY + 15, { align: 'right' });
+  doc.text(`$${sinIva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 192, finalY + 8,  { align: 'right' });
+  doc.text(`$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,    192, finalY + 15, { align: 'right' });
 
   doc.setDrawColor(...azul);
   doc.setLineWidth(0.5);
@@ -150,7 +150,7 @@ export function generarPdfPedido(order) {
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text('TOTAL:',                              126, finalY + 25);
-  doc.text(`$${total.toLocaleString('es-CO')}`,  192, finalY + 25, { align: 'right' });
+  doc.text(`$${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,  192, finalY + 25, { align: 'right' });
 
   // ── Notas ─────────────────────────────────────────────────────────────
   if (order.notes) {

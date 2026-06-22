@@ -56,6 +56,10 @@ function validateCarritoItem(item: ItemCarrito): CarritoItemError {
     return err;
 }
 
+const blockNonInteger = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/\d/.test(e.key)) e.preventDefault();
+};
 const blockNonNumeric = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const nav = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!nav.includes(e.key) && !e.ctrlKey && !e.metaKey && !/[\d.]/.test(e.key)) e.preventDefault();
@@ -193,7 +197,7 @@ export function CompraFormModal({
                 insumoId: insumo.id,
                 nombre: insumo.nombreInsumo,
                 unidad: insumo.unidadMedida,
-                precio: insumo.precioUnitario ?? 0,
+                precio: Number(insumo.precioUnitario ?? 0),
                 cantidad: 1,
             }];
         });
@@ -261,7 +265,7 @@ export function CompraFormModal({
         : undefined;
 
     return (
-        <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <Dialog open={open} onOpenChange={(o: boolean) => { if (!o) onClose(); }}>
             <DialogContent
                 className="p-0 gap-0 overflow-hidden"
                 style={{
@@ -611,7 +615,7 @@ export function CompraFormModal({
                                                     <p style={{ fontSize: 11, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                                                         {insumo.codigoInsumo ? `SKU: ${insumo.codigoInsumo} · ` : ''}
                                                         {insumo.unidadMedida}
-                                                        {insumo.precioUnitario ? ` · $${Number(insumo.precioUnitario).toLocaleString('es-CO')}` : ''}
+                                                        {insumo.precioUnitario ? ` · $${Number(insumo.precioUnitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : ''}
                                                         {insumo.cantidad !== undefined ? ` · Stock: ${insumo.cantidad}` : ''}
                                                     </p>
                                                 </div>
@@ -794,7 +798,7 @@ export function CompraFormModal({
                                                                 color: itemErr ? '#d1d5db' : '#111827',
                                                             }}>
                                                                 {item.precio > 0 && !itemErr
-                                                                    ? `$${(item.precio * item.cantidad).toLocaleString('es-CO')}`
+                                                                    ? `$${(item.precio * item.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
                                                                     : '—'}
                                                             </span>
                                                         </td>
@@ -831,7 +835,7 @@ export function CompraFormModal({
                                 <div style={{ marginLeft: 'auto', maxWidth: 320 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#6b7280', marginBottom: 6 }}>
                                         <span>Subtotal</span>
-                                        <span>${subtotalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</span>
+                                        <span>${subtotalCarrito.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                     </div>
                                     <div style={{
                                         display: 'flex', justifyContent: 'space-between',

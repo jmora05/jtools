@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../clientes/client_model.dart';
 import '../clientes/client_controller.dart';
@@ -58,10 +59,15 @@ class _ClientFormPageState extends State<ClientFormPage> {
         padding: const EdgeInsets.all(20),
         child: Form(
           key: formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             children: [
-              _field(name, "Nombre"),
-              _field(lastName, "Apellidos"),
+              _field(name, "Nombre",
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Requerido" : null),
+              _field(lastName, "Apellidos",
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Requerido" : null),
               _field(company, "Empresa (Opcional)"),
 
               _field(
@@ -71,7 +77,15 @@ class _ClientFormPageState extends State<ClientFormPage> {
                     v != null && v.contains("@") ? null : "Email inválido",
               ),
 
-              _field(phone, "Teléfono"),
+              _field(phone, "Teléfono",
+                keyboard: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Requerido';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números';
+                  return null;
+                }),
               _field(address, "Dirección"),
               _field(city, "Ciudad"),
 
@@ -158,11 +172,15 @@ class _ClientFormPageState extends State<ClientFormPage> {
     TextEditingController c,
     String label, {
     String? Function(String?)? validator,
+    TextInputType? keyboard,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: TextFormField(
         controller: c,
+        keyboardType: keyboard,
+        inputFormatters: inputFormatters,
         validator: validator,
         decoration: InputDecoration(
           labelText: label,

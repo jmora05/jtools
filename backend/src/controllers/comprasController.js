@@ -1,4 +1,21 @@
 const { Compras, Proveedores, DetalleCompraInsumo, Insumos } = require('../models/index.js');
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/jtools_db');
+
+// Busca una compra cuyo campo (trim + lower) coincida con el valor dado.
+// Excluye opcionalmente un id (para updates). Devuelve la compra o null.
+async function findCompraByCampoCI(campo, valor, excluirId = null) {
+    const where = {
+        [Op.and]: [
+            sequelize.where(
+                sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col(campo))),
+                valor.toString().trim().toLowerCase(),
+            ),
+            ...(excluirId != null ? [{ id: { [Op.ne]: excluirId } }] : []),
+        ],
+    };
+    return Compras.findOne({ where });
+}
 
 // GET - listar todas las compras
 const getCompras = async (req, res) => {
@@ -19,6 +36,10 @@ const getCompras = async (req, res) => {
                         attributes: ['id', 'nombreInsumo', 'unidadMedida'],
                     }],
                 },
+            ],
+            order: [
+                ['fecha', 'DESC'],
+                ['id', 'DESC'],
             ],
         });
         res.status(200).json(compras);
@@ -64,7 +85,7 @@ const getCompraById = async (req, res) => {
 const getComprasByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
-        const estadosValidos = ['pendiente', 'en transito', 'completada', 'anulada'];
+        const estadosValidos = ['pendiente', 'completada', 'anulada'];
 
         if (!estadosValidos.includes(estado)) {
             return res.status(400).json({
@@ -90,7 +111,7 @@ const getComprasByEstado = async (req, res) => {
 // POST - crear compra (solo guarda, NO toca inventario)
 const createCompra = async (req, res) => {
     try {
-        const { numeroFactura, proveedoresId, fecha, metodoPago, estado } = req.body;
+        const { numeroFactura, numeroCompra, proveedoresId, fecha, metodoPago, estado } = req.body;
 
         const proveedor = await Proveedores.findByPk(proveedoresId);
         if (!proveedor) {
@@ -100,16 +121,33 @@ const createCompra = async (req, res) => {
             return res.status(400).json({ message: 'El proveedor está inactivo' });
         }
 
+        // IVA: leer del body, default 19, acotado a [0, 100].
+        let iva = req.body.iva !== undefined && req.body.iva !== null && `${req.body.iva}`.trim() !== ''
+            ? Number(req.body.iva)
+            : 19;
+        if (Number.isNaN(iva)) iva = 19;
+        iva = Math.min(100, Math.max(0, iva));
+
+        // numeroFactura: unicidad case-insensitive
         if (numeroFactura?.trim()) {
-            const facturaExistente = await Compras.findOne({ where: { numeroFactura: numeroFactura.trim() } });
+            const facturaExistente = await findCompraByCampoCI('numeroFactura', numeroFactura);
             if (facturaExistente) {
-                return res.status(400).json({ message: 'Este número de factura ya existe' });
+                return res.status(409).json({ message: 'Este número de factura ya existe' });
+            }
+        }
+
+        // numeroCompra: unicidad case-insensitive
+        if (numeroCompra?.trim()) {
+            const compraExistente = await findCompraByCampoCI('numeroCompra', numeroCompra);
+            if (compraExistente) {
+                return res.status(409).json({ message: 'Ya existe una compra con ese número' });
             }
         }
 
         const compra = await Compras.create({
             ...(numeroFactura?.trim() ? { numeroFactura: numeroFactura.trim() } : {}),
-            proveedoresId, fecha, metodoPago, estado: estado ?? 'pendiente',
+            ...(numeroCompra?.trim() ? { numeroCompra: numeroCompra.trim() } : {}),
+            proveedoresId, fecha, metodoPago, estado: estado ?? 'pendiente', iva,
         });
 
         const { detalles } = req.body;
@@ -146,7 +184,7 @@ const updateCompra = async (req, res) => {
             return res.status(400).json({ message: 'Solo se pueden editar compras en estado pendiente' });
         }
 
-        const { proveedoresId, fecha, metodoPago } = req.body;
+        const { proveedoresId, fecha, metodoPago, numeroFactura, numeroCompra } = req.body;
 
         if (proveedoresId) {
             const proveedor = await Proveedores.findByPk(proveedoresId);
@@ -158,7 +196,36 @@ const updateCompra = async (req, res) => {
             }
         }
 
-        await compra.update({ proveedoresId, fecha, metodoPago });
+        // numeroFactura: unicidad case-insensitive (excluyendo el propio registro)
+        if (numeroFactura?.trim()) {
+            const facturaExistente = await findCompraByCampoCI('numeroFactura', numeroFactura, compra.id);
+            if (facturaExistente) {
+                return res.status(409).json({ message: 'Este número de factura ya existe' });
+            }
+        }
+
+        // numeroCompra: unicidad case-insensitive (excluyendo el propio registro)
+        if (numeroCompra?.trim()) {
+            const compraExistente = await findCompraByCampoCI('numeroCompra', numeroCompra, compra.id);
+            if (compraExistente) {
+                return res.status(409).json({ message: 'Ya existe una compra con ese número' });
+            }
+        }
+
+        // IVA: recalcular si viene en el body; si no, conservar el actual.
+        let iva;
+        if (req.body.iva !== undefined && req.body.iva !== null && `${req.body.iva}`.trim() !== '') {
+            iva = Number(req.body.iva);
+            if (Number.isNaN(iva)) iva = Number(compra.iva);
+            iva = Math.min(100, Math.max(0, iva));
+        }
+
+        await compra.update({
+            proveedoresId, fecha, metodoPago,
+            ...(numeroFactura?.trim() ? { numeroFactura: numeroFactura.trim() } : {}),
+            ...(numeroCompra?.trim() ? { numeroCompra: numeroCompra.trim() } : {}),
+            ...(iva !== undefined ? { iva } : {}),
+        });
 
         const { detalles } = req.body;
         if (detalles && Array.isArray(detalles) && detalles.length > 0) {
@@ -226,7 +293,7 @@ const cambiarEstadoCompra = async (req, res) => {
             return res.status(400).json({ message: 'Solo se puede cambiar el estado de compras pendientes.' });
         }
 
-        const estadosValidos = ['pendiente', 'en transito', 'completada'];
+        const estadosValidos = ['pendiente', 'completada'];
         if (!estadosValidos.includes(estado)) {
             return res.status(400).json({ message: 'Estado no válido.' });
         }
@@ -262,9 +329,6 @@ const deleteCompra = async (req, res) => {
         }
         if (compra.estado === 'anulada') {
             return res.status(400).json({ message: 'Esta compra ya fue anulada' });
-        }
-        if (compra.estado === 'en transito') {
-            return res.status(400).json({ message: 'No se puede anular una compra en tránsito' });
         }
 
         // Si estaba completada, devolver el stock

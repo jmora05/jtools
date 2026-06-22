@@ -324,7 +324,7 @@ function ClientCatalogView() {
                                     {/* Precio y stock */}
                                     <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                                         <span className="text-lg font-bold text-blue-900">
-                                            ${Number(product.precio).toLocaleString('es-CO')}
+                                            ${Number(product.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                         </span>
                                         <span className={`text-xs font-medium ${outOfStock ? 'text-red-500' : 'text-gray-400'}`}>
                                             {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
@@ -471,7 +471,7 @@ function AdminCatalogView() {
                     categoriaProductoId: parseInt(form.categoriaProductoId),
                     descripcion:         form.descripcion.trim(),
                     precio:              parseFloat(form.precio),
-                    stock:               1,
+                    stock:               0,
                     estado:              'activo',
                     imagenUrl:           form.imagenUrl.trim() || undefined,
                 });
@@ -696,7 +696,7 @@ function AdminCatalogView() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <div className="flex flex-col">
-                                                            <span className="text-blue-900 font-semibold">${Number(product.precio).toLocaleString()}</span>
+                                                            <span className="text-blue-900 font-semibold">${Number(product.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                                             <span className={`text-sm font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>
                                                                 {outOfStock ? 'Sin stock' : `Stock: ${product.stock} und`}
                                                             </span>
@@ -778,7 +778,7 @@ function AdminCatalogView() {
                                     <h3 className="text-gray-900 font-semibold mb-1">{product.nombreProducto}</h3>
                                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.descripcion}</p>
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-lg text-blue-600 font-bold">${Number(product.precio).toLocaleString()}</span>
+                                        <span className="text-lg text-blue-600 font-bold">${Number(product.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                         <Badge variant="secondary">{product.categoria?.nombreCategoria ?? `Cat #${product.categoriaProductoId}`}</Badge>
                                     </div>
                                     <p className={`text-sm mb-3 font-medium ${outOfStock ? 'text-red-500' : 'text-gray-500'}`}>

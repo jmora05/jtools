@@ -70,6 +70,19 @@ const login = async (req, res) => {
         const rolName  = usuario.rol?.name || '';
         const userType = rolName.toLowerCase() === 'cliente' ? 'client' : 'admin';
 
+        // ── Restricción por plataforma ──────────────────────────────────────
+        // WEB: todos los roles pueden entrar (admin, asistente, cliente).
+        // MÓVIL: solo el rol "Administrador" puede acceder al panel.
+        const esMovil =
+            req.body?.origin === 'movil' ||
+            req.headers['x-app-platform'] === 'movil';
+
+        if (esMovil && rolName.toLowerCase() !== 'administrador') {
+            return res.status(403).json({
+                message: 'Acceso restringido: solo administradores pueden usar la app móvil.',
+            });
+        }
+
         const token = jwt.sign(
             { id: usuario.id, email: usuario.email, rolesId: usuario.rolesId, userType, rolName },
             JWT_SECRET,

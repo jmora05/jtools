@@ -1,19 +1,33 @@
+/**
+ * Controlador de Novedades (ausencias e incidencias del módulo de RRHH).
+ * Gestiona el ciclo de vida completo: registro, aprobación/rechazo y anulación automática.
+ * Las novedades aprobadas sin remuneración o rechazadas afectan el cálculo de nómina.
+ */
 const { Novedades, Empleados } = require('../models/index.js');
 const { Op } = require('sequelize');
 
+// Catálogo completo de estados; cualquier valor fuera de este conjunto se rechaza en las rutas de mutación
 const ESTADOS_VALIDOS = ['registrada', 'aprobada_remunera', 'aprobada_sin_remuneracion', 'rechazada', 'anulada'];
 
 // Estados terminales — no pueden cambiar de estado
+// Una vez anulada o rechazada, la novedad no puede reactivarse para proteger la integridad del historial
 const ESTADOS_TERMINALES = ['anulada', 'rechazada'];
 
+// Fragmento de include reutilizable para adjuntar datos del empleado afectado en cada consulta
 const INCLUDE_EMPLEADOS = [
     { model: Empleados, as: 'empleadoAfectado', attributes: ['id', 'nombres', 'apellidos', 'cargo'] }
 ];
 
-// Novedades con más de 14 días sin gestión se anulan automáticamente
+// Política de negocio: novedades sin gestión por más de 14 días se anulán automáticamente
+// para evitar que queden en limbo afectando la nómina de forma indefinida
 const DIAS_MAX_SIN_GESTION = 14;
 
-// Anula automáticamente cualquier novedad en estado 'registrada' con más de 14 días
+/**
+ * Busca todas las novedades en estado 'registrada' con más de DIAS_MAX_SIN_GESTION días
+ * y las marca como 'anulada'. Se invoca antes de cada listado general para garantizar
+ * que el frontend siempre muestre estados actualizados sin requerir un job en background.
+ * @returns {Promise<number>} Cantidad de novedades anuladas en esta pasada
+ */
 const anularNovedadesVencidas = async () => {
     const fechaLimite = new Date();
     fechaLimite.setDate(fechaLimite.getDate() - DIAS_MAX_SIN_GESTION);
@@ -32,7 +46,11 @@ const anularNovedadesVencidas = async () => {
     return vencidas.length;
 };
 
-// GET - listar todas las novedades (aplica auto-anulación previa)
+/**
+ * Lista todas las novedades del sistema.
+ * Aplica la anulación automática por vencimiento antes de retornar, de modo que el cliente
+ * nunca recibe registros bloqueados en estado 'registrada' por más de 14 días.
+ */
 const getNovedades = async (req, res) => {
     try {
         await anularNovedadesVencidas();
@@ -43,7 +61,10 @@ const getNovedades = async (req, res) => {
     }
 };
 
-// GET - obtener novedad por ID
+/**
+ * Retorna una novedad específica por su PK, incluyendo datos del empleado afectado.
+ * Usado principalmente por el frontend al abrir el diálogo de detalle o edición.
+ */
 const getNovedadById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -59,7 +80,11 @@ const getNovedadById = async (req, res) => {
     }
 };
 
-// GET - listar novedades por estado
+/**
+ * Filtra novedades por estado en el servidor.
+ * Valida que el estado solicitado exista en el catálogo antes de consultar,
+ * evitando consultas vacías o inyecciones de valores arbitrarios.
+ */
 const getNovedadesByEstado = async (req, res) => {
     try {
         const { estado } = req.params;
@@ -77,7 +102,14 @@ const getNovedadesByEstado = async (req, res) => {
     }
 };
 
-// POST - crear novedad
+/**
+ * Crea una nueva novedad de ausencia o incidencia.
+ * Valida dos reglas de negocio antes de persistir:
+ *   1. El rango de fechas no puede exceder DIAS_MAX_SIN_GESTION, alineándose con el
+ *      plazo máximo de gestión para evitar ausencias de duración indeterminada.
+ *   2. Si se asocia un empleado afectado, debe existir y estar activo en el sistema.
+ *      Un empleado inactivo no puede generar nuevas novedades que afecten su nómina.
+ */
 const createNovedad = async (req, res) => {
     try {
         const {
@@ -91,7 +123,8 @@ const createNovedad = async (req, res) => {
             horas_ausencia
         } = req.body;
 
-        // Validar rango de fechas (máximo 14 días)
+        // La duración máxima iguala el plazo de auto-anulación: una ausencia no puede durar
+        // más de lo que el sistema espera para gestionarla, de lo contrario se auto-anularía
         if (fecha_inicio && fecha_finalizacion) {
             const inicio = new Date(fecha_inicio);
             const fin    = new Date(fecha_finalizacion);
@@ -103,6 +136,7 @@ const createNovedad = async (req, res) => {
             }
         }
 
+        // empleado_afectado es opcional; si se provee, se valida existencia y estado activo
         if (empleado_afectado) {
             const empleadoAf = await Empleados.findByPk(empleado_afectado);
             if (!empleadoAf) {
@@ -121,9 +155,10 @@ const createNovedad = async (req, res) => {
             fecha_inicio,
             fecha_finalizacion,
             empleado_afectado,
-            horas_ausencia: horas_ausencia ?? null
+            horas_ausencia: horas_ausencia ?? null  // null explícito para distinguir "no aplica" de 0
         });
 
+        // Recarga para obtener el empleadoAfectado anidado sin una segunda query de selección
         await novedad.reload({ include: INCLUDE_EMPLEADOS });
 
         res.status(201).json(novedad);
@@ -136,7 +171,13 @@ const createNovedad = async (req, res) => {
     }
 };
 
-// PUT - actualizar novedad (solo si está en estado 'registrada')
+/**
+ * Actualiza los datos de una novedad existente.
+ * Solo permite edición cuando el estado es 'registrada'; cualquier otro estado indica que
+ * la novedad ya fue gestionada y sus datos no deben modificarse para preservar la trazabilidad.
+ * La validación de rango de fechas usa fallback a los valores actuales del registro para
+ * soportar actualizaciones parciales (solo un campo de fecha a la vez).
+ */
 const updateNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -146,6 +187,7 @@ const updateNovedad = async (req, res) => {
             return res.status(404).json({ message: 'Novedad no encontrada' });
         }
 
+        // Bloquear edición de novedades ya gestionadas; el estado actúa como candado de escritura
         if (novedad.estado !== 'registrada') {
             return res.status(400).json({
                 message: `No se puede editar una novedad en estado "${novedad.estado}". Solo las novedades en estado "registrada" pueden editarse.`
@@ -161,7 +203,7 @@ const updateNovedad = async (req, res) => {
             horas_ausencia
         } = req.body;
 
-        // Validar rango de fechas (máximo 14 días)
+        // Usa el valor guardado como fallback para poder validar cuando solo se actualiza un extremo del rango
         const fi = fecha_inicio    || novedad.fecha_inicio;
         const ff = fecha_finalizacion || novedad.fecha_finalizacion;
         if (fi && ff) {
@@ -188,6 +230,7 @@ const updateNovedad = async (req, res) => {
             fecha_inicio,
             fecha_finalizacion,
             empleado_afectado,
+            // Preservar el valor actual si el campo no viene en el body (undefined ≠ null)
             horas_ausencia: horas_ausencia !== undefined ? horas_ausencia : novedad.horas_ausencia
         });
 
@@ -203,7 +246,12 @@ const updateNovedad = async (req, res) => {
     }
 };
 
-// PATCH - cambiar estado de la novedad con reglas de transición
+/**
+ * Cambia el estado de una novedad respetando las reglas de transición del flujo de aprobación:
+ *   registrada → aprobada_remunera | aprobada_sin_remuneracion | rechazada | anulada
+ * Los estados 'anulada' y 'rechazada' son terminales: una vez alcanzados, no se permiten
+ * más transiciones para garantizar la integridad del historial y del cálculo de nómina.
+ */
 const cambiarEstadoNovedad = async (req, res) => {
     try {
         const { id } = req.params;
@@ -220,7 +268,7 @@ const cambiarEstadoNovedad = async (req, res) => {
             });
         }
 
-        // Bloquear transiciones desde estados terminales
+        // Bloquear transiciones desde estados terminales; rechazadas y anuladas son inmutables
         if (ESTADOS_TERMINALES.includes(novedad.estado)) {
             return res.status(400).json({
                 message: `No se puede cambiar el estado de una novedad que está "${novedad.estado}". Este estado es definitivo.`
@@ -236,7 +284,12 @@ const cambiarEstadoNovedad = async (req, res) => {
     }
 };
 
-// DELETE - eliminar novedad (solo si está en estado registrada)
+/**
+ * Elimina físicamente una novedad del sistema.
+ * Solo se permite eliminar novedades en estado 'registrada' porque son las únicas
+ * que aún no han impactado el cálculo de nómina ni el historial de gestión.
+ * Novedades en estados más avanzados deben anularse en lugar de eliminarse.
+ */
 const deleteNovedad = async (req, res) => {
     try {
         const { id } = req.params;

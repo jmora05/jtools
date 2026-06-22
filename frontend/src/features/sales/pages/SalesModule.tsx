@@ -2,6 +2,10 @@ import { getClientes } from '@/features/clients/services/clientesService';
 import { getProductos } from '@/features/products/services/productosService';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
@@ -29,17 +33,18 @@ import {
   Loader2,
   Banknote,
   ArrowLeftRight,
-  CreditCard,
-  Wallet,
   ChevronDown,
   ChevronUp,
   Lock,
   Download,
+  BanIcon,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import {
+  anularVenta,
+  cambiarEstadoVenta,
   getVentas,
   createVenta,
   deleteVenta,
@@ -181,6 +186,11 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [currentPage, setCurrentPage]           = useState(1);
   const itemsPerPage = 5;
   const [activeView, setActiveView] = useState<'ventas' | 'pedidos'>('ventas');
+  const [showAnularDialog, setShowAnularDialog]     = useState(false);
+  const [salePendingAnular, setSalePendingAnular]   = useState<Sale | null>(null);
+  const [showStockWarning, setShowStockWarning]     = useState(false);
+  const [stockWarningItems, setStockWarningItems]   = useState<{ name: string; requested: number; available: number; missing: number }[]>([]);
+  const [bypassStockCheck, setBypassStockCheck]     = useState(false);
 
   const [saleForm, setSaleForm] = useState({
     clientId: '',
@@ -195,23 +205,13 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [clientSearch, setClientSearch]   = useState('');
   const [submitting, setSubmitting]       = useState(false);
 
-  // Cargar ventas
+  // Cargar ventas — estado siempre viene del backend
   useEffect(() => {
     const fetchVentas = async () => {
       setLoading(true);
       try {
         const data = await getVentas();
-        const statuses = getSaleStatuses();
-
-        // El estado de anulación viene del backend; solo usar localStorage para estados transitorios
-        const mapped = data.map(v => {
-          const s = mapVentaToSale(v);
-          // No sobreescribir 'Anulada' que viene del backend con localStorage
-          if (statuses[v.id] && s.status !== 'Anulada') s.status = statuses[v.id];
-          return s;
-        });
-
-        setSales(mapped);
+        setSales(data.map(v => mapVentaToSale(v)));
       } catch (error: any) {
         toast.error(error.message || 'Error al cargar las ventas');
       } finally {
@@ -346,8 +346,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         item.code || '—',
         item.name,
         item.quantity.toString(),
-        `$${item.price.toLocaleString('es-CO')}`,
-        `$${(item.quantity * item.price).toLocaleString('es-CO')}`,
+        `$${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
+        `$${(item.quantity * item.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
       ]),
       styles: { fontSize: 8.5, cellPadding: 3.5, textColor: [30, 30, 30] },
       headStyles: { fillColor: [17, 50, 150], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
@@ -376,7 +376,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(17, 50, 150);
     doc.text('TOTAL:', 122, finalY + 14);
-    doc.text(`$${sale.total.toLocaleString('es-CO')}`, 192, finalY + 14, { align: 'right' });
+    doc.text(`$${sale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`, 192, finalY + 14, { align: 'right' });
 
     // ── Mensaje de cortesía ───────────────────────────────────────
     const msgY = finalY + 30;
@@ -399,10 +399,38 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   };
 
 
-  const handleChangeStatus = (sale: Sale, newStatus: string) => {
-    persistSaleStatus(sale.id, newStatus);
-    setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: newStatus } : s));
-    toast.success(`Venta #${sale.id} marcada como ${newStatus}`);
+  const handleChangeStatus = async (sale: Sale, newStatus: string) => {
+    if (sale.status !== 'Pendiente') {
+      toast.error('Solo se pueden modificar pedidos en estado Pendiente.');
+      return;
+    }
+    const estadoBackend = newStatus === 'Completada' ? 'activa' : 'pendiente';
+    try {
+      await cambiarEstadoVenta(sale.id, estadoBackend);
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: newStatus } : s));
+      toast.success(`Pedido #${sale.id} marcado como ${newStatus}.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Error al cambiar el estado del pedido');
+    }
+  };
+
+  const handleAnularVenta = (sale: Sale) => {
+    setSalePendingAnular(sale);
+    setShowAnularDialog(true);
+  };
+
+  const confirmAnularVenta = async () => {
+    if (!salePendingAnular) return;
+    try {
+      await anularVenta(salePendingAnular.id);
+      setSales(prev => prev.map(s => s.id === salePendingAnular.id ? { ...s, status: 'Anulada' } : s));
+      persistSaleStatus(salePendingAnular.id, 'Anulada');
+      toast.success(`Pedido #${salePendingAnular.id} anulado correctamente.`);
+      setShowAnularDialog(false);
+      setSalePendingAnular(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Error al anular el pedido');
+    }
   };
 
   const handleAddProduct = (product: any) => {
@@ -458,8 +486,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     if (saleForm.descuento !== '' && descuentoVal < 0) { toast.error('El descuento no puede ser negativo'); return; }
     if (descuentoVal > calculateSubtotal()) { toast.error('El descuento no puede ser mayor al subtotal'); return; }
 
-    // Pre-validar stock solo para ventas directas de administrador
     const isPedido = clientMode || activeView === 'pedidos';
+
+    // Pre-validar stock solo para ventas directas de administrador
     if (!isPedido) {
       for (const item of saleForm.items) {
         const product = products.find(p => p.id === item.id);
@@ -470,13 +499,39 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       }
     }
 
+    // Para clientes: detectar si hay productos con stock insuficiente y pedir confirmación
+    if (clientMode && !bypassStockCheck) {
+      const itemsFaltantes = saleForm.items
+        .map(item => {
+          const product = products.find(p => p.id === item.id);
+          const available = product?.stock ?? 0;
+          if (item.quantity > available) {
+            return { name: item.name, requested: item.quantity, available, missing: item.quantity - available };
+          }
+          return null;
+        })
+        .filter((x): x is { name: string; requested: number; available: number; missing: number } => x !== null);
+
+      if (itemsFaltantes.length > 0) {
+        setStockWarningItems(itemsFaltantes);
+        setShowStockWarning(true);
+        return;
+      }
+    }
+
+    // Compras de cliente: siempre Pedido (nunca Directa, nunca Completada al crear).
+    // Para admin: depende del tab activo.
+    const resolvedTipoVenta: 'Pedido' | 'Directa' = clientMode
+      ? 'Pedido'
+      : activeView === 'pedidos' ? 'Pedido' : 'Directa';
+
     setSubmitting(true);
     try {
       const dto = {
         clientesId: Number(saleForm.clientId),
         fecha:      new Date().toISOString().split('T')[0],
         metodoPago: toMetodoPago(saleForm.paymentMethod),
-        tipoVenta:  toTipoVenta(isPedido ? 'Pedido' : 'Directa'),
+        tipoVenta:  toTipoVenta(resolvedTipoVenta),
         total:      calculateTotal(),
       };
       const { venta } = await createVenta(dto);
@@ -510,7 +565,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
 
-      const newSaleStatus = hasPendiente || activeView === 'pedidos' ? 'Pendiente' : 'Completada';
+      const newSaleStatus = hasPendiente || resolvedTipoVenta === 'Pedido' ? 'Pendiente' : 'Completada';
       const newSale: Sale = {
         id:             venta.id,
         clientName:     saleForm.clientName,
@@ -520,7 +575,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
         total:          Number(venta.total),
         paymentMethod:  saleForm.paymentMethod,
         status:         newSaleStatus,
-        type:           isPedido ? 'Pedido' : 'Directa',
+        type:           resolvedTipoVenta,
         items:          saleForm.items,
         ordenesProduccion: [],
       };
@@ -554,17 +609,18 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     });
     setProductSearch('');
     setClientSearch('');
+    setBypassStockCheck(false);
   };
 
   // ─── Badges ───────────────────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      'Completada': 'bg-green-50 text-green-800 border-green-300',
-      'Pendiente':  'bg-amber-50 text-amber-800 border-amber-300',
-      'Anulada':    'bg-red-50 text-red-700 border-red-300',
+      'Completada': 'bg-white text-gray-700 border border-gray-300',
+      'Pendiente':  'bg-white text-gray-700 border border-gray-300',
+      'Anulada':    'bg-white text-gray-400 border border-gray-300',
     };
-    return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
+    return <Badge className={colors[status] || 'bg-white text-gray-600 border border-gray-300'}>{status}</Badge>;
   };
 
   const getTypeBadge = (type: string) =>
@@ -592,8 +648,9 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
     c.document.includes(clientSearch)
   );
 
+  // El backend ya filtra por clientesId para usuarios tipo cliente; no aplicar filtro
+  // extra por clientFilter.id porque ese es el ID de usuarios, no de clientes.
   const allFilteredSales = sales
-    .filter(s => !clientMode || !clientFilter || String(s.clientId) === String(clientFilter.id))
     .filter(s =>
       s.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.id.toString().includes(searchTerm) ||
@@ -765,8 +822,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           {[
                             { value: 'Efectivo',      label: 'Efectivo',      Icon: Banknote },
                             { value: 'Transferencia', label: 'Transferencia', Icon: ArrowLeftRight },
-                            { value: 'Tarjeta',       label: 'Tarjeta',       Icon: CreditCard },
-                            { value: 'Crédito',       label: 'Crédito',       Icon: Wallet },
                           ].map(({ value, label, Icon }) => {
                             const selected = saleForm.paymentMethod === value;
                             return (
@@ -797,7 +852,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           </label>
                           {subtotal > 0 && (
                             <span style={{ fontSize: 10, color: '#9ca3af' }}>
-                              Máx. ${subtotal.toLocaleString('es-CO')}
+                              Máx. ${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                             </span>
                           )}
                         </div>
@@ -811,7 +866,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             disabled={subtotal === 0}
                             onChange={(e) => {
                               const raw = e.target.value.replace(/[^0-9]/g, '');
-                              const formatted = raw ? Number(raw).toLocaleString('es-CO') : '';
+                              const formatted = raw ? Number(raw).toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
                               setSaleForm({ ...saleForm, descuento: formatted });
                             }}
                             style={{
@@ -832,12 +887,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         </div>
                         {saleForm.descuento !== '' && parseDescuento() > subtotal && subtotal > 0 && (
                           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#f87171' }}>
-                            El descuento no puede superar el subtotal (${subtotal.toLocaleString('es-CO')})
+                            El descuento no puede superar el subtotal (${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })})
                           </p>
                         )}
                         {saleForm.descuento !== '' && parseDescuento() > 0 && parseDescuento() <= subtotal && (
                           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#16a34a' }}>
-                            Descuento aplicado: -${parseDescuento().toLocaleString('es-CO')}
+                            Descuento aplicado: -${parseDescuento().toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                           </p>
                         )}
                       </div>
@@ -895,7 +950,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                   {product.name}
                                 </p>
                                 <p style={{ fontSize: 11, margin: 0, color: product.stock === 0 ? '#f87171' : '#9ca3af' }}>
-                                  {product.code} · ${product.price.toLocaleString()} · Stock: {product.stock === 0 ? 'Sin stock' : product.stock}
+                                  {product.code} · ${product.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })} · Stock: {product.stock === 0 ? 'Sin stock' : product.stock}
                                 </p>
                               </div>
                               <Button type="button" size="sm"
@@ -954,7 +1009,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                 <td style={{ padding: '12px 24px' }}>
                                   <p style={{ fontWeight: 500, color: '#111827', fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
-                                  <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString()} c/u</p>
+                                  <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{item.code} · ${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })} c/u</p>
                                   {!isPedidoForm && enLimite && (
                                     <p style={{ fontSize: 10, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
                                       Stock máximo alcanzado ({stockDisponible})
@@ -1026,18 +1081,18 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                             <span style={{ fontSize: 13, color: '#6b7280' }}>Subtotal</span>
-                            <span style={{ fontSize: 14, color: '#374151' }}>${subtotal.toLocaleString('es-CO')}</span>
+                            <span style={{ fontSize: 14, color: '#374151' }}>${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                           </div>
                           {descuento > 0 && descuento <= subtotal && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                               <span style={{ fontSize: 13, color: '#16a34a' }}>Descuento</span>
-                              <span style={{ fontSize: 14, color: '#16a34a', fontWeight: 600 }}>-${descuento.toLocaleString('es-CO')}</span>
+                              <span style={{ fontSize: 14, color: '#16a34a', fontWeight: 600 }}>-${descuento.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                             </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: descuento > 0 && descuento <= subtotal ? '1px solid #e5e7eb' : 'none' }}>
                             <span style={{ fontWeight: 700, color: '#111827' }}>Total</span>
                             <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>
-                              ${totalFinal.toLocaleString('es-CO')}
+                              ${totalFinal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                             </span>
                           </div>
                         </div>
@@ -1065,6 +1120,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       Cancelar
                     </Button>
                     <Button
+                      id="sale-form-submit"
                       type="submit"
                       disabled={!saleForm.clientId || saleForm.items.length === 0 || submitting}
                       style={{ background: '#1d4ed8', color: '#fff', height: 36, padding: '0 20px' }}
@@ -1159,7 +1215,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{sale.date}</td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">${sale.total.toLocaleString()}</div>
+                        <div className="text-sm text-gray-900">${sale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</div>
                         <div className="text-sm text-gray-500">{sale.items.length} producto(s)</div>
                       </td>
                       <td className="px-6 py-4">
@@ -1167,7 +1223,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           getStatusBadge(sale.status)
                         ) : activeView === 'ventas' ? (
                           <span className="text-sm text-gray-700">{sale.paymentMethod}</span>
-                        ) : sale.status === 'Cancelado' || sale.status === 'Completado' || sale.status === 'Anulada' ? (
+                        ) : sale.status === 'Cancelado' || sale.status === 'Completada' || sale.status === 'Anulada' ? (
                           getStatusBadge(sale.status)
                         ) : (
                           <select
@@ -1177,18 +1233,17 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               padding: '4px 28px 4px 8px',
                               borderRadius: 6,
                               fontSize: 12,
-                              fontWeight: 600,
-                              border: '1px solid',
-                              borderColor: sale.status === 'Pendiente' ? '#fde68a' : '#bfdbfe',
-                              background: sale.status === 'Pendiente' ? '#fffbeb' : '#eff6ff',
-                              color: '#92400e',
+                              fontWeight: 500,
+                              border: '1px solid #d1d5db',
+                              background: '#ffffff',
+                              color: '#374151',
                               cursor: 'pointer',
                               outline: 'none',
                               appearance: 'auto',
                             }}
                           >
                             <option value="Pendiente">Pendiente</option>
-                            <option value="Completado">Completado</option>
+                            <option value="Completada">Completada</option>
                           </select>
                         )}
                       </td>
@@ -1216,6 +1271,36 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                             </TooltipTrigger>
                             <TooltipContent><p>{isCancelled ? (isAnulada ? (clientMode ? 'Compra anulada' : 'Venta anulada') : 'Pedido cancelado') : 'Ver PDF'}</p></TooltipContent>
                           </Tooltip>
+
+                          {!clientMode && activeView === 'pedidos' && (() => {
+                            const isCompletada = sale.status === 'Completada';
+                            const anularDisabled = isAnulada || isCompletada;
+                            const anularTooltip = isAnulada
+                              ? 'Pedido ya anulado'
+                              : isCompletada
+                              ? 'Los pedidos completados no se pueden anular'
+                              : 'Anular pedido';
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => !anularDisabled && handleAnularVenta(sale)}
+                                    disabled={anularDisabled}
+                                    className={anularDisabled
+                                      ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
+                                      : "text-blue-900 border-blue-900 hover:bg-blue-50"}
+                                  >
+                                    <BanIcon className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{anularTooltip}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
 
                         </div>
                       </td>
@@ -1352,8 +1437,6 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         }}>
                           {pdfSale.paymentMethod === 'Efectivo'      && <Banknote       style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
                           {pdfSale.paymentMethod === 'Transferencia' && <ArrowLeftRight  style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
-                          {pdfSale.paymentMethod === 'Tarjeta'       && <CreditCard      style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
-                          {pdfSale.paymentMethod === 'Crédito'       && <Wallet          style={{ width: 16, height: 16, color: '#1d4ed8' }} />}
                           <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{pdfSale.paymentMethod}</span>
                         </div>
                       </div>
@@ -1425,8 +1508,8 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                               <td style={{ padding: '12px 24px', fontSize: 12, color: '#6b7280' }}>{item.code}</td>
                               <td style={{ padding: '12px 12px', fontWeight: 500, color: '#111827' }}>{item.name}</td>
                               <td style={{ padding: '12px', textAlign: 'center', color: '#111827' }}>{item.quantity}</td>
-                              <td style={{ padding: '12px', textAlign: 'right', color: '#111827' }}>${item.price.toLocaleString()}</td>
-                              <td style={{ padding: '12px 24px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>${(item.quantity * item.price).toLocaleString()}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', color: '#111827' }}>${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
+                              <td style={{ padding: '12px 24px', textAlign: 'right', fontWeight: 700, color: '#111827' }}>${(item.quantity * item.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1438,7 +1521,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                       <div style={{ marginLeft: 'auto', maxWidth: 280 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontWeight: 700, color: '#111827', fontSize: 15 }}>Total:</span>
-                          <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString()}</span>
+                          <span style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8' }}>${pdfSale.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                         </div>
                       </div>
                     </div>
@@ -1473,6 +1556,83 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
           </DialogContent>
         </Dialog>
 
+        {/* ── DIALOG CONFIRMAR ANULACIÓN ────────────────────────────────── */}
+        <AlertDialog open={showAnularDialog} onOpenChange={setShowAnularDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-blue-900">
+                <BanIcon className="w-5 h-5" />Anular pedido
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>¿Estás seguro de que deseas anular este pedido? Esta acción no se puede deshacer.</p>
+                {salePendingAnular && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-1">
+                    <p className="text-sm"><span className="text-gray-500">Pedido: </span><span className="font-medium text-gray-800">#{salePendingAnular.id}</span></p>
+                    <p className="text-sm"><span className="text-gray-500">Cliente: </span><span className="text-gray-800">{salePendingAnular.clientName}</span></p>
+                    <p className="text-sm"><span className="text-gray-500">Total: </span><span className="text-gray-800">${salePendingAnular.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span></p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setSalePendingAnular(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmAnularVenta}
+                className="bg-white hover:bg-blue-50 text-blue-900 border border-blue-900"
+              >
+                Anular pedido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ── DIALOG ADVERTENCIA STOCK (cliente) ───────────────────────── */}
+        <AlertDialog open={showStockWarning} onOpenChange={setShowStockWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-blue-900">
+                Stock insuficiente
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>Los siguientes productos no tienen stock suficiente para tu solicitud:</p>
+                <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {stockWarningItems.map((item, i) => (
+                    <div key={i} className="px-4 py-3 text-sm">
+                      <p className="font-medium text-gray-800">{item.name}</p>
+                      <p className="text-gray-500 mt-0.5">
+                        Solicitado: <span className="font-semibold text-gray-700">{item.requested}</span>
+                        {' · '}Disponible: <span className="font-semibold text-gray-700">{item.available}</span>
+                        {' · '}Faltante: <span className="font-semibold text-blue-700">{item.missing}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-600">
+                  ¿Deseas generar el pedido de todos modos? Las unidades faltantes se solicitarán mediante una orden de producción automáticamente.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setShowStockWarning(false); setStockWarningItems([]); }}>
+                No, cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setShowStockWarning(false);
+                  setStockWarningItems([]);
+                  setBypassStockCheck(true);
+                  // Re-disparar el submit después de marcar bypass
+                  setTimeout(() => {
+                    document.getElementById('sale-form-submit')?.click();
+                  }, 50);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Sí, generar pedido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </div>
     </TooltipProvider>

@@ -329,10 +329,10 @@ export function CartDrawer() {
                                                 )}
                                                 <div style={{ textAlign: 'right' }}>
                                                     <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
-                                                        c/u ${Number(item.precio).toLocaleString('es-CO')}
+                                                        c/u ${Number(item.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                     </p>
                                                     <p style={{ fontSize: 15, fontWeight: 800, color: priceColor, margin: 0 }}>
-                                                        ${Number(item.precio * item.cantidad).toLocaleString('es-CO')}
+                                                        ${Number(item.precio * item.cantidad).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                     </p>
                                                 </div>
                                             </div>
@@ -387,7 +387,7 @@ export function CartDrawer() {
                                     Subtotal ({totalItems} und.)
                                 </span>
                                 <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>
-                                    ${Number(totalPrice).toLocaleString('es-CO')} COP
+                                    ${Number(totalPrice).toLocaleString('es-CO', { maximumFractionDigits: 0 })} COP
                                 </span>
                             </div>
                             <div style={{
@@ -396,7 +396,7 @@ export function CartDrawer() {
                             }}>
                                 <span style={{ fontSize: 15, fontWeight: 700, color: '#1e3a8a' }}>Total</span>
                                 <span style={{ fontSize: 18, fontWeight: 800, color: '#1d4ed8' }}>
-                                    ${Number(totalPrice).toLocaleString('es-CO')} COP
+                                    ${Number(totalPrice).toLocaleString('es-CO', { maximumFractionDigits: 0 })} COP
                                 </span>
                             </div>
                         </div>

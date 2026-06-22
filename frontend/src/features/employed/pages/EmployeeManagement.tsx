@@ -230,12 +230,12 @@ function FormFields({
                         <div>
                             <label className="block text-sm text-gray-700 mb-2">Teléfono <span className="text-red-500">*</span></label>
                             <Input
-                                placeholder="+57 300 123 4567"
+                                placeholder="Ej: 3001234567"
                                 value={form.telefono}
                                 onChange={e => update('telefono', e.target.value, sanitizarTelefono(e.target.value))}
                                 onBlur={() => blur('telefono')}
                                 className={errores.telefono ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                maxLength={17}
+                                maxLength={11}
                             />
                             <FieldError mensaje={errores.telefono} />
                         </div>

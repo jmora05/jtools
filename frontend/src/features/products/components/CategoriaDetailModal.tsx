@@ -151,7 +151,7 @@ export function CategoriaDetailModal({ open, onClose, categoria, onEdit }: Categ
                                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                                 <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{p.nombreProducto}</div>
                                                 <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>
-                                                    ${Number(p.precio).toLocaleString('es-CO')}
+                                                    ${Number(p.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                 </div>
                                                 <div style={{ textAlign: 'right', minWidth: 70 }}>
                                                     <span style={{ background: p.stock === 0 ? '#fee2e2' : cfg.chipBg, color: p.stock === 0 ? '#991b1b' : cfg.chipText, border: `1px solid ${p.stock === 0 ? '#fca5a5' : cfg.chipBorder}`, borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>

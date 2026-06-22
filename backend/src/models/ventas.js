@@ -68,8 +68,8 @@ const Ventas = sequelize.define('Ventas', {
         defaultValue: 'activa',
         validate: {
             isIn: {
-                args: [['activa', 'pendiente', 'anulada']],
-                msg: 'El estado de la venta debe ser activa, pendiente o anulada'
+                args: [['activa', 'pendiente', 'anulada', 'completada']],
+                msg: 'El estado de la venta debe ser activa, pendiente, anulada o completada'
             }
         }
     }

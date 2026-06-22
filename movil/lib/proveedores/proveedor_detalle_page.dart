@@ -67,6 +67,14 @@ class ProveedorDetallePage extends StatelessWidget {
               icon: const Icon(Icons.more_vert),
               onSelected: (v) => _accion(context, v),
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: Text(
+                    proveedor.activo ? 'Desactivar' : 'Activar',
+                    style: TextStyle(
+                      color: proveedor.activo ? kTextMuted : kPrimary),
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'eliminar',
                   child: Text('Eliminar', style: TextStyle(color: kError)),
@@ -101,16 +109,66 @@ class ProveedorDetallePage extends StatelessWidget {
 
   Future<void> _accion(BuildContext ctx, String accion) async {
     final prov = ctx.read<ProveedorProvider>();
+
+    if (accion == 'toggle') {
+      final nuevoEstado = proveedor.activo ? 'inactivo' : 'activo';
+      final ok = await showDialog<bool>(
+        context: ctx,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(proveedor.activo ? 'Desactivar proveedor' : 'Activar proveedor',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+          content: Text(proveedor.activo
+            ? '¿Desactivar a "${proveedor.nombreEmpresa}"? No podrá usarse en nuevas compras.'
+            : '¿Activar a "${proveedor.nombreEmpresa}"?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: proveedor.activo ? kTextMuted : kPrimary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(proveedor.activo ? 'Desactivar' : 'Activar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !ctx.mounted) return;
+      try {
+        await prov.cambiarEstado(proveedor.id, nuevoEstado);
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+            content: Text('${proveedor.nombreEmpresa} '
+              '${nuevoEstado == 'activo' ? 'activado' : 'desactivado'}'),
+            backgroundColor: nuevoEstado == 'activo' ? kPrimary : kTextMuted,
+            behavior: SnackBarBehavior.floating,
+          ));
+          Navigator.pop(ctx);
+        }
+      } catch (e) {
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: kError));
+        }
+      }
+      return;
+    }
+
+    // ── Eliminar ──────────────────────────────────────────────────────────────
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Eliminar proveedor'),
-        content: Text('¿Eliminar a ${proveedor.nombreEmpresa}?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar proveedor',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text('¿Eliminar a "${proveedor.nombreEmpresa}"? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kError, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: kError),
             child: const Text('Eliminar'),
           ),
         ],

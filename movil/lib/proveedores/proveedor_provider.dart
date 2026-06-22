@@ -37,6 +37,11 @@ class ProveedorProvider extends ChangeNotifier {
     if (i != -1) { _proveedores[i] = updated; notifyListeners(); }
   }
 
+  Future<void> cambiarEstado(int id, String nuevoEstado) async {
+    final p = _proveedores.firstWhere((e) => e.id == id);
+    await actualizar(id, {...p.toJson(), 'estado': nuevoEstado});
+  }
+
   Future<void> eliminar(int id) async {
     await ApiService.delete('/proveedores/$id');
     _proveedores.removeWhere((e) => e.id == id);

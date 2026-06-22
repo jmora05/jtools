@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/logout_button.dart';
 import 'nomina_provider.dart';
 import 'nomina_model.dart';
 import 'nomina_detalle_page.dart';
-import 'nomina_form_page.dart';
 
 class NominaPage extends StatefulWidget {
   const NominaPage({super.key});
@@ -31,7 +32,9 @@ class _NominaPageState extends State<NominaPage> {
     final lista = prov.nominas.where((n) {
       final matchQ = (n.nombreEmpleado?.toLowerCase().contains(_q.toLowerCase()) ?? false) ||
           n.id.toString().contains(_q);
-      final matchE = _filtroEstado == 'todos' || n.estado == _filtroEstado;
+      final matchE = _filtroEstado == 'todos' ||
+          (_filtroEstado == 'pendiente' && !n.pagado) ||
+          (_filtroEstado == 'pagado' && n.pagado);
       return matchQ && matchE;
     }).toList();
 
@@ -40,9 +43,10 @@ class _NominaPageState extends State<NominaPage> {
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
         title: const Text('Control de Pagos', style: TextStyle(fontWeight: FontWeight.w700)),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
+        actions: [const LogoutButton(), IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
+        // ── Filtros ──────────────────────────────────────────────────────────
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -71,6 +75,8 @@ class _NominaPageState extends State<NominaPage> {
             ),
           ]),
         ),
+
+        // ── Lista ─────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
@@ -85,78 +91,98 @@ class _NominaPageState extends State<NominaPage> {
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.receipt_long_outlined, size: 64, color: kBorder),
                   SizedBox(height: 12),
-                  Text('No hay registros', style: TextStyle(color: kTextMuted, fontSize: 16)),
+                  Text('No hay registros',
+                    style: TextStyle(color: kTextMuted, fontSize: 16)),
                 ]))
               : RefreshIndicator(
                   color: kPrimary, onRefresh: prov.cargar,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _NominaCard(n: lista[i], fmt: fmt),
+                    itemBuilder: (ctx, i) {
+                      final n = lista[i];
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                            elevation: 1,
+                            clipBehavior: Clip.hardEdge,
+                            child: Slidable(
+                              key: ValueKey('nomina_${n.id}'),
+                              startActionPane: ActionPane(
+                                motion: const DrawerMotion(),
+                                extentRatio: 0.25,
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (_) => Navigator.push(ctx,
+                                      MaterialPageRoute(
+                                        builder: (_) => NominaDetallePage(nomina: n))),
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: Colors.white,
+                                    icon: Icons.info_outline,
+                                    label: 'Ver detalle',
+                                  ),
+                                ],
+                              ),
+                              child: _NominaTile(
+                                n: n, fmt: fmt,
+                                onTap: () => Navigator.push(ctx,
+                                  MaterialPageRoute(
+                                    builder: (_) => NominaDetallePage(nomina: n))),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
         ),
       ]),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kPrimary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nuevo pago', style: TextStyle(color: Colors.white)),
-        onPressed: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const NominaFormPage())),
-      ),
     );
   }
 }
 
-class _NominaCard extends StatelessWidget {
+// ── Tile de nómina ─────────────────────────────────────────────────────────────
+class _NominaTile extends StatelessWidget {
   final Nomina n;
   final NumberFormat fmt;
-  const _NominaCard({required this.n, required this.fmt});
+  final VoidCallback onTap;
+  const _NominaTile({required this.n, required this.fmt, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => NominaDetallePage(nomina: n))),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text(n.nombreEmpleado ?? 'Empleado #${n.empleadoId}',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kText))),
-              _chip(n.pagado ? 'Pagado' : 'Pendiente', n.pagado ? kPrimary : kWarning),
-            ]),
-            const SizedBox(height: 4),
-            Text(n.cargoEmpleado ?? '', style: const TextStyle(color: kTextMuted, fontSize: 13)),
-            const SizedBox(height: 10),
-            Row(children: [
-              _dato(Icons.calendar_today_outlined,
-                '${n.fechaInicioPeriodo} – ${n.fechaFinPeriodo}'),
-              const Spacer(),
-              Text(fmt.format(n.pagoNeto),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: kPrimary)),
-              const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: kTextMuted),
-            ]),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _chip(String label, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Expanded(child: Text(
+            n.nombreEmpleado ?? 'Empleado #${n.empleadoId}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700, fontSize: 15, color: kText))),
+          estadoChip(n.pagado ? 'pagado' : 'pendiente'),
+        ]),
+        const SizedBox(height: 4),
+        Text(n.cargoEmpleado ?? '',
+          style: const TextStyle(color: kTextMuted, fontSize: 13)),
+        const SizedBox(height: 10),
+        Row(children: [
+          _dato(Icons.calendar_today_outlined,
+            '${n.fechaInicioPeriodo} – ${n.fechaFinPeriodo}'),
+          const Spacer(),
+          Text(fmt.format(n.pagoNeto),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800, fontSize: 16, color: kPrimary)),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, color: kTextMuted),
+        ]),
+      ]),
     ),
-    child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
   );
 
   Widget _dato(IconData icon, String text) => Row(children: [

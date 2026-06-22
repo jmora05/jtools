@@ -33,13 +33,23 @@ class CompraProvider extends ChangeNotifier {
     required String fecha,
     required String metodoPago,
     required List<Map<String, dynamic>> detalles,
+    double iva = 19,
+    String? numeroFactura,
+    String? numeroCompra,
+    String? notas,
   }) async {
-    final body = {
+    final body = <String, dynamic>{
       'proveedoresId': proveedoresId,
       'fecha': fecha,
       'metodoPago': metodoPago,
       'estado': 'pendiente',
+      'iva': iva,
       'detalles': detalles,
+      if (numeroFactura != null && numeroFactura.trim().isNotEmpty)
+        'numeroFactura': numeroFactura.trim(),
+      if (numeroCompra != null && numeroCompra.trim().isNotEmpty)
+        'numeroCompra': numeroCompra.trim(),
+      if (notas != null && notas.trim().isNotEmpty) 'notas': notas.trim(),
     };
     final data = await ApiService.post('/compras', body);
     final nueva = Compra.fromJson(data['compra'] ?? data);
@@ -55,6 +65,8 @@ class CompraProvider extends ChangeNotifier {
       _compras[i] = Compra(
         id: c.id, proveedoresId: c.proveedoresId, fecha: c.fecha,
         metodoPago: c.metodoPago, estado: nuevoEstado,
+        numeroFactura: c.numeroFactura, numeroCompra: c.numeroCompra,
+        ivaPorcentaje: c.ivaPorcentaje,
         nombreProveedor: c.nombreProveedor, detalles: c.detalles,
       );
       notifyListeners();

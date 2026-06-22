@@ -152,13 +152,13 @@ function generarPDFVenta(sale: Sale): void {
         body: sale.items.map((it, i) => [
             (i + 1).toString(),
             it.name, it.code, String(it.quantity),
-            `$${it.price.toLocaleString('es-CO')}`,
-            `$${(it.quantity * it.price).toLocaleString('es-CO')}`,
+            `$${it.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
+            `$${(it.quantity * it.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
         ]),
         foot: [
-            ['','','','','Subtotal', `$${subtotal.toLocaleString('es-CO')}`],
-            ['','','','','IVA (19%)', `$${iva.toLocaleString('es-CO')}`],
-            ['','','','','TOTAL',    `$${total.toLocaleString('es-CO')}`],
+            ['','','','','Subtotal', `$${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+            ['','','','','IVA (19%)', `$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
+            ['','','','','TOTAL',    `$${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
         ],
         margin: { left: margin, right: margin },
         styles:             { fontSize: 9, cellPadding: 4, textColor: grisTexto },
@@ -337,21 +337,21 @@ export function VentaDetailModal({ open, onClose, viewingSale }: VentaDetailModa
                                                 <div style={{ textAlign: 'center', minWidth: 60 }}>
                                                     <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>×{item.quantity}</span>
                                                 </div>
-                                                <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>${item.price.toLocaleString('es-CO')}</div>
-                                                <div style={{ textAlign: 'right', minWidth: 100, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>${(item.quantity * item.price).toLocaleString('es-CO')}</div>
+                                                <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>${item.price.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</div>
+                                                <div style={{ textAlign: 'right', minWidth: 100, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>${(item.quantity * item.price).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</div>
                                             </div>
                                         ))}
                                         <div style={{ borderTop: '2px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                                             <div style={{ minWidth: 230 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', fontSize: 13, color: '#64748b' }}>
-                                                    <span>Subtotal</span><span>${sub.toLocaleString('es-CO')}</span>
+                                                    <span>Subtotal</span><span>${sub.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: 13, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
-                                                    <span>IVA (19%)</span><span>${iva.toLocaleString('es-CO')}</span>
+                                                    <span>IVA (19%)</span><span>${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: cfg.totalBg, color: cfg.totalText, borderRadius: '0 0 12px 0' }}>
                                                     <span style={{ fontWeight: 700, fontSize: 14 }}>Total</span>
-                                                    <span style={{ fontWeight: 800, fontSize: 16 }}>${total.toLocaleString('es-CO')}</span>
+                                                    <span style={{ fontWeight: 800, fontSize: 16 }}>${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                                 </div>
                                             </div>
                                         </div>

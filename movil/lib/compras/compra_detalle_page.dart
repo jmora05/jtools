@@ -52,7 +52,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
             ]))
           : _compra == null ? const SizedBox()
           : CustomScrollView(slivers: [
-              _appBar(fmt),
+              _appBar(),
               SliverToBoxAdapter(child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(children: [
@@ -60,8 +60,13 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
                   const SizedBox(height: 12),
                   _detallesCard(fmt),
                   const SizedBox(height: 12),
+                  _descontadosCard(),
+                  const SizedBox(height: 12),
                   _totalesCard(fmt),
-                  if (_puedeAccion()) _accionesCard(),
+                  if (_tieneAcciones()) ...[
+                    const SizedBox(height: 12),
+                    _accionesCard(),
+                  ],
                   const SizedBox(height: 60),
                 ]),
               )),
@@ -69,43 +74,49 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     );
   }
 
-  bool _puedeAccion() {
-    final e = _compra?.estado ?? '';
-    return e == 'pendiente' || e == 'en transito';
+  // Título visible al usuario: usa el N° de factura, nunca la PK interna.
+  String _tituloCompra(Compra c) {
+    final nf = c.numeroFactura;
+    if (nf != null && nf.trim().isNotEmpty) return 'Factura $nf';
+    return 'Compra';
   }
 
-  SliverAppBar _appBar(NumberFormat fmt) {
-    _estadoStyle(_compra?.estado ?? '');
-    return SliverAppBar(
-      expandedHeight: 140,
-      pinned: true,
-      backgroundColor: kPrimaryDark,
-      foregroundColor: Colors.white,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-          ),
-          child: SafeArea(child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 36, 20, 16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Compra #${_compra!.id}',
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
-                _estadoBadge(_compra!.estado),
-              ]),
-              const SizedBox(height: 4),
-              Text(_compra!.nombreProveedor ?? 'Proveedor #${_compra!.proveedoresId}',
-                style: const TextStyle(color: Colors.white70, fontSize: 13)),
-            ]),
-          )),
-        ),
-      ),
-    );
+  // Hay acciones disponibles para pendiente o completada
+  bool _tieneAcciones() {
+    final e = _compra?.estado ?? '';
+    return e == 'pendiente' || e == 'completada';
   }
+
+  SliverAppBar _appBar() => SliverAppBar(
+    expandedHeight: 140,
+    pinned: true,
+    backgroundColor: kPrimaryDark,
+    foregroundColor: Colors.white,
+    flexibleSpace: FlexibleSpaceBar(
+      background: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 36, 20, 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(_tituloCompra(_compra!),
+                style: const TextStyle(
+                  fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+              _estadoBadge(_compra!.estado),
+            ]),
+            const SizedBox(height: 4),
+            Text(_compra!.nombreProveedor ?? 'Proveedor #${_compra!.proveedoresId}',
+              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          ]),
+        )),
+      ),
+    ),
+  );
 
   Widget _infoCard(NumberFormat fmt) => Card(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -115,6 +126,8 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('INFORMACIÓN GENERAL', style: kLabel),
         const SizedBox(height: 12),
+        if ((_compra!.numeroFactura ?? '').trim().isNotEmpty)
+          _fila(Icons.receipt_long_outlined, 'N° de factura', _compra!.numeroFactura!.trim()),
         _fila(Icons.calendar_today_outlined, 'Fecha',
           _compra!.fecha.length >= 10 ? _compra!.fecha.substring(0, 10) : _compra!.fecha),
         _fila(Icons.payment_outlined, 'Método de pago', _compra!.metodoPago),
@@ -137,52 +150,58 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: kChipBg, borderRadius: BorderRadius.circular(20)),
             child: Text('${_compra!.detalles.length}',
-              style: const TextStyle(color: kChipText, fontWeight: FontWeight.w700, fontSize: 12)),
+              style: const TextStyle(
+                color: kChipText, fontWeight: FontWeight.w700, fontSize: 12)),
           ),
         ]),
         const SizedBox(height: 12),
         if (_compra!.detalles.isEmpty)
-          const Text('Sin insumos registrados.', style: TextStyle(color: kTextMuted, fontStyle: FontStyle.italic))
+          const Text('Sin insumos registrados.',
+            style: TextStyle(color: kTextMuted, fontStyle: FontStyle.italic))
         else ...[
-          // Encabezado tabla
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(children: const [
-              Expanded(child: Text('Insumo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
-              SizedBox(width: 8),
-              SizedBox(width: 50, child: Text('Cant.', textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
-              SizedBox(width: 8),
-              SizedBox(width: 80, child: Text('Precio u.', textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
-              SizedBox(width: 8),
-              SizedBox(width: 80, child: Text('Subtotal', textAlign: TextAlign.right,
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
-            ]),
-          ),
+          Row(children: const [
+            Expanded(child: Text('Insumo', style: TextStyle(
+              fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
+            SizedBox(width: 8),
+            SizedBox(width: 50, child: Text('Cant.', textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
+            SizedBox(width: 8),
+            SizedBox(width: 80, child: Text('Precio u.', textAlign: TextAlign.right,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
+            SizedBox(width: 8),
+            SizedBox(width: 80, child: Text('Subtotal', textAlign: TextAlign.right,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: kTextMuted))),
+          ]),
           const Divider(),
           ..._compra!.detalles.map((d) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(d.nombreInsumo ?? 'ID #${d.insumosId}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: kText)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 13, color: kText)),
                 if (d.unidadMedida != null)
-                  Text(d.unidadMedida!, style: const TextStyle(color: kTextMuted, fontSize: 11)),
+                  Text(d.unidadMedida!,
+                    style: const TextStyle(color: kTextMuted, fontSize: 11)),
               ])),
               const SizedBox(width: 8),
               SizedBox(width: 50, child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 3),
-                decoration: BoxDecoration(color: kChipBg, borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(
+                  color: kChipBg, borderRadius: BorderRadius.circular(6)),
                 child: Text('×${d.cantidad}', textAlign: TextAlign.center,
-                  style: const TextStyle(color: kChipText, fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: const TextStyle(
+                    color: kChipText, fontWeight: FontWeight.w700, fontSize: 13)),
               )),
               const SizedBox(width: 8),
-              SizedBox(width: 80, child: Text(fmt.format(d.precioUnitario), textAlign: TextAlign.right,
+              SizedBox(width: 80, child: Text(
+                fmt.format(d.precioUnitario), textAlign: TextAlign.right,
                 style: const TextStyle(color: kTextMuted, fontSize: 12))),
               const SizedBox(width: 8),
-              SizedBox(width: 80, child: Text(fmt.format(d.subtotal), textAlign: TextAlign.right,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kText))),
+              SizedBox(width: 80, child: Text(
+                fmt.format(d.subtotal), textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 13, color: kText))),
             ]),
           )),
         ],
@@ -190,20 +209,75 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     ),
   );
 
+  Widget _descontadosCard() {
+    final conDescuento = _compra!.detalles
+        .where((d) => d.cantidadMerma > 0)
+        .toList();
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text('INSUMOS DESCONTADOS', style: kLabel),
+            const Spacer(),
+            if (conDescuento.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kError.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20)),
+                child: Text('${conDescuento.length}',
+                  style: const TextStyle(
+                    color: kError, fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          if (conDescuento.isEmpty)
+            const Text('No se han descontado insumos en esta compra.',
+              style: TextStyle(color: kTextMuted, fontSize: 13, fontStyle: FontStyle.italic))
+          else ...[
+            const Divider(),
+            ...conDescuento.map((d) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(children: [
+                const Icon(Icons.remove_circle_outline, size: 16, color: kError),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  d.nombreInsumo ?? 'ID #${d.insumosId}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kText))),
+                Text(
+                  '${d.cantidadMerma % 1 == 0 ? d.cantidadMerma.toInt() : d.cantidadMerma} descontados',
+                  style: const TextStyle(fontSize: 13, color: kError, fontWeight: FontWeight.w600)),
+              ]),
+            )),
+          ],
+        ]),
+      ),
+    );
+  }
+
   Widget _totalesCard(NumberFormat fmt) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)],
+      gradient: const LinearGradient(
+        colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)],
         begin: Alignment.topLeft, end: Alignment.bottomRight),
       borderRadius: BorderRadius.circular(12),
     ),
     child: Column(children: [
       _totalFila('Subtotal', fmt.format(_compra!.subtotal)),
-      _totalFila('IVA (19%)', fmt.format(_compra!.iva)),
+      _totalFila(
+        'IVA (${_compra!.ivaPorcentaje.toStringAsFixed(_compra!.ivaPorcentaje == _compra!.ivaPorcentaje.roundToDouble() ? 0 : 1)}%)',
+        fmt.format(_compra!.iva)),
       const Divider(color: Colors.white24, height: 20),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('Total con IVA', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 15)),
-        Text(fmt.format(_compra!.total), style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 20)),
+        const Text('Total con IVA',
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 15)),
+        Text(fmt.format(_compra!.total),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800, color: Colors.white, fontSize: 20)),
       ]),
     ]),
   );
@@ -217,7 +291,6 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
   );
 
   Widget _accionesCard() => Card(
-    margin: const EdgeInsets.only(top: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     elevation: 1,
     child: Padding(
@@ -225,15 +298,14 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('ACCIONES', style: kLabel),
         const SizedBox(height: 12),
+
+        // Completar solo desde pendiente
         if (_compra!.estado == 'pendiente')
-          _botonAccion('Marcar en tránsito', Icons.local_shipping_outlined, kPrimary,
-            () => _cambiarEstado('en transito')),
-        if (_compra!.estado == 'en transito')
-          _botonAccion('Marcar completada', Icons.check_circle_outline, kPrimary,
-            () => _cambiarEstado('completada')),
-        const SizedBox(height: 8),
-        _botonAccion('Anular compra', Icons.cancel_outlined, kError,
-          () => _confirmarAnular()),
+          _botonAccion('Completar compra', Icons.check_circle_outline,
+            const Color(0xFF0F766E), _confirmarCompletar),
+
+        // Anular desde pendiente o completada
+        _botonAccion('Anular compra', Icons.cancel_outlined, kError, _confirmarAnular),
       ]),
     ),
   );
@@ -257,15 +329,42 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       ),
     );
 
-  Future<void> _cambiarEstado(String estado) async {
+  Future<void> _confirmarCompletar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Completar compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Marcar la compra "${_tituloCompra(_compra!)}" como completada? '
+          'El stock de insumos será actualizado.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Completar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
     try {
-      await context.read<CompraProvider>().cambiarEstado(_compra!.id, estado);
+      await context.read<CompraProvider>().cambiarEstado(_compra!.id, 'completada');
       await _cargar();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Estado actualizado'), backgroundColor: kPrimary));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Compra completada. Stock actualizado.'),
+        backgroundColor: Color(0xFF0F766E),
+        behavior: SnackBarBehavior.floating,
+      ));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: kError));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
     }
   }
 
@@ -273,13 +372,21 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Anular compra'),
-        content: Text('¿Anular la compra #${_compra!.id}? Esta acción no se puede deshacer.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Anular compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Anular la compra "${_tituloCompra(_compra!)}"? '
+          '${_compra!.estado == 'completada' ? 'El stock será devuelto al inventario. ' : ''}'
+          'Esta acción no se puede deshacer.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kError, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: kError),
             child: const Text('Anular'),
           ),
         ],
@@ -288,33 +395,30 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     if (ok != true || !mounted) return;
     try {
       await context.read<CompraProvider>().anular(_compra!.id);
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Compra "${_tituloCompra(_compra!)}" anulada'),
+          backgroundColor: kError, behavior: SnackBarBehavior.floating));
+        Navigator.pop(context);
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: kError));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
     }
   }
 
-  (Color, IconData) _estadoStyle(String estado) {
-    switch (estado) {
-      case 'completada': return (kPrimary, Icons.check_circle_outline);
-      case 'anulada': return (kError, Icons.cancel_outlined);
-      case 'en transito': return (kPrimaryLight, Icons.local_shipping_outlined);
-      default: return (kWarning, Icons.schedule_outlined);
-    }
-  }
-
-  Widget _estadoBadge(String estado) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white24, border: Border.all(color: Colors.white54),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(Compra.estadoLabel[estado] ?? estado,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-    );
-  }
+  Widget _estadoBadge(String estado) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.white24,
+      border: Border.all(color: Colors.white54),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(Compra.estadoLabel[estado] ?? estado,
+      style: const TextStyle(
+        color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+  );
 
   Widget _fila(IconData icon, String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -323,7 +427,8 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
       const SizedBox(width: 8),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: kLabel),
-        Text(value, style: const TextStyle(color: kText, fontSize: 14, fontWeight: FontWeight.w500)),
+        Text(value,
+          style: const TextStyle(color: kText, fontSize: 14, fontWeight: FontWeight.w500)),
       ])),
     ]),
   );

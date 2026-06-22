@@ -168,9 +168,9 @@ function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
             (i + 1).toString(),
             d.insumo?.nombreInsumo ?? `ID #${d.insumosId}`,
             d.insumo?.unidadMedida ?? '—',
-            String(d.cantidad),
-            `$${Number(d.precioUnitario).toLocaleString('es-CO')}`,
-            `$${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO')}`,
+            String(Math.round(Number(d.cantidad))),
+            `$${Number(d.precioUnitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
+            `$${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`,
         ]);
 
         autoTable(doc, {
@@ -178,7 +178,7 @@ function generarPDFCompra(compra: Compra, ivaRate: number = IVA_DEFAULT): void {
             head: [['#', 'Insumo', 'Unidad', 'Cant.', 'Precio unit.', 'Subtotal']],
             body: rows,
             foot: [
-                ['', '', '', '', 'Subtotal',          `$${subtotal.toLocaleString('es-CO')}`],
+                ['', '', '', '', 'Subtotal',          `$${subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
                 ['', '', '', '', `IVA (${ivaRate}%)`, `$${iva.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
                 ['', '', '', '', 'TOTAL',             `$${total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`],
             ],
@@ -414,14 +414,14 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                                 </div>
                                                 <div style={{ textAlign: 'center', minWidth: 60 }}>
                                                     <span style={{ background: cfg.chipBg, color: cfg.chipText, border: `1px solid ${cfg.chipBorder}`, borderRadius: 6, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
-                                                        ×{d.cantidad}
+                                                        ×{Math.round(Number(d.cantidad))}
                                                     </span>
                                                 </div>
                                                 <div style={{ textAlign: 'right', minWidth: 90, fontSize: 13, color: '#475569' }}>
-                                                    ${Number(d.precioUnitario).toLocaleString('es-CO')}
+                                                    ${Number(d.precioUnitario).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                 </div>
                                                 <div style={{ textAlign: 'right', minWidth: 100, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-                                                    ${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO')}
+                                                    ${(Number(d.cantidad) * Number(d.precioUnitario)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                                 </div>
                                             </div>
                                             );
@@ -431,7 +431,7 @@ export function CompraDetailModal({ open, onClose, viewingCompra, loadingDetail,
                                         <div style={{ borderTop: '2px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                                             <div style={{ minWidth: 230 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', fontSize: 13, color: '#64748b' }}>
-                                                    <span>Subtotal</span><span>${sub.toLocaleString('es-CO')}</span>
+                                                    <span>Subtotal</span><span>${sub.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: 13, color: '#64748b', borderTop: '1px solid #f1f5f9' }}>
                                                     <span>IVA ({ivaRate}%)</span>

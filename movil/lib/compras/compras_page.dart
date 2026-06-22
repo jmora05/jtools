@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
+import '../core/logout_button.dart';
 import 'compra_provider.dart';
 import 'compra_model.dart';
 import 'compra_detalle_page.dart';
 import 'compra_form_page.dart';
+
+String _refCompra(Compra c) {
+  final nf = c.numeroFactura;
+  return (nf != null && nf.trim().isNotEmpty) ? 'Factura ${nf.trim()}' : 'la compra';
+}
+
+// Prioridad para ordenamiento en pantalla: pendiente → completada → anulada → resto
+int _prioridad(String estado) {
+  switch (estado) {
+    case 'pendiente':   return 0;
+    case 'completada':  return 1;
+    case 'anulada':     return 2;
+    default:            return 3; // en transito u otro
+  }
+}
 
 class ComprasPage extends StatefulWidget {
   const ComprasPage({super.key});
@@ -23,33 +40,118 @@ class _ComprasPageState extends State<ComprasPage> {
       context.read<CompraProvider>().cargar());
   }
 
+  Future<void> _completar(BuildContext ctx, Compra c) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Completar compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Marcar ${_refCompra(c)} como completada? '
+          'El stock de insumos será actualizado.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimary, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Completar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await ctx.read<CompraProvider>().cambiarEstado(c.id, 'completada');
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${_refCompra(c)} completada. Stock actualizado.'),
+        backgroundColor: kPrimary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Future<void> _anular(BuildContext ctx, Compra c) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Anular compra',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Anular ${_refCompra(c)}? '
+          '${c.estado == 'completada' ? 'El stock será devuelto al inventario. ' : ''}'
+          'Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kTextMuted, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Anular'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !ctx.mounted) return;
+    try {
+      await ctx.read<CompraProvider>().anular(c.id);
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('${_refCompra(c)} anulada'),
+        backgroundColor: kTextMuted, behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(e.toString()), backgroundColor: kError,
+        behavior: SnackBarBehavior.floating));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<CompraProvider>();
     final fmt = NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0);
 
     final lista = prov.compras.where((c) {
-      final matchQ = c.id.toString().contains(_q) ||
+      final matchQ = (c.numeroFactura?.toLowerCase().contains(_q.toLowerCase()) ?? false) ||
           (c.nombreProveedor?.toLowerCase().contains(_q.toLowerCase()) ?? false);
       final matchE = _filtroEstado == 'todos' || c.estado == _filtroEstado;
       return matchQ && matchE;
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final fa = a.fecha.length >= 10 ? a.fecha.substring(0, 10) : a.fecha;
+        final fb = b.fecha.length >= 10 ? b.fecha.substring(0, 10) : b.fecha;
+        if (fa != fb) return fb.compareTo(fa); // más reciente primero
+        return _prioridad(a.estado) - _prioridad(b.estado);
+      });
 
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kPrimaryDark, foregroundColor: Colors.white,
         title: const Text('Compras', style: TextStyle(fontWeight: FontWeight.w700)),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
+        actions: [const LogoutButton(), IconButton(icon: const Icon(Icons.refresh), onPressed: prov.cargar)],
       ),
       body: Column(children: [
+        // ── Filtros ────────────────────────────────────────────────────────────
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(children: [
             TextField(
               onChanged: (v) => setState(() => _q = v),
-              decoration: kInputDeco('Buscar por ID o proveedor...',
+              decoration: kInputDeco('Buscar por factura o proveedor...',
                 prefix: const Icon(Icons.search, color: kTextMuted)),
             ),
             const SizedBox(height: 8),
@@ -59,7 +161,6 @@ class _ComprasPageState extends State<ComprasPage> {
                 for (final f in [
                   ('todos', 'Todos'),
                   ('pendiente', 'Pendiente'),
-                  ('en transito', 'En tránsito'),
                   ('completada', 'Completada'),
                   ('anulada', 'Anulada'),
                 ]) Padding(
@@ -79,6 +180,8 @@ class _ComprasPageState extends State<ComprasPage> {
             ),
           ]),
         ),
+
+        // ── Lista ──────────────────────────────────────────────────────────────
         Expanded(child: prov.loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : prov.error != null
@@ -93,14 +196,87 @@ class _ComprasPageState extends State<ComprasPage> {
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.shopping_cart_outlined, size: 64, color: kBorder),
                   SizedBox(height: 12),
-                  Text('No hay compras', style: TextStyle(color: kTextMuted, fontSize: 16)),
+                  Text('No hay compras',
+                    style: TextStyle(color: kTextMuted, fontSize: 16)),
                 ]))
               : RefreshIndicator(
                   color: kPrimary, onRefresh: prov.cargar,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: lista.length,
-                    itemBuilder: (_, i) => _CompraCard(c: lista[i], fmt: fmt),
+                    itemBuilder: (ctx, i) {
+                      final c = lista[i];
+                      final isPendiente  = c.estado == 'pendiente';
+                      final isCompletada = c.estado == 'completada';
+                      final canAnular    = isPendiente || isCompletada;
+
+                      // Acciones swipe derecha: Ver + Completar (si pendiente)
+                      final rightActions = <Widget>[
+
+                        SlidableAction(
+                          onPressed: (_) => Navigator.push(ctx,
+                            MaterialPageRoute(
+                              builder: (_) => CompraDetallePage(compraId: c.id))),
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.white,
+                          icon: Icons.info_outline,
+                          label: 'Ver detalle',
+                        ),
+                        if (isPendiente)
+                          SlidableAction(
+                            onPressed: (_) => _completar(ctx, c),
+                            backgroundColor: kPrimary,
+                            foregroundColor: Colors.white,
+                            icon: Icons.check_circle_outline,
+                            label: 'Completar',
+                          ),
+                      ];
+
+                      // Acciones swipe izquierda: Anular
+                      final leftActions = <Widget>[
+                        if (canAnular)
+                          SlidableAction(
+                            onPressed: (_) => _anular(ctx, c),
+                            backgroundColor: kTextMuted,
+                            foregroundColor: Colors.white,
+                            icon: Icons.cancel_outlined,
+                            label: 'Anular',
+                          ),
+                      ];
+
+                      return AnimatedListItem(
+                        index: i,
+                        child: Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                          elevation: 1,
+                          clipBehavior: Clip.hardEdge,
+                          child: Slidable(
+                            key: ValueKey('compra_${c.id}'),
+                            startActionPane: ActionPane(
+                              motion: const DrawerMotion(),
+                              extentRatio: rightActions.length * 0.25,
+                              children: rightActions,
+                            ),
+                            endActionPane: leftActions.isEmpty ? null : ActionPane(
+                              motion: const DrawerMotion(),
+                              extentRatio: leftActions.length * 0.25,
+                              children: leftActions,
+                            ),
+                            child: _CompraTile(
+                              c: c, fmt: fmt,
+                              onTap: () => Navigator.push(ctx,
+                                MaterialPageRoute(
+                                  builder: (_) => CompraDetallePage(compraId: c.id))),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                    },
                   ),
                 ),
         ),
@@ -116,71 +292,46 @@ class _ComprasPageState extends State<ComprasPage> {
   }
 }
 
-class _CompraCard extends StatelessWidget {
+// ── Tile de compra ─────────────────────────────────────────────────────────────
+class _CompraTile extends StatelessWidget {
   final Compra c;
   final NumberFormat fmt;
-  const _CompraCard({required this.c, required this.fmt});
+  final VoidCallback onTap;
+  const _CompraTile({required this.c, required this.fmt, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon) = _estadoStyle(c.estado);
     final fecha = c.fecha.length >= 10 ? c.fecha.substring(0, 10) : c.fecha;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => CompraDetallePage(compraId: c.id))),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Compra #${c.id}',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
-              _chip(Compra.estadoLabel[c.estado] ?? c.estado, color, icon),
-            ]),
-            const SizedBox(height: 6),
-            Text(c.nombreProveedor ?? 'Proveedor #${c.proveedoresId}',
-              style: const TextStyle(color: kTextMuted, fontSize: 13)),
-            const SizedBox(height: 10),
-            Row(children: [
-              _dato(Icons.calendar_today_outlined, fecha),
-              const SizedBox(width: 16),
-              _dato(Icons.payment_outlined, c.metodoPago),
-              const Spacer(),
-              const Icon(Icons.chevron_right, color: kTextMuted),
-            ]),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(
+              (c.numeroFactura != null && c.numeroFactura!.trim().isNotEmpty)
+                ? 'Factura ${c.numeroFactura!.trim()}'
+                : 'Compra',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700, fontSize: 15, color: kText)),
+            estadoChip(c.estado),
           ]),
-        ),
+          const SizedBox(height: 6),
+          Text(c.nombreProveedor ?? 'Proveedor #${c.proveedoresId}',
+            style: const TextStyle(color: kTextMuted, fontSize: 13)),
+          const SizedBox(height: 10),
+          Row(children: [
+            _dato(Icons.calendar_today_outlined, fecha),
+            const SizedBox(width: 16),
+            _dato(Icons.payment_outlined, c.metodoPago),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: kTextMuted),
+          ]),
+        ]),
       ),
     );
   }
-
-  (Color, IconData) _estadoStyle(String estado) {
-    switch (estado) {
-      case 'completada': return (kPrimary, Icons.check_circle_outline);
-      case 'anulada': return (kError, Icons.cancel_outlined);
-      case 'en transito': return (kPrimaryLight, Icons.local_shipping_outlined);
-      default: return (kWarning, Icons.schedule_outlined);
-    }
-  }
-
-  Widget _chip(String label, Color color, IconData icon) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: color),
-      const SizedBox(width: 4),
-      Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-    ]),
-  );
 
   Widget _dato(IconData icon, String text) => Row(children: [
     Icon(icon, size: 14, color: kTextMuted),

@@ -175,10 +175,12 @@ export default function App() {
   if (!isLoggedIn) {
     if (showLandingFirst) {
       return (
-        <>
+        <CartProvider>
           <Toaster richColors position="top-right" />
           <LandingPage onGoToSystem={() => setShowLandingFirst(false)} />
-        </>
+          <CartDrawer />
+          <CartButton />
+        </CartProvider>
       );
     }
     return (

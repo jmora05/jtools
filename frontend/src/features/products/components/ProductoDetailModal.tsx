@@ -197,7 +197,7 @@ export function ProductoDetailModal({ open, onClose, producto, loadingDetail, on
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                                         <span style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: '-0.04em' }}>
-                                            ${Number(producto.precio).toLocaleString('es-CO')}
+                                            ${Number(producto.precio).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                                         </span>
                                         <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>COP</span>
                                     </div>

@@ -123,26 +123,7 @@ const createFichaTecnica = async (req, res) => {
             });
         }
 
-        // 3. Validar que los responsables (si existen) sean empleados válidos y activos
-        if (procesos && Array.isArray(procesos)) {
-            for (const proceso of procesos) {
-                if (proceso.responsableId) {
-                    const empleado = await Empleados.findByPk(proceso.responsableId);
-                    if (!empleado) {
-                        return res.status(404).json({
-                            message: `El empleado con ID ${proceso.responsableId} no existe`
-                        });
-                    }
-                    if (empleado.estado === 'inactivo') {
-                        return res.status(400).json({
-                            message: `El empleado ${empleado.nombres} ${empleado.apellidos} está inactivo y no puede ser asignado como responsable`
-                        });
-                    }
-                }
-            }
-        }
-
-        // 4. Generar código y crear
+        // 3. Generar código y crear
         const codigoFicha = await generarCodigoFicha();
 
         const ficha = await FichaTecnica.create({
@@ -212,47 +193,9 @@ const updateFichaTecnica = async (req, res) => {
                     message: `Ya existe una ficha activa para este producto (${otraFichaActiva.codigoFicha}). Inactívala antes de activar esta.`
                 });
             }
-
-            // Validar que todos los responsables en los procesos existan y estén activos
-            if (ficha.procesos && Array.isArray(ficha.procesos)) {
-                for (const proceso of ficha.procesos) {
-                    if (proceso.responsableId) {
-                        const empleado = await Empleados.findByPk(proceso.responsableId);
-                        if (!empleado) {
-                            return res.status(400).json({
-                                message: `No se puede activar la ficha. El empleado responsable del proceso "${proceso.description}" ya no existe en el sistema.`
-                            });
-                        }
-                        if (empleado.estado === 'inactivo') {
-                            return res.status(400).json({
-                                message: `No se puede activar la ficha. El empleado ${empleado.nombres} ${empleado.apellidos} (responsable del proceso "${proceso.description}") está inactivo.`
-                            });
-                        }
-                    }
-                }
-            }
         }
 
-        // 3. Validar que los responsables (si existen) sean empleados válidos y activos
-        if (procesos && Array.isArray(procesos)) {
-            for (const proceso of procesos) {
-                if (proceso.responsableId) {
-                    const empleado = await Empleados.findByPk(proceso.responsableId);
-                    if (!empleado) {
-                        return res.status(404).json({
-                            message: `El empleado con ID ${proceso.responsableId} no existe`
-                        });
-                    }
-                    if (empleado.estado === 'inactivo') {
-                        return res.status(400).json({
-                            message: `El empleado ${empleado.nombres} ${empleado.apellidos} está inactivo y no puede ser asignado como responsable`
-                        });
-                    }
-                }
-            }
-        }
-
-        // 4. Construir objeto de actualización (solo campos enviados)
+        // 3. Construir objeto de actualización (solo campos enviados)
         const updates = {};
         if (procesos           !== undefined) updates.procesos           = procesos.map((p, i) => ({ ...p, step: i + 1 }));
         if (medidas            !== undefined) updates.medidas            = medidas;
@@ -261,6 +204,7 @@ const updateFichaTecnica = async (req, res) => {
         if (estado             !== undefined) updates.estado             = estado;
         if (numeroMolde        !== undefined) updates.numeroMolde        = numeroMolde;
         if (parametrosMaquina  !== undefined) updates.parametrosMaquina  = parametrosMaquina;
+
         if (Object.keys(updates).length === 0) {
             return res.status(400).json({ message: 'Debe enviar al menos un campo para actualizar' });
         }

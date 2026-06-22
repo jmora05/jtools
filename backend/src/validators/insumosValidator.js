@@ -22,7 +22,8 @@ function validarInsumo(data, esActualizacion = false) {
 
     // ── 1. Campos obligatorios (solo en creación) ──────────────────────
     if (!esActualizacion) {
-        const requeridos = { nombreInsumo, precioUnitario, unidadMedida };
+        // precioUnitario es opcional: se actualiza automáticamente con las compras
+        const requeridos = { nombreInsumo, unidadMedida };
         for (const [campo, valor] of Object.entries(requeridos)) {
             if (valor === undefined || valor === null || String(valor).trim() === '') {
                 errores.push(`El campo "${campo}" es obligatorio`);
