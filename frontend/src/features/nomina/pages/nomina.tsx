@@ -426,11 +426,11 @@ export function PayrollModule() {
       return;
     }
 
-    // Límite de una semana hacia adelante: más allá no hay datos de HE ni ausencias confiables.
-    const maxFriday = addDays(currentFriday, 7);
+    // Política de negocio: solo se puede liquidar la semana de corte vigente (ni pasada ni futura).
+    const maxFriday = currentFriday;
     if (selectedFriday > maxFriday) {
       toast.error(
-        `La fecha de corte ${toYMD(selectedFriday)} supera el límite permitido (máximo hasta ${toYMD(maxFriday)}). No se puede calcular el control de pagos para semanas tan adelantadas.`
+        `Solo se pueden registrar pagos para la semana actual (corte ${toYMD(currentFriday)}). No se pueden agendar semanas futuras.`
       );
       return;
     }
@@ -630,6 +630,7 @@ export function PayrollModule() {
                 size="sm"
                 variant="ghost"
                 className="h-7 w-7 p-0"
+                disabled={toYMD(selectedFriday) >= toYMD(getFriday(new Date()))}
                 onClick={() => setSelectedFriday((prev) => addDays(prev, 7))}
               >
                 <ChevronRightIcon className="w-4 h-4" />

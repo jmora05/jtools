@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Toaster, toast } from 'sonner';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { Dashboard } from '@/features/dashboard/pages/Dashboard';
@@ -68,8 +68,9 @@ export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isClientPreview, setIsClientPreview] = useState(false);
   const [showLandingPage, setShowLandingPage] = useState(false);
-  const [configurationExpanded, setConfigurationExpanded] = useState(false);
-  const [productionExpanded, setProductionExpanded] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const toggleGroup = (id: string) => setExpandedGroups(prev => ({ ...prev, [id]: !prev[id] }));
+  const availableModulesRef = useRef<ModuleItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesClientFilter, setSalesClientFilter] = useState<any>(null);
   const {
@@ -119,15 +120,11 @@ export default function App() {
 };
 
   useEffect(() => {
-    if (['users', 'roles'].includes(currentModule)) {
-      setConfigurationExpanded(true);
-    }
-  }, [currentModule]);
-
-  useEffect(() => {
-    if (['production-employees', 'production-orders-sub', 'production-technical-sheets'].includes(currentModule)) {
-      setProductionExpanded(true);
-    }
+    const grupo = availableModulesRef.current.find(
+      (m): m is ModuleItem & { hasSubmenu: true } =>
+        !!m.hasSubmenu && m.submenu.some(s => s.id === currentModule)
+    );
+    if (grupo) setExpandedGroups(prev => ({ ...prev, [grupo.id]: true }));
   }, [currentModule]);
 
   // RBAC guard: el rol Cliente nunca debe ver el Dashboard.
@@ -228,22 +225,42 @@ export default function App() {
         ...baseModules,
         { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
         {
-          id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true as const,
+          id: 'compras', label: 'Compras', icon: <Truck size={18} />, hasSubmenu: true as const,
           submenu: [
-            { id: 'users',       label: 'Usuarios',         icon: <Users size={16} /> },
-            { id: 'roles',       label: 'Roles y Permisos', icon: <Lock size={16} /> },
+            { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={16} /> },
+            { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={16} /> },
+            { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={16} /> },
           ].filter(sub => isModuleAllowed(sub.id)),
         },
-        { id: 'clients',   label: 'Clientes',          icon: <Users size={18} /> },
-        { id: 'suppliers', label: 'Proveedores',        icon: <Truck size={18} /> },
-        { id: 'supplies',  label: 'Insumos',            icon: <FlaskConical size={18} /> },
-        { id: 'purchases', label: 'Compras de insumos', icon: <ShoppingCart size={18} /> },
-        { id: 'sales',     label: 'Ventas',             icon: <TrendingUp size={18} /> },
-        { id: 'news',                       label: 'Novedades',             icon: <Newspaper size={18} /> },
-        { id: 'production-employees',        label: 'Empleados',             icon: <HardHat size={18} /> },
-        { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={18} /> },
-        { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={18} /> },
-        { id: 'nomina',                       label: 'Control de Pagos',      icon: <DollarSign size={18} /> },
+        {
+          id: 'produccion', label: 'Producción', icon: <Factory size={18} />, hasSubmenu: true as const,
+          submenu: [
+            { id: 'production-orders-sub',       label: 'Órdenes de Producción', icon: <Factory size={16} /> },
+            { id: 'production-technical-sheets', label: 'Ficha Técnica',         icon: <FileText size={16} /> },
+          ].filter(sub => isModuleAllowed(sub.id)),
+        },
+        {
+          id: 'rrhh', label: 'RRHH / Nómina', icon: <HardHat size={18} />, hasSubmenu: true as const,
+          submenu: [
+            { id: 'production-employees', label: 'Empleados',        icon: <HardHat size={16} /> },
+            { id: 'news',                  label: 'Novedades',        icon: <Newspaper size={16} /> },
+            { id: 'nomina',                label: 'Control de Pagos', icon: <DollarSign size={16} /> },
+          ].filter(sub => isModuleAllowed(sub.id)),
+        },
+        {
+          id: 'ventas', label: 'Ventas', icon: <TrendingUp size={18} />, hasSubmenu: true as const,
+          submenu: [
+            { id: 'clients', label: 'Clientes', icon: <Users size={16} /> },
+            { id: 'sales',   label: 'Ventas',    icon: <TrendingUp size={16} /> },
+          ].filter(sub => isModuleAllowed(sub.id)),
+        },
+        {
+          id: 'configuration', label: 'Configuración', icon: <Settings size={18} />, hasSubmenu: true as const,
+          submenu: [
+            { id: 'users', label: 'Usuarios',         icon: <Users size={16} /> },
+            { id: 'roles', label: 'Roles y Permisos', icon: <Lock size={16} /> },
+          ].filter(sub => isModuleAllowed(sub.id)),
+        },
       ].filter((module): module is ModuleItem => {
         if (module.hasSubmenu) return module.submenu.length > 0;
         return isModuleAllowed(module.id);
@@ -337,6 +354,7 @@ export default function App() {
   const availableModules = getAvailableModules();
   const isClient = (u.userType as string) === 'client' || isClientPreview;
 
+  availableModulesRef.current = availableModules;
   return (
     <CartProvider>
       <Toaster richColors position="top-right" />
@@ -395,18 +413,9 @@ export default function App() {
                 {item.hasSubmenu ? (
                   <div>
                     <button
-                      onClick={() => {
-                        if (item.id === 'configuration') {
-                          if (configurationExpanded) setConfigurationExpanded(false);
-                          else setCurrentModule('users');
-                        } else if (item.id === 'production') {
-                          if (productionExpanded) setProductionExpanded(false);
-                          else setCurrentModule('production-employees');
-                        }
-                      }}
+                      onClick={() => toggleGroup(item.id)}
                       className={`w-full flex items-center justify-between px-4 py-3 mb-2 rounded-lg transition-colors ${
-                        (item.id === 'configuration' && ['configuration', 'users', 'roles', 'permissions'].includes(currentModule)) ||
-                        (item.id === 'production' && ['production-employees', 'production-orders-sub', 'production-technical-sheets'].includes(currentModule))
+                        item.submenu.some(sub => sub.id === currentModule)
                           ? 'bg-blue-50 text-blue-700 border border-blue-200'
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
@@ -416,13 +425,11 @@ export default function App() {
                         <span>{item.label}</span>
                       </div>
                       <ChevronRightIcon className={`w-4 h-4 transition-transform ${
-                        (item.id === 'configuration' && configurationExpanded) ||
-                        (item.id === 'production' && productionExpanded) ? 'rotate-90' : ''
+                        expandedGroups[item.id] ? 'rotate-90' : ''
                       }`} />
                     </button>
 
-                    {((item.id === 'configuration' && configurationExpanded) ||
-                      (item.id === 'production' && productionExpanded)) && (
+                    {expandedGroups[item.id] && (
                       <div className="ml-4 mt-1 space-y-1">
                         {item.submenu.map((sub) => (
                           <button

@@ -1,5 +1,22 @@
 const SMMLV = 1423500;
 
+/**
+ * Calcula el viernes de la semana que contiene la fecha de referencia.
+ * Espejo exacto de getFriday() en el frontend (nomina.tsx) para mantener
+ * la misma regla de "semana de corte" en ambas capas.
+ */
+function getFridayBackend(ref) {
+    const d = new Date(ref);
+    d.setHours(0, 0, 0, 0);
+    const diff = (5 - d.getDay() + 7) % 7;
+    d.setDate(d.getDate() + diff);
+    return d;
+}
+
+function toYMDBackend(d) {
+    return d.toISOString().split('T')[0];
+}
+
 function validarNomina(body, esActualizacion = false) {
     const errores = [];
     const {
@@ -51,6 +68,16 @@ function validarNomina(body, esActualizacion = false) {
     if (fecha_inicio_periodo && fecha_fin_periodo) {
         if (new Date(fecha_fin_periodo) < new Date(fecha_inicio_periodo))
             errores.push('La fecha de fin no puede ser anterior a la fecha de inicio');
+    }
+
+    // Política de negocio: solo se puede registrar/editar la semana de corte vigente
+    // (el viernes actual), ni pasada ni futura. Se valida solo si viene fecha_fin_periodo,
+    // para no romper actualizaciones parciales que no tocan la fecha.
+    if (fecha_fin_periodo) {
+        const corteEsperado = toYMDBackend(getFridayBackend(new Date()));
+        if (fecha_fin_periodo !== corteEsperado) {
+            errores.push(`La fecha de corte (fecha_fin_periodo) debe ser la semana actual: ${corteEsperado}`);
+        }
     }
 
     return errores;
