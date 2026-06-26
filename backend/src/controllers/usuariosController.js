@@ -2,6 +2,7 @@ const { Usuarios, Roles, Clientes } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
 const bcrypt = require('bcryptjs');
 const { validateCreateUsuario, validateUpdateUsuario } = require('../validators/usuariosValidator');
+const { sincronizarEmailEnTablasRelacionadas } = require('../services/emailSyncService');
 
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 10);
 
@@ -76,7 +77,7 @@ const createUsuarios = async (req, res) => {
 
         const resultado = await sequelize.transaction(async (t) => {
             const usuario = await Usuarios.create(
-                { rolesId, email: normalizedEmail, password: passwordHash },
+                { rolesId, email: normalizedEmail, password: passwordHash, creadoPorAdmin: true },
                 { transaction: t }
             );
 
@@ -154,10 +155,19 @@ const updateUsuarios = async (req, res) => {
             passwordHash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
         }
 
-        await usuario.update({
-            ...(rolesId !== undefined   ? { rolesId } : {}),
-            ...(email   !== undefined   ? { email: String(email).trim().toLowerCase() } : {}),
-            ...(passwordHash            ? { password: passwordHash } : {}),
+        const emailAnterior  = usuario.email;
+        const emailNuevoNorm = email !== undefined ? String(email).trim().toLowerCase() : undefined;
+
+        await sequelize.transaction(async (t) => {
+            await usuario.update({
+                ...(rolesId !== undefined   ? { rolesId } : {}),
+                ...(emailNuevoNorm !== undefined ? { email: emailNuevoNorm } : {}),
+                ...(passwordHash            ? { password: passwordHash } : {}),
+            }, { transaction: t });
+
+            if (emailNuevoNorm !== undefined && emailNuevoNorm !== emailAnterior) {
+                await sincronizarEmailEnTablasRelacionadas(emailAnterior, emailNuevoNorm, t, { skip: ['usuarios'] });
+            }
         });
 
         const usuarioCompleto = await Usuarios.findByPk(id, { include: includeBase });

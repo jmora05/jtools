@@ -12,6 +12,7 @@ export interface ProveedorBackend {
     email:            string;
     direccion?:       string | null;
     ciudad?:          string | null;
+    departamento?:    string | null;
     estado:           EstadoProveedor;
     createdAt?:       string;
     updatedAt?:       string;
@@ -25,6 +26,7 @@ export interface CreateProveedorDTO {
     email:           string;
     direccion?:      string;
     ciudad?:         string;
+    departamento?:   string;
     estado?:         EstadoProveedor;
 }
 
@@ -100,6 +102,7 @@ export function mapProveedorToSupplier(p: ProveedorBackend) {
         email:               p.email,
         address:             p.direccion  ?? '',
         city:                p.ciudad     ?? '',
+        department:          p.departamento ?? '',
         isActive:            p.estado === 'activo',
         legalRepresentative: '',
     };
@@ -117,6 +120,7 @@ export function mapSupplierToDTO(form: {
     email:               string;
     address:             string;
     city:                string;
+    department:          string;
     isActive:            boolean;
 }): CreateProveedorDTO {
     const nombreFinal = form.type === 'persona'
@@ -131,6 +135,7 @@ export function mapSupplierToDTO(form: {
         email:           form.email,
         direccion:       form.address || undefined,
         ciudad:          form.city    || undefined,
+        departamento:    form.department || undefined,
         estado:          form.isActive ? 'activo' : 'inactivo',
     };
 }

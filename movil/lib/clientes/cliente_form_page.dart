@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../core/debouncer.dart';
 import '../core/api_service.dart';
+import '../core/widgets/departamento_ciudad_select.dart';
 import 'cliente_model.dart';
 import 'cliente_provider.dart';
 
@@ -21,7 +22,8 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
   late final TextEditingController _apellidos;
   late final TextEditingController _email;
   late final TextEditingController _telefono;
-  late final TextEditingController _ciudad;
+  String? _departamento;
+  String? _ciudad;
   late final TextEditingController _direccion;
   late final TextEditingController _numDoc;
   late final TextEditingController _razonSocial;
@@ -64,7 +66,8 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
     _apellidos  = TextEditingController(text: c?.apellidos ?? '');
     _email      = TextEditingController(text: c?.email ?? '');
     _telefono   = TextEditingController(text: c?.telefono ?? '');
-    _ciudad     = TextEditingController(text: c?.ciudad ?? '');
+    _departamento = (c?.departamento.isNotEmpty ?? false) ? c!.departamento : null;
+    _ciudad     = (c?.ciudad.isNotEmpty ?? false) ? c!.ciudad : null;
     _direccion  = TextEditingController(text: c?.direccion ?? '');
     _numDoc     = TextEditingController(text: c?.numeroDocumento ?? '');
     _razonSocial = TextEditingController(text: c?.razonSocial ?? '');
@@ -77,7 +80,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
   void dispose() {
     _debouncer.dispose();
     _nombres.dispose(); _apellidos.dispose(); _email.dispose();
-    _telefono.dispose(); _ciudad.dispose(); _direccion.dispose();
+    _telefono.dispose(); _direccion.dispose();
     _numDoc.dispose(); _razonSocial.dispose(); _contacto.dispose();
     super.dispose();
   }
@@ -131,7 +134,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _tipoDoc,
+                initialValue: _tipoDoc,
                 decoration: kInputDeco('Tipo de documento *'),
                 items: _tiposDoc.map((t) => DropdownMenuItem(
                   value: t,
@@ -209,21 +212,11 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
               ),
               fieldError(_errorTelefono),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _ciudad,
-                textCapitalization: TextCapitalization.words,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]')),
-                  LengthLimitingTextInputFormatter(50),
-                ],
-                decoration: kInputDeco('Ciudad *',
-                  prefix: const Icon(Icons.location_city_outlined, color: kTextMuted)),
-                validator: (v) {
-                  final s = v?.trim() ?? '';
-                  if (s.isEmpty) return 'Requerida';
-                  if (s.length < 2 || s.length > 50) return 'Entre 2 y 50 caracteres';
-                  return null;
-                },
+              DepartamentoCiudadSelect(
+                departamento: _departamento,
+                ciudad: _ciudad,
+                onDepartamentoChanged: (v) => setState(() => _departamento = v),
+                onCiudadChanged: (v) => setState(() => _ciudad = v),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -238,7 +231,7 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
 
             if (_esEdicion) _seccion('Estado', [
               DropdownButtonFormField<String>(
-                value: _estado,
+                initialValue: _estado,
                 decoration: kInputDeco('Estado'),
                 items: const [
                   DropdownMenuItem(value: 'activo',   child: Text('Activo')),
@@ -291,7 +284,8 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
       'apellidos':        _apellidos.text.trim(),
       'email':            _email.text.trim(),
       'telefono':         _telefono.text.trim(),
-      'ciudad':           _ciudad.text.trim(),
+      'ciudad':           _ciudad ?? '',
+      'departamento':     _departamento ?? '',
       'tipo_documento':   _tipoDoc,
       'numero_documento': _numDoc.text.trim(),
       'estado':           _estado,
@@ -314,9 +308,11 @@ class _ClienteFormPageState extends State<ClienteFormPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

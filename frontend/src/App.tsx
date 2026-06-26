@@ -55,6 +55,7 @@ type AppUser = {
   phone?: string;
   address?: string;
   city?: string;
+  creadoPorAdmin?: boolean;
 };
 
 type ModuleItem =
@@ -172,10 +173,12 @@ export default function App() {
   if (!isLoggedIn) {
     if (showLandingFirst) {
       return (
-        <>
+        <CartProvider>
           <Toaster richColors position="top-right" />
           <LandingPage onGoToSystem={() => setShowLandingFirst(false)} />
-        </>
+          <CartDrawer />
+          <CartButton />
+        </CartProvider>
       );
     }
     return (
@@ -366,13 +369,13 @@ export default function App() {
           onLogout={handleLogout}
         />
       ) : (
-      <div className="min-h-screen bg-gray-100 flex relative">
+      <div className="h-screen overflow-hidden bg-gray-100 flex relative">
         {sidebarOpen && (
           <div className="fixed inset-0 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
 
         {/* Sidebar */}
-        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white shadow-lg border-r border-gray-200 transform transition-transform duration-300 ease-in-out flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 h-full bg-white shadow-lg border-r border-gray-200 transform transition-transform duration-300 ease-in-out flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="p-4 lg:p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
               <button
@@ -407,7 +410,7 @@ export default function App() {
             </div>
           </div>
 
-          <nav className="flex-1 mt-6 px-4 pb-2 overflow-y-auto">
+          <nav className="flex-1 min-h-0 mt-6 px-4 pb-2 overflow-y-auto">
             {availableModules.map((item) => (
               <div key={item.id}>
                 {item.hasSubmenu ? (
@@ -486,8 +489,8 @@ export default function App() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col lg:ml-0">
-          <div className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4">
+        <div className="flex-1 min-h-0 flex flex-col lg:ml-0">
+          <div className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
@@ -569,7 +572,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto">
             {renderModule()}
           </div>
         </div>

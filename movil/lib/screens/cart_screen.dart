@@ -60,7 +60,7 @@ class CartScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
                   backgroundColor: primaryColor,
-                  disabledBackgroundColor: primaryColor.withOpacity(0.5),
+                  disabledBackgroundColor: primaryColor.withValues(alpha: 0.5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),

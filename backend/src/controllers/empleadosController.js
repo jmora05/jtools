@@ -3,6 +3,7 @@ const bcrypt  = require('bcryptjs');
 const { Empleados, Novedades, OrdenesProduccion, FichaTecnica, Usuarios, Roles } = require('../models/index.js');
 const { sequelize } = require('../config/jtools_db');
 const { validarEmpleado } = require('../validators/empleadosValidator');
+const { sincronizarEmailEnTablasRelacionadas } = require('../services/emailSyncService');
 
 const BCRYPT_SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS || 12);
 
@@ -74,6 +75,7 @@ const createEmpleado = async (req, res) => {
       area,
       direccion,
       ciudad,
+      departamento,
       fechaIngreso,
       estado,
       salario,
@@ -117,6 +119,7 @@ const createEmpleado = async (req, res) => {
       area,
       direccion:        direccion?.trim()  || null,
       ciudad:           ciudad?.trim()     || null,
+      departamento:     departamento?.trim() || null,
       fechaIngreso,
       salario:          parseFloat(salario),
       estado:           estado             || 'activo',
@@ -129,7 +132,7 @@ const createEmpleado = async (req, res) => {
         const rol = await resolverRolEmpleado();
         if (rol) {
           const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-          await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash });
+          await Usuarios.create({ rolesId: rol.id, email: emailNorm, password: hash, creadoPorAdmin: true });
         }
       }
     }
@@ -181,6 +184,7 @@ const updateEmpleado = async (req, res) => {
       area,
       direccion,
       ciudad,
+      departamento,
       fechaIngreso,
       estado,
       salario,
@@ -222,38 +226,51 @@ const updateEmpleado = async (req, res) => {
     }
 
     // 4. Actualizar (solo los campos enviados en el body)
-    await empleado.update({
-      tipoDocumento,
-      numeroDocumento: numeroDocumento?.trim(),
-      nombres:         nombres?.trim(),
-      apellidos:       apellidos?.trim(),
-      telefono:        telefono?.trim(),
-      email:           email?.trim().toLowerCase(),
-      cargo,
-      area,
-      direccion:       direccion?.trim()  || null,
-      ciudad:          ciudad?.trim()     || null,
-      fechaIngreso,
-      salario:         salario !== undefined ? parseFloat(salario) : undefined,
-      estado,
-    });
+    const emailAnterior  = empleado.email;
+    const emailNuevoNorm = email !== undefined ? String(email).trim().toLowerCase() : undefined;
 
-    // 5. Actualizar contraseña del Usuario vinculado (si se proporciona)
-    if (password && String(password).trim() !== '') {
-      const emailBuscar = (email?.trim().toLowerCase()) || empleado.email;
-      let usuario = await Usuarios.findOne({ where: { email: emailBuscar } });
-      if (!usuario) {
-        // Crear usuario si no existe todavía
-        const rol = await resolverRolEmpleado();
-        if (rol) {
-          const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-          await Usuarios.create({ rolesId: rol.id, email: emailBuscar, password: hash });
-        }
-      } else {
-        const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
-        await usuario.update({ password: hash });
+    await sequelize.transaction(async (t) => {
+      await empleado.update({
+        tipoDocumento,
+        numeroDocumento: numeroDocumento?.trim(),
+        nombres:         nombres?.trim(),
+        apellidos:       apellidos?.trim(),
+        telefono:        telefono?.trim(),
+        email:           emailNuevoNorm,
+        cargo,
+        area,
+        direccion:       direccion?.trim()  || null,
+        ciudad:          ciudad?.trim()     || null,
+        departamento:    departamento?.trim() || null,
+        fechaIngreso,
+        salario:         salario !== undefined ? parseFloat(salario) : undefined,
+        estado,
+      }, { transaction: t });
+
+      const emailEfectivo = emailNuevoNorm !== undefined ? emailNuevoNorm : emailAnterior;
+
+      // Propagar el cambio de email a Usuarios/Clientes antes de tocar
+      // contraseñas, para no buscar/crear un Usuario con el email viejo.
+      if (emailNuevoNorm !== undefined && emailNuevoNorm !== emailAnterior) {
+        await sincronizarEmailEnTablasRelacionadas(emailAnterior, emailNuevoNorm, t, { skip: ['empleados'] });
       }
-    }
+
+      // 5. Actualizar contraseña del Usuario vinculado (si se proporciona)
+      if (password && String(password).trim() !== '') {
+        let usuario = await Usuarios.findOne({ where: { email: emailEfectivo }, transaction: t });
+        if (!usuario) {
+          // Crear usuario si no existe todavía
+          const rol = await resolverRolEmpleado();
+          if (rol) {
+            const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+            await Usuarios.create({ rolesId: rol.id, email: emailEfectivo, password: hash, creadoPorAdmin: true }, { transaction: t });
+          }
+        } else {
+          const hash = await bcrypt.hash(String(password), BCRYPT_SALT_ROUNDS);
+          await usuario.update({ password: hash }, { transaction: t });
+        }
+      }
+    });
 
     res.status(200).json({ message: 'Empleado actualizado correctamente', empleado });
 

@@ -12,6 +12,7 @@ export type Empleado = {
   area: 'Producción' | 'Administración';
   direccion?: string;
   ciudad?: string;
+  departamento?: string;
   fechaIngreso: string;
   salario: number;
   estado: 'activo' | 'inactivo';

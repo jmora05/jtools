@@ -86,6 +86,12 @@ const Proveedores = sequelize.define('Proveedores', {
         defaultValue: null
     },
 
+    departamento: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: null
+    },
+
     estado: {
         type: DataTypes.ENUM('activo', 'inactivo'),
         allowNull: false,

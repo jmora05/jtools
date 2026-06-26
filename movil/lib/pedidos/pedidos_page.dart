@@ -127,7 +127,7 @@ class _PedidosPageState extends State<PedidosPage> {
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 6,
           )
         ],

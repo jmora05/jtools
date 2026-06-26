@@ -109,7 +109,7 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     email: {
-        type: DataTypes.STRING(30),
+        type: DataTypes.STRING(100),
         allowNull: false,
         unique: {
             name: 'unique_email_cliente',
@@ -133,7 +133,7 @@ const Clientes = sequelize.define('Clientes', {
     },
  
     ciudad: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING(50),
         allowNull: false,
         validate: {
             notNull:  { msg: 'La ciudad es obligatoria' },
@@ -141,7 +141,17 @@ const Clientes = sequelize.define('Clientes', {
             len: { args: [2, 50], msg: 'La ciudad debe tener entre 2 y 50 caracteres' }
         }
     },
- 
+
+    departamento: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        validate: {
+            notNull:  { msg: 'El departamento es obligatorio' },
+            notEmpty: { msg: 'El departamento no puede estar vacío' },
+            len: { args: [2, 50], msg: 'El departamento debe tener entre 2 y 50 caracteres' }
+        }
+    },
+
     estado: {
         type: DataTypes.ENUM('activo', 'inactivo'),
         allowNull: false,

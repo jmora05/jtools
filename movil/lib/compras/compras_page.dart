@@ -66,16 +66,20 @@ class _ComprasPageState extends State<ComprasPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<CompraProvider>().cambiarEstado(c.id, 'completada');
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${_refCompra(c)} completada. Stock actualizado.'),
         backgroundColor: kPrimary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -106,15 +110,19 @@ class _ComprasPageState extends State<ComprasPage> {
     if (ok != true || !ctx.mounted) return;
     try {
       await ctx.read<CompraProvider>().anular(c.id);
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text('${_refCompra(c)} anulada'),
         backgroundColor: kTextMuted, behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ));
+      }
     } catch (e) {
-      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 

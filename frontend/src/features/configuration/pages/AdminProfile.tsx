@@ -56,6 +56,7 @@ interface UserData {
     phone?: string;
     city?: string;
     address?: string;
+    creadoPorAdmin?: boolean;
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -91,6 +92,8 @@ export function AdminProfile() {
             ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
             : name.substring(0, 2).toUpperCase();
     };
+
+    const puedeCambiarPassword = userData?.creadoPorAdmin ?? true;
 
     const displayName = userData?.name || userData?.email || '—';
     const initials = userData?.name
@@ -190,27 +193,29 @@ export function AdminProfile() {
             </Card>
 
             {/* Sección Cambiar Contraseña */}
-            <Card>
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                                <Lock className="w-5 h-5 text-blue-600" />
+            {puedeCambiarPassword && (
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                    <Lock className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
+                                    <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
-                                <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
-                            </div>
+                            <Button onClick={openModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
+                            </Button>
                         </div>
-                        <Button onClick={openModal} className="bg-blue-600 hover:bg-blue-700 text-white">
-                            <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Modal Cambiar Contraseña */}
-            <Dialog open={showModal} onOpenChange={(open) => { if (!open) setShowModal(false); }}>
+            <Dialog open={puedeCambiarPassword && showModal} onOpenChange={(open: boolean) => { if (!open) setShowModal(false); }}>
                 <DialogContent className="max-w-md p-4">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">

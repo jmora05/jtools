@@ -55,7 +55,7 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     email: {
-        type: DataTypes.STRING(30),
+        type: DataTypes.STRING(100),
         allowNull: false,
         // ✅ Eliminado defaultValue: null (contradecía allowNull: false)
         unique: {
@@ -65,7 +65,7 @@ const Empleados = sequelize.define('Empleados', {
         validate: {
             notEmpty: { msg: 'El email no puede estar vacío' },
             isEmail: { msg: 'El email no tiene un formato válido' },
-            len: { args: [5, 50], msg: 'El email debe tener entre 5 y 50 caracteres' }
+            len: { args: [5, 100], msg: 'El email debe tener entre 5 y 100 caracteres' }
         }
     },
 
@@ -99,7 +99,13 @@ const Empleados = sequelize.define('Empleados', {
     },
 
     ciudad: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: null
+    },
+
+    departamento: {
+        type: DataTypes.STRING(50),
         allowNull: true,
         defaultValue: null
     },

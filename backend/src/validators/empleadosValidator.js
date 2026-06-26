@@ -46,6 +46,7 @@ function validarEmpleado(data, esActualizacion = false) {
     estado,
     direccion,
     ciudad,
+    departamento,
     salario,
     password,
     confirmPassword,
@@ -123,8 +124,8 @@ function validarEmpleado(data, esActualizacion = false) {
   // ── 7. Email ───────────────────────────────────────────────────────────────
   if (email) {
     const mail = email.trim();
-    if (mail.length < 5 || mail.length > 50) {
-      errores.push('El correo electrónico debe tener entre 5 y 50 caracteres');
+    if (mail.length < 5 || mail.length > 100) {
+      errores.push('El correo electrónico debe tener entre 5 y 100 caracteres');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
       errores.push('El correo electrónico no tiene un formato válido');
     }
@@ -220,6 +221,16 @@ function validarEmpleado(data, esActualizacion = false) {
       errores.push('La ciudad debe tener entre 2 y 50 caracteres');
     } else if (!REGEX_CIUDAD.test(ciu)) {
       errores.push('La ciudad solo puede contener letras, números, espacios y guiones');
+    }
+  }
+
+  // ── 15. Departamento (opcional) ─────────────────────────────────────────────
+  if (departamento !== undefined && departamento !== null && String(departamento).trim() !== '') {
+    const dep = String(departamento).trim();
+    if (dep.length < 2 || dep.length > 50) {
+      errores.push('El departamento debe tener entre 2 y 50 caracteres');
+    } else if (!REGEX_CIUDAD.test(dep)) {
+      errores.push('El departamento solo puede contener letras, números, espacios y guiones');
     }
   }
 

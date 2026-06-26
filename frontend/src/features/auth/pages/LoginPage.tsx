@@ -12,6 +12,7 @@ import {
   ArrowLeftIcon, KeyIcon, ShieldCheckIcon, AlertTriangle,
 } from 'lucide-react';
 import * as authService from '@/features/auth/services/authService';
+import { DepartamentoCiudadSelect } from '@/shared/components/DepartamentoCiudadSelect';
 import { toast } from 'sonner';
 
 type FieldErrors = Partial<Record<string, string>>;
@@ -98,6 +99,11 @@ function validateCity(value: string): string {
   return '';
 }
 
+function validateDepartment(value: string): string {
+  if (!value?.trim()) return 'El departamento es obligatorio';
+  return '';
+}
+
 function validateAddress(value: string): string {
   if (!value?.trim()) return 'La dirección es obligatoria';
   return '';
@@ -162,6 +168,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     email: '',
     address: '',
     city: '',
+    department: '',
     personType: 'natural',
     password: '',
     confirmPassword: '',
@@ -208,6 +215,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     errors.documentNumber  = validateDocumentNumber(registerForm.documentNumber, registerForm.documentType);
     errors.phone           = validatePhone(registerForm.phone);
     errors.email           = validateEmail(registerForm.email);
+    errors.department      = validateDepartment(registerForm.department);
     errors.city            = validateCity(registerForm.city);
     errors.address         = validateAddress(registerForm.address);
     errors.password        = validatePassword(registerForm.password);
@@ -242,6 +250,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
         userType,
         role: (resp.usuario as any).rolName || (userType === 'admin' ? 'Administrador' : 'Cliente'),
         name: resp.usuario.email,
+        creadoPorAdmin: resp.usuario.creadoPorAdmin ?? false,
       });
       toast.success(resp.message || 'Inicio de sesión exitoso');
     } catch (err) {
@@ -295,6 +304,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
         numero_documento: registerForm.documentNumber,
         telefono:         registerForm.phone,
         ciudad:           registerForm.city,
+        departamento:     registerForm.department,
         direccion:        registerForm.address || undefined,
         ...(registerForm.personType === 'empresa' ? { contacto: registerForm.contacto } : {}),
       });
@@ -415,7 +425,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
     setRegisterForm({
       email: '', firstName: '', lastName: '', businessName: '', contacto: '',
       phone: '', password: '', confirmPassword: '', address: '',
-      city: '', personType: 'natural', documentType: 'CC', documentNumber: '',
+      city: '', department: '', personType: 'natural', documentType: 'CC', documentNumber: '',
     });
     setFieldErrors({});
     setSubmitAttempted(false);
@@ -742,44 +752,41 @@ export function LoginPage({ onLogin }: { onLogin: (user: any) => void }) {
                     <FieldError msg={fieldErrors.email} />
                   </div>
 
-                  {/* ── 5. Teléfono + Ciudad (grid 2 col) ────────────────── */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-2">
-                        Teléfono <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        type="tel"
-                        value={registerForm.phone}
-                        onChange={(e) => {
-                          setRegisterForm({ ...registerForm, phone: onlyPhone(e.target.value) });
-                          setFieldError('phone', '');
-                        }}
-                        onBlur={() => setFieldError('phone', validatePhone(registerForm.phone))}
-                        maxLength={20}
-                        placeholder="+57 300 123 4567"
-                        className={fieldErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                      />
-                      <FieldError msg={fieldErrors.phone} />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-2">
-                        Ciudad <span className="text-red-500">*</span>
-                      </label>
-                      <Input
-                        value={registerForm.city}
-                        onChange={(e) => {
-                          setRegisterForm({ ...registerForm, city: onlyLetters(e.target.value) });
-                          setFieldError('city', '');
-                        }}
-                        onBlur={() => setFieldError('city', validateCity(registerForm.city))}
-                        maxLength={50}
-                        placeholder="Medellín"
-                        className={fieldErrors.city ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                      />
-                      <FieldError msg={fieldErrors.city} />
-                    </div>
+                  {/* ── 5. Teléfono ────────────────────────────────────────── */}
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-2">
+                      Teléfono <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="tel"
+                      value={registerForm.phone}
+                      onChange={(e) => {
+                        setRegisterForm({ ...registerForm, phone: onlyPhone(e.target.value) });
+                        setFieldError('phone', '');
+                      }}
+                      onBlur={() => setFieldError('phone', validatePhone(registerForm.phone))}
+                      maxLength={20}
+                      placeholder="+57 300 123 4567"
+                      className={fieldErrors.phone ? 'border-red-400 focus-visible:ring-red-300' : ''}
+                    />
+                    <FieldError msg={fieldErrors.phone} />
                   </div>
+
+                  {/* ── 5b. Departamento + Ciudad ─────────────────────────── */}
+                  <DepartamentoCiudadSelect
+                    departamento={registerForm.department}
+                    ciudad={registerForm.city}
+                    onDepartamentoChange={(v) => {
+                      setRegisterForm(prev => ({ ...prev, department: v }));
+                      setFieldError('department', '');
+                    }}
+                    onCiudadChange={(v) => {
+                      setRegisterForm(prev => ({ ...prev, city: v }));
+                      setFieldError('city', '');
+                    }}
+                    departamentoError={fieldErrors.department}
+                    ciudadError={fieldErrors.city}
+                  />
 
                   {/* ── 6. Dirección ──────────────────────────────────────── */}
                   <div>

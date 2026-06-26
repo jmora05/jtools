@@ -35,8 +35,8 @@ function generateNumericCode(length = 6) {
 
 function safeUser(u) {
     if (!u) return null;
-    const { id, rolesId, email, createdAt, updatedAt } = u;
-    return { id, rolesId, email, createdAt, updatedAt };
+    const { id, rolesId, email, createdAt, updatedAt, creadoPorAdmin } = u;
+    return { id, rolesId, email, createdAt, updatedAt, creadoPorAdmin };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,6 +115,7 @@ const register = async (req, res) => {
         const razon_social   = req.body?.razon_social;
         const numero_documento = req.body?.numero_documento;
         const ciudad         = req.body?.ciudad;
+        const departamento   = req.body?.departamento;
         const telefono       = req.body?.telefono;
         const tipo_documento = req.body?.tipo_documento || null;
         const direccion      = req.body?.direccion || null;
@@ -136,7 +137,7 @@ const register = async (req, res) => {
                 { transaction: t }
             );
             const cliente = await Clientes.create(
-                { email, nombres, apellidos, razon_social, numero_documento, ciudad, telefono, tipo_documento, direccion, contacto, estado: 'activo' },
+                { email, nombres, apellidos, razon_social, numero_documento, ciudad, departamento, telefono, tipo_documento, direccion, contacto, estado: 'activo' },
                 { transaction: t }
             );
             return { usuario, cliente };

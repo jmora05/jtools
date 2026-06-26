@@ -270,13 +270,17 @@ class _VentaDetallePageState extends State<VentaDetallePage> {
     try {
       await context.read<VentaProvider>().cambiarEstado(_venta!.id, 'activa');
       await _cargar();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Pedido marcado como activo'),
         backgroundColor: Color(0xFF0F766E), behavior: SnackBarBehavior.floating));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -307,9 +311,11 @@ class _VentaDetallePageState extends State<VentaDetallePage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 

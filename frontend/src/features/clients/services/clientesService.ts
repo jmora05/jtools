@@ -80,6 +80,7 @@ export const createCliente = async (data: {
     email: string;
     direccion?: string;
     ciudad: string;
+    departamento: string;
     estado: 'activo' | 'inactivo';
     foto?: string | null;
 }) => {
@@ -107,6 +108,7 @@ export const updateCliente = async (id: number, data: {
     email?: string;
     direccion?: string;
     ciudad?: string;
+    departamento?: string;
     estado?: 'activo' | 'inactivo';
     foto?: string | null;
 }) => {
@@ -144,6 +146,7 @@ export const updateClienteMe = async (data: {
     email?: string;
     direccion?: string;
     ciudad?: string;
+    departamento?: string;
 }) => {
     const response = await fetch(`${BASE_URL}/cliente/me`, {
         method: 'PUT',

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getClienteMe, updateClienteMe } from '../services/clientesService';
 import { changePassword } from '@/features/auth/services/authService';
+import { DepartamentoCiudadSelect } from '@/shared/components/DepartamentoCiudadSelect';
 import {
     Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/shared/components/ui/dialog';
@@ -48,6 +49,7 @@ interface ClienteData {
     email: string;
     direccion: string;
     ciudad: string;
+    departamento: string;
     estado: 'activo' | 'inactivo';
     contacto?: string | null;
     clientType?: 'Persona natural' | 'Empresa';
@@ -62,6 +64,7 @@ interface FormData {
     email: string;
     direccion: string;
     ciudad: string;
+    departamento: string;
 }
 
 interface FormErrors {
@@ -73,6 +76,7 @@ interface FormErrors {
     email?: string;
     direccion?: string;
     ciudad?: string;
+    departamento?: string;
 }
 
 // ── Validación ────────────────────────────────────────────────────────────────
@@ -98,6 +102,7 @@ function validar(data: FormData, isEmpresa: boolean): FormErrors {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) e.email = 'Correo inválido';
     if (!data.ciudad.trim()) e.ciudad = 'La ciudad es obligatoria';
     else if (!soloLetras.test(data.ciudad.trim())) e.ciudad = 'Solo letras y espacios';
+    if (!data.departamento.trim()) e.departamento = 'El departamento es obligatorio';
     if (!data.direccion.trim()) e.direccion = 'La dirección es obligatoria';
     return e;
 }
@@ -143,7 +148,18 @@ export function ClientProfile() {
     const [saving, setSaving]   = useState(false);
     const [showEdit, setShowEdit] = useState(false);
 
-    const [form, setForm]         = useState<FormData>({ nombres: '', apellidos: '', razon_social: '', contacto: '', telefono: '', email: '', direccion: '', ciudad: '' });
+    // ── Sesión local: solo se usa para saber si el cliente fue creado por un
+    // admin (en cuyo caso puede cambiar su contraseña) o se auto-registró.
+    const [sessionUser, setSessionUser] = useState<{ creadoPorAdmin?: boolean } | null>(null);
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('jrepuestos_user');
+            if (raw) setSessionUser(JSON.parse(raw));
+        } catch { /* ignore */ }
+    }, []);
+    const puedeCambiarPassword = sessionUser?.creadoPorAdmin === true;
+
+    const [form, setForm]         = useState<FormData>({ nombres: '', apellidos: '', razon_social: '', contacto: '', telefono: '', email: '', direccion: '', ciudad: '', departamento: '' });
     const [errors, setErrors]     = useState<FormErrors>({});
     const [submitted, setSubmitted] = useState(false);
 
@@ -233,6 +249,7 @@ export function ClientProfile() {
             email:        cliente.email,
             direccion:    cliente.direccion ?? '',
             ciudad:       cliente.ciudad ?? '',
+            departamento: cliente.departamento ?? '',
         });
         setErrors({});
         setSubmitted(false);
@@ -260,6 +277,7 @@ export function ClientProfile() {
                 email:        form.email,
                 direccion:    form.direccion,
                 ciudad:       form.ciudad,
+                departamento: form.departamento,
             });
             await fetchCliente();
             setShowEdit(false);
@@ -364,7 +382,7 @@ export function ClientProfile() {
                         <InfoRow
                             icon={<MapPin className="w-4 h-4 text-blue-600" />}
                             label="Ciudad"
-                            value={cliente.ciudad}
+                            value={cliente.departamento ? `${cliente.ciudad}, ${cliente.departamento}` : cliente.ciudad}
                         />
                         <InfoRow
                             icon={<Building2 className="w-4 h-4 text-blue-600" />}
@@ -383,28 +401,30 @@ export function ClientProfile() {
                 </CardContent>
             </Card>
 
-            {/* Sección Cambiar Contraseña */}
-            <Card>
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                                <Lock className="w-5 h-5 text-blue-600" />
+            {/* Sección Cambiar Contraseña — solo para clientes creados por un admin */}
+            {puedeCambiarPassword && (
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                    <Lock className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
+                                    <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-sm font-semibold text-gray-900">Cambiar Contraseña</p>
-                                <p className="text-xs text-gray-500">Actualiza tu contraseña de acceso</p>
-                            </div>
+                            <Button onClick={openPwdModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
+                            </Button>
                         </div>
-                        <Button onClick={openPwdModal} className="bg-blue-600 hover:bg-blue-700 text-white">
-                            <KeyRound className="w-4 h-4 mr-2" />Cambiar Contraseña
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Modal Cambiar Contraseña */}
-            <Dialog open={showPwdModal} onOpenChange={(open) => { if (!open) setShowPwdModal(false); }}>
+            <Dialog open={puedeCambiarPassword && showPwdModal} onOpenChange={(open: boolean) => { if (!open) setShowPwdModal(false); }}>
                 <DialogContent className="max-w-md p-4">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -607,18 +627,16 @@ export function ClientProfile() {
                                 </div>
                             </div>
 
+                            <DepartamentoCiudadSelect
+                                departamento={form.departamento}
+                                ciudad={form.ciudad}
+                                onDepartamentoChange={(v) => setForm(p => ({ ...p, departamento: v }))}
+                                onCiudadChange={(v) => setForm(p => ({ ...p, ciudad: v }))}
+                                departamentoError={errors.departamento}
+                                ciudadError={errors.ciudad}
+                            />
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-gray-700 mb-2">Ciudad <span className="text-red-500">*</span></label>
-                                    <Input
-                                        value={form.ciudad}
-                                        onChange={(e) => setForm(p => ({ ...p, ciudad: onlyLettersInput(e.target.value) }))}
-                                        maxLength={50}
-                                        placeholder="Medellín"
-                                        className={errors.ciudad ? 'border-red-400 focus-visible:ring-red-300' : ''}
-                                    />
-                                    <FieldError msg={errors.ciudad} />
-                                </div>
                                 <div>
                                     <label className="block text-sm text-gray-700 mb-2">Dirección <span className="text-red-500">*</span></label>
                                     <Input

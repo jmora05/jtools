@@ -96,7 +96,11 @@ class ProveedorDetallePage extends StatelessWidget {
               _fila('Email', proveedor.email, icon: Icons.email_outlined),
               _fila('Teléfono', proveedor.telefono, icon: Icons.phone_outlined),
               if (proveedor.ciudad?.isNotEmpty ?? false)
-                _fila('Ciudad', proveedor.ciudad!, icon: Icons.location_city_outlined),
+                _fila('Ciudad',
+                  (proveedor.departamento?.isNotEmpty ?? false)
+                    ? '${proveedor.ciudad!}, ${proveedor.departamento}'
+                    : proveedor.ciudad!,
+                  icon: Icons.location_city_outlined),
               if (proveedor.direccion?.isNotEmpty ?? false)
                 _fila('Dirección', proveedor.direccion!, icon: Icons.home_outlined),
             ]),

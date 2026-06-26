@@ -226,7 +226,7 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: kError.withOpacity(0.1),
+                  color: kError.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20)),
                 child: Text('${conDescuento.length}',
                   style: const TextStyle(
@@ -356,15 +356,19 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
     try {
       await context.read<CompraProvider>().cambiarEstado(_compra!.id, 'completada');
       await _cargar();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Compra completada. Stock actualizado.'),
         backgroundColor: Color(0xFF0F766E),
         behavior: SnackBarBehavior.floating,
       ));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 
@@ -402,9 +406,11 @@ class _CompraDetallePageState extends State<CompraDetallePage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString()), backgroundColor: kError,
         behavior: SnackBarBehavior.floating));
+      }
     }
   }
 

@@ -92,7 +92,11 @@ class EmpleadoDetallePage extends StatelessWidget {
               _fila('Email', empleado.email, icon: Icons.email_outlined),
               _fila('Teléfono', empleado.telefono, icon: Icons.phone_outlined),
               if (empleado.ciudad?.isNotEmpty ?? false)
-                _fila('Ciudad', empleado.ciudad!, icon: Icons.location_city_outlined),
+                _fila('Ciudad',
+                  (empleado.departamento?.isNotEmpty ?? false)
+                    ? '${empleado.ciudad!}, ${empleado.departamento}'
+                    : empleado.ciudad!,
+                  icon: Icons.location_city_outlined),
               if (empleado.direccion?.isNotEmpty ?? false)
                 _fila('Dirección', empleado.direccion!, icon: Icons.home_outlined),
             ]),
@@ -133,8 +137,9 @@ class EmpleadoDetallePage extends StatelessWidget {
     );
     if (confirmar != true || !context.mounted) return;
     try {
-      if (accion == 'eliminar') await prov.eliminar(empleado.id);
-      else if (accion == 'desactivar') await prov.desactivar(empleado.id);
+      if (accion == 'eliminar') {
+        await prov.eliminar(empleado.id);
+      } else if (accion == 'desactivar') await prov.desactivar(empleado.id);
       else await prov.reactivar(empleado.id);
       if (context.mounted) Navigator.pop(context);
     } catch (e) {

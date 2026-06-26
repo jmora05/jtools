@@ -72,7 +72,7 @@ class ProductDetailScreen extends StatelessWidget {
                   ...product.compatibleVehicles.map((vehicle) => Padding(
                         padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
                         child: Text('- $vehicle', style: TextStyle(color: Colors.grey[600])),
-                      )).toList(),
+                      )),
                 ],
               ),
             ),

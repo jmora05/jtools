@@ -164,7 +164,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
     const SizedBox(height: 24),
     Container(
       width: 72, height: 72,
-      decoration: BoxDecoration(color: kPrimary.withOpacity(0.1), shape: BoxShape.circle),
+      decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.1), shape: BoxShape.circle),
       child: const Icon(Icons.mark_email_unread_outlined, color: kPrimary, size: 36),
     ),
     const SizedBox(height: 20),
@@ -180,7 +180,7 @@ class _RecuperarPageState extends State<RecuperarPage> {
     Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: _secondsLeft < 60 ? kError.withOpacity(0.08) : kChipBg,
+        color: _secondsLeft < 60 ? kError.withValues(alpha: 0.08) : kChipBg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -204,10 +204,10 @@ class _RecuperarPageState extends State<RecuperarPage> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: _remainingAttempts <= 1 ? kError.withOpacity(0.08) : kWarning.withOpacity(0.08),
+          color: _remainingAttempts <= 1 ? kError.withValues(alpha: 0.08) : kWarning.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: _remainingAttempts <= 1 ? kError.withOpacity(0.3) : kWarning.withOpacity(0.3)),
+            color: _remainingAttempts <= 1 ? kError.withValues(alpha: 0.3) : kWarning.withValues(alpha: 0.3)),
         ),
         child: Row(children: [
           Icon(Icons.warning_amber_outlined,
@@ -366,8 +366,8 @@ class _RecuperarPageState extends State<RecuperarPage> {
   Widget _errorBanner(String msg) => Container(
     width: double.infinity, padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: kError.withOpacity(0.08),
-      border: Border.all(color: kError.withOpacity(0.3)),
+      color: kError.withValues(alpha: 0.08),
+      border: Border.all(color: kError.withValues(alpha: 0.3)),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

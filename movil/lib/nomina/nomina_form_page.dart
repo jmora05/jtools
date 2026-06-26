@@ -45,7 +45,9 @@ class _NominaFormPageState extends State<NominaFormPage> {
 
   @override
   void dispose() {
-    for (final c in [_salario, _auxilio, _dias, _neto]) c.dispose();
+    for (final c in [_salario, _auxilio, _dias, _neto]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -77,7 +79,7 @@ class _NominaFormPageState extends State<NominaFormPage> {
           child: Column(children: [
             _seccion('Empleado', [
               DropdownButtonFormField<Empleado>(
-                value: _empleado,
+                initialValue: _empleado,
                 decoration: kInputDeco('Seleccionar empleado'),
                 items: empProv.empleados.where((e) => e.activo).map((e) =>
                   DropdownMenuItem(
@@ -245,8 +247,10 @@ class _NominaFormPageState extends State<NominaFormPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: kError));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

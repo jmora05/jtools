@@ -139,7 +139,7 @@ export function EmpleadoDetailModal({ open, onClose, empleado, onEdit }: Emplead
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                         <InfoItem icon={<Mail className="w-4 h-4" />} label="Correo electrónico" value={empleado.email} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
                                         <InfoItem icon={<Phone className="w-4 h-4" />} label="Teléfono" value={empleado.telefono} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />
-                                        {empleado.ciudad && <InfoItem icon={<MapPin className="w-4 h-4" />} label="Ciudad" value={empleado.ciudad} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
+                                        {empleado.ciudad && <InfoItem icon={<MapPin className="w-4 h-4" />} label="Ciudad" value={empleado.departamento ? `${empleado.ciudad}, ${empleado.departamento}` : empleado.ciudad} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                         {empleado.direccion && <InfoItem icon={<MapPin className="w-4 h-4" />} label="Dirección" value={empleado.direccion} iconBg={cfg.iconBg} iconColor={cfg.iconColor} />}
                                     </div>
                                 </div>
