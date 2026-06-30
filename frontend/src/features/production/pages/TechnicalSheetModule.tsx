@@ -16,7 +16,7 @@ import {
     ChevronLeft, ChevronRight, FileText,
     CheckCircle, XCircle, List,
     Calendar, Loader2, CheckCircle2,
-    Lock, X, User,
+    Lock, X, User, FileDown,
 } from 'lucide-react';
 import {
     getFichasTecnicas, createFichaTecnica, updateFichaTecnica, deleteFichaTecnica, puedeEliminarFichaTecnica,
@@ -30,6 +30,7 @@ import {
     filtrarNotas, filtrarCantidad, filtrarUnidad, contadorTexto,
     type ItemErrors,
 } from '../utils/fichaTecnicaValidations';
+import { generarPdfFichaTecnica } from '../utils/generarPdfFichaTecnica';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type Producto = {
@@ -714,6 +715,16 @@ export function TechnicalSheetModule() {
         }
     };
 
+    // ── Descargar PDF ───────────────────────────────────────────────────────
+    const handleDescargarPDF = (ficha: FichaTecnica) => {
+        try {
+            generarPdfFichaTecnica(ficha);
+            toast.success('PDF generado correctamente');
+        } catch (err: any) {
+            toast.error('Error al generar PDF: ' + (err?.message ?? 'Error desconocido'));
+        }
+    };
+
     // ── Helper: setter de maquina state ────────────────────────────────────
     const setC = (key: keyof MaquinaFormState, campo: string, val: string) =>
         setCMaquina(prev => ({ ...prev, [key]: { ...prev[key], [campo]: val } }));
@@ -1185,6 +1196,9 @@ export function TechnicalSheetModule() {
 
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+                                    <Button variant="outline" onClick={() => handleDescargarPDF(selectedFicha)} className="text-blue-700 border-blue-300 hover:bg-blue-50">
+                                        <FileDown className="w-4 h-4 mr-2" />Descargar PDF
+                                    </Button>
                                     {selectedFicha.estado === 'Activa' && (
                                         <Button onClick={() => { setShowDetailModal(false); openEdit(selectedFicha); }} className="bg-blue-600 hover:bg-blue-700 text-white">
                                             <Edit className="w-4 h-4 mr-2" />Editar Ficha
