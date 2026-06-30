@@ -225,8 +225,7 @@ export default function App() {
 
     if (u.userType === 'admin') {
       const adminModules = [
-        ...baseModules,
-        { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={18} /> },
+        ...baseModules.filter(m => m.id === 'dashboard'),
         {
           id: 'compras', label: 'Compras', icon: <Truck size={18} />, hasSubmenu: true as const,
           submenu: [
@@ -253,8 +252,10 @@ export default function App() {
         {
           id: 'ventas', label: 'Ventas', icon: <TrendingUp size={18} />, hasSubmenu: true as const,
           submenu: [
-            { id: 'clients', label: 'Clientes', icon: <Users size={16} /> },
-            { id: 'sales',   label: 'Ventas',    icon: <TrendingUp size={16} /> },
+            { id: 'catalog',            label: 'Productos',             icon: <Package size={16} /> },
+            { id: 'product-categories', label: 'Categorías de productos', icon: <Tag size={16} /> },
+            { id: 'clients',            label: 'Clientes',              icon: <Users size={16} /> },
+            { id: 'sales',              label: 'Ventas',                icon: <TrendingUp size={16} /> },
           ].filter(sub => isModuleAllowed(sub.id)),
         },
         {
