@@ -1349,20 +1349,12 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         </td>
                       </tr>
                     )}
-                    {/*
-                      Acordeón del pedido: el trigger es la fila padre completa (Cliente, Fecha,
-                      Total, Estado, Acciones), NO una franja separada. Al hacer click en esa fila
-                      (fuera de los controles interactivos, que detienen la propagación), se
-                      muestra/oculta este panel con los datos de la(s) orden(es) de producción
-                      asociadas. Render condicional real: si no está expandido, esta fila ni
-                      siquiera existe en el DOM.
-                    */}
                     {hasOrdenes && isExpanded && (
                       <tr>
                         <td colSpan={5} className="px-4 pb-3">
-                          <div className="space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                             {ordenes.map(op => (
-                              <div key={op.id} className="rounded-lg border border-amber-100 bg-amber-50/40 px-4 py-3 grid grid-cols-4 gap-4 text-sm">
+                              <div key={op.id} className="rounded-lg border border-amber-100 bg-amber-50/40 px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm content-start">
                                 <div>
                                   <div className="text-[11px] uppercase tracking-wider text-gray-500">Código de orden</div>
                                   <div className="font-semibold text-gray-900">{op.codigoOrden}</div>
@@ -1375,7 +1367,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                   <div className="text-[11px] uppercase tracking-wider text-gray-500">Estado</div>
                                   <div className="font-semibold text-gray-900">{getEstadoOrdenLabel(op.estado)}</div>
                                 </div>
-                                <div>
+                                <div className="col-span-2">
                                   <div className="text-[11px] uppercase tracking-wider text-gray-500">Producto a producir</div>
                                   <div className="font-semibold text-gray-900">{op.producto?.nombreProducto ?? '—'}</div>
                                   {op.producto?.referencia && (
