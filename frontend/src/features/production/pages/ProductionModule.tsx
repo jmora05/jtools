@@ -26,6 +26,13 @@ import {
   Info,
   AlertTriangle,
   RotateCcw,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  User,
+  Calendar,
+  Package,
+  FileText,
+  Hash,
 } from 'lucide-react';
 import {
   getOrdenesProduccion,
@@ -38,10 +45,26 @@ import {
 } from '@/features/orders/services/ordenesproduccionservice';
 import { getProductos } from '@/features/products/services/productosService';
 import { getEmpleados } from '@/features/employed/services/empleadosService';
-import { OrdenDetailModal } from '@/features/orders/components/OrdenDetailModal';
 
 // ========================
 // INTERFACES
+// ========================
+
+// Tarjeta de dato individual usada dentro del panel expandido (acordeón) de una orden.
+function OrderStatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-900">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase tracking-wider text-gray-500">{label}</div>
+        <div className="truncate text-sm font-semibold text-gray-900">{value}</div>
+      </div>
+    </div>
+  );
+}
+
 // ========================
 // MÓDULO PRINCIPAL
 // ========================
@@ -136,7 +159,7 @@ function ProductionOrdersSubmodule() {
   const itemsPerPage = 8;
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isAnulOpen, setIsAnulOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -290,6 +313,14 @@ function ProductionOrdersSubmodule() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const openEdit = (order: OrdenProduccion) => {
@@ -900,32 +931,38 @@ function ProductionOrdersSubmodule() {
                     </td>
                   </tr>
                 ) : paginated.map(order => (
-                  <tr key={order.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
+                  <React.Fragment key={order.id}>
+                  <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                     <td className="py-4 px-6 text-sm font-medium text-gray-900">{order.codigoOrden}</td>
                     <td className="py-4 px-6 text-sm text-gray-700">{order.producto?.nombreProducto ?? '—'}</td>
                     <td className="py-4 px-6 text-sm text-gray-700">{order.cantidad}</td>
                     <td className="py-4 px-6">
-                      {(TRANSICIONES[order.estado ?? ''] ?? []).length > 0 ? (
-                        <select
-                          value={order.estado ?? ''}
-                          onChange={e => handleInlineStatus(order, e.target.value)}
-                          className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value={order.estado ?? ''}>{order.estado}</option>
-                          {(TRANSICIONES[order.estado ?? ''] ?? []).map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-sm text-gray-500">{order.estado}</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {order.estado === 'En Proceso' && (
+                          <Badge className="bg-blue-50 text-blue-900 border-blue-200">En producción</Badge>
+                        )}
+                        {(TRANSICIONES[order.estado ?? ''] ?? []).length > 0 ? (
+                          <select
+                            value={order.estado ?? ''}
+                            onChange={e => handleInlineStatus(order, e.target.value)}
+                            className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value={order.estado ?? ''}>{order.estado}</option>
+                            {(TRANSICIONES[order.estado ?? ''] ?? []).map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-gray-500">{order.estado}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-1">
-                        <Button size="sm" title="Ver detalle"
-                          onClick={() => { setSelected(order); setIsViewOpen(true); }}
+                        <Button size="sm" title={expandedIds.has(order.id!) ? 'Ocultar detalle' : 'Ver detalle'}
+                          onClick={() => toggleExpand(order.id!)}
                           className="bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">
-                          <EyeIcon className="w-4 h-4" />
+                          {expandedIds.has(order.id!) ? <ChevronUpIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
                         </Button>
 
                         <Button size="sm" title="Editar"
@@ -943,6 +980,88 @@ function ProductionOrdersSubmodule() {
                       </div>
                     </td>
                   </tr>
+                  {expandedIds.has(order.id!) && (
+                    <tr className="border-b border-blue-100 bg-blue-50/30">
+                      <td colSpan={5} className="px-6 py-4">
+                        <div className="rounded-xl border border-blue-100 bg-white p-4 space-y-4">
+                          {/* Secciones de información */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <OrderStatCard
+                              icon={<Package className="w-4 h-4" />}
+                              label="Producto"
+                              value={order.producto?.nombreProducto ?? `ID #${order.productoId}`}
+                            />
+                            <OrderStatCard
+                              icon={<User className="w-4 h-4" />}
+                              label="Responsable"
+                              value={order.responsable ? `${order.responsable.nombres} ${order.responsable.apellidos}` : `ID #${order.responsableId}`}
+                            />
+                            <OrderStatCard
+                              icon={<Calendar className="w-4 h-4" />}
+                              label="Fecha de entrega"
+                              value={order.fechaEntrega ? new Date(order.fechaEntrega.split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO') : '—'}
+                            />
+                            <OrderStatCard
+                              icon={<Hash className="w-4 h-4" />}
+                              label="Cantidad"
+                              value={`${order.cantidad} unidades`}
+                            />
+                          </div>
+
+                          {order.estado === 'Anulada' && order.motivoAnulacion && (
+                            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                              <XCircleIcon className="w-4 h-4 shrink-0" />
+                              <span className="text-red-500">Motivo anulación:</span>
+                              <span className="font-medium">{order.motivoAnulacion}</span>
+                            </div>
+                          )}
+                          {order.nota && (
+                            <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                              <FileText className="w-4 h-4 shrink-0 text-blue-900 mt-0.5" />
+                              <span className="text-gray-500">Nota:</span>
+                              <span className="font-medium">{order.nota}</span>
+                            </div>
+                          )}
+
+                          {/* Insumos */}
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                              Insumos utilizados ({(order.insumosCalculados ?? []).length})
+                            </div>
+                            {(order.insumosCalculados ?? []).length > 0 ? (
+                              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                                {(order.insumosCalculados ?? []).map((ins, i) => (
+                                  <div key={i} className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+                                    <span className="text-gray-700">{ins.nombre}</span>
+                                    <span className="font-semibold text-blue-900">{ins.cantidadDescontada}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-gray-400 italic text-sm">Sin insumos registrados para esta orden.</div>
+                            )}
+                          </div>
+
+                          {/* Acciones */}
+                          <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                            {canEdit(order.estado) && (
+                              <Button size="sm" variant="outline" onClick={() => openEdit(order)}
+                                className="text-blue-900 border-blue-900 hover:bg-blue-50">
+                                <EditIcon className="w-4 h-4 mr-1.5" />Editar
+                              </Button>
+                            )}
+                            {!['Finalizada', 'Anulada'].includes(order.estado ?? '') && (
+                              <Button size="sm" variant="outline" onClick={() => openAnulModal(order)}
+                                className="text-gray-600 border-gray-300 hover:bg-gray-50">
+                                <XCircleIcon className="w-4 h-4 mr-1.5" />Anular
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -956,13 +1075,6 @@ function ProductionOrdersSubmodule() {
         totalItems={filtered.length}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
-      />
-
-      {/* Modal Ver Detalle */}
-      <OrdenDetailModal
-        open={isViewOpen}
-        onClose={() => setIsViewOpen(false)}
-        orden={selected}
       />
 
       {/* Modal Editar */}

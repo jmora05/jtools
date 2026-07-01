@@ -42,6 +42,10 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
   // Validación de unicidad en tiempo real
   final _debouncer = Debouncer();
   String? _errorNumDoc, _errorEmail, _errorTelefono;
+  // Aviso transitorio de "límite de dígitos excedido" para el salario; solo se
+  // muestra mientras el usuario intenta escribir de más y se limpia en cualquier
+  // otra edición válida.
+  String? _salarioLimiteError;
   bool get _hayErroresUnicidad =>
       _errorNumDoc != null || _errorEmail != null || _errorTelefono != null;
 
@@ -206,13 +210,20 @@ class _EmpleadoFormPageState extends State<EmpleadoFormPage> {
               _datePicker(),
               _textField(_salario, 'Salario base mensual',
                 keyboard: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(9, () => setState(() =>
+                      _salarioLimiteError = 'No se pueden ingresar más de 9 números.')),
+                ],
+                onChanged: (_) => setState(() => _salarioLimiteError = null),
+                errorUnicidad: _salarioLimiteError,
                 validator: (v) {
                   final s = (v ?? '').trim();
-                  if (s.isEmpty) return 'Requerido';
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  if (s.length > 9) return 'Máximo 9 dígitos.';
                   final n = double.tryParse(s);
-                  if (n == null) return 'Número inválido';
-                  if (n <= 0) return 'Debe ser mayor a 0';
+                  if (n == null || n <= 0) return 'El salario debe ser mayor a 0.';
                   return null;
                 }),
               if (_isEdit) _estadoField(),

@@ -155,6 +155,14 @@ export function PayrollModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  // ─── Búsqueda y filtros del listado (capa de filtrado sobre datos ya cargados) ───
+  const [searchNombre, setSearchNombre] = useState('');
+  const [filterFechaDesde, setFilterFechaDesde] = useState('');
+  const [filterFechaHasta, setFilterFechaHasta] = useState('');
+  const dateRangeError = filterFechaDesde && filterFechaHasta && filterFechaDesde > filterFechaHasta
+    ? 'La fecha "desde" no puede ser posterior a la fecha "hasta".'
+    : null;
+
   const [formData, setFormData] = useState({
     employeeId: '',
     employeeName: '',
@@ -582,9 +590,32 @@ export function PayrollModule() {
   // null cuando no hay salario base evita mostrar $0 en la previsualización.
   const previewCalculation = formData.baseSalary ? calculatePayroll() : null;
 
-  const totalPages    = Math.ceil(payrollRecords.length / itemsPerPage);
+  // Filtra por nombre de empleado (case-insensitive) y por rango de fecha de pago.
+  // No se aplica el filtro de fechas si el rango ingresado es inválido (desde > hasta).
+  const filteredRecords = payrollRecords.filter((record) => {
+    const matchesNombre = searchNombre.trim() === ''
+      || record.employeeName.toLowerCase().includes(searchNombre.trim().toLowerCase());
+    let matchesFecha = true;
+    if (!dateRangeError) {
+      const fechaPago = record.paymentDate.slice(0, 10);
+      if (filterFechaDesde) matchesFecha = matchesFecha && fechaPago >= filterFechaDesde;
+      if (filterFechaHasta) matchesFecha = matchesFecha && fechaPago <= filterFechaHasta;
+    }
+    return matchesNombre && matchesFecha;
+  });
+
+  const hasActiveFilters = searchNombre.trim() !== '' || filterFechaDesde !== '' || filterFechaHasta !== '';
+
+  const handleClearFiltros = () => {
+    setSearchNombre('');
+    setFilterFechaDesde('');
+    setFilterFechaHasta('');
+    setCurrentPage(1);
+  };
+
+  const totalPages    = Math.ceil(filteredRecords.length / itemsPerPage);
   const startIndex    = (currentPage - 1) * itemsPerPage;
-  const currentRecords = payrollRecords.slice(startIndex, startIndex + itemsPerPage);
+  const currentRecords = filteredRecords.slice(startIndex, startIndex + itemsPerPage);
 
   // Solo se ofrecen empleados activos para nuevos pagos; los inactivos pueden
   // tener pagos históricos pero no se les puede generar uno nuevo.
@@ -1080,6 +1111,49 @@ export function PayrollModule() {
             <CardDescription>Historial completo de registros de control de pagos</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Búsqueda y filtros */}
+            <div className="flex flex-wrap items-end gap-3 mb-4">
+              <div className="flex-1 min-w-[220px]">
+                <Label htmlFor="search-nombre" className="text-xs text-gray-500 mb-1 block">Buscar por nombre</Label>
+                <Input
+                  id="search-nombre"
+                  placeholder="Nombre del empleado..."
+                  value={searchNombre}
+                  onChange={(e) => { setSearchNombre(e.target.value); setCurrentPage(1); }}
+                />
+              </div>
+              <div>
+                <Label htmlFor="filter-fecha-desde" className="text-xs text-gray-500 mb-1 block">Fecha de pago desde</Label>
+                <Input
+                  id="filter-fecha-desde"
+                  type="date"
+                  value={filterFechaDesde}
+                  onChange={(e) => { setFilterFechaDesde(e.target.value); setCurrentPage(1); }}
+                  className={dateRangeError ? 'border-red-400 focus-visible:ring-red-400' : ''}
+                />
+              </div>
+              <div>
+                <Label htmlFor="filter-fecha-hasta" className="text-xs text-gray-500 mb-1 block">Fecha de pago hasta</Label>
+                <Input
+                  id="filter-fecha-hasta"
+                  type="date"
+                  value={filterFechaHasta}
+                  onChange={(e) => { setFilterFechaHasta(e.target.value); setCurrentPage(1); }}
+                  className={dateRangeError ? 'border-red-400 focus-visible:ring-red-400' : ''}
+                />
+              </div>
+              {hasActiveFilters && (
+                <Button type="button" variant="outline" onClick={handleClearFiltros} className="h-9">
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+            {dateRangeError && (
+              <p className="text-sm text-red-600 flex items-center gap-1 mb-4">
+                <AlertCircleIcon className="w-4 h-4 shrink-0" />{dateRangeError}
+              </p>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -1098,7 +1172,9 @@ export function PayrollModule() {
                   {currentRecords.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                        No hay registros. Usa "Calcular Pago" para registrar el pago semanal.
+                        {payrollRecords.length === 0
+                          ? 'No hay registros. Usa "Calcular Pago" para registrar el pago semanal.'
+                          : 'No se encontraron resultados.'}
                       </td>
                     </tr>
                   ) : (
@@ -1205,7 +1281,7 @@ export function PayrollModule() {
             <SmartPagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalItems={payrollRecords.length}
+              totalItems={filteredRecords.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
             />

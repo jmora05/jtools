@@ -22,6 +22,12 @@ class _NominaFormPageState extends State<NominaFormPage> {
   String _fechaFin = '';
   String _fechaPago = DateTime.now().toIso8601String().split('T')[0];
 
+  // Avisos transitorios de "límite de dígitos excedido"; solo se muestran mientras
+  // el usuario intenta escribir de más y se limpian en cualquier otra edición válida.
+  String? _diasLimiteError;
+  String? _salarioLimiteError;
+  String? _auxilioLimiteError;
+
   static const double kSalarioMin = 1423500;
   static const double kAuxilioTransporte = 200000;
 
@@ -116,37 +122,75 @@ class _NominaFormPageState extends State<NominaFormPage> {
               TextFormField(
                 controller: _dias,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(2, () => setState(() =>
+                      _diasLimiteError = 'No se pueden ingresar más de 2 números.')),
+                ],
                 decoration: kInputDeco('Días trabajados'),
-                onChanged: (_) => setState(_calcularNeto),
+                onChanged: (_) => setState(() {
+                  _diasLimiteError = null;
+                  _calcularNeto();
+                }),
                 validator: (v) {
-                  final n = int.tryParse(v ?? '');
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  final n = int.tryParse(s);
                   if (n == null || n < 1 || n > 30) return 'Entre 1 y 30';
                   return null;
                 },
               ),
+              fieldError(_diasLimiteError),
             ]),
             _seccion('Valores', [
               TextFormField(
                 controller: _salario,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(9, () => setState(() =>
+                      _salarioLimiteError = 'No se pueden ingresar más de 9 números.')),
+                ],
                 decoration: kInputDeco('Salario base mensual'),
-                onChanged: (_) => setState(_calcularNeto),
+                onChanged: (_) => setState(() {
+                  _salarioLimiteError = null;
+                  _calcularNeto();
+                }),
                 validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Inválido';
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  if (s.length > 9) return 'Máximo 9 dígitos.';
+                  final n = double.tryParse(s);
+                  if (n == null || n <= 0) return 'El salario debe ser mayor a 0.';
                   return null;
                 },
               ),
+              fieldError(_salarioLimiteError),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _auxilio,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(7, () => setState(() =>
+                      _auxilioLimiteError = 'No se pueden ingresar más de 7 números.')),
+                ],
                 decoration: kInputDeco('Auxilio de transporte'),
-                onChanged: (_) => setState(_calcularNeto),
+                onChanged: (_) => setState(() {
+                  _auxilioLimiteError = null;
+                  _calcularNeto();
+                }),
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  if (s.length > 7) return 'Máximo 7 dígitos.';
+                  return null;
+                },
               ),
+              fieldError(_auxilioLimiteError),
             ]),
             if (_neto.text.isNotEmpty) ...[
               Container(

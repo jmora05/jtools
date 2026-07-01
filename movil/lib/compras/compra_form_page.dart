@@ -15,6 +15,10 @@ class _ItemCarrito {
   double precio;
   final TextEditingController cantidadCtrl;
   final TextEditingController precioCtrl;
+  // Avisos transitorios de "límite de dígitos excedido"; solo se muestran mientras
+  // el usuario intenta escribir de más y se limpian en cualquier otra edición válida.
+  String? cantidadLimiteError;
+  String? precioLimiteError;
 
   _ItemCarrito({required this.insumo, required this.precio})
       : cantidadCtrl = TextEditingController(text: '1'),
@@ -323,35 +327,66 @@ class _CompraFormPageState extends State<CompraFormPage> {
             ),
           ]),
           const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextFormField(
-              controller: item.cantidadCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: kInputDeco('Cantidad'),
-              onChanged: (v) => setState(() => item.cantidad = int.tryParse(v) ?? 1),
-              validator: (v) {
-                final n = int.tryParse(v ?? '');
-                if (n == null || n <= 0) return 'Mín. 1';
-                return null;
-              },
-            )),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: item.cantidadCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(7, () => setState(() =>
+                      item.cantidadLimiteError = 'No se pueden ingresar más de 7 números.')),
+                ],
+                decoration: kInputDeco('Cantidad'),
+                onChanged: (v) => setState(() {
+                  item.cantidad = int.tryParse(v) ?? 1;
+                  item.cantidadLimiteError = null;
+                }),
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  if (s.length > 7) return 'Máximo 7 dígitos.';
+                  final n = int.tryParse(s);
+                  if (n == null || n <= 0) return 'La cantidad debe ser mayor a 0.';
+                  return null;
+                },
+              ),
+              fieldError(item.cantidadLimiteError),
+            ])),
             const SizedBox(width: 8),
-            Expanded(child: TextFormField(
-              controller: item.precioCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              decoration: kInputDeco('Precio unit.'),
-              onChanged: (v) => setState(() => item.precio = double.tryParse(v) ?? 0),
-              validator: (v) {
-                final n = double.tryParse(v ?? '');
-                if (n == null || n <= 0) return 'Inválido';
-                return null;
-              },
-            )),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextFormField(
+                controller: item.precioCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  MaxDigitsFormatter(7, () => setState(() =>
+                      item.precioLimiteError = 'No se pueden ingresar más de 7 números.')),
+                ],
+                decoration: kInputDeco('Precio unit.'),
+                onChanged: (v) => setState(() {
+                  item.precio = double.tryParse(v) ?? 0;
+                  item.precioLimiteError = null;
+                }),
+                validator: (v) {
+                  final s = (v ?? '').trim();
+                  if (s.isEmpty) return 'Este campo es obligatorio.';
+                  if (!RegExp(r'^[0-9]+$').hasMatch(s)) return 'Solo se permiten números enteros.';
+                  if (s.length > 7) return 'Máximo 7 dígitos.';
+                  final n = int.tryParse(s);
+                  if (n == null || n <= 0) return 'El precio debe ser mayor a 0.';
+                  return null;
+                },
+              ),
+              fieldError(item.precioLimiteError),
+            ])),
             const SizedBox(width: 8),
-            Text(fmt.format(item.cantidad * item.precio),
-              style: const TextStyle(fontWeight: FontWeight.w700, color: kPrimary, fontSize: 13)),
+            Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: Text(fmt.format(item.cantidad * item.precio),
+                style: const TextStyle(fontWeight: FontWeight.w700, color: kPrimary, fontSize: 13)),
+            ),
           ]),
         ]),
       ),

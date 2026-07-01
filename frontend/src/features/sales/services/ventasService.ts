@@ -38,6 +38,7 @@ export interface VentaBackend {
     codigoOrden: string;
     estado: string;
     cantidad: number;
+    producto?: { id: number; nombreProducto: string; referencia: string };
   }[];
 }
 

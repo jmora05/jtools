@@ -26,7 +26,10 @@ const getVentas = async (req, res) => {
                     model: DetalleVentas, as: 'detalles',
                     include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombreProducto', 'referencia', 'precio'] }]
                 },
-                { model: OrdenesProduccion, as: 'ordenesProduccion', attributes: ['id', 'codigoOrden', 'estado', 'cantidad'] }
+                {
+                    model: OrdenesProduccion, as: 'ordenesProduccion', attributes: ['id', 'codigoOrden', 'estado', 'cantidad'],
+                    include: [{ model: Productos, as: 'producto', attributes: ['id', 'nombreProducto', 'referencia'] }]
+                }
             ],
             order: [['id', 'DESC']],
         });

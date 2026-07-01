@@ -83,17 +83,25 @@ const formatFecha = (fecha?: string) =>
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
-/**
- * Devuelve la fecha del lunes de la semana actual (ISO string).
- * La política de negocio exige que solo se puedan registrar novedades desde el lunes
- * en curso para evitar retroactividad que falsifique el historial de asistencia.
- */
-const getWeekStartString = () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay(); // 0=Dom, 1=Lun … 6=Sáb
-  today.setDate(today.getDate() + (day === 0 ? -6 : 1 - day)); // retroceder al lunes
-  return today.toISOString().split('T')[0];
+// Rango permitido para "Fecha de inicio" al registrar una novedad: hasta 1 semana atrás
+// y hasta 2 meses adelante desde hoy, para acotar tanto retroactividad como registros muy futuros.
+const getMinFechaInicioStr = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().split('T')[0];
+};
+
+const getMaxFechaInicioStr = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() + 2);
+  return d.toISOString().split('T')[0];
+};
+
+const formatFechaEs = (fecha: string) => {
+  const d = new Date(fecha + 'T00:00:00');
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 // La fecha de fin no puede ser anterior a la de inicio; como mínimo se acepta la misma fecha
@@ -177,17 +185,13 @@ function validateForm(values: FormValues, isEdit = false): FormErrors {
     errors.descripcion_detallada = 'La descripción debe tener al menos 10 caracteres';
   }
 
-  // Solo al crear: la fecha de inicio no puede ser anterior al lunes de la semana actual
-  // para evitar registrar ausencias retroactivas que ya debieron haberse reportado antes
+  // Solo al crear: la fecha de inicio debe estar dentro del rango permitido
+  // (hasta 1 semana atrás y hasta 2 meses adelante desde hoy).
   if (!isEdit && values.fecha_inicio) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const day = today.getDay();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
-    const inicio = new Date(values.fecha_inicio + 'T00:00:00');
-    if (inicio < weekStart) {
-      errors.fecha_inicio = 'La fecha de inicio no puede ser anterior al lunes de la semana actual';
+    const minFecha = getMinFechaInicioStr();
+    const maxFecha = getMaxFechaInicioStr();
+    if (values.fecha_inicio < minFecha || values.fecha_inicio > maxFecha) {
+      errors.fecha_inicio = `La fecha debe estar entre ${formatFechaEs(minFecha)} y ${formatFechaEs(maxFecha)}`;
     }
   }
 
@@ -895,7 +899,8 @@ export function NewsModule() {
             <Input
               type="date"
               value={form.fecha_inicio}
-              min={isEdit ? undefined : getWeekStartString()}
+              min={isEdit ? undefined : getMinFechaInicioStr()}
+              max={isEdit ? undefined : getMaxFechaInicioStr()}
               onChange={handleChange('fecha_inicio')}
               onBlur={handleBlur('fecha_inicio')}
               disabled={bloqueado}

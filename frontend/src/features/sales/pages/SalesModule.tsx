@@ -79,7 +79,7 @@ interface Sale {
   status: string;
   type: string;
   items: SaleItem[];
-  ordenesProduccion?: { id: number; codigoOrden: string; estado: string; cantidad: number }[];
+  ordenesProduccion?: { id: number; codigoOrden: string; estado: string; cantidad: number; producto?: { id: number; nombreProducto: string; referencia: string } }[];
 }
 
 interface SalesModuleProps {
@@ -182,6 +182,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
   const [viewingSale, setViewingSale]           = useState<Sale | null>(null);
   const [pdfSale, setPdfSale]                   = useState<Sale | null>(null);
   const [pdfBannerId, setPdfBannerId]           = useState<number | null>(null);
+  const [expandedSaleIds, setExpandedSaleIds]   = useState<Set<number>>(new Set());
   const [searchTerm, setSearchTerm]             = useState('');
   const [currentPage, setCurrentPage]           = useState(1);
   const itemsPerPage = 5;
@@ -621,6 +622,25 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
       'Anulada':    'bg-white text-gray-400 border border-gray-300',
     };
     return <Badge className={colors[status] || 'bg-white text-gray-600 border border-gray-300'}>{status}</Badge>;
+  };
+
+  // Etiqueta amigable del estado de una orden de producción asociada a un pedido;
+  // no altera el valor real, solo normaliza el texto mostrado en la barra/panel.
+  const ESTADO_ORDEN_LABELS: Record<string, string> = {
+    'Pendiente':  'Pendiente',
+    'En Proceso': 'En proceso',
+    'Pausada':    'Pausada',
+    'Finalizada': 'Finalizada',
+    'Anulada':    'Anulada',
+  };
+  const getEstadoOrdenLabel = (estado: string) => ESTADO_ORDEN_LABELS[estado] ?? estado;
+
+  const toggleSaleExpand = (saleId: number) => {
+    setExpandedSaleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(saleId)) next.delete(saleId); else next.add(saleId);
+      return next;
+    });
   };
 
   const getTypeBadge = (type: string) =>
@@ -1204,9 +1224,17 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                 ) : currentSales.map((sale) => {
                   const isAnulada   = sale.status === 'Anulada';
                   const isCancelled = isAnulada || sale.status === 'Cancelado';
+                  const ordenes     = sale.ordenesProduccion ?? [];
+                  const hasOrdenes  = (activeView === 'pedidos' || clientMode) && ordenes.length > 0;
+                  const isExpanded  = expandedSaleIds.has(sale.id);
                   return (
                     <React.Fragment key={sale.id}>
-                    <tr className={`hover:bg-gray-50 transition-colors ${isCancelled ? 'opacity-60' : ''}`}>
+                    <tr
+                      className={`hover:bg-gray-50 transition-colors ${isCancelled ? 'opacity-60' : ''}`}
+                      style={{ cursor: hasOrdenes ? 'pointer' : 'default' }}
+                      onClick={() => hasOrdenes && toggleSaleExpand(sale.id)}
+                      aria-expanded={hasOrdenes ? isExpanded : undefined}
+                    >
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{sale.clientName}</div>
                         {sale.clientDocument && (
@@ -1228,6 +1256,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         ) : (
                           <select
                             value={sale.status}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleChangeStatus(sale, e.target.value)}
                             style={{
                               padding: '4px 28px 4px 8px',
@@ -1252,7 +1281,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="sm"
-                                onClick={() => handleViewDetail(sale)}
+                                onClick={(e) => { e.stopPropagation(); handleViewDetail(sale); }}
                                 className="text-blue-900 border-blue-900 hover:bg-blue-50">
                                 <EyeIcon className="w-4 h-4" />
                               </Button>
@@ -1263,7 +1292,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="sm"
-                                onClick={() => handleViewPDF(sale)}
+                                onClick={(e) => { e.stopPropagation(); handleViewPDF(sale); }}
                                 disabled={isCancelled}
                                 className={isCancelled ? "bg-gray-100 text-gray-300 border-gray-200 opacity-40 cursor-not-allowed" : "text-blue-900 border-blue-900 hover:bg-blue-50"}>
                                 <FileTextIcon className="w-4 h-4" />
@@ -1286,7 +1315,7 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => !anularDisabled && handleAnularVenta(sale)}
+                                    onClick={(e) => { e.stopPropagation(); if (!anularDisabled) handleAnularVenta(sale); }}
                                     disabled={anularDisabled}
                                     className={anularDisabled
                                       ? "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed opacity-50"
@@ -1320,18 +1349,39 @@ export function SalesModule({ clientFilter, onClearClientFilter, clientMode = fa
                         </td>
                       </tr>
                     )}
-                    {(activeView === 'pedidos' || clientMode) && (sale.ordenesProduccion ?? []).length > 0 && (
+                    {/*
+                      Acordeón del pedido: el trigger es la fila padre completa (Cliente, Fecha,
+                      Total, Estado, Acciones), NO una franja separada. Al hacer click en esa fila
+                      (fuera de los controles interactivos, que detienen la propagación), se
+                      muestra/oculta este panel con los datos de la(s) orden(es) de producción
+                      asociadas. Render condicional real: si no está expandido, esta fila ni
+                      siquiera existe en el DOM.
+                    */}
+                    {hasOrdenes && isExpanded && (
                       <tr>
-                        <td colSpan={5} className="px-4 pb-2">
-                          <div className="flex flex-wrap gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-                            {(sale.ordenesProduccion ?? []).map(op => (
-                              <div key={op.id} className="flex items-center gap-2 text-xs text-amber-800">
-                                <TruckIcon className="w-3 h-3 shrink-0" />
-                                <span className="font-semibold">{op.codigoOrden}</span>
-                                <span>·</span>
-                                <span>{op.cantidad} uds.</span>
-                                <span>·</span>
-                                <span className="font-medium">{op.estado}</span>
+                        <td colSpan={5} className="px-4 pb-3">
+                          <div className="space-y-2">
+                            {ordenes.map(op => (
+                              <div key={op.id} className="rounded-lg border border-amber-100 bg-amber-50/40 px-4 py-3 grid grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-wider text-gray-500">Código de orden</div>
+                                  <div className="font-semibold text-gray-900">{op.codigoOrden}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-wider text-gray-500">Cantidad</div>
+                                  <div className="font-semibold text-gray-900">{op.cantidad} unidades</div>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-wider text-gray-500">Estado</div>
+                                  <div className="font-semibold text-gray-900">{getEstadoOrdenLabel(op.estado)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-wider text-gray-500">Producto a producir</div>
+                                  <div className="font-semibold text-gray-900">{op.producto?.nombreProducto ?? '—'}</div>
+                                  {op.producto?.referencia && (
+                                    <div className="text-xs text-gray-500">Ref. {op.producto.referencia}</div>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>

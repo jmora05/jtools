@@ -242,7 +242,7 @@ export default function App() {
           ].filter(sub => isModuleAllowed(sub.id)),
         },
         {
-          id: 'rrhh', label: 'RRHH / Nómina', icon: <HardHat size={18} />, hasSubmenu: true as const,
+          id: 'rrhh', label: 'RRHH / Pagos', icon: <HardHat size={18} />, hasSubmenu: true as const,
           submenu: [
             { id: 'production-employees', label: 'Empleados',        icon: <HardHat size={16} /> },
             { id: 'news',                  label: 'Novedades',        icon: <Newspaper size={16} /> },

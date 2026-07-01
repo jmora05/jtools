@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const String kBaseUrl = 'https://jtools-backend.onrender.com/api';
@@ -142,6 +143,24 @@ Widget fieldError(String? msg) {
     padding: const EdgeInsets.only(left: 4, top: 4),
     child: Text(msg, style: const TextStyle(color: kError, fontSize: 12)),
   );
+}
+
+// ─── Formatter de límite de dígitos con aviso ────────────────────────────────
+/// Bloquea la escritura más allá de [maxLength] dígitos y notifica el intento
+/// mediante [onExceed], en vez de simplemente descartar el carácter en silencio.
+class MaxDigitsFormatter extends TextInputFormatter {
+  final int maxLength;
+  final VoidCallback onExceed;
+  MaxDigitsFormatter(this.maxLength, this.onExceed);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.length > maxLength) {
+      onExceed();
+      return oldValue;
+    }
+    return newValue;
+  }
 }
 
 // ─── Decoración de inputs ─────────────────────────────────────────────────────
